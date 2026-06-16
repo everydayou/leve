@@ -1,0 +1,417 @@
+@import './fonts.css';
+@import 'tailwindcss';
+
+/* ============================================================================
+   DESIGN TOKENS  (single source of truth)
+   ----------------------------------------------------------------------------
+   Two layers:
+     1. PRIMITIVES — the raw neutral scale + white (Tailwind defaults) and the
+        iOS-blue accent ramp. These are the only place a literal hex lives.
+     2. SEMANTIC (role-based) tokens — what components actually consume:
+        surface / content / border / accent / status. Semantics REFERENCE
+        primitives via var(), so the existing `.dark` remap (which only rewrites
+        the neutral primitives) flips the whole semantic layer for free.
+
+   Change a token here once and every atom + screen wired to it updates. Atoms
+   must consume SEMANTIC tokens (bg-surface, text-content, …), never raw
+   neutrals, so a single edit cascades everywhere with no orphan instances.
+   ============================================================================ */
+@theme {
+  /* ── Accent primitives (brand mint) ──────────────────────────────────── */
+  --color-accent:        #00e0aa;
+  --color-accent-hover:  #00c795; /* pressed/active */
+  --color-accent-soft:   #d9f9f0; /* tinted fill behind accent text/icons */
+  --color-on-accent:     #00352a; /* dark teal text reads on the bright mint */
+
+  /* ── Status primitives (pastel) — drive the on-track / behind verdict ─── */
+  --color-success:       #4fc98a;
+  --color-success-soft:  #e7f7ee;
+  --color-on-success:    #06371f;
+  --color-success-fg:    #00B282;
+  --color-warn:          #ffb454;
+  --color-warn-soft:     #fff3e2;
+  --color-on-warn:       #4a2e05;
+  --color-danger:        #ff7a72;
+  --color-danger-soft:   #ffe9e7;
+  --color-on-danger:     #4d100c;
+
+  /* ── Semantic SURFACES (backgrounds) ──────────────────────────────────
+     Derived from neutrals so the .dark remap flips them automatically. */
+  --color-surface:          var(--color-white);       /* cards, sheets, bars */
+  --color-surface-elevated: var(--color-white);        /* floats above page */
+  --color-surface-sunken:   #F3F3F3;                     /* insets inside a card */
+  --color-surface-muted:    #fafafa;                    /* the page backdrop (light) */
+
+  /* ── Semantic CONTENT (foreground on surfaces) ───────────────────────── */
+  --color-content:           var(--color-neutral-900);  /* primary text */
+  --color-content-secondary: #767676;                   /* secondary text */
+  --color-content-muted:     var(--color-neutral-400);  /* placeholders/icons */
+  --color-content-inverse:   var(--color-white);        /* text on dark fills */
+
+  /* ── Semantic BORDERS / separators ─────────────────────────────────────
+     THREE outline weights, by elevation:
+       subtle — hairline for SHADOWED cards (they lean on --shadow-card)
+       field  — darker, visible outline for FLAT items with NO shadow
+                (text fields, the search box, filter pills, sunken previews)
+       strong — selected / active state */
+  --color-border-subtle: #f8f8f8;                       /* hairlines (light) — cards lean on shadow */
+  --color-border-field:  #e4e4e7;                       /* flat, shadowless items — darker so they read */
+  --color-border-strong: var(--color-neutral-300);      /* selected/active */
+  --color-scrim:         rgba(0, 0, 0, 0.4);            /* modal/sheet backdrop */
+
+  /* ── Radius scale ─────────────────────────────────────────────────────
+     Generates rounded-field / rounded-control / rounded-card / etc. */
+  --radius-field:   0.75rem;  /* inputs */
+  --radius-control: 0.875rem; /* buttons, chips */
+  --radius-card:    1rem;     /* cards, list groups */
+  --radius-main:    2rem;     /* main hero cards */
+  --radius-sheet:   1.5rem;   /* bottom sheets, big surfaces */
+  --radius-pill:    9999px;   /* segmented control, badges, tab bar */
+
+  /* ── Elevation ────────────────────────────────────────────────────────
+     Soft card shadow. Generates the `shadow-card` utility.
+     shadow-card-lg = larger spread for hero cards (gauge, goal chart). */
+  --shadow-card:    0 1px 2px rgba(17, 24, 28, 0.04), 0 6px 16px -4px rgba(17, 24, 28, 0.08);
+  --shadow-card-lg: 0 2px 8px rgba(17, 24, 28, 0.07), 0 16px 40px -8px rgba(17, 24, 28, 0.16);
+
+  /* ── Progress bar track (visible against any surface) ──────────────────── */
+  --color-progress-track: #D9D9D9;
+
+  /* ── Type scale (iOS-flavoured) — generates text-display / text-body … ──
+     Each token multiplies its base rem value by --dt-scale (set by
+     src/lib/dynamicType.ts from the iOS Dynamic Type probe). This means
+     ONLY text sizes respond to the user's text-size preference; layout
+     geometry (spacing, widths, radii) uses plain rem and stays fixed. */
+  --text-hero:     calc(3rem      * var(--dt-scale, 1)); /* 48 at default */
+  --text-display:  calc(1.875rem  * var(--dt-scale, 1)); /* 30 */
+  --text-title:    calc(1.375rem  * var(--dt-scale, 1)); /* 22 */
+  --text-headline: calc(1.125rem  * var(--dt-scale, 1)); /* 18 */
+  --text-body:     calc(1.0625rem * var(--dt-scale, 1)); /* 17 */
+  --text-callout:  calc(1rem      * var(--dt-scale, 1)); /* 16 */
+  --text-subhead:  calc(0.9375rem * var(--dt-scale, 1)); /* 15 */
+  --text-footnote: calc(0.8125rem * var(--dt-scale, 1)); /* 13 */
+  --text-caption:  calc(0.75rem   * var(--dt-scale, 1)); /* 12 */
+  --text-label:    calc(0.6875rem * var(--dt-scale, 1)); /* 11 */
+  --text-micro:    calc(0.625rem  * var(--dt-scale, 1)); /* 10 */
+}
+
+/* ── Glass tokens (iOS glassmorphism) ──────────────────────────────────────
+   Not Tailwind colours (they need rgba + blur), so they live as plain vars
+   consumed by the .glass utilities below. Tune blur/opacity in one place. */
+:root {
+  /* Dynamic Type scale — overridden at runtime by src/lib/dynamicType.ts.
+     Default 1 = no scaling (matches the iOS "Large" / browser default). */
+  --dt-scale: 1;
+
+  --glass-bg:        rgba(255, 255, 255, 0.72);
+  --glass-bg-strong: rgba(255, 255, 255, 0.85);
+  --glass-border:    rgba(255, 255, 255, 0.55);
+  --glass-shadow:    0 8px 30px rgba(0, 0, 0, 0.12);
+  --glass-blur:      20px;
+  --glass-saturate:  180%;
+  color-scheme: light;
+}
+
+html, body, #root { height: 100%; }
+/* Pin rem baseline to 16 px so iOS Dynamic Type (Settings → Text Size) cannot
+   shrink or grow the layout. Without this, every rem-based value — the phone
+   frame width (max-w-[26.25rem]), card sizes, spacing, and the type scale —
+   all scale proportionally with the user's text-size preference, squeezing
+   or blowing up the entire screen. Text itself will still respect the device
+   font but layout geometry stays stable. */
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+  background: var(--color-surface-muted); /* page backdrop, flips with theme */
+  color: var(--color-content);
+  font-family: 'Outfit', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Remove iOS blue tap-flash from every element (including divs inside CSS
+   transforms which can bypass the more targeted rule below). */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Remove iOS blue tap-flash and native WKWebView button appearance from all
+   interactive elements. appearance:none strips -webkit-appearance:button which
+   can render a dark tap-ring on top of the custom active state.
+   NOTE: outline is NOT suppressed here — :focus-visible below re-adds a ring
+   for keyboard / Switch Control users while keeping the screen tap-clean. */
+button, a, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Focus ring — keyboard and Switch Control only (not on mouse/tap).
+   :focus-visible fires when the browser determines keyboard navigation is in
+   use; it does NOT fire on pointer press, so touch UX is unaffected. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Pill-shaped elements (tab bar buttons, badge buttons, segmented control)
+   inherit the pill radius so the ring hugs the shape. */
+.rounded-pill:focus-visible,
+[class*="rounded-pill"]:focus-visible {
+  border-radius: 9999px;
+}
+/* Cards and sheet-internal rounded elements */
+[class*="rounded-card"]:focus-visible,
+[class*="rounded-main"]:focus-visible,
+[class*="rounded-sheet"]:focus-visible {
+  border-radius: inherit;
+}
+
+/* Dialog / bottom-sheet PANELS carry tabIndex={-1} ONLY so they can be focused
+   programmatically on open — that announces the dialog to screen readers
+   (role="dialog" + aria-label) without moving focus onto the close button. The
+   panel is NOT in the keyboard tab order and is never an arrow-key target, so
+   it must NOT paint a focus ring on itself. Without this override the global
+   :focus-visible rule above matched the panel and drew a 2px accent outline
+   around the WHOLE sheet AND reset its corner radius to 4px (the "green line
+   around the container / broken radius" bug). Interactive CHILDREN of the sheet
+   are unaffected and keep their normal :focus-visible rings — accessibility is
+   preserved, we only stop ringing a non-tabbable container. */
+[role="dialog"][tabindex="-1"]:focus,
+[role="dialog"][tabindex="-1"]:focus-visible {
+  outline: none;
+  /* restore the panel's own top-only radius that the base rule clobbered */
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+}
+
+/* ── Dark theme ────────────────────────────────────────────────────────────
+   Tailwind v4 compiles every colour utility to var(--color-*), so remapping
+   the neutral scale + white under .dark flips the WHOLE app (incl. every
+   semantic token derived from them) with no per-component edits. Toggled on
+   <html> by src/lib/theme.ts. Tuned to feel like iOS dark mode. */
+.dark {
+  color-scheme: dark;
+  --color-white:       #1c1c1e; /* card/sheet surfaces */
+  --color-neutral-50:  #242426; /* subtle insets on a card */
+  --color-neutral-100: #0b0b0c; /* page backdrop (darkest) */
+  --color-neutral-200: #2e2e30; /* chips, tracks, hairlines */
+  --color-neutral-300: #48484a; /* selected outlines / stronger borders */
+  --color-neutral-400: #7c7c81; /* muted icons / placeholders */
+  --color-neutral-500: #9a9aa0; /* secondary text */
+  --color-neutral-600: #c2c2c7;
+  --color-neutral-700: #d4d4d8;
+  --color-neutral-800: #e6e6ea;
+  --color-neutral-900: #f4f4f6; /* primary text */
+  --color-neutral-950: #ffffff;
+
+  /* Surface overrides (user-tuned). */
+  --color-surface:          #1b1c1d;
+  --color-surface-elevated: #313131;
+  --color-surface-muted:    #18181b;
+  --color-surface-sunken:   #161618;
+  /* Progress track visible on dark surfaces. */
+  --color-progress-track: #3a3a3c;
+  /* Content overrides. */
+  --color-content:           #e3e3e3;
+  --color-content-secondary: #9c9c9c;
+  /* Border overrides. */
+  --color-border-subtle: #1a1a1a;
+  --color-border-field:  #212121;
+  --color-border-strong: #48484a;
+  /* Shadows (user-tuned). */
+  --shadow-card:    0px 1px 5px 5px rgba(0, 0, 0, 0.02), 0px 8px 8px -6px rgba(0, 0, 0, 0.02), 0px 4px 4px 0px rgba(0, 0, 0, 0.04);
+  --shadow-card-lg: 0px 2px 8px 4px rgba(15, 2, 0, 0.06), 0px 16px 40px 0px rgba(0, 0, 0, 0.08);
+
+  /* Accent + status for dark: brand mint pops on near-black; pastels deepened. */
+  --color-accent:       #00e0aa;
+  --color-accent-hover: #2eecbf;
+  --color-accent-soft:  #00352a;
+  --color-on-accent:    #00352a;
+  --color-success:      #5fd79b;
+  --color-success-soft: rgba(95, 215, 155, 0.05);
+  --color-success-fg:   #00c98f;
+  --color-warn:         #ffc06b;
+  --color-warn-soft:    #2e2410;
+  --color-danger:       #ff8a82;
+  --color-danger-soft:  #2e1513;
+
+  /* Glass over a dark backdrop. */
+  --glass-bg:        rgba(30, 30, 33, 0.62);
+  --glass-bg-strong: rgba(30, 30, 33, 0.8);
+  --glass-border:    #262626;
+  --glass-shadow:    0px 8px 30px 0px rgba(77, 77, 77, 0.00);
+}
+
+/* ── Shadow dynamic binding ────────────────────────────────────────────────
+   Tailwind v4 compiles shadow-card / shadow-card-lg utilities by baking the
+   @theme values directly into --tw-shadow at build time, so neither the
+   .dark { --shadow-card } overrides nor runtime JS writes to --shadow-card
+   have any effect on rendered shadows.
+   These overrides live OUTSIDE any @layer, so they win over the generated
+   utilities and make --tw-shadow resolve dynamically from the CSS variable.
+   This lets the .dark theme and the DevMenu shadow sliders both work. */
+.shadow-card    { --tw-shadow: var(--shadow-card); }
+.shadow-card-lg { --tw-shadow: var(--shadow-card-lg); }
+
+/* ── Glass utilities ───────────────────────────────────────────────────────
+   .glass        — standard frosted surface (tab bar, top bar, sheet header)
+   .glass-strong — more opaque (use when text legibility matters most)
+   Both fall back gracefully where backdrop-filter is unsupported. */
+.glass, .glass-strong {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+.glass-strong { background: var(--glass-bg-strong); }
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass        { background: var(--color-surface); }
+  .glass-strong { background: var(--color-surface); }
+}
+
+/* ── Range input — pill thumb, 44px touch area ──────────────────────────────
+   The element height (h-11 = 44px) provides the tap target.
+   Only the thumb is overridden; track renders at browser default.
+   No margin-top: WebKit already centers the thumb on the track when
+   -webkit-appearance is none. The scale(2) on :active gives a satisfying
+   "hold" feel; transition keeps it smooth. */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 12px;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  /* eslint-disable-next-line no-restricted-syntax -- slider thumb needs an explicit shadow against its surface */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10);
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+}
+input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(2);
+}
+
+/* ── iOS interactive touch effect ──────────────────────────────────────────────
+   .ios-interactive applies a subtle 3D perspective tilt on active state,
+   mimicking the haptic feedback feel of native iOS components. */
+.ios-interactive {
+  transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-style: preserve-3d;
+}
+.ios-interactive:active {
+  transform: perspective(1000px) rotateX(8deg) rotateY(-8deg) scale(0.98);
+}
+
+/* Segmented control active state — in dark mode, use a lighter shade so the
+   active button appears elevated above the sunken track. */
+.segmented-active {
+  @apply bg-surface;
+}
+.dark .segmented-active {
+  @apply bg-surface;
+}
+
+/* Device safe areas (status bar / notch, iOS home indicator). */
+.safe-top    { padding-top: env(safe-area-inset-top, 0px); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-pb     { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.75rem); }
+
+/* Visually hidden but readable by screen readers (WCAG technique). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Bottom sheet open/close animation is handled entirely in JS (Sheet.tsx) via a
+   requestAnimationFrame-triggered CSS transition. No CSS animation classes are
+   used for the sheet — this avoids any CSS-animation / inline-style conflict
+   that could cause a one-frame flash or an unwanted background animation. */
+@media (prefers-reduced-motion: reduce) {
+  /* Disable all CSS transitions and animations app-wide. */
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+  /* Disable the iOS tilt effect on interactive cards. */
+  .ios-interactive:active {
+    transform: none;
+  }
+}
+
+/* ── Dynamic Type minimum-size guardrails ─────────────────────────────────────
+   Use these classes INSTEAD of (or alongside) a text-* token class to prevent
+   a specific element from shrinking below the named floor even at the smallest
+   Dynamic Type setting. The text can still scale UP at larger settings.
+   html font-size is pinned to 16 px, so the rem floor values are always stable.
+
+   Example: replace `text-subhead` with `text-min-subhead` on any span you want
+   to floor at 15 px. Add font-weight, color etc. via separate classes as usual.
+
+   Add more floors here as needed (e.g. text-min-footnote for 13 px). */
+@utility text-min-subhead {
+  font-size: max(0.9375rem, var(--text-subhead)); /* floor: 15 px */
+}
+@utility text-min-footnote {
+  font-size: max(0.8125rem, var(--text-footnote)); /* floor: 13 px */
+}
+@utility text-min-callout {
+  font-size: max(1rem, var(--text-callout)); /* floor: 16 px */
+}
+@utility text-min-body {
+  font-size: max(1.0625rem, var(--text-body)); /* floor: 17 px */
+}
+
+/* ── Route transition ─────────────────────────────────────────────────────── */
+@keyframes routeFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.route-fade-in {
+  animation: routeFadeIn 160ms ease-out both;
+}
+
+/* ── Sheet slide-up / slide-down (GoalSetupScreen modal mode) ─────────────── */
+@keyframes slideUpIn {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes slideDownOut {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+.slide-up-in  { animation: slideUpIn  0.38s cubic-bezier(0.32, 0.72, 0, 1) both; }
+.slide-down-out { animation: slideDownOut 0.3s  cubic-bezier(0.32, 0.72, 0, 1) both; }
+
+/* ── Log item entrance ────────────────────────────────────────────────────── */
+@keyframes logItemIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.log-item-in {
+  animation: logItemIn 350ms ease both;
+}
+
+/* ── Disable text selection on UI elements ───────────────────────────────── */
+/* Prevents accidental text highlights on labels, headings, and interactive
+   elements throughout the app. Inputs and textareas are explicitly re-enabled. */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}

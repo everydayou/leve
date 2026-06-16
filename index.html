@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)" />
+    <title>leve</title>
+    <!-- Brand typeface: Outfit (self-hosted) -->
+    <!-- Apply the saved/system theme before first paint to avoid a flash. -->
+    <script>
+      (function () {
+        try {
+          var p = localStorage.getItem('nutri.theme') || 'system';
+          var dark = p === 'dark' || (p === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <!-- Dark background on body before any stylesheet loads — prevents the WKWebView
+       white flash on iOS while the JS bundle is being parsed and executed. -->
+  <style>body { background: #161618; }</style>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

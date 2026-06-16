@@ -226,8 +226,6 @@ on the Mac: `rm -rf node_modules package-lock.json && npm install`
 KNOWN GAPS (current as of round 68)
 ----------------------------------------------------------------
 MED:
-- BUILD: vite-plugin-pwa@0.21.2 incompatible with vite@6.4.3. On Mac run
-  `npm install vite-plugin-pwa@latest` before next `npm run ios:sync`.
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
   entries. (Goal actions DO confirm via Sheet; entry deletes are immediate.)
 - UNITS: kg/lbs toggle doesn't convert displayed values yet.

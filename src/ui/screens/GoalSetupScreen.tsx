@@ -5,9 +5,9 @@ import { repos } from '../../state/repos';
 import { newId, todayISO } from '../../data/ids';
 import { goalIntensity, currentWeightKg } from '../../domain/goal';
 import { onDecimalChange } from '../../lib/num';
-import { Button, LabeledInput, Icon, SegmentedControl } from '../kit';
+import { Button, LabeledInput, Icon } from '../kit';
 import { hapticLight } from '../../lib/haptics';
-import type { Goal, GoalType, TrackingMode, MacroStyle } from '../../domain/types';
+import type { Goal, GoalType, MacroStyle } from '../../domain/types';
 
 // ── Local types ───────────────────────────────────────────────────────────────
 type GoalTypeOpt = { id: GoalType | 'maintain'; title: string; desc: string; enabled: boolean };
@@ -120,7 +120,7 @@ function GoalSetupForm({
 }) {
   const nav = useNavigate();
   const editing = !!activeGoal;
-  const [step, setStep] = useState<Step>(skipType ? 'details' : 'choose');
+  const [step, setStep] = useState<Step>((skipType || editing) ? 'details' : 'choose');
   const [exiting, setExiting] = useState(false);
 
   // Move focus to the first interactive element each time the step changes.
@@ -147,6 +147,10 @@ function GoalSetupForm({
   const [deficitOverride, setDeficitOverride] = useState<number | null>(
     activeGoal?.dailyDeficitKcalOverride ?? null,
   );
+  // Field-level errors — set on attempted submit when fields are invalid
+  const [fieldErrors, setFieldErrors] = useState<{
+    start?: string; target?: string; date?: string; startDate?: string;
+  }>({});
 
   // ── Derived plan values ─────────────────────────────────────────────────────
   const sNum = +start || 0;
@@ -169,11 +173,9 @@ function GoalSetupForm({
   const totalCal = Math.max(500, safeBmr + (isGain ? effectiveMagnitude : -effectiveMagnitude));
 
   // ── Tracking step fields ────────────────────────────────────────────────────
-  const [trackingMode, setTrackingMode] = useState<TrackingMode>(
-    activeGoal?.trackingMode ?? 'simple',
-  );
-  const [macroStyle, setMacroStyle] = useState<MacroStyle>(
-    activeGoal?.macroStyle ?? 'balanced',
+
+  const [macroStyle, setMacroStyle] = useState<MacroStyle | null>(
+    activeGoal?.macroStyle ?? null,
   );
   const [editingRow, setEditingRow] = useState<EditTarget>(null);
   // Protein for gain goals
@@ -199,8 +201,7 @@ function GoalSetupForm({
       setDate(activeGoal.targetDate);
       setStartDate(activeGoal.startDate);
       setDeficitOverride(activeGoal.dailyDeficitKcalOverride ?? null);
-      if (activeGoal.trackingMode) setTrackingMode(activeGoal.trackingMode);
-      if (activeGoal.macroStyle)   setMacroStyle(activeGoal.macroStyle);
+      setMacroStyle(activeGoal.macroStyle ?? null);
       if (activeGoal.fatTargetG)   setFatG(activeGoal.fatTargetG);
       if (activeGoal.carbLimitG)   setCarbLimitG(activeGoal.carbLimitG);
       if (currentProteinGoal) {
@@ -217,7 +218,7 @@ function GoalSetupForm({
   const close = () => nav(-1);
 
   function goBackFromDetails() {
-    if (skipType) {
+    if (skipType || editing) {
       setExiting(true);
       setTimeout(() => nav(-1), 320);
     } else {
@@ -226,11 +227,10 @@ function GoalSetupForm({
   }
 
   // ── Save ────────────────────────────────────────────────────────────────────
-  async function create(overrideMode?: TrackingMode) {
+  async function create() {
     if (!valid) return;
     const startWeightKg = +start || 0;
     const goalType = (type === 'maintain' ? 'lose_by_date' : type) as GoalType;
-    const mode = overrideMode ?? trackingMode;
 
     await repos.goals.put({
       id: activeGoal?.id ?? newId(),
@@ -242,11 +242,11 @@ function GoalSetupForm({
       targetDate: date,
       status: 'active',
       dailyDeficitKcalOverride: deficitOverride ?? undefined,
-      // Tracking (gain goals only)
-      trackingMode:  goalType === 'gain_by_date' ? mode : undefined,
-      macroStyle:    (goalType === 'gain_by_date' && mode === 'detailed') ? macroStyle : undefined,
-      fatTargetG:    (goalType === 'gain_by_date' && mode === 'detailed') ? fatG : undefined,
-      carbLimitG:    (goalType === 'gain_by_date' && mode === 'detailed' && macroStyle === 'lower_carb')
+      // Tracking (gain goals only) — macroStyle null = simple/skip
+      trackingMode:  goalType === 'gain_by_date' ? (macroStyle ? 'detailed' : 'simple') : undefined,
+      macroStyle:    (goalType === 'gain_by_date' && macroStyle) ? macroStyle : undefined,
+      fatTargetG:    (goalType === 'gain_by_date' && macroStyle) ? fatG : undefined,
+      carbLimitG:    (goalType === 'gain_by_date' && macroStyle === 'lower_carb')
         ? carbLimitG
         : undefined,
     });
@@ -318,7 +318,7 @@ function GoalSetupForm({
               >
                 <Icon name={skipType ? 'close' : 'chevronLeft'} size={skipType ? 18 : 20} strokeWidth={skipType ? 2 : 2.5} />
               </button>
-              <span className="text-headline font-semibold text-content">Your plan</span>
+              <span className="text-headline font-semibold text-content">{editing ? 'Edit plan' : 'Your plan'}</span>
               <span className="w-10" />
             </div>
             <div className="px-6 pb-6">
@@ -340,24 +340,32 @@ function GoalSetupForm({
                     <span className="text-subhead font-semibold text-content">Weight</span>
                   </div>
                   <div className="flex gap-2">
-                    <LabeledInput
-                      wrapClassName="flex-1 min-w-0"
-                      label="Start (kg)"
-                      labelClassName="text-subhead text-content-secondary"
-                      value={start}
-                      onChange={onDecimalChange(setStart)}
-                      inputMode="decimal"
-                      className="!bg-surface-sunken !border-transparent focus:!border-transparent"
-                    />
-                    <LabeledInput
-                      wrapClassName="flex-1 min-w-0"
-                      label="Target (kg)"
-                      labelClassName="text-subhead text-content-secondary"
-                      value={target}
-                      onChange={onDecimalChange(setTarget)}
-                      inputMode="decimal"
-                      className="!bg-surface-sunken !border-transparent focus:!border-transparent"
-                    />
+                    <div className="flex-1 min-w-0">
+                      <LabeledInput
+                        wrapClassName="w-full"
+                        label="Start (kg)"
+                        labelClassName="text-subhead text-content-secondary"
+                        value={start}
+                        onChange={(e) => { onDecimalChange(setStart)(e); setFieldErrors((p) => ({ ...p, start: undefined })); }}
+                        inputMode="decimal"
+                        invalid={!!fieldErrors.start}
+                        className="!bg-surface-sunken !border-transparent focus:!border-transparent"
+                      />
+                      {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <LabeledInput
+                        wrapClassName="w-full"
+                        label="Target (kg)"
+                        labelClassName="text-subhead text-content-secondary"
+                        value={target}
+                        onChange={(e) => { onDecimalChange(setTarget)(e); setFieldErrors((p) => ({ ...p, target: undefined })); }}
+                        inputMode="decimal"
+                        invalid={!!fieldErrors.target}
+                        className="!bg-surface-sunken !border-transparent focus:!border-transparent"
+                      />
+                      {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
+                    </div>
                   </div>
                 </div>
                 {/* Dates */}
@@ -381,15 +389,16 @@ function GoalSetupForm({
                     </div>
                     <div className="flex-1 min-w-0">
                       <span className="block text-subhead text-content-secondary">Target</span>
-                      <div className="mt-1 overflow-hidden rounded-field">
+                      <div className={`mt-1 overflow-hidden rounded-field ${fieldErrors.date ? 'outline outline-1 outline-danger' : ''}`}>
                         <input
                           type="date"
                           value={date}
-                          onChange={(e) => setDate(e.target.value)}
+                          onChange={(e) => { setDate(e.target.value); setFieldErrors((p) => ({ ...p, date: undefined })); }}
                           className="w-full bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content outline-none border-0"
                           style={{ minWidth: 0 }}
                         />
                       </div>
+                      {fieldErrors.date && <p className="mt-1 text-footnote text-danger">{fieldErrors.date}</p>}
                     </div>
                   </div>
                 </div>
@@ -447,7 +456,7 @@ function GoalSetupForm({
                         step={10}
                         value={effectiveMagnitude}
                         onChange={(e) => setDeficitOverride(Number(e.target.value))}
-                        className="mt-3 w-full accent-accent"
+                        className="mt-[2px] w-full accent-accent"
                         style={{ touchAction: 'pan-x' }}
                       />
                       <div className="mt-3 mb-5 -mx-5 border-t border-border-subtle" />
@@ -478,8 +487,20 @@ function GoalSetupForm({
               <div className="mt-5">
                 <Button
                   size="lg"
-                  onClick={isGain ? () => setStep('tracking') : () => create()}
-                  disabled={!valid}
+                  onClick={() => {
+                    // Validate and surface errors before proceeding
+                    const errs: typeof fieldErrors = {};
+                    if (!start || +start <= 0) errs.start = 'Enter a start weight';
+                    else if (!target || +target <= 0) errs.target = 'Enter a target weight';
+                    else if (isGain && +target <= +start) errs.target = 'Target must be higher than start weight';
+                    else if (!isGain && +target >= +start) errs.target = 'Target must be lower than start weight';
+                    if (!startDate) errs.startDate = 'Enter a start date';
+                    if (!date) errs.date = 'Enter a target date';
+                    else if (startDate && date <= startDate) errs.date = 'Target date must be after start date';
+                    if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
+                    setFieldErrors({});
+                    if (isGain) setStep('tracking'); else void create();
+                  }}
                 >
                   {isGain ? 'Continue' : (editing ? 'Confirm' : 'Create goal')}
                 </Button>
@@ -507,7 +528,7 @@ function GoalSetupForm({
                 </button>
                 <span className="text-headline font-semibold text-content">Tracking</span>
                 <button
-                  onClick={() => create('simple')}
+                  onClick={() => { setMacroStyle(null); void create(); }}
                   className="flex h-10 items-center pr-1 text-subhead font-medium text-content"
                 >
                   Skip
@@ -516,65 +537,30 @@ function GoalSetupForm({
             </div>
 
             <div className="px-6 pb-6">
-              {/* Segmented control — z-elevated so it floats above the card below */}
-              <div className="relative z-[2] flex justify-center">
-                <SegmentedControl
-                  options={[
-                    { value: 'simple'   as TrackingMode, label: 'Simple'   },
-                    { value: 'detailed' as TrackingMode, label: 'Detailed' },
-                  ]}
-                  value={trackingMode}
-                  onChange={(v) => { setTrackingMode(v); setEditingRow(null); }}
-                />
+              {/* Info text — free text, no container, no icon */}
+              <p className="text-callout text-content-secondary mb-5">
+                Choose how carbs and fat are distributed across your day. You can adjust this later as your routine changes.
+              </p>
+
+              {/* Macro style cards — tap to select, tap again to deselect */}
+              <div className="space-y-2">
+                {MACRO_STYLES.map((s) => (
+                  <MacroStyleCard
+                    key={s.id}
+                    style={s}
+                    selected={macroStyle === s.id}
+                    onSelect={() => {
+                      hapticLight();
+                      setMacroStyle(macroStyle === s.id ? null : s.id);
+                      setEditingRow(null);
+                    }}
+                  />
+                ))}
               </div>
 
-              {/* Info card — outline only, no fill; pulled up so its top sits at
-                  the vertical midpoint of the segmented control (~18px overlap) */}
-              <div className="-mt-[18px] rounded-[20px] border border-border-subtle px-4 pb-4 pt-[26px]">
-                <div className="flex items-start gap-2.5">
-                  <Icon name="info" size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-content-secondary" />
-                  <p className="text-subhead text-content-secondary">
-                    {trackingMode === 'simple'
-                      ? 'Track calories and protein. Leve estimates carbs and fat for you. You can adjust this later as your routine changes.'
-                      : 'Choose how carbs and fat are distributed across your day. You can adjust this later as your routine changes.'}
-                  </p>
-                </div>
-              </div>
-
-              {/* ── Simple mode ── */}
-              {trackingMode === 'simple' && (
+              {/* Macro targets — only visible when a card is selected */}
+              {macroStyle && (
                 <>
-                  <p className="mt-5 mb-3 text-headline font-semibold text-content">Tracking targets</p>
-                  <div className="overflow-hidden border border-border-subtle bg-surface" style={{ borderRadius: 24 }}>
-                    <MacroRow
-                      label="Protein target (g)"
-                      displayValue={`${proteinG} per day`}
-                    />
-                    <MacroRow
-                      label="Carbs & fat"
-                      displayValue="Estimated in the background"
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* ── Detailed mode ── */}
-              {trackingMode === 'detailed' && (
-                <>
-                  {/* Macro style cards */}
-                  <p className="mt-5 mb-3 text-headline font-semibold text-content">Macro style</p>
-                  <div className="space-y-2">
-                    {MACRO_STYLES.map((s) => (
-                      <MacroStyleCard
-                        key={s.id}
-                        style={s}
-                        selected={macroStyle === s.id}
-                        onSelect={() => { hapticLight(); setMacroStyle(s.id); setEditingRow(null); }}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Macro targets */}
                   <p className="mt-5 mb-3 text-headline font-semibold text-content">Macro targets</p>
                   <div className="overflow-hidden border border-border-subtle bg-surface" style={{ borderRadius: 24 }}>
 
@@ -603,7 +589,7 @@ function GoalSetupForm({
                             displayValue="Adjusts with activity"
                             note={macroNote('balanced', 'carb', impliedCarb, totalCal)}
                           />
-                                <MacroRow
+                          <MacroRow
                             label="Fat target (g)"
                             displayValue={`${fatG} per day`}
                             editable
@@ -630,7 +616,7 @@ function GoalSetupForm({
                             displayValue={`Base ${carbG} g · adjusts with activity`}
                             note={macroNote('performance', 'carb', carbG, totalCal)}
                           />
-                                <MacroRow
+                          <MacroRow
                             label="Fat baseline (g)"
                             displayValue={`${fatG} per day`}
                             editable
@@ -665,7 +651,7 @@ function GoalSetupForm({
                             onChange={setCarbLimitG}
                             note={macroNote('lower_carb', 'carb', carbLimitG, totalCal)}
                           />
-                                <MacroRow
+                          <MacroRow
                             label="Fat target (g)"
                             displayValue="Adjusts with activity"
                             note={macroNote('lower_carb', 'fat', impliedFat, totalCal)}
@@ -679,7 +665,7 @@ function GoalSetupForm({
 
               {/* Done CTA */}
               <div className="mt-5">
-                <Button size="lg" onClick={() => create()}>Done</Button>
+                <Button size="lg" onClick={() => void create()}>Done</Button>
               </div>
             </div>
           </>
@@ -745,12 +731,12 @@ function MacroRow({
           step={step}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="mt-2 w-full accent-accent"
+          className="mt-[2px] w-full accent-accent"
           style={{ touchAction: 'pan-x' }}
         />
       )}
       {note && (
-        <div className="mt-2 flex items-start gap-1.5">
+        <div className="mt-[2px] flex items-start gap-1.5">
           <Icon name="info" size={14} strokeWidth={1.75} className="mt-0.5 shrink-0 text-content-secondary" />
           <span className="text-footnote text-content-secondary">{note}</span>
         </div>

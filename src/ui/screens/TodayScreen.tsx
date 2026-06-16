@@ -227,6 +227,9 @@ export function TodayScreen() {
                   proteinGoalG={user?.proteinGoalG ?? 0}
                   isActive={d === date}
                   gainGoal={gainGoal}
+                  macroStyle={goal?.macroStyle}
+                  fatTargetG={goal?.fatTargetG}
+                  carbLimitG={goal?.carbLimitG}
                 />
               </div>
             ))}
@@ -237,23 +240,65 @@ export function TodayScreen() {
   );
 }
 
-// ── Protein progress bar ──────────────────────────────────────────────────────
+// ── Macro progress bars ───────────────────────────────────────────────────────
 
-/** Shown at the bottom of the gauge card when a daily protein target is set.
- *  Seamlessly extends the card (connected extension, sunken background). */
-function ProteinBar({ protein, goal }: { protein: number; goal: number }) {
-  if (goal <= 0) return null;
-  const achieved = protein >= goal;
+/** Single macro row: label left, consumed number right, progress bar below.
+ *  targetG=0 means no target — bar renders as a neutral empty track. */
+function MacroRow({
+  label, consumed, targetG = 0,
+}: { label: string; consumed: number; targetG?: number }) {
+  const hasTarget = targetG > 0;
+  const achieved  = hasTarget && consumed >= targetG;
   return (
-    <div className="px-6 pt-3 pb-5">
+    <div className="mb-3 last:mb-0">
       <div className="mb-1 flex items-center justify-between">
-        <span className="text-subhead text-content-secondary">Protein</span>
+        <span className="text-subhead text-content-secondary">{label}</span>
         <span className="flex items-center gap-1 text-callout font-bold text-content">
           {achieved && <Icon name="daySucceed" size={16} className="text-success" />}
-          {Math.round(protein)}
+          {consumed}
         </span>
       </div>
-      <ProgressBar value={Math.min(1, protein / goal)} />
+      <ProgressBar value={hasTarget ? Math.min(1, consumed / targetG) : 0} />
+    </div>
+  );
+}
+
+/** Shown at the bottom of the gauge card. Renders protein always (when
+ *  proteinGoal > 0); adds carbs + fat rows for gain goals in detailed mode. */
+function MacroBarsRow({
+  protein, proteinGoal,
+  carbs, fat,
+  gainDetailed = false,
+  macroStyle,
+  fatTarget = 0,
+  carbLimit = 0,
+}: {
+  protein: number; proteinGoal: number;
+  carbs: number; fat: number;
+  gainDetailed?: boolean;
+  macroStyle?: string;
+  fatTarget?: number;
+  carbLimit?: number;
+}) {
+  return (
+    <div className="px-6 pt-3 pb-5">
+      {proteinGoal > 0 && (
+        <MacroRow label="Protein" consumed={Math.round(protein)} targetG={proteinGoal} />
+      )}
+      {gainDetailed && (
+        <>
+          <MacroRow
+            label="Carbs"
+            consumed={Math.round(carbs)}
+            targetG={macroStyle === 'lower_carb' ? carbLimit : 0}
+          />
+          <MacroRow
+            label="Fat"
+            consumed={Math.round(fat)}
+            targetG={macroStyle === 'balanced' || macroStyle === 'performance' ? fatTarget : 0}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -467,9 +512,13 @@ interface DayPanelProps {
   proteinGoalG: number;
   isActive: boolean;
   gainGoal?: boolean;
+  /** For gain goals in detailed tracking — drives macro bar display. */
+  macroStyle?: string;
+  fatTargetG?: number;
+  carbLimitG?: number;
 }
 
-function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoalG, isActive, gainGoal = false }: DayPanelProps) {
+function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoalG, isActive, gainGoal = false, macroStyle, fatTargetG, carbLimitG }: DayPanelProps) {
   const nav = useNavigate();
   const ctx = useOutletContext<DayContext>();
   const [editFood,          setEditFood]          = useState<FoodEntry | null>(null);
@@ -499,6 +548,8 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const anim = useRef({ activated: false, inPhase: false });
 
   const { consumed = 0, totalBurn = 0, protein = 0 } = day?.summary ?? {};
+  const carbs = day ? Math.round(day.foods.reduce((s, f) => s + effectiveNutrition(f, day.itemsById).carbs, 0)) : 0;
+  const fat   = day ? Math.round(day.foods.reduce((s, f) => s + effectiveNutrition(f, day.itemsById).fat,   0)) : 0;
   const noBmr      = (day?.bmr ?? 0) <= 0;
   const actCals    = day?.activities.reduce((s, a) => s + a.activeCalories, 0) ?? 0;
   const hasTarget  = dailyTarget !== 0 && totalBurn > 0; // !== 0 covers gain (negative)
@@ -579,7 +630,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
       {hasTarget ? (
         /* Outer container = the grey background shape. White gauge card overlays
            the top of it; protein bar reveals the grey area at the bottom. */
-        <div className={`mx-6 mt-1 w-[calc(100%-3rem)] rounded-main ${proteinGoalG > 0 ? 'bg-surface-sunken' : ''}`}>
+        <div className={`mx-6 mt-1 w-[calc(100%-3rem)] rounded-main ${(proteinGoalG > 0 || (gainGoal && !!macroStyle)) ? 'bg-surface-sunken' : ''}`}>
           {/* White gauge card — floats on top of the grey container */}
           <div className="rounded-main bg-surface border border-border-subtle shadow-card-lg">
             <div className="px-4 pb-5 pt-6">
@@ -623,7 +674,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                       <span className="mt-0.5 text-subhead text-content-secondary whitespace-nowrap">
                         {gainGoal
                           ? (left <= 0 ? 'kcal above goal' : 'kcal to go')
-                          : (left >= 0 ? 'kcal left' : 'kcal over')}
+                          : (left >= 0 ? 'kcal available' : 'kcal over')}
                       </span>
                     </button>
                   </GaugeArc>
@@ -645,12 +696,21 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
               </div>
             </div>
           </div>
-          {/* Protein bar — grey area below the white card, inside the container */}
-          {proteinGoalG > 0 && <ProteinBar protein={protein} goal={proteinGoalG} />}
+          {/* Macro bars — grey area below the white card, inside the container */}
+          {(proteinGoalG > 0 || (gainGoal && !!macroStyle)) && (
+            <MacroBarsRow
+              protein={protein} proteinGoal={proteinGoalG}
+              carbs={carbs} fat={fat}
+              gainDetailed={gainGoal && !!macroStyle}
+              macroStyle={macroStyle}
+              fatTarget={fatTargetG}
+              carbLimit={carbLimitG}
+            />
+          )}
         </div>
       ) : (
         /* Same layout for no-goal variant */
-        <div className={`mx-6 mt-1 w-[calc(100%-3rem)] rounded-main ${proteinGoalG > 0 ? 'bg-surface-sunken' : ''}`}>
+        <div className={`mx-6 mt-1 w-[calc(100%-3rem)] rounded-main ${(proteinGoalG > 0 || (gainGoal && !!macroStyle)) ? 'bg-surface-sunken' : ''}`}>
           <div className="rounded-main bg-surface border border-border-subtle shadow-card-lg">
             <div className="px-4 pb-5 pt-6">
               <div className="flex justify-center">
@@ -694,7 +754,16 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
               </div>
             </div>
           </div>
-          {proteinGoalG > 0 && <ProteinBar protein={protein} goal={proteinGoalG} />}
+          {(proteinGoalG > 0 || (gainGoal && !!macroStyle)) && (
+            <MacroBarsRow
+              protein={protein} proteinGoal={proteinGoalG}
+              carbs={carbs} fat={fat}
+              gainDetailed={gainGoal && !!macroStyle}
+              macroStyle={macroStyle}
+              fatTarget={fatTargetG}
+              carbLimit={carbLimitG}
+            />
+          )}
         </div>
       )}
 

@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-16 — Round 69 (GoalOutcomeView dismiss state + goalAchieved flag, sheet confirm UX swap, slider touchAction fix, git + GitHub setup).
+Last updated: 2026-06-16 — Round 70 (CTA always enabled + field errors, kcal label, macro bars, tracking step redesign, edit plan flow, slider spacing, sheet 91dvh, thumb fix, splash timings).
 Full change history: see CHANGELOG.txt (rounds 1–65).
 
 HOW TO READ THIS DOC:
@@ -177,6 +177,22 @@ User model additions (r68): visibleMacros?: { protein?, carbs?, fat? };
 - Round 67: slider thumb pill, gain zone UI, WeekChart dual ramps, 3-state badge.
 - Round 68: slider thumb active-scale, per-type goal-setup state memory, goal history
   in ⋯ sheet, macro visibility toggles, LoseMacroBars, weekly weight cadence.
+- Round 70 (2026-06-16):
+  · "Your plan" CTA always enabled; validate on tap + inline field errors (red border + message);
+    weight direction check (lose: target < start; gain: target > start).
+  · "kcal left" → "kcal available" in TodayScreen + OnboardingDailyAllowance.
+  · TodayScreen gauge card: MacroBarsRow replaces ProteinBar; shows carbs+fat consumed
+    for gain goals with macroStyle set (detailed tracking); all values = consumed not target.
+  · GoalSetupScreen tracking step redesigned: SegmentedControl + simple mode removed;
+    info as free text (text-callout, content-secondary, no icon/container); cards start
+    deselected; tap to select/deselect; macro targets only shown when card is selected;
+    protein row removed from tracking step (uses computed default).
+  · Edit goal: skips type selection, opens at "Edit plan" step; back closes flow.
+  · Slider spacing in MacroRow + deficit slider: field→slider and slider→note = 2px.
+  · Sheet expanded height: 91dvh (was 90dvh).
+  · Slider thumb: scale-up on press is instant (0ms); scale-down on release animates
+    (200ms spring) — drag starts immediately without waiting for animation.
+  · Splash screen gauge animation: 100-300-400-300-100ms = 1.2s total (was 1.5s).
 - Round 69 (2026-06-16):
   · GoalScreen: dismissedOutcome state — X on GoalOutcomeView sets flag instead of
     navigating; no-goal empty state shown without changing goal status in DB.
@@ -223,9 +239,14 @@ on the Mac: `rm -rf node_modules package-lock.json && npm install`
 → `npm test` → `npm run build` → `npm run ios:sync`.
 
 ----------------------------------------------------------------
-KNOWN GAPS (current as of round 68)
+KNOWN GAPS (current as of round 70)
 ----------------------------------------------------------------
 MED:
+- AccountScreen: macro visibility toggles (visibleMacros) and weekly weight cadence
+  card (r68) were never pushed to the GitHub repo. These features exist only on the
+  MacBook but the AccountScreen toggles are INTENTIONALLY removed going forward (r70
+  decision). Weekly weight cadence (weightCadence / weeklyWeightDay on User type) is
+  also missing from the repo — needs a decision on whether to rebuild.
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
   entries. (Goal actions DO confirm via Sheet; entry deletes are immediate.)
 - UNITS: kg/lbs toggle doesn't convert displayed values yet.
@@ -250,7 +271,7 @@ WITHINGS: mock scaffold only. Real data needs backend proxy + credentials.
 DEFERRED V1.5+: JSON import, HealthKit, BMR auto-calibration, full tablet
 layouts, per-piece measurement types, time-of-day food suggestions.
 
-ALREADY DONE (do NOT re-flag): GoalOutcomeView dismissedOutcome state + onDismiss prop
+ALREADY DONE (do NOT re-flag): r70 all items (see round 70 notes above). GoalOutcomeView dismissedOutcome state + onDismiss prop
 (r69), goalAchieved flag replaces isCompleted in outcome title (r69), complete goal sheet
 confirm UX swap Cancel→primary (r69), slider touchAction pan-x deficit+MacroRow (r69),
 inline Reset on deficit pill (r69), git init + GitHub push everydayou/leve (r69),

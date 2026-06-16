@@ -317,8 +317,8 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
     // Always use concrete max-height values so CSS can interpolate between them.
     // height:auto→fixed and fixed→undefined cannot be animated by CSS, so we rely
     // on max-height (50dvh ↔ 90dvh) as the animatable dimension for expand/collapse.
-    height: (expanded || forceExpanded) ? '90dvh' : 'auto',
-    maxHeight: (expanded || forceExpanded) ? '90dvh' : '50dvh',
+    height: (expanded || forceExpanded) ? '91dvh' : 'auto',
+    maxHeight: (expanded || forceExpanded) ? '91dvh' : '50dvh',
     minHeight: '20dvh',
     // eslint-disable-next-line react-hooks/refs -- read-only ref used to suppress CSS transition while dragging; state would cause extra renders
     transition: dragging.current

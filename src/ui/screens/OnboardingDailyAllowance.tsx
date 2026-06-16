@@ -214,7 +214,7 @@ export function DailyAllowanceVisual() {
                 </span>
               </div>
               <span className="mt-0.5 text-subhead text-content-secondary whitespace-nowrap">
-                {isOnTarget ? 'kcal left' : 'kcal over'}
+                {isOnTarget ? 'kcal available' : 'kcal over'}
               </span>
             </div>
           </GaugeArc>

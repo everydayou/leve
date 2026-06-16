@@ -2141,3 +2141,135 @@ Workflow going forward:
   - No more CHANGES-TO-APPLY.md manual sync documents needed.
 
 tsc: clean (changes verified as pre-applied on home machine).
+
+================================================================
+ROUND 70 — CTA VALIDATION + KCAL LABEL + MACRO BARS + TRACKING REDESIGN + EDIT PLAN FLOW + SLIDER/SHEET/THUMB/SPLASH POLISH (2026-06-16)
+================================================================
+
+── "YOUR PLAN" CTA: ALWAYS ENABLED + INLINE FIELD ERRORS ────────────────────
+GoalSetupScreen previously disabled the CTA until all fields were valid.
+This created a confusing "why won't it let me tap?" experience.
+
+New behaviour:
+  - CTA never has a `disabled` prop.
+  - On tap: validate all required fields; if any fail, set fieldErrors state
+    and return early without saving.
+  - Error display: LabeledInput receives `invalid` prop (red border); error
+    message rendered as <p className="mt-1 text-footnote text-danger"> below.
+
+fieldErrors shape: { start?: string; target?: string; date?: string; startDate?: string }
+
+Weight direction validation:
+  - Lose goal: if +target >= +start → error "Target must be less than current weight"
+  - Gain goal: if +target <= +start → error "Target must be greater than current weight"
+
+── "KCAL LEFT" → "KCAL AVAILABLE" ──────────────────────────────────────────
+Two occurrences renamed:
+  1. TodayScreen.tsx — lose goal branch in the gauge card label
+  2. OnboardingDailyAllowance.tsx — same label in the onboarding allowance screen
+
+"kcal available" more accurately reflects that remaining calories are available
+to eat, not that they are "left over" (which implies excess).
+
+── TODAYSCREEN GAUGE CARD: MACRO BARS REDESIGN ──────────────────────────────
+The `ProteinBar` component was replaced with `MacroBarsRow` (new component built
+inline) showing consumed amounts across protein, carbs, and fat.
+
+Logic for which bars appear:
+  - Protein: always shown for both lose and gain goals (with progress bar toward target).
+  - Carbs + fat: shown for gain goals where macroStyle is set (i.e. detailed tracking).
+    Hidden for simple tracking (macroStyle === null) and for lose goals (only protein shown).
+  - Carbs bar has a target only for lower_carb macroStyle; fat bar has a target for
+    balanced and performance macroStyle (not lower_carb).
+  - All bar values show consumed amounts (not static targets).
+
+Consumed carbs and fat computed in DayPanel:
+  const carbs = day ? Math.round(day.foods.reduce((s, f) =>
+    s + effectiveNutrition(f, day.itemsById).carbs, 0)) : 0;
+  const fat = day ? Math.round(day.foods.reduce((s, f) =>
+    s + effectiveNutrition(f, day.itemsById).fat, 0)) : 0;
+
+DayPanelProps gains: macroStyle?: string, fatTargetG?: number, carbLimitG?: number.
+DayPanel call passes: goal?.macroStyle, goal?.fatTargetG, goal?.carbLimitG.
+
+AccountScreen macro visibility toggles (r68 feature) intentionally removed going
+forward — macroStyle from goal setup now drives visibility instead.
+
+── TRACKING STEP REDESIGN ───────────────────────────────────────────────────
+Before (r65):
+  - SegmentedControl with Simple / Detailed tabs.
+  - Simple mode showed a simple summary.
+  - Macro style cards only visible when Detailed tab was selected.
+
+After (r70):
+  - SegmentedControl removed entirely. Simple mode removed.
+  - Info text shows free prose (text-callout, text-content-secondary, no icon/container).
+  - All three macro style cards (Balanced, Performance, Lower-carb) start deselected.
+  - Tapping a card toggles it on; tapping again deselects (back to no macro tracking).
+  - Macro target inputs (protein/carbs/fat sliders) only rendered when a card is selected
+    (macroStyle !== null). Protein row removed from tracking step (uses computed default).
+  - "Skip" CTA saves with macroStyle = null → derived trackingMode = 'simple'.
+
+State changes:
+  - macroStyle: useState<MacroStyle | null>(activeGoal?.macroStyle ?? null)
+    (was never-null before)
+  - trackingMode: no longer stored in state; derived at save time:
+    trackingMode = macroStyle ? 'detailed' : 'simple'
+  - create() no longer accepts overrideMode parameter.
+  - TrackingMode removed from imports in GoalSetupScreen.
+
+── EDIT GOAL: SKIP TYPE SELECTION ───────────────────────────────────────────
+Previously editing a goal required stepping through the type selection screen
+before reaching "Your plan" details.
+
+New behaviour:
+  - Step init: (skipType || editing) ? 'details' : 'choose'
+  - goBackFromDetails: closes the flow when skipType || editing (no back step).
+  - Title: editing ? 'Edit plan' : 'Your plan'
+
+This matches the intent of the "Edit plan" action in GoalSettingsSheet — the user
+already has a goal type; they just want to adjust targets/dates/macros.
+
+── SLIDER SPACING (MACROROW + DEFICIT SLIDER) ───────────────────────────────
+Gap between labeled field and slider thumb, and between slider and note/label below:
+  Before: mt-2 = 8px
+  After:  mt-[2px] = 2px
+
+Applied to MacroRow component and the deficit slider in GoalSetupScreen.
+Reduces vertical sprawl in the tracking setup step.
+
+── SHEET EXPANDED HEIGHT: 91dvh ─────────────────────────────────────────────
+Sheet.tsx: expanded/forceExpanded height and maxHeight changed from 90dvh → 91dvh.
+Recovers 1vh of content area on tall sheets (Add Entry, Goal Setup, etc.).
+
+── SLIDER THUMB REACTIVITY ──────────────────────────────────────────────────
+Problem: Previous implementation animated scale-up on press. On iOS WKWebView,
+the 200ms animation meant the thumb only started scaling after the user had
+already begun dragging, making it feel unresponsive.
+
+Fix (src/index.css):
+  input[type="range"]::-webkit-slider-thumb {
+    transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  input[type="range"]:active::-webkit-slider-thumb {
+    transform: scale(2);
+    transition: transform 0ms;       /* ← instant scale-up on press */
+  }
+
+Scale-up is now instant (0ms) so the thumb expands the moment finger lands.
+Scale-down uses the 200ms spring so the release feels fluid.
+
+── SPLASH SCREEN GAUGE ANIMATION: REVISED TIMINGS ───────────────────────────
+LeveLoadingScreen.tsx: total animation cycle 1.5s → 1.2s.
+
+Phase breakdown (1.2s = 1200ms):
+  Pause    : 100ms  (8.3% of cycle)
+  Grow     : 300ms  (33.3%)
+  Slide    : 400ms  (66.7%)
+  Collapse : 300ms  (91.7%)
+  Pause    : 100ms  (100%)
+
+CSS: `animation: leve-arc-fill 1.2s linear alternate infinite`
+Keyframe percentages updated to match new phase boundaries.
+
+tsc: clean.

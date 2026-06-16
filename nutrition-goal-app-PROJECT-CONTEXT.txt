@@ -168,7 +168,7 @@ User model additions (r68): visibleMacros?: { protein?, carbs?, fat? };
 - BMR auto-calibration: parked (V1.5+).
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 69, 2026-06-16)
+7. CURRENT STATUS (as of round 70, 2026-06-16)
 ----------------------------------------------------------------
 - App name: "leve"; brand loading screen; native splash white flash eliminated. DONE.
 - "Build muscle" (gain_by_date) goal type: fully wired r61, bug-fixed r62.
@@ -292,6 +292,25 @@ earlier work through r62 (see CHANGELOG for full list).
 ----------------------------------------------------------------
 RECENT ROUNDS (for context on what was just touched)
 ----------------------------------------------------------------
+ROUND 70 — CTA VALIDATION + KCAL LABEL + MACRO BARS + TRACKING REDESIGN + EDIT PLAN + POLISH (2026-06-16)
+Files: src/ui/screens/GoalSetupScreen.tsx, src/ui/screens/TodayScreen.tsx,
+       src/ui/screens/OnboardingDailyAllowance.tsx, src/ui/screens/LeveLoadingScreen.tsx,
+       src/ui/kit/Sheet.tsx, src/index.css
+- GoalSetupScreen: CTA always enabled; validate on tap + fieldErrors (red border + message);
+  weight direction checked (lose: target<start; gain: target>start).
+- TodayScreen + OnboardingDailyAllowance: "kcal left" → "kcal available".
+- TodayScreen: MacroBarsRow replaces ProteinBar; shows consumed carbs+fat for gain+detailed
+  goals; macroStyle drives bar visibility (AccountScreen toggles intentionally removed).
+- GoalSetupScreen tracking step: SegmentedControl + simple mode removed; info as free text;
+  cards start deselected, tap toggles; macro targets hidden when macroStyle===null;
+  protein row removed. Skip → macroStyle=null → trackingMode='simple'.
+- Edit goal: step init jumps to 'details'; back closes flow; title "Edit plan".
+- MacroRow + deficit slider spacing: field→slider and slider→note = mt-[2px] (was mt-2).
+- Sheet.tsx: expanded height 91dvh (was 90dvh).
+- index.css: slider thumb scale-up instant (0ms), scale-down animated (200ms spring).
+- LeveLoadingScreen: gauge animation 1.5s → 1.2s; timings 100-300-400-300-100ms.
+- tsc: clean.
+
 ROUND 69 — GOAL OUTCOME DISMISS STATE + SHEET CONFIRM UX + SLIDER TOUCH-ACTION + GIT (2026-06-16)
 Files: src/ui/screens/GoalScreen.tsx, src/ui/screens/GoalSetupScreen.tsx
 - GoalScreen: dismissedOutcome state; no-goal check guards with flag; GoalOutcomeView
@@ -322,19 +341,6 @@ Files: src/index.css, src/domain/types.ts, src/ui/screens/GoalSetupScreen.tsx,
   weightCadence?: 'daily'|'weekly', weeklyWeightDay?: number (0=Mon).
 - AccountScreen: TodayViewCard (3 macro toggles); WeightCadenceCard (Daily/Weekly
   segmented control + DOW pill picker). Both save to repos.user.
-- TodayScreen: showProteinBar/showCarbsBar/showFatBar flags — gain goals default ON
-  (undefined=visible); lose goals default OFF (undefined=hidden, must opt in with ===true).
-  GainMacroBars respects showProtein/showCarbs/showFat and returns null if all off.
-  isWeighInDay gates showWeightReminder (daily=always; weekly=todayDow===anchorDay).
-  Weekly displayWeightKg: most recent entry in weekStart..today shown on all days.
-  LoseMacroBars: protein with progress bar toward target; carbs+fat consumed grams
-  + empty track (no target). anyMacroBar updated for lose branch.
-- tsc: clean.
-
-ROUND 67 — GAIN ZONE UI POLISH + WEEKCHART DUAL RAMPS (2026-06-16)
-Files: Progress.tsx, GoalSetupScreen.tsx, TodayScreen.tsx, GoalScreen.tsx, index.css
-- GaugeArc strokePositive/strokeNegative props; single gain slider (gainHalfWidth
-  useMemo); gain arc mint/black zone-aware; 3-state badge (Under/On target/Over);
-  WeekChart dual dashed ramps for gain + zone bar colors; slider thumb pill (24×12px)
-  + h-11 touch area; macro checkmark → text-accent; lower-carb alerts tightened.
+- TodayScreen: LoseMacroBars: protein with progress bar toward target; carbs+fat consumed
+  grams + empty track (no target). isWeighInDay gates weight reminder.
 - tsc: clean.

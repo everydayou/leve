@@ -1,0 +1,321 @@
+================================================================
+NUTRITION GOAL TRACKER — PROJECT CONTEXT
+================================================================
+Owner: Marco (marcosilva86@gmail.com)
+Last updated: 2026-06-16 — Round 69 (GoalOutcomeView dismiss state + goalAchieved flag, sheet confirm UX swap, slider touchAction fix, git + GitHub setup).
+Full change history: see CHANGELOG.txt (rounds 1–65).
+
+HOW TO READ THIS DOC:
+- This file = current state only. Read it at the start of every chat.
+- CHANGELOG.txt = full per-round history. Open it when you need to know
+  WHY something was decided or what changed in a specific round.
+- Before touching any UI: read section 0B (Design-System Contract) first.
+- If two statements conflict: the higher round number wins.
+
+----------------------------------------------------------------
+0. QUICK STATUS
+----------------------------------------------------------------
+- App is RUNNING on Marco's iPhone (native Capacitor build, free Apple ID).
+  On-device install: DONE as of 2026-06-04 (runbook: INSTALL-iOS.md).
+- THREE PREVIEW SURFACES, each with its OWN separate data store:
+  (1) iPhone native app (Capacitor) — Marco's REAL daily-use data; IndexedDB
+      in the app container; persists across rebuilds/re-signing.
+  (2) Browser dev server (`npm run dev` -> localhost) — the real app with
+      hot-reload; IndexedDB local to that browser; SEPARATE from the phone.
+      This is the day-to-day development/preview surface.
+  (3) Double-click demo HTML (file://) — in-memory, RESETS on refresh;
+      a throwaway playground only. Not for real data.
+  Data does NOT sync between surfaces.
+- V1 FEATURE STATUS: feature-complete and running on phone. 62 rounds done.
+- "Build muscle" (gain_by_date) goal type added in r61, bug-fixed in r62.
+- VERIFY-ON-MAC REMINDER: after Cowork changes, run on Mac:
+  `npm install` → `npm test` → `npm run build` → `npm run ios:sync`.
+
+----------------------------------------------------------------
+0B. DESIGN-SYSTEM CONTRACT — FIXED RULES (read BEFORE editing any UI)
+----------------------------------------------------------------
+Non-negotiable standing rules. Any chat touching src/ui MUST follow them.
+One token edit retuning the whole app's look is the goal. (Origin: r11 audit.)
+
+1. COMPONENTS FIRST. Build UI from the kit atoms in src/ui/kit (import from
+   '../kit'): Button/IconButton, Sheet, LabeledInput, NumberField, Card/Surface,
+   StatTile, ProgressBar/GaugeArc, Badge, SegmentedControl, FilterPills, Icon,
+   etc. NEVER hand-roll a button/input/sheet/stat/etc. inline when a kit atom
+   exists. Need new shared UI? ADD an atom to the kit — don't inline it in a
+   screen.
+2. TOKENS ONLY. Colour, radius, shadow and type come from the semantic token
+   layer in src/index.css. NEVER use raw Tailwind default text sizes
+   (text-xs/sm/base/lg/xl/2xl/3xl) — use the --text-* scale (text-caption /
+   footnote / subhead / body / callout / headline / title / display / hero).
+   NEVER hardcode hex/rgb — use colour tokens (bg-surface, text-content,
+   text-content-secondary, border-border-subtle/field/strong, accent / success /
+   warn / danger and their -soft / on- variants, bg-scrim).
+3. ICONS, NOT GLYPHS. Use the <Icon> component for all affordances (chevrons,
+   close, etc.). Never type a literal ›, ‹ or × — they don't inherit stroke
+   weight/size and render differently per platform.
+4. ONE SOURCE OF TRUTH. Change the look by editing a token (src/index.css) or
+   the atom — never by styling a screen directly. If a tweak needs per-screen
+   CSS, it probably belongs in the atom/token.
+5. ENFORCEMENT. eslint.config.js BLOCKS raw text sizes and hex/rgb in
+   src/ui/** (styleguide exempt). Run `npm run lint` before shipping. Do NOT
+   disable the guardrail — fix the code. Extend the guardrail rather than weaken it.
+6. ACCESSIBILITY FIRST. Every new screen, component, and interaction MUST be
+   built with accessibility in mind from the start.
+   - FOCUS: never suppress outlines on keyboard-navigable elements.
+   - ARIA: every interactive region, dialog, tab set, and live data update
+     needs appropriate ARIA roles.
+   - MOTION: new JS-driven animations must check prefersReducedMotion().
+   - CONTRAST: body text and informational icons must meet WCAG AA minimums.
+   - TOUCH TARGETS: interactive elements must have a minimum 44×44pt hit area.
+   - FORMS: every <input> must have an associated <label> via htmlFor/id.
+
+Text scale: text-caption(12) / text-footnote(13) / text-subhead(15) /
+text-callout(16) / text-headline(18) / text-title(22) / text-display(30) /
+text-hero(48). NOTE: text-headline updated 17→18px in round 55.
+
+WHERE THINGS LIVE: tokens = src/index.css (@theme); atoms = src/ui/kit/
+(barrel: src/ui/kit/index.ts); live reference = /styleguide route.
+
+----------------------------------------------------------------
+1. WHAT WE'RE BUILDING
+----------------------------------------------------------------
+A personal nutrition + weight-management app for Marco's own use.
+NOT a calorie tracker. Core idea: GOAL MANAGEMENT — tracking exists only
+to answer "Am I on track to hit my goal?"
+
+Mental model: Goal → Weekly progress → Daily progress → Food/Activity inputs.
+
+----------------------------------------------------------------
+2. PLATFORM DECISION
+----------------------------------------------------------------
+Stack: React + Capacitor (web code + native iOS shell). NOT native Swift.
+Withings weight data CAN be pulled via Withings cloud API (OAuth) — V1.5+.
+Install path: Xcode + free Apple ID ($0). Re-sign every ~7 days.
+
+----------------------------------------------------------------
+3. AGREED V1 SCOPE
+----------------------------------------------------------------
+One job: run ONE active goal (lose or gain) and know if I'm on track.
+
+- Goal types: "Lose X kg by date" (lose_by_date) and "Build muscle" (gain_by_date).
+  Data model supports other types later.
+- TODAY screen: frequent foods, Add-entry sheet, calories + protein, deficit,
+  swipeable day nav. Tap item to edit/delete.
+- GOAL screen: weight trend vs. target line, 9 lifecycle states (see 4B).
+- PANTRY: create/edit food items (name, calories, protein, macros, photo).
+- Manual meal entry with "save to pantry" path (in Add-entry sheet).
+- Manual activity calories.
+- WEIGHT: 3 entry points — Add-entry sheet Weight tab, Goal screen, Today
+  screen evening reminder (after 8pm, dismissible).
+- BMR: single user-entered number in V1.
+- Account: weight history log, profile, BMR, export (JSON).
+
+DEFER (V1.5+): BMR auto-calibration, AI meal estimation,
+History tab, HealthKit/Withings, per-piece measurement types.
+
+----------------------------------------------------------------
+4. NAVIGATION / IA
+----------------------------------------------------------------
+- Bottom tab bar: Today / Goal / Pantry / Account. KEEP PANTRY as main tab.
+- Center "+" FAB speed dial: Scan / Food / Activity / Weight.
+- Add-entry = bottom sheet (never full-screen nav).
+- Goal Setup = full-screen flow. ?skip-type=true skips plan-type step and
+  opens with X button + slide-up animation (used by "Extend goal date").
+- Day nav on Today: chevrons + swipe. Future dates disabled.
+
+----------------------------------------------------------------
+4B. V1 DATA MODEL
+----------------------------------------------------------------
+Goal status: active / completed / abandoned.
+
+GoalScreen renders 9 states (all implemented as of r55):
+  (1) no-goal: empty state, centered 120×120 mint SVG, "Set a goal" CTA
+  (2) active-normal: tiles + chart, ⋯ settings sheet
+  (3) final-day · no weight: mint banner + "Log weight" CTA + "🎯 Today" tile
+  (4) final-day · weight in (not hit): no banner, weight left, "Complete goal"
+  (5) final-day · goal hit: "🎯" weight tile, "Complete goal" CTA
+  (6) early-complete: "🎯" weight tile, "Complete goal" CTA (before deadline)
+  (7) overdue: "+N d / Overdue" tile, "End goal" + "Extend goal date" CTAs
+  (8) completed: GoalOutcomeView celebration overlay (portal, slides up)
+  (9) abandoned/ended: GoalOutcomeView overlay ("Goal ended")
+
+GoalSettingsSheet (⋯ button): Mark as complete / Edit plan / End goal /
+  Previous goals history list. Each destructive action opens its own
+  confirmation Sheet (Sheet-on-Sheet). Plan summary card removed in r55.
+
+GoalOutcomeView (states 8+9):
+- createPortal → document.body. Covers tab bar (z-[200]) on WKWebView.
+- Slide-up on mount, slide-down on dismiss. X → /goal (no-goal empty state).
+- "Start next goal" → /goal-setup?new=true.
+- Stats: Weight lost / Final weight / Total days (2-line labels).
+
+Key derived flags:
+  isEarlyComplete = !isOverdue && remaining === 0
+  hasTodayWeight  = weights.some(w => w.date === today)
+  Complete CTA:   (isEarlyComplete || (isFinalDay && hasTodayWeight)) && !isOverdue
+
+FoodItem, FoodEntry, ActivityEntry, WeightEntry — unchanged (see r44 notes).
+
+User model additions (r68): visibleMacros?: { protein?, carbs?, fat? };
+  weightCadence?: 'daily' | 'weekly'; weeklyWeightDay?: number (0=Mon…6=Sun).
+
+----------------------------------------------------------------
+5. METRICS / MATH MODEL
+----------------------------------------------------------------
+- Total Burn = BMR + Active Calories.
+- Daily Deficit = Total Burn - Calories Consumed.
+- ~7700 kcal per kg used to derive goal pace.
+- BMR auto-calibration: parked (V1.5+).
+
+----------------------------------------------------------------
+7. CURRENT STATUS (as of round 69, 2026-06-16)
+----------------------------------------------------------------
+- App name: "leve"; brand loading screen; native splash white flash eliminated. DONE.
+- "Build muscle" (gain_by_date) goal type: fully wired r61, bug-fixed r62.
+- All 9 goal lifecycle states implemented (r55). GoalOutcomeView portal overlay. DONE.
+- Tracking step Simple/Detailed modes (r65). Gain gauge + GainMacroBars (r66). DONE.
+- Round 67: slider thumb pill, gain zone UI, WeekChart dual ramps, 3-state badge.
+- Round 68: slider thumb active-scale, per-type goal-setup state memory, goal history
+  in ⋯ sheet, macro visibility toggles, LoseMacroBars, weekly weight cadence.
+- Round 69 (2026-06-16):
+  · GoalScreen: dismissedOutcome state — X on GoalOutcomeView sets flag instead of
+    navigating; no-goal empty state shown without changing goal status in DB.
+  · GoalOutcomeView: onDismiss prop; goalAchieved flag (completed AND target weight
+    actually reached — completed-early without hitting target shows "Goal ended").
+  · Complete goal confirmation sheets (GoalScreen + GoalSettingsSheet): Cancel as
+    primary Button(lg) + "Yes, complete goal" as outline — prevents accidental
+    completions. New copy references "Past goals".
+  · GoalSetupScreen: inline Reset button in deficit/surplus pill (shown only when
+    deficitOverride !== null). touchAction: 'pan-x' on deficit slider + MacroRow
+    slider (fixes iOS WKWebView scroll hijack on horizontal range inputs).
+  · Git: repo initialized at ~/Downloads/nutri/nutrition-goal-tracker; initial commit
+    fb19faa; pushed to https://github.com/everydayou/leve.git (private). Project
+    moved off iCloud Desktop to prevent sync conflicts.
+- vite-plugin-pwa: upgrade to latest on Mac before next ios:sync (0.21.2
+  incompatible with vite 6.4.3).
+- Code quality: tsc strict clean (r69).
+
+----------------------------------------------------------------
+8. TECH / ARCHITECTURE
+----------------------------------------------------------------
+Stack: Vite 6 + React 19 + TypeScript, Tailwind CSS v4, Dexie (IndexedDB),
+Vitest. Capacitor v8. appId: com.marco.nutritiongoal, webDir: dist.
+
+Layer model (strict dependency direction):
+  src/domain/   Pure TS — types.ts, calc.ts, goal.ts, bmr.ts.
+  src/data/     Dexie + memory repos. repositories.ts = interfaces.
+  src/state/    repos.ts (swap point) + useLive() + useDay().
+  src/ui/       AppShell + screens + components + kit/.
+  src/index.css Design token layer (Tailwind v4 @theme).
+
+KEY PATTERNS (r55):
+- createPortal: GoalOutcomeView renders into document.body to escape
+  AppShell's overflow-hidden / z-index constraints on WKWebView.
+- slide-up/down: .slide-up-in / .slide-down-out in index.css. Exit pattern:
+  setExiting(true) → setTimeout(cb, 320) → navigate.
+- Sheet-on-Sheet: destructive confirms render a second Sheet alongside the
+  parent Sheet in a Fragment (both conditionally mounted).
+- openAddEntry: GoalScreen uses useOutletContext<DayContext>() to call
+  openAddEntry('weight', {hideTabs:true}) from the final-day banner.
+
+ENV NOTE: Cowork Linux sandbox can't run rollup native binary. After changes,
+on the Mac: `rm -rf node_modules package-lock.json && npm install`
+→ `npm test` → `npm run build` → `npm run ios:sync`.
+
+----------------------------------------------------------------
+KNOWN GAPS (current as of round 68)
+----------------------------------------------------------------
+MED:
+- BUILD: vite-plugin-pwa@0.21.2 incompatible with vite@6.4.3. On Mac run
+  `npm install vite-plugin-pwa@latest` before next `npm run ios:sync`.
+- NO CONFIRM on destructive deletes of food entries, pantry items, weight
+  entries. (Goal actions DO confirm via Sheet; entry deletes are immediate.)
+- UNITS: kg/lbs toggle doesn't convert displayed values yet.
+- KEYBOARD/VIEW CONFLICT (residual): body background partially visible as a
+  thin dark strip in some keyboard+sheet combinations on WKWebView. Main
+  impact (CTA floating mid-form) fixed in r63. Full fix if still needed:
+  @capacitor/keyboard with KeyboardResize.None.
+- ACCOUNT IA: still needs a dedicated IA/UX pass (Today view + Weight tracking
+  cards added r68, but overall layout is growing — consider grouping).
+- GoalScreen WeekChart height compensation (H=153) is approximate.
+- HAPTIC FEEDBACK: wired (r22); device enablement needs one Mac step
+  (npm install @capacitor/haptics → npx pod-install ios → ios:sync).
+
+LOW:
+- GoalOutcomeView: no haptic on appearance.
+- Weekly weight cadence: reminder gating wired (r68), but the goal trend chart
+  does not yet use the anchor day as a special interpolation point. Low impact
+  since chart uses all available weight entries regardless.
+
+WITHINGS: mock scaffold only. Real data needs backend proxy + credentials.
+
+DEFERRED V1.5+: JSON import, HealthKit, BMR auto-calibration, full tablet
+layouts, per-piece measurement types, time-of-day food suggestions.
+
+ALREADY DONE (do NOT re-flag): GoalOutcomeView dismissedOutcome state + onDismiss prop
+(r69), goalAchieved flag replaces isCompleted in outcome title (r69), complete goal sheet
+confirm UX swap Cancel→primary (r69), slider touchAction pan-x deficit+MacroRow (r69),
+inline Reset on deficit pill (r69), git init + GitHub push everydayou/leve (r69),
+LoseMacroBars carbs/fat for lose goals (r68), slider thumb scale(2)+shadow+centering (r68),
+per-type goal-setup state memory (r68), goal history in GoalSettingsSheet (r68), macro
+visibility toggles Account+TodayScreen (r68), weekly weight cadence+day picker (r68),
+gain zone UI+WeekChart dual ramps+zone colors+3-state badge (r67), slider thumb pill+touch
+area (r67), macro checkmark mint (r67), lower-carb alerts fixed (r67),
+GaugeArc strokePositive/strokeNegative (r67), Build muscle range gauge+GainMacroBars
+(r66), surplusFloor/surplusCeiling (r66), Tracking step Simple/Detailed/macroStyle (r65),
+carousel diagonal swipe (r64), CTA mid-form keyboard (r63), gain diary+week strip (r62),
+Sheet footer gradient+keyboard cover (r62), gain_by_date goal type (r61), themes (r56+r58),
+swipe day-nav, all 9 goal lifecycle states, celebration screens, confirmation sheets,
+slide animations, portal overlay, AI food scan, speed dial FAB, onboarding carousel,
+GoalSetupScreen Figma redesign (r59), "leve" rebrand+loading screen (r60), and all
+earlier work through r62 (see CHANGELOG for full list).
+
+----------------------------------------------------------------
+RECENT ROUNDS (for context on what was just touched)
+----------------------------------------------------------------
+ROUND 69 — GOAL OUTCOME DISMISS STATE + SHEET CONFIRM UX + SLIDER TOUCH-ACTION + GIT (2026-06-16)
+Files: src/ui/screens/GoalScreen.tsx, src/ui/screens/GoalSetupScreen.tsx
+- GoalScreen: dismissedOutcome state; no-goal check guards with flag; GoalOutcomeView
+  receives onDismiss prop (sets flag, no navigation). Goal status untouched in DB.
+- GoalOutcomeView: goalAchieved = mode==='completed' AND target weight actually reached;
+  X button calls slideDown(onDismiss); title block uses goalAchieved (not mode).
+- Complete goal sheets (GoalScreen + GoalSettingsSheet): Cancel as primary Button(lg) +
+  "Yes, complete goal" as outline — deliberate UX reversal to reduce accidents.
+  Updated copy: "Please confirm… stored in Past goals".
+- GoalSetupScreen: Reset button inline in deficit/surplus pill (only when override active);
+  touchAction:'pan-x' on deficit slider and MacroRow slider (iOS scroll conflict fix).
+- Infrastructure: project moved to ~/Downloads/nutri/; git init + initial commit fb19faa;
+  GitHub repo everydayou/leve (private) created and pushed.
+- tsc: clean.
+
+ROUND 68 — SLIDER POLISH + GOAL SETUP MEMORY + GOAL HISTORY + ACCOUNT PREFS + LOSE MACRO BARS (2026-06-16)
+Files: src/index.css, src/domain/types.ts, src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/screens/GoalScreen.tsx, src/ui/screens/AccountScreen.tsx,
+       src/ui/screens/TodayScreen.tsx
+- index.css: slider thumb — removed margin-top offset; box-shadow → rgba(0,0,0,0.10);
+  :active scale(2) for hold-to-expand feel.
+- GoalSetupScreen: typeStash useRef saves/restores {target,date} per type on switch.
+  Pre-populated from activeGoal on mount. No more permanent clearing on type change.
+- GoalScreen: previousGoals derived (all non-active, newest first), passed to
+  GoalSettingsSheet. PreviousGoalRow shows name, type, date range, Completed/Ended.
+  Section gated on previousGoals.length > 0.
+- types.ts: User gains visibleMacros?: {protein?,carbs?,fat?},
+  weightCadence?: 'daily'|'weekly', weeklyWeightDay?: number (0=Mon).
+- AccountScreen: TodayViewCard (3 macro toggles); WeightCadenceCard (Daily/Weekly
+  segmented control + DOW pill picker). Both save to repos.user.
+- TodayScreen: showProteinBar/showCarbsBar/showFatBar flags — gain goals default ON
+  (undefined=visible); lose goals default OFF (undefined=hidden, must opt in with ===true).
+  GainMacroBars respects showProtein/showCarbs/showFat and returns null if all off.
+  isWeighInDay gates showWeightReminder (daily=always; weekly=todayDow===anchorDay).
+  Weekly displayWeightKg: most recent entry in weekStart..today shown on all days.
+  LoseMacroBars: protein with progress bar toward target; carbs+fat consumed grams
+  + empty track (no target). anyMacroBar updated for lose branch.
+- tsc: clean.
+
+ROUND 67 — GAIN ZONE UI POLISH + WEEKCHART DUAL RAMPS (2026-06-16)
+Files: Progress.tsx, GoalSetupScreen.tsx, TodayScreen.tsx, GoalScreen.tsx, index.css
+- GaugeArc strokePositive/strokeNegative props; single gain slider (gainHalfWidth
+  useMemo); gain arc mint/black zone-aware; 3-state badge (Under/On target/Over);
+  WeekChart dual dashed ramps for gain + zone bar colors; slider thumb pill (24×12px)
+  + h-11 touch area; macro checkmark → text-accent; lower-carb alerts tightened.
+- tsc: clean.

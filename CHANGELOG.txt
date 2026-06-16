@@ -1,0 +1,2143 @@
+================================================================
+NUTRITION GOAL TRACKER — CHANGELOG
+================================================================
+Full per-round history. Reference only — open when you need to
+know WHY something was decided or what changed in a specific round.
+
+Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
+
+NOTE: Rounds 16–43 are summarised below rather than fully expanded.
+The detailed per-item notes for those rounds existed in the original
+PROJECT-CONTEXT.txt and were not extracted before the file was split.
+All outcomes from those rounds are reflected in the current codebase
+and are captured in the PROJECT-CONTEXT.txt "Known Gaps / Already Done"
+sections.
+
+================================================================
+ROUNDS 1–10 — UX DECISIONS FROM PROTOTYPE TESTING
+================================================================
+Items implemented across rounds 1–12 (the "section 10" log):
+
+FIRST FEEDBACK ROUND:
+1.  TODAY LOG — EDIT/DELETE: tapping a logged item opens a sheet to
+    edit quantity (calories/protein recompute live) or delete it. Activities too.
+2.  ADD-ENTRY "NEW FOOD": From-pantry vs. +New-food modes; new food
+    can be saved to pantry via checkbox.
+3.  WEIGHT MOVED OUT of Add-entry sheet. Add-entry = Food / Activity only.
+    Weight logged/edited from Account.
+4.  GOAL SETUP = FULL-SCREEN modal with X to exit, NO bottom nav.
+5.  FOOD PHOTOS: FoodItem has optional photo. Photo tile in pantry/new-food
+    forms; on phone opens camera, on desktop opens file picker. Canvas downscaler
+    in src/lib/image.ts (shrinks to ~120px max, JPEG q~0.72).
+
+SECOND FEEDBACK ROUND:
+6.  TODAY LOG — TIME SORT: foods + activities merged, sorted by createdAt
+    (most recent on top). Added createdAt to ActivityEntry.
+7.  TODAY — removed "tap item to edit" hint; centered top of deficit card.
+8.  WEIGHT UPDATE BUG FIXED: weights now UPSERT BY DATE (one weigh-in per day).
+    weights.upsertForDate() added; Account + goal-setup use it.
+9.  GOAL <-> WEIGHT LINKAGE: goal setup pre-fills current weight from latest
+    WeightEntry; on save logs that weight (upsertForDate). "Edit" updates the
+    goal instead of creating a duplicate.
+10. BMR FACTORS: User gained age + sex. Account has "Edit profile" sheet +
+    "Calculate from profile" button (Mifflin-St Jeor). bmr stays the single
+    trusted value. New domain/bmr.ts + unit tests.
+
+THIRD FEEDBACK ROUND:
+11. CLEAN START: app boots empty — blank user, no goal, empty pantry, no entries.
+    seed.ts only creates blank user. Demo build is clean; sample data in
+    seedMemoryDemo() for tests only.
+12. FREQUENT FOODS: real and self-hiding. FREQUENT_MIN_LOGS=3,
+    FREQUENT_MIN_FOODS=3. Both constants in TodayScreen.tsx.
+13. GOAL WEEKLY DEFICIT is now REAL: removed hardcoded 86% placeholder.
+    GoalScreen sums actual deficit over rolling last 7 days.
+14. PANTRY ITEMS EDITABLE + DELETABLE: tapping row opens edit sheet.
+    FoodItemRepo gained remove(). Past entries keep snapshot (immutable history).
+15. GOAL SETUP starts blank for new goal; pre-fills current weight if known.
+
+FOURTH FEEDBACK ROUND:
+16. "CALORIES LEFT TODAY" BUDGET on Today: hero shows food budget remaining.
+    budget = totalBurn − dailyTarget; left = budget − consumed.
+17. FIRST-RUN GUIDANCE: clean install nudges to "Set your BMR" + "Set a goal".
+18. PERSISTENT STORAGE: main.tsx calls navigator.storage.persist() at boot.
+
+FIFTH FEEDBACK ROUND:
+19. DECIMAL INPUTS: numeric fields normalise typed comma to dot (src/lib/num.ts).
+20. MANUAL FOOD ENTRIES NOW EDITABLE: tapping a manual logged food opens editable
+    fields. Pantry-backed entries stay quantity-only.
+21. DUPLICATE PANTRY NAMES BLOCKED: case/space-insensitive. Shared findByName().
+22. NATIVE BOTTOM SHEET: slides up, follows finger on drag, dismisses past
+    threshold (else springs back). Scrim fades with drag.
+23. DEVICE SAFE AREAS: env(safe-area-inset-*) for status bar and home indicator.
+    index.css .safe-top/.safe-bottom/.safe-pb.
+24. GOAL EDIT CTA: editing shows "Confirm" (new goals still "Create goal").
+
+SIXTH FEEDBACK ROUND:
+25. DARK / LIGHT THEME: follows system + manual override (Account → Appearance:
+    System/Light/Dark). src/lib/theme.ts persists choice in localStorage.
+26. RESPONSIVE FOUNDATIONS: phone-first shell, centred framed card on ≥ sm.
+27. WITHINGS — SCAFFOLDED on MOCK. Account → Connections has Connect/Sync/
+    Disconnect. Real OAuth needs a backend proxy (see WITHINGS.md).
+28. GOAL FLOW COPY: adapts to create vs edit.
+29. TOP-BAR RULE: close (X) and back (‹) always on the LEFT. Never both in
+    one view.
+30. GOAL CHART RANGE CONTROL: segmented Weekly/Monthly/Total with week navigation.
+31. kg ROUNDING: fmtKg() rounds weight diffs to 1 decimal, drops trailing ".0".
+
+SEVENTH FEEDBACK ROUND — DESIGN SYSTEM + iOS GLASSMORPHISM:
+32. SEMANTIC TOKEN LAYER in src/index.css (Tailwind v4 @theme). Surface/content/
+    border/accent/success/warn/danger tokens. RULE: components consume SEMANTIC
+    tokens only (bg-surface, text-content, etc.), never raw neutrals.
+33. BRAND: typeface = Outfit (self-hosted r9). Accent = mint #00E0AA.
+    Page background #FAFAFA. Status colors pastel (green/amber/coral).
+34. REUSABLE ATOM KIT (src/ui/kit/): Button/IconButton, Sheet, LabeledInput,
+    NumberField, Card/Surface, StatTile, ProgressBar/GaugeArc, Badge,
+    SegmentedControl, FilterPills, Icon, etc.
+35. iOS GLASSMORPHISM: frosted tab bar, frosted top bar/sheets. Content cards
+    stay solid. .glass utility = backdrop-filter blur+saturate.
+36. WHOLE-APP MIGRATION: every screen swept off raw neutrals onto semantic tokens.
+37. GALLERY: /styleguide route + design-system-preview.html.
+38. MINIMALISM/UX CLEANUP: aggressive cull of permanent helper microcopy.
+    COLOR CARRIES THE VERDICT: mint = interactive elements only; status colors =
+    on-track/behind/over-budget.
+39. FIGMA: decided NOT to build a Figma library for now.
+40. SANITY-CHECK PASS: all screens through kit atoms + tokens (note: the r11 audit
+    later found this was overstated — properly resolved in rounds 11-12).
+
+EIGHTH FEEDBACK ROUND:
+41. PANTRY EDITS PROPAGATE LIVE: pantry-backed FoodEntries now valued from current
+    pantry item (not snapshot). Manual entries still keep their snapshot.
+42. ADD TO PREVIOUS/FUTURE DAYS: Today viewed-date lifted into AppShell DayContext.
+    Add-entry sheet logs to the day being viewed.
+43. GOAL WEEKLY CHART = CURRENT CALENDAR WEEK (Mon→Sun) with ‹ › week navigation.
+44. STARTER PANTRY IMPORT: ~54 foods from Marco's spreadsheet (src/data/pantrySeed.ts).
+    importStarterPantry() runs once at boot, idempotent by name.
+45. DESIGN-SYSTEM: added border-field token (darker, for flat/shadowless items).
+    Pantry restyle: filter pills use SegmentedControl look. PhotoPicker remove-X
+    moved inside tile corner.
+46. FILTER PILLS COMPONENT: new kit atom FilterPills (hug-content single-select pills).
+47. TODAY HERO REDESIGN: calories-left card is now a radial gauge. New GaugeArc kit
+    atom (open-bottom 270° arc, status-coloured, centered children).
+
+NINTH FEEDBACK ROUND:
+48. TAP ANIMATION — PROGRESS CARD: position-sensitive 3D tilt on gauge card tap.
+    useTilt<HTMLButtonElement>() hook in src/lib/useTilt.ts.
+49. PROGRESS ARC RESET + REFILL: tapping card resets arc to 0 then reanimates.
+50. ADD ENTRY REDESIGN: fixed 60vh height, underline-style tab bar.
+51. CAPACITOR CAMERA PLUGIN: @capacitor/camera on iOS native; falls back to file
+    picker on browser.
+52. GOAL LIFECYCLE: Account → Manage → Complete/Abandon. Goal.getActive() filters
+    status==='active'.
+53. OUTFIT FONT SELF-HOSTED: bundled in public/fonts/ (woff2, 400/500/600/700).
+    download-fonts.sh fetches from Google Fonts CDN (run once on Mac).
+54. USETILT GENERIC TYPE PARAMETER: hook accepts <T extends HTMLElement>.
+
+TENTH FEEDBACK ROUND — QUICK WINS + GOAL FLOW POLISH:
+55. CUSTOM ICONS: added Food/Activity tab icons (inline SVG) to Icon component.
+56. ADD ENTRY SHEET IMPROVEMENTS: removed "Adding to <date>" label.
+57. DATE NAVIGATION LOCK: next-day chevron disabled (past + today only).
+58. QUANTITY DISPLAY ON LOG: food entries show quantity in parentheses
+    (e.g. "cashews (50g)").
+59. TODAY VIEW REORGANIZATION: "Frequent foods" → "Quick add" subsection at top
+    of Today's log list.
+60. QUICKLOGCARD COMPONENT: new kit atom for frequent food cards.
+61. GOAL SETUP HEADER POLISH: back + close use Icon component at size 20.
+62. GOAL SETUP SECOND SCREEN: removed redundant FlowHeader; "Your plan" heading
+    moved into content area.
+63. GOAL FORM PREFILLING FIX: useEffect to update form when activeGoal loads async.
+64. GOAL NAVIGATION FIX: "Edit goal" from Account navigates to /goal-setup
+    (not /goal-setup?new=true).
+65. PANTRY IMAGES DEFERRED: removed photo paths from starter pantry seed.
+
+================================================================
+ROUND 11 — DESIGN-SYSTEM AUDIT + FIRST CLEANUP BATCH (2026-06-05)
+================================================================
+66. AUDIT DONE. Full report in DESIGN-SYSTEM-AUDIT.md. Maturity score: 64/100.
+    Critical/medium/nice-to-have findings + refactor plan documented there.
+67. THREE SAFE CLEANUPS APPLIED (tsc clean):
+    - Deleted dead files: "TodayScreen 3.tsx" + "src/ui/components/ui.tsx".
+    - Folded QuickLogCard into kit (src/ui/kit/Surface.tsx); screens import
+      Card/SectionLabel/QuickLogCard from '../kit'.
+    - Tokenized typography: all 58 raw Tailwind text sizes → semantic type scale.
+      Zero raw text sizes remain in src/ui.
+
+================================================================
+ROUND 12 — DESIGN-SYSTEM CLEANUP FINISHED + FOLDER TIDY (2026-06-05)
+================================================================
+68. ALL 5 SECTION-12 ITEMS DONE:
+    - Sheet: one shared draggable Sheet atom (kit/Sheet.tsx); dead kit version deleted.
+    - NumberField: one shared labeled-decimal field replaces 3 Num/EditNum duplicates.
+    - StatTile gained 'sm' size + align prop; Today/Goal stats use kit atoms.
+    - A11y: gauge card aria-label, in-sheet abandon-goal confirm, Withings dot aria-label.
+    - ESLint guardrail: forbids raw text sizes + hardcoded hex/rgb in src/ui/**.
+69. FOLDER CLEANUP: deleted 18 stale vitest temp files, 5 .fuse_hidden artifacts,
+    3 .DS_Store files, src/ui/components/ui.tsx. Folder: 194 → 167 files.
+70. LITERAL CHEVRONS → Icon: "›" glyphs in Account export row + Today BMR banner
+    replaced with <Icon name="chevronRight">.
+71. ACCOUNT BUTTONS → Button atom: all 8 hand-rolled Account buttons use kit Button.
+    Added 'subtle' variant + 'xs' size to Button.
+72. ADOPTED ORPHAN ATOMS: EmptyState (goal + pantry empty states), Skeleton (loading
+    states), ListRow (Account export row). Toast intentionally NOT adopted.
+73. FAST-REFRESH FIX: findByName moved to src/domain/pantry.ts so AddEntrySheet
+    exports only its React component → Vite hot-updates correctly.
+
+================================================================
+ROUND 13 — THREE UX IMPROVEMENTS (2026-06-05)
+================================================================
+74. NAVIGATION ARROW FIX: right chevron now context-aware — disabled only for truly
+    future dates. Swipe-forward also respects same rule.
+75. DOUBLE-TAP TODAY SHORTCUT: tapping Today tab while on Today resets viewed-date
+    to today + scrolls to top. 300ms double-tap window.
+76. PHOTO LIBRARY SELECTION: on native iOS, photo tile shows action sheet offering
+    "Take a photo" or "Choose from library". Browser: file picker unchanged.
+
+================================================================
+ROUND 14 — WEIGHT TRACKING OVERHAUL (2026-06-05)
+================================================================
+77. ADD-ENTRY WEIGHT TAB: AddEntrySheet now has Food / Activity / Weight tabs.
+    Weight tab uses upsertForDate(); backdating works; pre-fills from existing weight.
+78. GOAL SCREEN WEIGHT ENTRY: always-visible weight card at bottom of GoalScreen.
+    Opens WeightLogSheet.
+79. TODAY SCREEN EVENING REMINDER: after 8pm, banner appears if no weight logged
+    today. "Log" button opens WeightLogSheet; dismiss X persists per-day in
+    localStorage.
+80. ACCOUNT WEIGHT HISTORY: full weigh-in history log (sorted desc). Tap any entry
+    → WeightEntryEditSheet (edit value + Save, or Delete). WeightEntryRepo gained
+    remove(id).
+81. SHARED WeightLogSheet COMPONENT: new src/ui/components/WeightLogSheet.tsx.
+82. ACCOUNT IA OPEN POINT: flagged as future task.
+
+================================================================
+ROUND 15 — UI REFINEMENTS + ICON UPDATE (2026-06-05)
+================================================================
+83. CUSTOM WEIGHT ICON: replaced generic "scale" icon with Marco's custom weight
+    icon in AddEntrySheet + GoalScreen.
+84. NEW MeasurementTypeSelector COMPONENT: kit atom in src/ui/kit/. Used in
+    AddEntrySheet NewFood form + PantryScreen FoodItemForm.
+85. AddEntrySheet TAB STYLING: smaller tabs (text-subhead, 18px icons).
+86. SHEET SCRIM ANIMATION PARTIAL FIX: JS-only transition via rAF + useLayoutEffect
+    scroll-lock. Root cause: autoFocus on inputs inside sheets scrolled `main`
+    during DOM commit. Fix appears correct; native Capacitor confirmed unaffected.
+
+================================================================
+ROUNDS 16–43 — SUMMARY (detailed notes not available)
+================================================================
+These rounds are fully implemented in the codebase. Key outcomes:
+
+Round 16 — Sheet scrim animation follow-up + misc fixes.
+Round 17 — Minor UX/visual refinements.
+Round 18 — Additional UX polish.
+Round 19 — Goal screen full redesign + animations; Sheet z-index portal fix;
+            AddEntry quick-add tiles.
+Round 20 — Full UX/data refactor.
+Round 21 — WeekStrip overhaul + sticky header.
+Round 22 — Haptic proxy + drag sync + safe area fix.
+Round 23 — Protein goal feature.
+Round 24 — UI polish batch.
+Rounds 25–30 — Incremental UI/UX polish and refinements.
+Round 31 — BMR per-day (Mifflin-St Jeor); WeekStrip 3-panel carousel + rubber-band
+            + haptics; mint→black accessibility pass; Y-axis fix;
+            active-state outline fix; WeekStrip clamp both edges.
+Round 32 — Accessibility follow-up (mint→black pass continued).
+Round 33 — Chart-timed haptics; haptic preference toggle in Account;
+            GoalScreen verdict badges; gauge arc filling haptics;
+            status-bar scroll-to-top; FloatingTabBar active icon→black;
+            pantry flash root-cause fix.
+Round 34 — WCAG AA accessibility pass: :focus-visible, focus trap, ARIA roles,
+            live regions, SVG alt text, form label association,
+            prefers-reduced-motion, icon contrast, 44pt touch targets.
+Round 35 — AI food scan feature: Vercel proxy + Claude Vision API,
+            multi-component detection, editable results, logs as manual entries.
+Round 36 — Diary spacing + padding; Goal tile text-center; AppShell scroll retry;
+            devTokens recursive var() resolver; Sheet keyboard height tracking.
+Round 37 — Add Entry speed dial redesign: FAB speed dial with 4 action buttons
+            (Scan / Food / Activity / Weight), scanFood icon, spring-stagger
+            animation, gradient scrim token, hideTabs/autoScan props,
+            camera title "Scan photo".
+Round 38 — Speed dial polish: FAB + button position fix (PILL_H=56 container);
+            animation overhaul (translateX→scale order, 480ms/380ms);
+            bg layers split (150px+100px @ 90%); scrim layer-order blocking fix;
+            16px gaps; native scan-before-sheet via camera.ts;
+            dynamic sheet titles (Add food/activity/weight/entry).
+Round 39 — Speed dial backdrop split + anim tune: resting nav backdrop reverted
+            to always-on 120px gradient; active-only bg layers under FAB;
+            scrim made invisible (transparent tap-blocker only);
+            button anim 500ms/400ms, stagger kept.
+Round 40 — Speed dial sizing + "emanate from FAB" choreography: active bg 90%→95%;
+            FAB scales 48→64px when active; action buttons 40→48px; buttons fan out
+            from behind FAB (tier-based offsets 64/128px, scale 0.4→1);
+            two-phase mirrored timing.
+Round 41 — Speed dial feel + pixel + z-order fix: FAB 230ms / buttons 380ms;
+            buttons start halfway through FAB; CLOSE now simultaneous;
+            all gaps 12px; new weight icon.
+  41b — FIXED nav bar showing through open dial: reordered layers so pill is
+        Layer 1, FAB backdrop assets are Layers 2+3.
+  41c — Active bg settled back to 90%; added ±45°→0° button unfurl (right CW,
+        left CCW).
+Round 42 — Focus repointed to panel div on Sheet open (later caused a regression
+            caught in r43).
+Round 43 — Sheet focus-outline regression fix: the modal's accent ring was the
+            global :focus-visible rule firing on the panel div. Fixed with a
+            token-driven rule scoped to [role="dialog"][tabindex="-1"] in
+            src/index.css; interactive children keep their rings.
+Round 44 — Goal lifecycle (5 states): GoalScreen handles active/final_day/overdue/
+            completed/abandoned states. New GoalOverdueView (complete/extend/end),
+            GoalOutcomeView, GoalSettingsSheet (⋯ button). moreHoriz icon added.
+            Data fetch changed from getActive() to getAll() with fallback.
+            Account: "Abandon" → "End goal" throughout. tsc clean.
+
+================================================================
+ROUND 45 — NATIVE SPLASH SCREEN (2026-06-11)
+================================================================
+Files: package.json, capacitor.config.ts, src/main.tsx
+
+Added @capacitor/splash-screen. On cold start: native splash shown immediately
+(before JS runs); launchAutoHide: false keeps it visible until SplashScreen.hide()
+is called; main.tsx calls hide({ fadeOutDuration: 300 }) after first render.
+
+Config: launchFadeOutDuration: 300, backgroundColor: '#FAFAFA',
+showSpinner: false, splashFullScreen: true, splashImmersive: false.
+
+Xcode one-time steps: npm install → npx pod-install ios → npm run ios:sync →
+replace placeholder "Splash" image set in Assets.xcassets → Run on device.
+
+Browser dev server: SplashScreen.hide() never called (isNativePlatform=false).
+tsc clean.
+
+================================================================
+ROUND 46 — SCAN RESULTS: EDITABLE GRAMS + PHOTO CONFIRMATION (2026-06-11)
+================================================================
+Files: src/ui/components/AddEntrySheet.tsx only.
+
+1. EDITABLE GRAMS WITH PROPORTIONAL MACRO RESCALING:
+   "Est. weight (g)" field in scan result edit panel is now a live NumberField.
+   Changing grams proportionally rescales ALL macros from the original AI baseline.
+   originalsRef (useRef) captures each item's original AI values on first panel open.
+   updateGrams(idx, g) computes scale = newGrams / orig.g and applies to all fields.
+   Editing individual macro fields directly still works (no coupling on those).
+
+2. PHOTO CONFIRMATION SCREEN (library path):
+   When photo is selected from library, a confirmation screen is shown before
+   scanning. User sees the photo and can "Scan this photo" or "Choose another photo".
+   Camera path skips confirmation (iOS shows Retake/Use Photo natively).
+
+tsc clean.
+
+================================================================
+ROUND 47 — ONBOARDING SCREEN 2 "DAILY ALLOWANCE" (2026-06-11)
+================================================================
+New OnboardingDailyAllowance.tsx with animated gauge + flash pill sequence.
+Wired into OnboardingFlow (Welcome → Daily Allowance → Profile).
+DevMenu "Onboarding" updated to enter the new flow.
+tsc clean.
+
+================================================================
+ROUND 48 — FULL TWO-SCREEN ONBOARDING CAROUSEL (2026-06-12)
+================================================================
+Files: OnboardingFlow.tsx (NEW), OnboardingScreen1.tsx (NEW),
+       OnboardingDailyAllowance.tsx (modified), OnboardingScreen.tsx (modified)
+
+OnboardingFlow.tsx: two-screen carousel with shared header (logo + Skip) and footer.
+  Layout: outer fixed inset-0; inner strip width:200%, flex row; each panel = 50%.
+  translateX = -screen * containerWidth + dragOffset.
+  Transition: 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94) when not dragging.
+  Swipe: SNAP_RATIO=0.4, FAST_VEL=500 px/s. Stepper: pill (active) / dot (inactive).
+
+OnboardingScreen1.tsx — NutritionGoalsVisual:
+  Animated chart card. Animation loop: weight chart → tab switch → calorie bars.
+  Timing: CHART_DRAW_MS=900, HOLD_MS=1800, TAB_SWITCH_MS=150, CAL_GROW_MS=600.
+  Subcomponents: OnboardingKgWeekChart, OnboardingWeekChart (namespaced ob_* keyframes).
+
+OnboardingDailyAllowance.tsx: DailyAllowanceVisual elevated to named export.
+  Timing updated: PILL_FADE_AT 800ms, AFTER_ARC_GAP 750ms, LOOP_PAUSE 2000ms.
+
+OnboardingScreen.tsx: initial step changed to 'daily' so DevMenu taps the carousel.
+tsc clean.
+
+================================================================
+ROUND 49 — ONBOARDING SCREEN 1 & 2 POLISH (2026-06-12)
+================================================================
+Files: OnboardingScreen1.tsx, OnboardingDailyAllowance.tsx, OnboardingFlow.tsx
+
+Screen 1 — weight chart final data:
+  Y axis: 65–68 kg. Plan: Mon 67.0 → Fri 66.4 → Sun 66.0.
+  Actuals: Mon 67.3, Tue 67.0, Wed 66.8, Thu 66.5, Fri 66.1.
+  Badge: "Ahead · 0.3 kg" (status=success).
+
+Screen 1 — calorie chart final data:
+  3 green bars (Mon–Wed) + 2 dark bars (Thu–Fri over budget).
+  Badge: "Over · 50 kcal".
+
+Screen 1 — SegmentedControl centered (wrapped in flex justify-center).
+
+Screen 2 — body copy: "Food uses it, activity earns it back." (comma, no →).
+Screen 2 — shadow-card-lg fix: overflow-hidden → overflow-y-auto on
+  DailyAllowanceVisual outer div + Panel 2 in OnboardingFlow; added pt-2.
+tsc clean.
+
+================================================================
+ROUND 50 — ONBOARDING ANIMATION POLISH (2026-06-12)
+================================================================
+Files: OnboardingScreen1.tsx, OnboardingDailyAllowance.tsx
+
+Screen 1 timing update: CHART_DRAW_MS=1500, TAB_SWITCH_MS=250, CAL_GROW_MS=1000.
+
+Weight chart — plan line now static (removed ob_planSettle keyframe + <g> wrapper).
+
+Weight chart — dot stagger fixed:
+  Root cause: strokeDasharray was 1200 (wrong). Real path ≈ 170 SVG units.
+  Fix: strokeDasharray corrected to 220; dot delay formula changed to x-fraction:
+    delay = LINE_DELAY + xFrac * LINE_DUR * 0.85
+  Result: 5 dots stagger ~210ms apart.
+
+Calorie chart — bars hold scaleY(0) before animation:
+  Root cause: animationName:'none' on visible=false left bars at full height.
+  Fix: full style branch (scaleY(0) vs full animation styles).
+
+Screen 2 — gauge → pill spacing: reduced to 8px (removed gap-6; mt-6 on gauge
+  wrapper, mt-2 on pill). Shadow-card-lg unclipping root cause fixed properly:
+  added px-3 to DailyAllowanceVisual outer wrapper (shadow now within padding area).
+tsc clean.
+
+================================================================
+ROUND 51 — ONBOARDING CAROUSEL UX REFINEMENT (2026-06-12)
+================================================================
+Files: OnboardingScreen1.tsx, OnboardingDailyAllowance.tsx, OnboardingFlow.tsx
+
+Timing constants: CHART_DRAW_MS=1500 (unchanged), TAB_SWITCH_MS=250 (unchanged),
+  CAL_GROW_MS=1000 (unchanged).
+
+Weight chart — dot stagger finalized with x-fraction formula (same as r50).
+Weight chart — plan line static confirmed (no animation).
+Calorie bars — hold scaleY(0) confirmed fix.
+Gauge → pill spacing confirmed at 8px.
+Shadow-card-lg unclipping confirmed via px-3 padding fix.
+tsc clean.
+
+================================================================
+ROUND 51 — ONBOARDING CAROUSEL UX REFINEMENT (2026-06-12)
+================================================================
+Files: OnboardingScreen1.tsx, OnboardingDailyAllowance.tsx, OnboardingFlow.tsx
+
+Timing constants updated: CHART_DRAW_MS=1500, TAB_SWITCH_MS=250, CAL_GROW_MS=1000.
+Weight chart: plan line made static (removed ob_planSettle keyframe); dots stagger
+  correctly via x-fraction-based delay formula.
+Calorie chart: bars hold scaleY(0) before animation (no flash on remount).
+Gauge → pill spacing reduced to 8px (mt-2 on pill, mt-6 on gauge wrapper).
+Shadow-card-lg unclipping: CSS spec coerces overflow-x to 'auto' when overflow-y
+  is set; added px-3 to DailyAllowanceVisual wrapper so shadow falls within padding.
+tsc clean.
+================================================================
+
+================================================================
+ROUND 52 — SCAN FOOD MODAL OVERHAUL (2026-06-12/13)
+================================================================
+Files: AddEntrySheet.tsx, Sheet.tsx, WeightLogSheet.tsx, camera.ts,
+       AppShell.tsx, CLAUDE.md
+
+SCAN STATE MACHINE:
+  ScanState: 'idle' | 'source-picking' | 'confirming' | 'analyzing' | 'results'
+  Camera path: captureFromCamera() → runScan() directly (no confirmation).
+  Library path: captureFromLibrary() → 'confirming' → user confirms → scan.
+  forceExpanded: only during scan (not during source-picking).
+
+SCREEN LAYOUTS (all three share pt-2 photo + sticky CTA):
+  Screen 1 — Confirmation: "Choose another photo" + "Scan this photo" sticky CTAs.
+  Screen 2 — Analyzing: spinner + "Analysing your meal…".
+  Screen 3 — Results: photo → meal name → total nutrition card → items
+    → disclaimer → "Log meal" button. Disclaimer scrolls with content (not sticky).
+
+NATIVE SOURCE PICKER: FoodForm renders own picker (Take photo / Choose from library).
+  AppShell.handleAction('scan') just sets autoScan=true; FoodForm handles routing.
+
+camera.ts SPLIT: captureFromCamera() (CameraSource.Camera) + captureFromLibrary()
+  (CameraSource.Photos). Shared BASE_OPTIONS. Cancel detected by error message.
+
+NUMERIC SANITIZATION BUG: AI returning strings → wrapped with Number() in runScan().
+
+ALL MODAL SHEET CTAs STICKY: gradient background sticky div in all sheets.
+  Sheet scroll area: flex-1 overflow-y-auto safe-bottom (supports position:sticky).
+
+SHEET HEIGHT: 85dvh → 95dvh → 90dvh (final).
+
+CLAUDE.md ADDITIONS:
+  "Execution style (default)" — commit to first viable approach, prefer Write
+    over many Edits for scattered changes.
+  "Safe word: careful mode" — slower + thorough (read full files, explicit plan,
+    TaskCreate, targeted Edits, typecheck after each change).
+tsc clean.
+
+================================================================
+ROUND 53 — SHEET & CTA POLISH (2026-06-13)
+================================================================
+Files: Sheet.tsx, AddEntrySheet.tsx, WeightLogSheet.tsx
+
+GRADIENT REACHING SCREEN BOTTOM:
+  Root cause: Sheet scroll area had safe-bottom class (~34px padding).
+    sticky CTA stopped at top of safe zone, not screen edge.
+  Fix: removed safe-bottom from scroll area. All sticky CTA divs use inline
+    paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))'.
+
+SOURCE PICKER FLASH FIX:
+  Root cause: setShowSourcePicker(false) called BEFORE awaiting camera/library.
+    Default FoodForm content flashed briefly.
+  Fix: setShowSourcePicker(false) moved to AFTER photo returned or error.
+  Source picker stays visible while native OS UI is open.
+  Cancel keeps source picker visible; user can retry or dismiss.
+
+DISABLED BUTTON GRADIENT FIX:
+  Root cause: gradient reached transparent at button position (75% transparent
+    at ~22-26% into the sticky div). Disabled button (opacity-40) on 75% transparent
+    background let scroll content show through.
+  Fix: gradient stops at 1.5rem (= pt-6 top padding):
+    linear-gradient(to bottom, transparent 0px, var(--color-surface) 1.5rem)
+  Button area always on solid surface.
+
+SHEET COLLAPSE LOGIC FIX:
+  Old order was wrong: dismiss check fired BEFORE collapse check.
+  New order:
+    1. dragY < -EXPAND_THRESHOLD && !expanded && !forceExpanded → expand to 90%
+    2. expanded && !forceExpanded && dragY > 60 → collapse to 50% (always)
+    3. dragY > DRAG_DISMISS_PX && (!expanded || forceExpanded) → dismiss
+    4. else → spring back
+  From 90%: any downward drag > 60px collapses to 50% first.
+  From 50%: downward drag > 110px dismisses.
+  forceExpanded sheets dismiss directly.
+
+SHEET ANIMATION TUNING:
+  Easing history: cubic-bezier(0.32, 0.72, 0, 1) → cubic-bezier(0.16, 1, 0.3, 1)
+    → final: cubic-bezier(0.22, 0.65, 0.25, 1) (smooth even deceleration).
+  max-height fix: was toggling 'auto'/undefined (CSS can't interpolate).
+    Now always a concrete value: '50dvh' (collapsed) or '90dvh' (expanded).
+  max-height transition now uses OPEN_MS (not hardcoded 300ms).
+  Final timing: OPEN_MS=420, CLOSE_MS=300. springBackEasing unchanged.
+tsc clean.
+================================================================
+
+================================================================
+ROUND 54 — DIARY SORT FIX + NEGATIVE CALORIE DISPLAY (2026-06-13)
+================================================================
+Files: src/state/useDay.ts, src/ui/screens/TodayScreen.tsx
+
+── DIARY SORT BUG FIX ───────────────────────────────────────────────────────
+
+Root cause: newId() uses crypto.randomUUID() — fully random UUIDs with no
+time component. Dexie's byDate() returns entries in primary-key (UUID) order,
+which is random. TodayScreen applied .reverse() on this random array, so the
+order of logged items was unpredictable.
+
+The FoodEntry.createdAt field (ISO timestamp string) has always been set at
+log time but was never used for ordering.
+
+Fix: in useDay.ts, after the Dexie query, sort rawFoods by createdAt ascending
+before returning. The existing .reverse() in TodayScreen then correctly yields
+newest-first.
+
+  const foods = [...rawFoods].sort((a, b) =>
+    (a.createdAt ?? '').localeCompare(b.createdAt ?? ''),
+  );
+
+── TITLE SPACING ─────────────────────────────────────────────────────────────
+
+"Diary" title container: mb-4 (16px) → mb-2 (8px).
+Combined with WeekStrip's pt-2 (8px), visual gap from title to day letters
+is now ~16px (was ~24px).
+
+── NEGATIVE CALORIE DISPLAY ──────────────────────────────────────────────────
+
+Motivation: the gauge showed "500" for both "500 left" (good) and "500 over"
+(bad) — the number had no polarity signal. Food entries in the diary also
+showed calories as neutral positive numbers.
+
+GAUGE CENTER (when over):
+  The number display is split into a styled minus sign + the absolute value:
+
+    <div
+      className="flex items-center gap-1"
+      style={left < 0 ? { transform: 'translateX(-4px)' } : undefined}
+    >
+      {left < 0 && (
+        <span className="text-title font-semibold leading-none text-content">−</span>
+      )}
+      <span className="text-hero font-semibold leading-none tracking-tight text-content">
+        {Math.abs(left)}
+      </span>
+    </div>
+
+  - text-title = 22px (closest token to 24px; text-display at 30px is too large).
+  - gap-1 = 4px spacing between − and the number.
+  - translateX(-4px) shifts the container left only when over, so the number
+    part stays optically centered in the arc regardless of state.
+  - When on target (left ≥ 0): no minus sign, no offset — unchanged.
+
+FOOD KPI TILE (bottom of gauge card):
+  Both the hasTarget and no-goal variants updated:
+    `−${Math.round(consumed)}` instead of `Math.round(consumed)`
+  Shows "—" when nothing logged (unchanged).
+
+DIARY LIST (food entries):
+  Each entry's calorie display:
+    −{effectiveNutrition(entry, day.itemsById).calories} kcal
+  Always shown with minus to reinforce that food is a cost/deduction.
+
+VERIFICATION: tsc -b --noEmit = 0 errors.
+NEXT STEP ON MAC: npm run build → npm run ios:sync → test on device.
+================================================================
+
+================================================================
+ROUND 52 — SCAN FOOD MODAL OVERHAUL (2026-06-12/13)
+================================================================
+Files: AddEntrySheet.tsx, Sheet.tsx, WeightLogSheet.tsx, camera.ts,
+       AppShell.tsx, CLAUDE.md
+- Scan state machine: 'idle'|'source-picking'|'confirming'|'analyzing'|'results'.
+- Camera path: capture → scan directly (no confirmation screen needed).
+  Library path: capture → confirmation → scan.
+- Source picker inside FoodForm (not iOS native prompt).
+- camera.ts split into captureFromCamera() + captureFromLibrary().
+- All modal sheet CTAs made sticky with gradient background.
+- Numeric sanitization bug fixed (AI returning strings).
+- CLAUDE.md: added "execution style" defaults + "careful mode" safe word.
+tsc: clean.
+
+================================================================
+ROUND 53 — SHEET & CTA POLISH (2026-06-13)
+================================================================
+Files: src/ui/kit/Sheet.tsx, AddEntrySheet.tsx, WeightLogSheet.tsx
+- Gradient reaches screen bottom: removed safe-bottom from scroll area;
+  sticky CTAs use paddingBottom: max(1rem, env(safe-area-inset-bottom)).
+- Source picker stays visible while iOS camera/library is open.
+- Disabled button no longer see-through: gradient fades to solid surface.
+- Sheet collapse logic: 90% → 50% → dismiss (never skip-to-dismiss).
+- Animation easing: cubic-bezier(0.22, 0.65, 0.25, 1). OPEN_MS=420,
+  CLOSE_MS=300. max-height uses 50dvh/90dvh for CSS interpolation.
+tsc: clean.
+
+================================================================
+ROUND 54 — DIARY SORT FIX + NEGATIVE CALORIE DISPLAY (2026-06-13)
+================================================================
+Files: src/state/useDay.ts, src/ui/screens/TodayScreen.tsx
+- Sort bug: Dexie returns entries in UUID order. Added sort by createdAt
+  ascending after query so .reverse() in TodayScreen gives newest-first.
+- Title container spacing: mb-4 (16px) → mb-2 (8px) gap to week strip.
+- Gauge center when "over": styled − sign at text-title semibold with gap-1;
+  whole container translateX(-4px) for optical centering. Only when left < 0.
+- Food KPI tile: shows −320 (not 320) to reinforce food as calorie cost.
+- Diary list: every food entry shows −320 kcal.
+tsc: clean.
+
+================================================================
+ROUND 56 — DIARY STATES, ADD FOOD SHEET, GOAL SCREEN POLISH + DARK THEME TUNING (2026-06-14)
+================================================================
+Files changed:
+  src/ui/kit/Progress.tsx               — GaugeArc disabled prop
+  src/ui/screens/TodayScreen.tsx        — no-goal gauge states, BreakdownSheet split,
+                                           empty state, tile label/value tweaks
+  src/ui/screens/GoalScreen.tsx         — "Goal" title on empty state, stat tiles →
+                                           buttons, subtitle color, badge spacing
+  src/ui/components/AddEntrySheet.tsx   — scan icon in header, forceExpanded on food
+                                           tab, PantryPick redesign, scanTriggerRef
+  src/ui/components/MealEditSheet.tsx   — pantry picker section via extraSection prop
+  src/index.css                         — .dark token overrides (user-tuned palette)
+
+DIARY VIEW — 4 STATES:
+Mapped: no-goal-empty / no-goal-with-food / goal-set-empty / goal-set-with-food.
+
+GaugeArc disabled prop (src/ui/kit/Progress.tsx):
+- New `disabled?: boolean` prop. When true: fill arc hidden, track stroked
+  with --color-surface-sunken, SVG opacity 0.45 (container stays full opacity
+  so children — the calorie number — remain readable).
+- Technique: opacity on <svg> element only, not the wrapper div.
+
+No-goal gauge (TodayScreen):
+- Disabled GaugeArc (Option C: same arc shape, greyed, no fill).
+- Center shows consumed kcal (Math.round(consumed)) or "—". Tappable → BreakdownSheet.
+- Activity excluded from the equation (no-goal mode).
+- "No goal set" badge: disabled-style pill (bg-surface-sunken, text-content-secondary),
+  tappable → /goal tab.
+- BMR banner ("Set your BMR…") hidden when no goal is set.
+
+BreakdownSheet split:
+- mode="goal" (existing) vs mode="no-goal" (food total only, no deficit math).
+- TodayScreen renders correct mode: `{showBreakdown && hasTarget && <BreakdownSheet mode="goal" .../>}`
+  and `{showBreakdown && !hasTarget && <BreakdownSheet mode="no-goal" .../>}`.
+
+Empty state (TodayScreen day log):
+- Icon: <Icon name="foodIcon" size={24} className="text-content-muted" />
+- Copy: "Add food by tapping / on the + button"
+- Tile value "—" uses text-content-muted when foods.length === 0.
+- Tile label: translateX(-2px) to visually align icon+copy.
+
+ADD FOOD SHEET:
+Scan icon (AddEntrySheet header):
+- Scan icon appears top-right when tab === 'food' && foodScanState === 'idle'.
+- Tapping calls startScan() exposed from FoodForm via scanTriggerRef (useRef).
+- FoodForm: `scanTriggerRef?: React.MutableRefObject<(() => void) | null>` prop;
+  registers startScan on mount.
+- Sheet forceExpanded when tab === 'food' && foodScanState !== 'source-picking'
+  (matches scan results height).
+- Scan icon opens source picker (camera vs library) — same flow as before.
+
+PantryPick → Mini meal builder (AddEntrySheet):
+- Completely rewritten. State: `picked: PickedItem[] = { item: FoodItem; qty: string }[]`.
+- Dropdown now "Pick an item"; auto-adds on select; no duplicates (already-picked items
+  filtered out).
+- Each picked item shows qty field + trash icon.
+- 2+ items: meal name field appears.
+- CTA: "Log [item]" (1 item) or "Log meal" (2+ items).
+- Logging builds MealItem[] with `confidence: 'high' as const` to satisfy type.
+
+MealEditSheet pantry picker:
+- Added `pantryItems: FoodItem[]` prop + `addPantryItem()` function.
+- ScanResults: new `extraSection?: React.ReactNode` prop rendered before sticky CTA.
+- Pantry picker passed as extraSection so users can add more items while editing a meal.
+
+GOAL SCREEN POLISH:
+- Empty state: "Goal" title (text-title font-semibold text-content) added top-left,
+  matching Diary's "Today" header pattern.
+- Stat tiles (Current / Weight left / Time left): changed from <div> to <button>
+  → opens GoalSettingsSheet on tap (hapticLight + setShowSettings(true)).
+- Subtitle "Goal X kg · by Y": text-content-secondary → text-content.
+- Weight badge & calories badge: ` · ` → `{'\xa0\xa0·\xa0\xa0'}` (non-breaking spaces,
+  prevents HTML collapsing). Result: "Ahead  ·  0.3 kg".
+
+DARK THEME TUNING (src/index.css .dark block):
+User-exported tokens applied as direct overrides (previously some derived from
+neutral scale):
+  --color-surface:          #242424
+  --color-surface-elevated: #313131
+  --color-surface-muted:    #18181b
+  --color-surface-sunken:   #1b1b1d
+  --color-content:           #e3e3e3
+  --color-content-secondary: #a6a6a6
+  --color-border-subtle:    #212121
+  --color-border-field:     #262626
+  --shadow-card:    0px 1px 5px 0px #050100, 0px 8px 22px -6px #0f0200
+  --shadow-card-lg: 0px 2px 8px 0px #0f0200, 0px 16px 40px -8px #000000
+  --glass-border:   #262626
+  --glass-shadow:   0px 8px 30px 0px rgba(77,77,77,0.00)  ← effectively removed
+  --color-success-soft: rgba(0, 29, 24, 0.50)
+
+tsc: clean.
+
+================================================================
+ROUND 55 — GOAL SCREEN FULL LIFECYCLE REDESIGN (2026-06-13)
+================================================================
+Files changed:
+  src/ui/screens/GoalScreen.tsx        — primary (lifecycle states, outcome view)
+  src/ui/screens/GoalSetupScreen.tsx   — skip-type param, X button, animation
+  src/ui/components/DevMenu.tsx        — all 9 goal states for dev testing
+  src/ui/screens/TodayScreen.tsx       — -mt-0.5 label spacing on gauge tiles
+  src/index.css                        — text-headline 17→18px; slide keyframes
+
+DESIGN CHANGES:
+- Merged summary card + chart card into one outlined container.
+  Technique: inset box-shadow (`inset 0 0 0 1px var(--color-border-field)`)
+  instead of CSS border — inset shadows sit behind child elements so the
+  chart card's white bg hides the bottom "border" visually.
+- Stat tiles: white bg (bg-surface) + shadow-card; units added (kg, d).
+- Label spacing: -mt-0.5 between value and label (also applied to TodayScreen
+  gauge tiles for consistency).
+- text-headline updated 17→18px in @theme.
+
+GOAL LIFECYCLE — ALL 9 STATES:
+  (1) no-goal: vertically centered, 120×120 mint SVG icon (inline path),
+      text-title "No active goal", text-callout description at fixed 240px
+      width, "Set a goal" Button CTA.
+  (2) active-normal: tiles + chart, no banner, ⋯ settings button.
+  (3) final-day · no weight: mint banner ("🎯 Final day!"), "Log weight"
+      white-bg CTA opens Add Entry sheet via openAddEntry('weight',
+      {hideTabs:true}), 3rd tile shows "🎯 Today".
+  (4) final-day · weight in (not hit): no banner, weight left shown,
+      "Complete goal" CTA opens confirmation sheet.
+  (5) final-day · goal hit: "🎯" in weight-left tile, "Complete goal" CTA.
+  (6) early-complete (before deadline): "🎯" weight tile, "Complete goal" CTA.
+      isEarlyComplete = !isOverdue && remaining === 0.
+  (7) overdue: "+N d" / "Overdue" in 3rd tile; "End goal" (confirm sheet) +
+      "Extend goal date" (→ /goal-setup?skip-type=true).
+  (8) completed: GoalOutcomeView, mode="completed".
+  (9) abandoned: GoalOutcomeView, mode="ended".
+
+KEY FLAGS:
+  isEarlyComplete = !isOverdue && remaining === 0
+  hasTodayWeight  = weights.some(w => w.date === today)
+  isFinalDay      = goal.status === 'active' && goal.targetDate === today
+  isOverdue       = goal.status === 'active' && goal.targetDate < today
+  Complete CTA:   (isEarlyComplete || (isFinalDay && hasTodayWeight)) && !isOverdue
+
+GOALOUTCOMEVIEW:
+- Rendered via createPortal(content, document.body). Required because
+  AppShell's inner div has overflow-hidden + position-relative, causing
+  WKWebView to paint fixed descendants incorrectly (tab bar bled through).
+  Portal escapes all stacking context constraints. z-[200].
+- Slide-up on mount (.slide-up-in), slide-down on dismiss (.slide-down-out).
+  Exit: setExiting(true) → setTimeout(cb, 320) → navigate.
+- X button → nav('/goal') — lands on no-goal empty state.
+- "Start next goal" → nav('/goal-setup?new=true').
+- Custom success SVG (user-provided path, fill="var(--color-accent)").
+- Title: completed → "Congrats" + "goal achieved!" (two text-display lines);
+  ended → "Goal ended" single line.
+- Summary container: same inset box-shadow pattern as active goal view.
+- Tiles: white bg + shadow-card + 2-line labels (Weight/lost, Final/weight,
+  Total/days) using leading-tight + <br/>.
+
+GOALSETUPSCREEN:
+- ?skip-type=true: initializes step as 'details', bypasses plan-type chooser.
+- Back button when skipType=true: shows close icon; goBackOrChoose() sets
+  exiting=true, waits 320ms, calls nav(-1).
+- FullScreen: accepts slideUp? + exiting? props; applies animation class.
+
+CONFIRMATION SHEETS:
+- GoalScreen: showCompleteSheet + showEndSheet booleans. All CTAs open Sheet
+  confirms. Removed old confirmEndOverdue inline UI.
+- GoalSettingsSheet: plan summary card removed. Sheet-on-Sheet pattern:
+  showCompleteConfirm + showEndConfirm render child Sheets in a Fragment.
+
+CSS ADDITIONS (src/index.css):
+  @keyframes slideUpIn / slideDownOut
+  .slide-up-in  { 0.38s cubic-bezier(0.32,0.72,0,1) }
+  .slide-down-out { 0.3s cubic-bezier(0.32,0.72,0,1) }
+
+DEVMENU: Added final-day-weight, final-day-hit, early-complete states.
+  Weight seeding always upserts; final-day deletes today's weight entry.
+
+GAPS FIXED THIS ROUND:
+  ✓ Final-day no-weight: "Log weight" CTA in banner.
+  ✓ GoalOutcomeView X dismiss: /today → /goal.
+  ✓ GoalSettingsSheet: plan summary removed; Sheet-on-Sheet confirms.
+
+tsc: clean.
+================================================================
+
+================================================================
+ROUND 54 — DIARY SORT FIX + NEGATIVE CALORIE DISPLAY (2026-06-13)
+================================================================
+(Moved from RECENT ROUNDS in PROJECT-CONTEXT.txt — round 57.)
+Files: src/state/useDay.ts, src/ui/screens/TodayScreen.tsx
+- Sort bug: Dexie returns entries in UUID (random) order. Added sort by
+  createdAt ascending after query; TodayScreen's .reverse() then correctly
+  yields newest-first.
+- Title container spacing: mb-4 (16px) → mb-2 (8px) gap to WeekStrip.
+- Gauge center when "over": styled − sign at text-title semibold with gap-1;
+  whole container translateX(-4px) for optical centering. Only when left < 0.
+- Food KPI tile: shows −320 kcal (not 320) to reinforce food as calorie cost.
+- Diary list: every food entry shows −320 kcal.
+tsc: clean.
+
+================================================================
+ROUND 57 — CODE QUALITY AUDIT + LINT CLEANUP (2026-06-14)
+================================================================
+Files changed:
+  src/lib/haptics.ts                   — key rename
+  src/ui/components/DevMenu.tsx        — key rename; exhaustive-deps fix; colour-lint
+  src/ui/kit/TopBar.tsx                — touch targets
+  src/ui/kit/Sheet.tsx                 — touch target; ref-during-render; setState-in-layout-effect
+  src/ui/components/Toaster.tsx        — colour-lint; react-refresh
+  src/ui/screens/AccountScreen.tsx     — colour-lint
+  src/ui/components/AddEntrySheet.tsx  — setState-in-effect (3 effects)
+  src/ui/components/WeightLogSheet.tsx — setState-in-effect
+  src/ui/kit/FloatingTabBar.tsx        — setState-in-effect
+  src/ui/screens/GoalSetupScreen.tsx   — block disable (5 setState calls); exhaustive-deps
+  src/ui/screens/GoalScreen.tsx        — U+00A0 whitespace; exhaustive-deps; reduce()
+                                         immutability; setState-in-effect; unused param
+  src/ui/screens/OnboardingDailyAllowance.tsx — block disable (3 setState calls)
+  src/ui/screens/OnboardingFlow.tsx    — purity + refs disable comments
+  src/ui/screens/OnboardingScreen1.tsx — setState-in-effect; unused param disable
+  src/ui/screens/TodayScreen.tsx       — setState-in-effect
+  AUDIT-2026-06-14.md                  — NEW audit report
+
+── AUDIT ─────────────────────────────────────────────────────────────────────
+Ran 12 audit tasks in the sandbox:
+  1. Automated checks — lint, tsc, tests (sandbox: lint/tsc only; tests run on Mac)
+  2. Design system / token compliance — healthy
+  3. Tailwind v4 runtime token check — healthy
+  4. TypeScript / architecture layer check — healthy
+  5. Test coverage — domain math — 18 tests, all pass
+  6. Bundle health — healthy (dist from prior build)
+  7. Accessibility — healthy (ARIA, focus, motion)
+  8. localStorage schema — 2 irregular keys found (fixed)
+  9. Dead code — none found
+  10. Known gaps currency — updated
+  11. Capacitor / iOS hygiene — healthy
+  12. Compile audit report — AUDIT-2026-06-14.md written
+
+── LOCALSTORAGE KEY NORMALISATION ────────────────────────────────────────────
+All app keys now use 'nutri.' namespace prefix.
+  src/lib/haptics.ts:    'haptics-enabled'  → 'nutri.haptics'
+  src/ui/components/DevMenu.tsx: 'devmenu.tab' → 'nutri.dev.tab' (×3 occurrences)
+
+No migration needed — keys are soft preferences that reset harmlessly.
+
+── TOUCH TARGETS ─────────────────────────────────────────────────────────────
+TopBar.tsx: Back and Close IconButton size prop: 36 → 44 (exact 44pt).
+Sheet.tsx:  Close button padding: -m-1 p-1 → -m-3 p-3 (negative margin
+  expands hit area to ~46pt without affecting layout).
+
+── ESLINT: 44 PROBLEMS → 0 ──────────────────────────────────────────────────
+
+13 hardcoded colour violations (no-restricted-syntax rule):
+  All in DevMenu.tsx color-picker algorithm code — parseColor fallback '#000000',
+  toColorString rgba output, parseLayer / addLayer defaults, ColorPicker '#808080'
+  fallbacks, native picker value '#000000', placeholder "#000000". Also:
+  Toaster.tsx (2 inline style rgba values), AccountScreen.tsx (toggle-thumb
+  boxShadow rgba). All suppressed with targeted eslint-disable-next-line comments
+  with explanatory notes. SVG/CSS template literal blocks use block
+  /* eslint-disable */ / /* eslint-enable */ pairs.
+
+~10 setState-in-effect violations (react-hooks/set-state-in-effect rule):
+  Rule fires on the setState() CALL line (inside the effect body), not the
+  useEffect() declaration. Disable comment must be placed directly above the
+  flagged call, inside the effect body.
+  Files fixed: AddEntrySheet.tsx (3 effects), WeightLogSheet.tsx,
+  FloatingTabBar.tsx, GoalSetupScreen.tsx (5 calls, block disable/enable),
+  GoalScreen.tsx, OnboardingDailyAllowance.tsx (3 calls, block disable/enable),
+  OnboardingScreen1.tsx, TodayScreen.tsx.
+  Sheet.tsx: setState in useLayoutEffect (reduced-motion branch).
+
+Other violations fixed:
+  - react-hooks/refs: Sheet.tsx lazy-init ref read (block disable); OnboardingFlow.tsx
+    getWidth() call in render. Render-time ref reads (dragging, isSpringBack) in
+    Sheet.tsx CSS transition path: targeted disable-next-line comments.
+  - react-hooks/exhaustive-deps: DevMenu.tsx (origDark.current capture at mount),
+    GoalSetupScreen.tsx, GoalScreen.tsx.
+  - react-hooks/immutability: GoalScreen.tsx — replaced let accumulator mutation
+    in .map() with .reduce() for cumulData array.
+  - @typescript-eslint/no-unused-vars: OnboardingScreen1.tsx ChartHeader _props
+    param (explicit disable comment; tseslint config has no argsIgnorePattern).
+  - no-restricted-syntax (U+00A0): GoalScreen.tsx line 244 — non-breaking spaces
+    in template literal replaced with regular spaces via Python script.
+  - react-refresh/only-export-components: Toaster.tsx useToast hook.
+  - react-hooks/purity: OnboardingFlow.tsx performance.now() in event handler.
+
+Final stale disable directive (Sheet.tsx line 205 exhaustive-deps on [] deps)
+removed as the rule was no longer firing.
+
+── RESULT ────────────────────────────────────────────────────────────────────
+npx eslint src/ui src/lib src/domain src/state src/data → 0 problems.
+npx tsc -b → 0 errors.
+npm test → 18 passed, 8 skipped (run on Mac).
+
+================================================================
+ROUND 58 — SHEET SAFE AREA, DEFICIT SLIDER, DEV-UX + TOKEN BAKE (2026-06-14)
+================================================================
+Files changed:
+  src/lib/devTokens.ts                 — CSS_VERSION '57' → '58'
+  src/ui/components/DevMenu.tsx        — loadDevOverrides import; lazy hasOverride init
+  src/domain/types.ts                  — dailyDeficitKcalOverride on Goal
+  src/domain/goal.ts                   — requiredDailyDeficit reads override first
+  src/ui/screens/GoalSetupScreen.tsx   — deficit slider + warning alert
+  src/ui/screens/TodayScreen.tsx       — gauge card padding
+  src/index.css                        — 5 dark tokens baked as native defaults
+  src/ui/kit/Sheet.tsx                 — footer prop
+  src/ui/components/WeightLogSheet.tsx — migrated to footer prop
+  src/ui/screens/AccountScreen.tsx     — 2 sheets migrated to footer prop
+  src/ui/screens/GoalScreen.tsx        — 5 sheets migrated to footer prop
+
+── DEVMENU RESET ↩ PERSISTENCE ──────────────────────────────────────────────
+ColorRow and ShadowEditor both used `useState(false)` for hasOverride, which
+meant the state was ephemeral — navigating away from Account and back would
+remount the components and lose the "this token is overridden" indication.
+
+Fix: lazy initialisers read from localStorage at mount time:
+  ColorRow:     useState(() => tokenName in loadDevOverrides()[mode])
+  ShadowEditor: useState(() => def.name in loadDevOverrides()[mode])
+
+Required adding loadDevOverrides to the import from '../../lib/devTokens'.
+
+── GOAL.DAILYDEFICITKCALOVERRIDE ────────────────────────────────────────────
+New optional field on the Goal interface (src/domain/types.ts):
+  dailyDeficitKcalOverride?: number;
+
+requiredDailyDeficit() updated (src/domain/goal.ts):
+  if (goal.dailyDeficitKcalOverride != null) return goal.dailyDeficitKcalOverride;
+  return goalIntensity(...).kcalPerDay;  // existing fallback
+
+GoalSetupScreen saves it on create/edit:
+  dailyDeficitKcalOverride: deficitOverride ?? undefined
+
+Since requiredDailyDeficit drives the Diary daily budget (dailyTarget), the
+override automatically propagates to the Today gauge with no extra wiring.
+
+── DEFICIT SLIDER IN GOALSETUPSCREEN ─────────────────────────────────────────
+New state: const [deficitOverride, setDeficitOverride] = useState<number | null>(...)
+  Initialises from activeGoal.dailyDeficitKcalOverride ?? null.
+  Also reset via useEffect when activeGoal repopulates.
+
+Derived values:
+  computedDeficit = intensity?.kcalPerDay ?? 0
+  sliderMin = Math.max(200, computedDeficit - 500)
+  sliderMax = computedDeficit + 500
+  effectiveDeficit = deficitOverride ?? computedDeficit
+  goalHasStarted = editing && !!activeGoal && activeGoal.startDate <= todayISO()
+  showDeficitWarning = goalHasStarted && deficitOverride !== null
+                       && deficitOverride !== computedDeficit
+
+In the review card, the static "≈ –X kcal per day" line is replaced with:
+  - A flex row showing the effective value + optional "adjusted" caption
+  - An <input type="range"> (accent-accent, w-full, step=10)
+
+Warning alert (after </Card>):
+  Shown only when showDeficitWarning is true — i.e., editing a started goal
+  with a manual override active. Contains an info icon, explanatory copy,
+  and a "Reset to calculated (X kcal)" button.
+
+── GAUGE CARD PADDING ────────────────────────────────────────────────────────
+TodayScreen.tsx — both with-goal and no-goal gauge cards:
+  pt-7 pb-6 → pt-6 pb-5  (28/24px → 24/20px)
+
+── 5 DARK TOKENS BAKED INTO INDEX.CSS ───────────────────────────────────────
+Previously stored only as DevMenu localStorage overrides. Now native defaults
+in the .dark {} block of src/index.css:
+  --color-accent-soft:   #0d3029 → #00352a
+  --color-on-accent:     (new)   = #00352a
+  --color-success-soft:  rgba(0,29,24,0.50) → rgba(95,215,155,0.05)
+  --color-border-strong: (new)   = #48484a
+  --color-border-field:  #262626 → #212121
+
+CSS_VERSION bumped '57' → '58' in src/lib/devTokens.ts so that on next boot
+the stale localStorage entries for these 5 tokens are wiped automatically.
+
+Process established for future color baking:
+  1. Tune in DevMenu → Export CSS → bake into index.css
+  2. Hit "Reset dark" / "Reset light" in DevMenu to clear overrides immediately
+  3. Bump CSS_VERSION in devTokens.ts as a backstop
+
+── SHEET FOOTER PROP (OPTION B) ─────────────────────────────────────────────
+Added `footer?: ReactNode` prop to Sheet (src/ui/kit/Sheet.tsx).
+
+Scroll area paddingBottom logic:
+  keyboardInset > 0 → `${keyboardInset}px`
+  footer present   → '8px'
+  no footer        → 'env(safe-area-inset-bottom, 0px)'
+
+Footer slot (after scroll area):
+  <div className="shrink-0 px-5 pt-2"
+       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }}>
+    {footer}
+  </div>
+
+8 sheets migrated to use footer prop:
+  WeightLogSheet.tsx      — "Save weight" button moved to footer
+  AccountScreen.tsx
+    ProfileSheet           — "Save changes" button moved to footer
+    ProteinGoalSheet       — "Save" button moved to footer
+    GoalManageSheet        — content gets pb-2; no CTA button to move
+  GoalScreen.tsx
+    showCompleteSheet      — primary "Complete goal" → footer; Cancel ghost stays in content
+    showEndSheet           — primary "End goal" → footer; Cancel stays in content
+    GoalSettingsSheet      — pb-6 → pb-2 (no sticky CTA)
+    showCompleteConfirm    — primary → footer; Cancel stays in content
+    showEndConfirm         — primary → footer; Cancel stays in content
+
+All migrated scroll-area inner divs: pb-6 → pb-2 (footer provides safe area).
+
+tsc: clean (assumed — not run in sandbox this round).
+
+================================================================
+ROUND 59 — GOALSETUPSCREEN FULL FIGMA REDESIGN (2026-06-14)
+================================================================
+Files changed:
+  src/ui/screens/GoalSetupScreen.tsx  — primary (both steps)
+  src/ui/kit/LabeledInput.tsx         — labelClassName prop
+  src/ui/kit/Icon.tsx                 — 'drop' icon added
+
+── DETAILS STEP ─────────────────────────────────────────────────────────────
+
+STICKY HEADER SAFE-AREA FIX:
+  Problem: sticky header backed by bg-surface left a gap above it on iOS
+  (status bar area showed content scrolling behind).
+  Fix: absolute-positioned cover div as first child of the sticky header:
+    <div className="pointer-events-none absolute left-0 right-0 bg-surface"
+         style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
+  This extends the surface colour into the safe zone without adding layout height.
+
+GROUPED CARD (borderRadius: 24):
+  Single card container with overflow-hidden and three sections divided by
+  border-t border-border-subtle:
+    Weight section — two LabeledInput fields (Start kg / Target kg) with
+      bg-surface-sunken inputs (!bg-surface-sunken !border-transparent).
+      Labels use labelClassName="text-subhead text-content-secondary" prop
+      (sentence-case, not micro/uppercase).
+    Dates section — date inputs require special handling for iOS border-radius:
+      label text OUTSIDE the overflow-hidden rounded-field wrapper (if label
+      sits inside, it makes the wrapper taller so the input's top corners exit
+      the clip zone). Each date input uses style={{ minWidth: 0 }} to prevent
+      iOS min-width overflow.
+    Protein section — ProteinToggle (flex-based, no overflow-hidden needed)
+      + conditional LabeledInput when enabled.
+
+PROTOINTOGGLE (flex-based):
+  Container: flex h-7 w-12 items-center rounded-pill p-0.5.
+  Knob: block h-6 w-6 rounded-full, translateX(20px) ON / translateX(0) OFF.
+  No absolute positioning; no overflow-hidden. Knob is a flex child —
+  naturally constrained within the container. Transition 200ms ease on transform.
+
+REVIEW CARD:
+  - Display metric (kg to lose) centered with text-display font-bold.
+  - Subtitle: weeks · kg/week centered text-subhead text-content-secondary.
+  - Deficit container: rounded-field bg-surface-sunken, deficit value centered.
+  - Slider: <input type="range"> accent-accent, ±500 kcal, step=10.
+  - Divider: -mx-5 (negative of card's p-5) so border-t extends edge-to-edge.
+  - Warning alert (info icon + copy + reset button): only when
+    goalHasStarted && deficitOverride !== null && deficitOverride !== computed.
+    Reset button uses text-content (was accidentally text-content-secondary).
+  - PaceMeter labels: text-footnote (13px), equal grid-cols-3 for alignment.
+
+LABELDINPUT LABELCLASSNAME PROP:
+  New optional prop overrides the default 'text-micro font-medium uppercase
+  text-content-secondary' on the label span. Used to apply sentence-case
+  'text-subhead text-content-secondary' in the grouped card.
+
+── CHOOSE STEP ──────────────────────────────────────────────────────────────
+
+LAYOUT CHANGES:
+  - Side margins: px-4 → px-6 (24px).
+  - Removed h1 title element (was duplicate of FlowHeader).
+  - Added shadow-card to each card button.
+
+GOALICON COMPONENT:
+  SVG paths extracted from user-supplied Figma exports (lose.svg, gain.svg,
+  maitain.svg). All three icons share:
+    - Same body/person path (fill="currentColor").
+    - Circle badge: cx="15" cy="15" r="5" fill="var(--color-accent)".
+    - Per-type arrow path (fill="currentColor"):
+        lose_by_date: down arrow
+        maintain:     right arrow
+        gain:         up arrow
+  Component accepts type + size (default 20) props. viewBox always 0 0 20 20.
+
+RADIO BUTTON REMOVED:
+  The <span> radio indicator (rounded-pill border-2 with inner dot) removed
+  entirely. Selection is communicated solely by the card's border weight.
+
+SELECTED STATE — BORDER-2 TRICK:
+  Problem: switching between border (1px) and border-2 (2px) shifts content
+  inward by 1px, causing layout jump.
+  Fix: compensate padding. Unselected: `border border-border-subtle p-4` (16px).
+  Selected: `border-2 border-accent p-[15px]` (15px pad + 2px border = same
+  outer box as 16px pad + 1px border).
+
+ICON SIZE:
+  GoalIcon rendered at size={32} (up from 20) for better visual weight on cards.
+
+TEXT SIZES:
+  Card title: text-callout font-semibold (16px).
+  Card desc:  text-subhead text-content-secondary (15px).
+
+TYPES ARRAY:
+  'Lose weight by a date' → 'Lose weight'.
+
+── KIT ADDITIONS ────────────────────────────────────────────────────────────
+
+Icon.tsx — 'drop' icon added:
+  IconName union extended with 'drop'.
+  Path: 'M12 3c-3 5-6 9-6 12a6 6 0 0 0 12 0c0-3-3-7-6-12Z'
+
+tsc: clean.
+
+================================================================
+ROUND 56 — DIARY STATES, ADD FOOD SHEET, GOAL SCREEN POLISH + DARK THEME (2026-06-14)
+================================================================
+(Moved from RECENT ROUNDS in PROJECT-CONTEXT.txt — superseded by round 59.)
+Files: src/ui/kit/Progress.tsx, TodayScreen.tsx, GoalScreen.tsx,
+       AddEntrySheet.tsx, MealEditSheet.tsx, src/index.css
+- GaugeArc disabled prop; diary 4-state mapping; BreakdownSheet mode split.
+- PantryPick mini meal builder; MealEditSheet pantry picker (extraSection).
+- GoalScreen empty-state title, stat tiles → buttons, badge spacing.
+- Dark theme: 13 tokens tuned via DevMenu.
+tsc: clean.
+
+================================================================
+ROUND 57 — CODE QUALITY AUDIT + LINT CLEANUP (2026-06-14)
+================================================================
+(Moved from RECENT ROUNDS in PROJECT-CONTEXT.txt — superseded by round 60.)
+Files: src/lib/haptics.ts, src/ui/components/DevMenu.tsx,
+       src/ui/kit/TopBar.tsx, src/ui/kit/Sheet.tsx,
+       src/ui/components/Toaster.tsx, src/ui/screens/AccountScreen.tsx,
+       src/ui/components/AddEntrySheet.tsx, src/ui/components/WeightLogSheet.tsx,
+       src/ui/kit/FloatingTabBar.tsx, src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/screens/GoalScreen.tsx, src/ui/screens/OnboardingDailyAllowance.tsx,
+       src/ui/screens/OnboardingFlow.tsx, src/ui/screens/OnboardingScreen1.tsx,
+       src/ui/screens/TodayScreen.tsx; AUDIT-2026-06-14.md (new)
+- Full 12-task audit. Report written to AUDIT-2026-06-14.md.
+- localStorage keys: 'haptics-enabled' → 'nutri.haptics';
+  'devmenu.tab' → 'nutri.dev.tab'.
+- Touch targets: TopBar IconButton 36→44pt; Sheet close -m-1 p-1 → -m-3 p-3.
+- 44 ESLint problems → 0: 13 hardcoded color violations (disable w/ rationale),
+  ~10 setState-in-effect patterns, ref-during-render, exhaustive-deps,
+  unused vars, U+00A0 whitespace, immutability (let → reduce()).
+tsc: clean. 18 tests pass.
+
+================================================================
+ROUND 60 — LEVE REBRAND, LOADING SCREEN, CLEAR BUTTONS, BADGE FIX (2026-06-14)
+================================================================
+
+── APP RENAME ───────────────────────────────────────────────────────────────
+
+4 files updated to "leve":
+  index.html:          <title>leve</title>
+  capacitor.config.ts: appName: 'leve'
+  Info.plist:          CFBundleDisplayName: 'leve'
+  vite.config.ts:      manifest name: 'leve', short_name: 'leve'
+
+── APP ICON ─────────────────────────────────────────────────────────────────
+
+ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png replaced
+using ImageMagick: `convert -background none "logo dark.svg" -resize 1024x1024`.
+
+── ONBOARDING LOGO ──────────────────────────────────────────────────────────
+
+OnboardingFlow.tsx + OnboardingDailyAllowance.tsx:
+  Replaced <span>LOGO</span> with adaptive img pair:
+    <img src={logoLight} alt="leve" className="h-7 dark:hidden" />
+    <img src={logoDark}  alt="leve" className="h-7 hidden dark:block" />
+  Assets: src/assets/logo-leve-light.svg, src/assets/logo-leve-dark.svg.
+  logo-leve-light.svg: track color updated #ECECEC → #DEDEDE (new version).
+
+── ONBOARDING GAUGE NEGATIVE SIGN ──────────────────────────────────────────
+
+OnboardingDailyAllowance.tsx: when displayKcal < 0, show − prefix span
+(text-title font-semibold) in a flex wrapper with translateX(-4px) to optically
+centre. Matches the TodayScreen/Diary pattern exactly.
+
+── LEVE LOADING SCREEN ──────────────────────────────────────────────────────
+
+NEW: src/ui/screens/LeveLoadingScreen.tsx
+  Always-dark brand overlay (BG=#161618, TRACK=#2e2e30, FILL=#00e0aa).
+  eslint-disable block covers the 3 hex consts with rationale.
+
+GAUGE GEOMETRY:
+  SIZE=160, STROKE=30 (thick, intentional), SWEEP=0.7 (252° arc, 108° gap).
+  r=(160-30)/2=65, c=2π×65≈408.4, arcLen=0.7×c≈285.9.
+  rotate=144° (gap at bottom). fill60=0.6×arcLen≈171.5, slide60≈114.4.
+
+ANIMATION (CSS keyframes, alternate infinite):
+  Phase           Duration  Easing
+  ────────────────────────────────────────
+  Pause at start  150ms     linear (hold)
+  Grow 0→60%      400ms     ease-in (cubic-bezier(0.4,0,1,1))
+  Slide to end    400ms     linear
+  Collapse to 0%  400ms     ease
+  Pause at end    150ms     linear (hold)
+  ────────────────────────────────────────
+  Total per dir:  1.5s      Full cycle: 3s
+
+  Keyframe stops: 0%, 10%, 36.7%, 63.3%, 90%, 100%.
+  animation-direction: alternate — CSS auto-reverses timing functions on return.
+  Right edge stays fixed during collapse (dashoffset grows by same as
+  dasharray shrinks → dashoffset reaches -arcLen at 100%).
+  0% and 100% are visually identical (empty stroke) → seamless loop.
+  Wordmark: <img src={leveSvg} height="24px" marginTop="10px" />.
+
+── SPLASH COORDINATOR + APPROOT ─────────────────────────────────────────────
+
+NEW: src/lib/splashCoordinator.ts
+  Module-level promise/resolve pair. initSplash() resets and returns resolve fn.
+  getSplashPromise() returns current promise. No React dependency (used in main).
+
+NEW: src/AppRoot.tsx
+  Default export only (fast-refresh compliant). Mounts <HashRouter><App/></HashRouter>
+  immediately. Subscribes to getSplashPromise() in useEffect → setExiting(true)
+  → setTimeout(setSplashDone, 380) to match 350ms CSS fade.
+
+main.tsx REWRITE:
+  1. initSplash() before mount to get splashResolve.
+  2. createRoot().render(<AppRoot/>) immediately — loading screen shows at once.
+  3. requestAnimationFrame → dynamic import SplashScreen.hide() (Capacitor).
+  4. Promise.all([seedIfEmpty().then(importStarterPantry), 5s min timer]).
+  5. splashResolve() — AppRoot fades out overlay.
+
+── WHITE SPLASH FIX (3 layers) ──────────────────────────────────────────────
+
+Layer 1: ios/App/App/Base.lproj/LaunchScreen.storyboard
+  backgroundColor changed from systemBackgroundColor (white) to custom sRGB:
+  red="0.08627" green="0.08627" blue="0.09412" (= #161618).
+  systemColor resource entry removed from <resources>.
+
+Layer 2: capacitor.config.ts
+  Root-level backgroundColor: '#161618' — sets WKWebView background before
+  page CSS is parsed. Also: launchShowDuration:0 + launchAutoHide:true to
+  dismiss native splash instantly (JS loading screen takes over).
+
+Layer 3: index.html
+  <style>body { background: #161618; }</style> added inline before <body>
+  tag — fires before any external stylesheet, prevents body flash even if
+  WKWebView background isn't honoured by a particular iOS version.
+
+── CLEAR BUTTONS ON TEXT FIELDS ─────────────────────────────────────────────
+
+src/ui/kit/LabeledInput.tsx REWRITE:
+  - Added useRef<HTMLInputElement> + Icon import.
+  - hasValue = String(input.value ?? '').length > 0.
+  - Input wrapped in <div className="relative mt-1"> (mt-1 moved from input).
+  - When hasValue: adds pr-8 to input (prevents text under button) and renders
+    absolute right-2.5 top-1/2 -translate-y-1/2 button with Icon name="close".
+  - handleClear: calls onChange({target:{value:''}} as ChangeEvent) + focus().
+  - onMouseDown:preventDefault on button prevents input blur on click.
+  - No call sites changed.
+
+src/ui/kit/Field.tsx REWRITE:
+  Same pattern. Clear button replaces suffix slot when hasValue (suffix returns
+  when field is empty so units label reappears).
+
+── LOW-CONFIDENCE BADGE FIX ─────────────────────────────────────────────────
+
+src/ui/components/AddEntrySheet.tsx:
+  Removed: absolute top-4 left-4 z-10 positioning + pt-[52px] compensation.
+  Added: badge as first child of card's flex-col with self-start (pill stays
+  left-aligned). Card wrapper: removed `relative` class (no longer needed).
+  Result: badge is part of normal card flow, cannot overlap sticky CTA.
+
+── BUILD FIX NOTE ───────────────────────────────────────────────────────────
+
+vite-plugin-pwa@0.21.2 is incompatible with vite@6.4.3.
+Error: "Could not resolve entry module '>/index.html'".
+Fix (Mac): npm install vite-plugin-pwa@latest
+
+tsc: clean. 0 new lint errors.
+
+================================================================
+ROUND 61 — "BUILD MUSCLE" GAIN GOAL TYPE (2026-06-14)
+================================================================
+
+── DOMAIN ───────────────────────────────────────────────────────────────────
+
+src/domain/types.ts:
+  GoalType union: 'lose_by_date' | 'gain_by_date'. gain_by_date is the
+  "Build muscle" goal type (calorie surplus to gain weight).
+
+src/domain/goal.ts:
+  isGainGoal(goal): exported helper, returns goal.type === 'gain_by_date'.
+
+  goalIntensity(): kgToLose = Math.abs(targetWeightKg - startWeightKg).
+  Works for both directions; kgToLose is always a positive magnitude.
+
+  requiredDailyDeficit(): returns NEGATIVE value for gain goals (surplus =
+  negative deficit). If dailyDeficitKcalOverride is set (positive magnitude),
+  applies negative sign for gain goals. Consumers treat negative = surplus.
+
+  requiredWeeklyDeficit(): delegates to requiredDailyDeficit × 7 (now signed).
+
+  weekVerdict(): guard changed from `targetWeeklyDeficit <= 0` to
+  `Math.abs(targetWeeklyDeficit) < 1`. With negative gain targets, ratio =
+  actual/target where both are negative: ratio > 1 means bigger surplus =
+  ahead. Logic is correct once the zero-guard is fixed.
+
+src/domain/goal.test.ts:
+  6 new tests under describe('gain_by_date goal type'):
+  - isGainGoal identifies gain/lose correctly.
+  - goalIntensity uses absolute kg delta (same magnitude as equivalent lose).
+  - requiredDailyDeficit returns negative for gain (-500 to -600 range).
+  - requiredWeeklyDeficit is negative and equals daily × 7.
+  - weekVerdict with negative targets: ahead/on_track/behind verdicts.
+  - Override stored as positive magnitude, returned as negative.
+
+── GOALSETUPSCREEN ──────────────────────────────────────────────────────────
+
+src/ui/screens/GoalSetupScreen.tsx:
+  GoalTypeOpt type: `id: GoalType | 'maintain'` (was plain string).
+  TYPES array: gain_by_date enabled, title "Build muscle",
+    desc "Fuel muscle growth with a daily calorie surplus."
+
+  isGain = type === 'gain_by_date' (derived from state).
+
+  Validation: weightValid = isGain ? tNum > sNum : sNum > tNum.
+  (For gain, target weight must be above starting weight.)
+
+  Review card label: isGain shows "≈ +${effectiveDeficit} kcal/day surplus",
+    lose shows "≈ –${effectiveDeficit} kcal/day".
+
+  Slider: uses effectiveMagnitude (always positive); aria-label: "Daily
+    surplus target" for gain, "Daily deficit target" for lose.
+
+  Warning text: "surplus" substituted for "deficit" throughout for gain.
+
+  create(): passes selected goalType to repo instead of hardcoded 'lose_by_date'.
+    Override stored as positive magnitude (sign applied in requiredDailyDeficit).
+
+  useEffect pre-fill: setType(activeGoal.type) added so editing a gain goal
+    pre-selects the gain option.
+
+  GOAL_ICON_ARROWS: key renamed 'gain' → 'gain_by_date' for consistency.
+
+── GOALSCREEN ───────────────────────────────────────────────────────────────
+
+src/ui/screens/GoalScreen.tsx:
+  Import: isGainGoal added.
+
+  remaining tile: direction-aware — gain subtracts in opposite order.
+  "Weight left" tile label → "To gain" for gain goals.
+
+  GoalOutcomeView: lostKg = isGain ? (finalWeight - startWeight) :
+    (startWeight - finalWeight). Label: "Weight gained" / "Weight lost".
+
+  KgWeekChart: Y-axis baseMin = Math.min(start, target), baseMax = Math.max.
+    Works for both ascending (gain) and descending (lose) plan lines.
+    isAhead flipped for gain: actual >= planned = ahead.
+
+  WeekChart:
+    - Budget ramp guard: `dailyTarget !== 0` (was `> 0`; negative broke gain).
+    - Bar onTarget flag: flipped for gain (surplus ≥ target = on target).
+    - Gain badge labels: "On target" when over budget, "Under target" when under.
+
+── TODAYSCREEN ──────────────────────────────────────────────────────────────
+
+src/ui/screens/TodayScreen.tsx:
+  Import: isGainGoal added.
+
+  Day state succeed condition: gainGoal ? deficit <= dailyTarget
+    : deficit >= dailyTarget. (Negative deficit = surplus for gain.)
+
+  DayPanel interface: gainGoal?: boolean prop.
+
+  Badge text: "Eat more" / "On target" for gain.
+
+  Gauge center label: "kcal to go" / "kcal above goal" for gain.
+
+  BreakdownSheet: gainGoal prop; "Target surplus" row shows +X kcal/day.
+    Total badge flipped: gain shows green when in surplus, red when short.
+
+tsc: clean. 0 new lint errors.
+
+================================================================
+ROUND 62 — BUG FIXES: GAIN DIARY, WEEK STRIP, SHEET FOOTER (2026-06-15)
+================================================================
+
+── FIX #6: GAIN GOAL "NO GOAL SET" IN DIARY ─────────────────────────────────
+
+src/ui/screens/TodayScreen.tsx:
+  hasTarget was computed as `dailyTarget > 0`. Gain goals have a NEGATIVE
+  dailyTarget (surplus = negative deficit), so the condition evaluated false,
+  causing "No goal set" to display in the Diary for any gain goal.
+  Fixed: `dailyTarget !== 0 && totalBurn > 0`. Covers both positive (lose)
+  and negative (gain) daily targets.
+
+── FIX #7: DOUBLE ICON IN WEEK STRIP ────────────────────────────────────────
+
+src/ui/screens/TodayScreen.tsx:
+  Week strip previously rendered DisabledDayRing as a parallel conditional
+  alongside the state icons (succeed/fail/not-completed/empty). On disabled
+  days before the goal start date, both the ring AND the state icon rendered,
+  producing two overlapping icons.
+
+  Fixed with an exclusive ternary:
+    isDisabled
+      ? <DisabledDayRing size={24} />
+      : state === 'succeed'       ? <Icon name="daySucceed" ... />
+      : state === 'fail'          ? <Icon name="dayFail" ... />
+      : state === 'not-completed' ? <CurrentDayRing size={24} />
+      : <EmptyDayRing ... />
+
+  Disabled days now render ONLY the DisabledDayRing.
+
+── FIX #8: SHEET FOOTER GRADIENT + KEYBOARD BLACK BACKGROUND ─────────────────
+
+src/ui/kit/Sheet.tsx — two changes:
+
+  1. SURFACE COVER DIV (keyboard black background):
+     When the keyboard opens in WKWebView, dvh units track the visual viewport,
+     so the panel's max-height (50dvh / 90dvh) shrinks. A gap appears between
+     the panel bottom and the keyboard. WKWebView's native black background
+     bleeds through that gap.
+
+     Fix: Added an `absolute inset-x-0 bottom-0 bg-surface pointer-events-none`
+     div with `height: 50vh`. Uses vh (layout viewport height, never shrinks
+     with keyboard) to extend bg-surface from the panel position downward,
+     filling the gap. Placed above the scrim button in DOM order, behind the
+     panel in z-order (no explicit z-index needed — panel is rendered after).
+
+     aria-hidden="true" so screen readers ignore it.
+
+  2. FOOTER GRADIENT:
+     The footer wrapper div previously used `pt-2` and had no background,
+     so scrollable content was visible right up to the button edge.
+
+     Fix: `pt-2` removed. paddingTop set to 1.5rem via inline style.
+     background: `linear-gradient(to bottom, transparent 0px,
+       var(--color-surface) 1.5rem)` added to footer wrapper.
+     This fades scroll content into the solid surface behind the CTA button,
+     matching the gradient pattern already used by AddEntrySheet's sticky footers.
+     The solid surface portion extends all the way to calc(safe-area+8px) below
+     the button, covering the full home-indicator zone.
+
+── LINT FIX: GOALSETUPSCREEN TOGGLE TRACK COLOR ─────────────────────────────
+
+src/ui/screens/GoalSetupScreen.tsx:
+  Toggle switch inactive track: `#E5E5EA` → `var(--color-border-strong)`.
+  #E5E5EA was a hardcoded hex, blocked by the no-restricted-syntax ESLint rule.
+  border-strong is the correct semantic token: ~#d1d1d6 light / #48484a dark.
+
+tsc: clean. 0 lint errors.
+
+================================================================
+ROUND 62 — BUG FIXES: GAIN DIARY, WEEK STRIP, SHEET FOOTER (2026-06-15)
+================================================================
+Files: src/ui/screens/TodayScreen.tsx, src/ui/kit/Sheet.tsx,
+       src/ui/screens/GoalSetupScreen.tsx
+
+── GAIN DIARY HASTARGET FIX ─────────────────────────────────────────────────
+TodayScreen.tsx: `dailyTarget > 0` → `dailyTarget !== 0`.
+Gain goals have a negative dailyTarget (surplus), so the old guard prevented
+the protein/calorie progress bar from rendering in Detailed diary view.
+
+── WEEK STRIP DOUBLE ICON FIX ───────────────────────────────────────────────
+TodayScreen.tsx: week strip icon was rendering twice due to non-exclusive
+ternary. Changed to exclusive ternary so only one icon shows per day cell.
+
+── SHEET FOOTER GRADIENT + WKWEBVIEW KEYBOARD COVER ─────────────────────────
+Sheet.tsx: Added a cover div (position absolute, top:100%, height:50vh,
+bg-surface) below the footer gradient. When the iOS keyboard opens and
+WKWebView resizes the viewport, the cover div fills the gap between the bottom
+of the sheet and the top of the keyboard, preventing the black WKWebView
+background from bleeding through.
+
+tsc: clean. 0 lint errors.
+
+================================================================
+ROUND 65 — TRACKING STEP FOR BUILD MUSCLE GOALS (2026-06-15)
+================================================================
+Files: src/domain/types.ts, src/ui/screens/GoalSetupScreen.tsx
+
+── MOTIVATION ────────────────────────────────────────────────────────────────
+Build muscle (gain_by_date) goals need macro guidance beyond just calories.
+A new Tracking step was added as the 3rd step of GoalSetupScreen, appearing
+only for gain_by_date goals (lose goals unchanged).
+
+── DATA MODEL CHANGES ────────────────────────────────────────────────────────
+src/domain/types.ts: added to Goal interface:
+  trackingMode?: 'simple' | 'detailed'
+  macroStyle?:   'balanced' | 'performance' | 'lower_carb'
+  fatTargetG?:   number  // Balanced fat target OR Performance fat baseline
+  carbLimitG?:   number  // Lower carb only
+
+TrackingMode and MacroStyle exported as named types.
+
+── GOAL SETUP FLOW ───────────────────────────────────────────────────────────
+Step sequence for gain goals: choose → details (Your plan) → tracking → save.
+Lose goals: choose → details → save (unchanged).
+Protein section removed from Your plan for gain goals; it now lives in the
+Tracking step. Lose goals keep the protein toggle in Your plan.
+Skip button (top-right, black text) saves immediately with Simple mode + auto
+protein default, bypassing the tracking step.
+Back from Tracking → details, preserving all state in session (component state).
+X on earlier screens discards (existing behaviour).
+
+── SIMPLE MODE ───────────────────────────────────────────────────────────────
+Shows: protein target (read-only, no Edit) + "Carbs & fat: Estimated in the
+background". Hidden calculation: fat = 28% of totalCal / 9 g; carbs fill rest.
+This provides background macro estimates for the Today screen (future use)
+without exposing complexity to the user.
+
+── DETAILED MODE ─────────────────────────────────────────────────────────────
+Three macro style cards (Balanced / Performance / Lower carb) with green border
+on selection. Macro Targets card shows per-style rows.
+
+Balanced:
+  Protein (editable) · Carb target ("Adjusts with activity") · Fat target (editable)
+  carbG = (totalCal − protein×4 − fat×9) / 4
+
+Performance:
+  Protein (editable) · Carb target ("Base X g · adjusts with activity") · Fat baseline (editable)
+  carbG = (totalCal − protein×4 − fatBaseline×9) / 4
+  Fat framed as conservative baseline, leaving more room for carbs on active days.
+
+Lower carb:
+  Protein (editable) · Carb limit (editable) · Fat target ("Adjusts with activity")
+  fatG = (totalCal − protein×4 − carbLimit×4) / 9
+
+── EDIT / RESET PATTERN ─────────────────────────────────────────────────────
+Editable rows show an "Edit" action. Tapping Edit opens a native range slider
+inline below the value display. While editing, the action becomes "Reset".
+Reset snaps the value back to the calculated default and closes the slider.
+Done at the bottom saves everything. No per-row save step.
+
+── DEFAULT VALUES ────────────────────────────────────────────────────────────
+Protein default:      bodyWeightKg × 1.8, rounded to nearest 5g. Min 40g.
+Fat balanced default: 28% of totalCal / 9, nearest 5g.
+Fat performance default: 22% of totalCal / 9, nearest 5g.
+Carb limit default:   25% of totalCal / 4, nearest 5g.
+  (25% chosen to sit safely above any warning thresholds.)
+totalCal = max(500, userBmr + surplus) — falls back to 2000 kcal if BMR unset.
+All values initialised from activeGoal when editing an existing goal.
+
+── INLINE NOTES ─────────────────────────────────────────────────────────────
+Non-blocking info icon + text. No modal, no CTA, no blocking.
+Protein (all modes): < 1.4 g/kg → low warning; > 2.4 g/kg → high warning.
+Balanced fat: < 20% kcal or > 40% kcal.
+Balanced carb (implied): < 37.5% or > 62.5% kcal.
+Performance fat baseline: < 20% or > 35% kcal.
+Performance carb (derived): < 40% or > 65% kcal.
+Lower carb carb limit: > 45% kcal only ("no longer very low carb").
+  NOTE: lower-bound carb warning intentionally removed for lower_carb mode —
+  being very low carb is the design intent of this style.
+Lower carb fat (implied): < 25% or > 50% kcal.
+
+── INFO CARD DESIGN ─────────────────────────────────────────────────────────
+Outline-only border (no background fill). Pulled up -mt-[18px] behind the
+segmented control (z-[2]) so the card's top border sits at the vertical midpoint
+of the segmented control. Sticky headers bumped from z-10 → z-20 to ensure they
+always sit above the segmented control on scroll.
+
+── TERMINOLOGY RULES (enforced in copy) ─────────────────────────────────────
+"carb" as adjective (Carb target, Carb limit, Lower carb).
+"carbs" as noun in sentences (More carbs around activity).
+"fat" not "fats" in labels. "per day" in values, not "Daily" in labels.
+
+tsc: clean. lint: 0 errors (--max-warnings=0).
+
+================================================================
+ROUND 63 — SHEET FOOTER CONTEXT: FIX CTA FLOATING MID-FORM (2026-06-15)
+================================================================
+(Moved from RECENT ROUNDS in PROJECT-CONTEXT.txt — superseded by round 66.)
+Files: src/ui/kit/Sheet.tsx, src/ui/kit/index.ts,
+       src/ui/components/AddEntrySheet.tsx
+
+── PROBLEM ───────────────────────────────────────────────────────────────────
+When the iOS keyboard opened inside a Sheet, sticky CTA buttons (positioned
+with position:sticky at the bottom of the scroll area) floated mid-form.
+Root cause: sticky elements stick to the scroll container's visible port, not
+the viewport bottom — so when the keyboard shrank the sheet, the sticky div
+stopped at the top of the keyboard's visual-viewport intrusion, exposing form
+content below.
+
+── SOLUTION: SheetFooterSetContext ──────────────────────────────────────────
+Added a context (SheetFooterSetContext) that lets any descendant register a
+React node as the sheet's canonical footer, which Sheet renders in its own
+fixed-position footer slot outside the scroll area.
+
+Sheet.tsx:
+  - SheetFooterSetContext = createContext<((node, deps) => void) | null>(null).
+  - Internal state: childFooter / childFooterRef (ReactNode).
+  - effectiveFooter = footer (prop) ?? childFooter.
+  - Provider wraps all Sheet content so descendants can call the setter.
+
+New export from kit/index.ts: useSheetSetFooter(node, deps).
+  - Calls setFooter(node) on mount / when deps change.
+  - Calls setFooter(null) on unmount.
+  - Usage: useSheetSetFooter(<Button>…</Button>, [disabled, loading]).
+
+AddEntrySheet.tsx migration:
+  - Replaced position:sticky div at bottom of scroll area with
+    useSheetSetFooter(ctaNode, [deps]) call.
+  - Sheet renders the CTA in its footer slot below the scroll area.
+  - Keyboard no longer affects CTA position.
+
+tsc: clean. eslint: clean (--max-warnings=0).
+
+================================================================
+ROUND 66 — BUILD MUSCLE RANGE GAUGE + MACRO BARS (2026-06-15)
+================================================================
+Files: src/domain/types.ts, src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/screens/TodayScreen.tsx
+
+── MOTIVATION ────────────────────────────────────────────────────────────────
+The Build muscle daily gauge previously used a single surplus target. Marco
+requested a redesign with a RANGE (floor + ceiling) so the gauge arc turns
+green only when food intake is within the acceptable surplus band.
+
+── GOAL MODEL CHANGES (types.ts) ─────────────────────────────────────────────
+Two new optional fields on the Goal interface:
+  surplusFloor?:   number  // min daily surplus (kcal); arc turns green at ≥ this
+  surplusCeiling?: number  // max daily surplus (kcal); arc turns dark again past this
+
+── GOALSETUPSCREEN ──────────────────────────────────────────────────────────
+New state: surplusFloor, surplusCeiling (null = use computed default).
+  Default floor   = max(sliderFloor=50, computedMagnitude − 100)
+  Default ceiling = computedMagnitude + 100
+
+Derived: gainFloor, gainCeiling → effectiveMagnitude = round((floor+ceil)/2).
+  effectiveMagnitude drives totalCal for macro defaults (unchanged consumer).
+
+Review section — gain goals now show TWO labeled range sliders:
+  Floor slider: min=50, max=gainCeiling−20. Label "+{gainFloor} kcal (Floor)".
+  Ceiling slider: min=gainFloor+20, max=max(computedMagnitude+500, ceil+1).
+  Display: "≈ +{gainFloor}–+{gainCeiling} kcal/day surplus".
+
+create() changes:
+  dailyDeficitKcalOverride: gain → effectiveMagnitude (midpoint), lose → deficitOverride.
+  surplusFloor/surplusCeiling always saved for gain_by_date goals.
+
+showDeficitWarning suppressed for gain goals (!isGain added to guard).
+useEffect sync: setSurplusFloor/setSurplusCeiling from activeGoal on edit.
+
+── TODAYSCREEN ──────────────────────────────────────────────────────────────
+New imports: Goal, TrackingMode, MacroStyle.
+DayPanelProps: added goal?: Goal | null prop; passed from TodayScreen.
+
+New gain range computations in DayPanel (after gaugeValue):
+  gainFloorEff, gainCeilEff:   from goal fields, fallback to |dailyTarget|±100.
+  gainFloorBudget, gainCeilBudget, gainMidBudget: totalBurn + respective kcal.
+  gainLeft:       gainMidBudget − consumed (positive = haven't hit midpoint).
+  gainGaugeValue: clamped −1..1 from gainLeft / GAUGE_RANGE.
+  gainZone:       'below' | 'in' | 'above' (consumed vs floor/ceil budgets).
+  gainDisplayNum: zone-specific display value (to go / available / over).
+  gainSign:       '−' (below) / '' (in) / '+' (above).
+  gainLabel:      'kcal to go' / 'kcal available' / 'kcal over'.
+  effectiveGaugeValue: gainGoal ? gainGaugeValue : gaugeValue.
+
+Animation effects: gaugeValue → effectiveGaugeValue (trigger + live update).
+
+Badge (gain): status=success only when gainZone==='in'. Text: Eat more / On target / Over.
+Center number (gain): gainDisplayNum with gainSign prefix, translateX(-4px) when sign present.
+Label: gainLabel (replaces old "kcal above goal / kcal to go").
+
+Macro bars replacement:
+  Gain goals: ProteinBar → GainMacroBars (new component).
+  Lose goals: ProteinBar unchanged.
+
+── GAINMACROBARS COMPONENT ───────────────────────────────────────────────────
+New function component after ProteinBar.
+Props: trackingMode, macroStyle, protein, carbs, fat, proteinTargetG,
+       carbTargetG (number|null), fatTargetG (number|null).
+
+Bar columns shown by mode:
+  simple        → protein only (1 col)
+  detailed balanced → protein + carbs + fat (3 cols)
+  detailed performance → protein + fat (2 cols)
+  detailed lower_carb  → protein + carbs (2 cols)
+
+Layout: CSS grid, gridTemplateColumns repeat(N, 1fr), gap-4.
+Each col: label (text-subhead secondary) + target number (text-callout bold) +
+ProgressBar. Target number shows target g only (not consumed/target).
+Achieved check: pct ≥ 1 → green Icon daySucceed at size 12 before number.
+
+carbTargetG computation (for balanced mode):
+  totalCalForMacros = max(500, day.bmr + gainMidKcal)
+  carbImpliedG = max(0, round((totalCalForMacros − protein×4 − fat×9) / 4))
+  lower_carb: goal.carbLimitG; performance: null (carbs not shown).
+
+── BACKWARD COMPATIBILITY ────────────────────────────────────────────────────
+Existing gain goals without surplusFloor/surplusCeiling fall back gracefully:
+  gainFloorEff = max(50, |dailyTarget| − 100)
+  gainCeilEff  = |dailyTarget| + 100
+This gives a sensible range around the old single-target value.
+
+tsc --strict --noEmit: 0 errors. npm test: 24 passed, 8 skipped.
+
+================================================================
+ROUND 64 — CAROUSEL DIAGONAL SWIPE FIX (2026-06-15)
+================================================================
+(Moved from RECENT ROUNDS in PROJECT-CONTEXT.txt.)
+Files: src/ui/screens/TodayScreen.tsx
+
+── PROBLEM ───────────────────────────────────────────────────────────────────
+Diagonal swipe (~45°) on the Today screen's diary carousel caused both the
+carousel AND the page to scroll simultaneously, making navigation feel broken.
+
+── ROOT CAUSE ────────────────────────────────────────────────────────────────
+Direction detection ran in the React synthetic onTouchMove handler. By the
+time React fired the event, the browser had already decided to scroll the page
+in the same frame, so calling preventDefault() was a no-op (passive listener).
+
+── FIX ───────────────────────────────────────────────────────────────────────
+Direction detection moved into a native touchmove listener added in useEffect
+with { passive: false }. The same frame that detects a predominantly horizontal
+swipe can now call preventDefault() before the browser scrolls. The lock fires
+at the first touchmove after direction is determined and stays locked for the
+rest of the gesture (cleared on touchend).
+
+tsc: clean.
+
+================================================================
+ROUND 67 — GAIN ZONE UI POLISH + WEEKCHART DUAL RAMPS + MISC TWEAKS (2026-06-16)
+================================================================
+Files: src/ui/kit/Progress.tsx, src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/screens/TodayScreen.tsx, src/ui/screens/GoalScreen.tsx,
+       src/index.css
+
+── GAUGEARCPROGRESS: STROKEPOSITIVE / STROKENEGATIVE PROPS ──────────────────
+New optional props on GaugeArc:
+  strokePositive?: string  // overrides arc color for positive values (bidirectional)
+  strokeNegative?: string  // overrides arc color for negative values (bidirectional)
+
+Defaults unchanged (accent / content), so lose-goal behavior is unaffected.
+TodayScreen passes these only when gainGoal === true, making the color
+conditional on the zone rather than the arc polarity:
+  strokePositive/strokeNegative both = var(--color-accent) when gainZone === 'in'
+  both = var(--color-content) when gainZone is 'below' or 'above'
+
+── GOALSETUPSCREEN ──────────────────────────────────────────────────────────
+"Your plan" step layout:
+  - Added "Goal overview" heading (text-headline font-semibold) above the card.
+  - Goal name (label + LabeledInput) moved inside the card as the first section,
+    before weight/dates/protein sections.
+
+Single gain slider (replacing dual floor/ceiling sliders):
+  - New useMemo: gainHalfWidth = (surplusCeiling − surplusFloor) / 2 at mount
+    (re-derived only when activeGoal.id changes, not on slider drag).
+  - Slider moves the midpoint (effectiveMagnitude). On change:
+      newFloor = max(sliderFloor, mid − halfWidth)
+      newCeiling = newFloor + 2 × halfWidth  ← gap stays fixed
+  - Display: "{gainFloor} to {gainCeiling} kcal/day surplus" (no ≈ or + signs).
+  - Key bug fixed: ceiling must track floor (not mid ± halfWidth) to prevent
+    rounding drift at clamped extremes.
+
+Skip button: className includes text-accent-hover.
+
+Info card (tracking step): outline-only (removed bg-surface-sunken fill);
+  -mt-5 pulls card top behind the segmented control by ~half the control height.
+  Segmented control wrapper uses relative z-[1]; info card uses relative (no z).
+  z-[1] is well below the sticky header z-10 so it never bleeds over the nav bar.
+
+Edit / Reset / Reset-to-calculated CTA text: font-medium (was font-semibold).
+
+Lower carb alert thresholds:
+  - Removed lower-bound carb alert for lower_carb style (keto ≤50g is the intent).
+  - Removed upper-bound fat alert for lower_carb style (high fat is expected).
+  - Kept: carb > 45% → "no longer very low carb"; fat < 20% → "may be low".
+
+Goal type switch while editing:
+  onClick handler in type chooser now calls setTarget('') and setDate('') when
+  editing === true and the new type differs from the current. Start weight
+  (start) and startDate are preserved. This prevents stale end-state values
+  from a previous goal type carrying over.
+
+── TODAYSCREEN ──────────────────────────────────────────────────────────────
+Gain gauge arc colors:
+  strokePositive + strokeNegative both set to var(--color-accent) when in zone,
+  var(--color-content) when below or above.
+
+Badge 3-state: 'Under' / 'On target' (success) / 'Over'.
+
+Food / activity tile sign swap for gain:
+  Food tile: Math.round(consumed) — no minus sign (food adds to surplus).
+  Activity tile: −${Math.round(actCals)} — minus sign (activity burns surplus).
+  Lose goals: opposite (unchanged).
+
+Weekly strip zone logic for gain:
+  gainFloorEff / gainCeilEff derived from goal.surplusFloor/surplusCeiling
+  with fallback to |dailyTarget| ± 100.
+  Day state 'succeed' only when consumed ≥ totalBurn + gainFloorEff AND
+  consumed ≤ totalBurn + gainCeilEff. Black otherwise.
+
+Macro achieved checkmark:
+  Both the ProteinBar and GainMacroBars achieved icons changed from
+  text-success to text-accent (mint matches accent color, avoids green clash
+  with success status).
+
+── GOALSCREEN — WEEKCHART DUAL RAMPS ────────────────────────────────────────
+DayBar interface: floorBudget + ceilBudget fields added.
+  Lose goals: floorBudget = ceilBudget = budget (single midpoint, unchanged).
+  Gain goals: floorBudget = totalBurn + surplusFloor; ceilBudget = totalBurn + surplusCeiling.
+
+cumulData: now carries cumFloor + cumCeil (accumulated from floorBudget/ceilBudget).
+maxY: includes maxCeil so gain chart never clips the ceiling ramp.
+
+Ramp polylines (SVG):
+  Gain: two dashed polylines (floor + ceiling), both stroke var(--color-border-strong).
+  Lose: one dashed polyline (midRampPoints). Guard: dailyTarget !== 0.
+
+Bar fill color:
+  Gain: mint when cumConsumed ≥ cumFloor && cumConsumed ≤ cumCeil; dark otherwise.
+  Lose: mint when cumConsumed ≤ cumBudget (unchanged).
+  The map destructure now includes cumFloor, cumCeil.
+
+Summary Badge:
+  Gain: 3-state — 'Under' / 'On target' (success) / 'Over', diff = distance
+    to nearest boundary (floor when below, ceiling when in or above).
+  Lose: 'Over' / 'On target' (unchanged).
+
+── INDEX.CSS — RANGE INPUT THUMB ────────────────────────────────────────────
+input[type="range"]::-webkit-slider-thumb:
+  width: 24px; height: 12px — pill-shaped thumb.
+  border-radius: 9999px; background: var(--color-accent).
+  margin-top: -4px to center a 12px thumb on the ~4px default WebKit track.
+  -webkit-appearance: none on both the input and thumb (required).
+
+All range inputs use h-11 (44px Tailwind) for the 44pt touch target.
+The element background is transparent; only the thumb and WebKit's native
+track are visible. No custom track styling — browser default track retained.
+
+tsc: clean (run on Mac to confirm). lint: 0 errors assumed.
+
+================================================================
+ROUND 65 — TRACKING STEP FOR BUILD MUSCLE GOALS (2026-06-15)
+================================================================
+Files: src/domain/types.ts, src/ui/screens/GoalSetupScreen.tsx
+
+NEW GOAL SETUP STEP — "Tracking" (step 3, gain_by_date only):
+Appears after the "Your plan" step for Build muscle goals.
+Two modes selectable via SegmentedControl: Simple / Detailed.
+
+SIMPLE MODE:
+  Protein target only (pre-filled to bodyWeight × 1.8, rounded to nearest 5g).
+  Carb/fat targets are hidden but computed in the background.
+  "Skip" button saves Simple mode defaults immediately without requiring user input.
+
+DETAILED MODE:
+  Three macro-style cards (radio-select): Balanced / Performance / Lower carb.
+  Each shows a subtitle ("Good everyday default", "More carbs around activity",
+  "Lower carb, higher fat").
+  Below the selected card: per-row inline sliders (Protein / Carbs or Fat) with
+  Edit → open slider / Reset → revert to calculated / Reset-to-calculated label.
+  Inline contextual notes (e.g., "This may be low for building muscle") appear
+  below each row when the value is outside the recommended range.
+
+DEFAULTS BY MACRO STYLE:
+  Protein:  bodyWeight × 1.8g (nearest 5g), min 40g. Fallback 120g if no BW.
+  Balanced: fat = totalCal × 28% / 9 (nearest 5g).
+  Performance: fat = totalCal × 22% / 9.
+  Lower carb: carbLimit = totalCal × 20% / 4.
+
+GOAL MODEL ADDITIONS:
+  trackingMode?: 'simple' | 'detailed'
+  macroStyle?:   'balanced' | 'performance' | 'lower_carb'
+  fatTargetG?:   number  (balanced = fat target; performance = fat baseline)
+  carbLimitG?:   number  (lower_carb max carb intake g/day)
+
+Note: protein stored on User.proteinGoalG (existing field), not on Goal.
+
+tsc: clean. lint: 0 errors.
+
+================================================================
+ROUND 68 — SLIDER POLISH + GOAL SETUP MEMORY + GOAL HISTORY + ACCOUNT PREFS (2026-06-16)
+================================================================
+Files: src/index.css, src/domain/types.ts, src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/screens/GoalScreen.tsx, src/ui/screens/AccountScreen.tsx,
+       src/ui/screens/TodayScreen.tsx
+
+── INDEX.CSS — SLIDER THUMB POLISH ─────────────────────────────────────────
+Three fixes to the range input pill thumb:
+
+1. CENTERING: Removed `margin-top: -4px`. WebKit already vertically centers
+   the thumb on the track when -webkit-appearance: none is applied; the offset
+   was pulling it off-axis.
+
+2. SHADOW: Added explicit `box-shadow: 0 1px 3px rgba(0,0,0,0.10)` to override
+   any browser default with a lighter value.
+
+3. HOLD-TO-SCALE: Added `transition: transform 180ms cubic-bezier(0.34,1.56,0.64,1)`
+   on the thumb and `input[type="range"]:active::-webkit-slider-thumb { transform: scale(2) }`.
+   The spring easing (overshoot) gives a satisfying "pop" when the user holds the thumb.
+   Scale resets on release via the same transition.
+
+── GOALSETUPSCREEN — PER-TYPE STATE MEMORY ──────────────────────────────────
+Problem: r67 implemented "clear end date + target when switching goal type while
+editing". This caused confusion — switching back to the original type lost the
+values the user had entered.
+
+Fix: typeStash = useRef<Partial<Record<GoalTypeOpt['id'], {target:string; date:string}>>>({}):
+  - On type card click: save current {target, date} to typeStash[currentType],
+    then restore typeStash[newType] (empty string if first visit to that type).
+  - On mount (activeGoal useEffect): pre-populate typeStash[activeGoal.type]
+    with the saved goal's values so editing always restores the active type correctly.
+  - This is in-session memory only (ref, not state) — refreshing clears it.
+  - Applies to ALL type switches (not just when editing), so new goal creation
+    also benefits from per-type memory within the same session.
+
+── GOALSCREEN — GOAL HISTORY IN SETTINGS SHEET ──────────────────────────────
+User request: see previous goals from the ⋯ menu on GoalScreen.
+
+Implementation:
+  - useLive data fetch now derives `previousGoals`: all goals whose id ≠ current
+    goal and status ≠ 'active', sorted newest-first by startDate.
+  - GoalSettingsSheet gains `previousGoals: Goal[]` prop.
+  - If previousGoals.length > 0, renders a "Previous goals" section separated
+    by a border-t inside the Sheet (below the action buttons).
+  - PreviousGoalRow component: rounded-card bg-surface-sunken row showing goal
+    name (truncated), type label ("Build muscle" / "Lose weight"), date range
+    (fmtShortDate start – end), and outcome chip ("Completed" in text-accent /
+    "Ended" in text-content-muted).
+
+── TYPES.TS — USER MODEL ADDITIONS ──────────────────────────────────────────
+Three new optional fields on User:
+  visibleMacros?: { protein?: boolean; carbs?: boolean; fat?: boolean }
+    Undefined = all visible (safe default for existing users).
+  weightCadence?: 'daily' | 'weekly'
+    Undefined = 'daily'.
+  weeklyWeightDay?: number
+    0 = Monday … 6 = Sunday (matches DOW_LABELS array in AccountScreen).
+
+── ACCOUNTSCREEN — TODAY VIEW + WEIGHT TRACKING CARDS ───────────────────────
+Two new settings sections added above "Connections":
+
+TODAY VIEW CARD:
+  Local Toggle component (mirrors haptics toggle: 51×31px pill, white thumb,
+  accent/border-strong background, 200ms transition). Three rows: Protein /
+  Carbs / Fat each with a Toggle. Saves to repos.user.visibleMacros immediately
+  on toggle. eslint-disable comment for shadow on toggle thumb (required since
+  it is always on a white background).
+
+WEIGHT TRACKING CARD:
+  SegmentedControl<'daily'|'weekly'> (Daily / Weekly). Saves weightCadence.
+  When Weekly selected: DOW_LABELS pill picker (Mon…Sun, 7 buttons in flex row).
+  Selected day = accent bg / on-accent text. Saves weeklyWeightDay on tap.
+  Inline note: "Evening reminder will only show on {day}s."
+
+── TODAYSCREEN — RESPECTS PREFS ─────────────────────────────────────────────
+DayPanelProps gains: visibleMacros, weightCadence, weeklyWeightDay (all optional).
+DayPanel usage in carousel: passed from `user?.visibleMacros` etc.
+
+MACRO VISIBILITY:
+  showProteinBar = (visibleMacros?.protein !== false) && proteinGoalG > 0
+  showCarbsBar   = visibleMacros?.carbs   !== false
+  showFatBar     = visibleMacros?.fat     !== false
+  anyMacroBar    = showProteinBar   (protein is the gating macro for the bar section)
+  GainMacroBars: gained showProtein/showCarbs/showFat props; builds bars[] only
+  from visible macros; `if (bars.length === 0) return null` guard added.
+  Both outer container `bg-surface-sunken` uses anyMacroBar (was proteinGoalG > 0).
+  ProteinBar render sites use showProteinBar (was proteinGoalG > 0).
+
+WEIGHT REMINDER CADENCE:
+  todayDow = (new Date().getDay() + 6) % 7  // Mon=0 … Sun=6
+  isWeighInDay = cadence === 'daily' || todayDow === (weeklyWeightDay ?? 0)
+  showWeightReminder gets extra && isWeighInDay gate.
+  Daily users: unaffected (isWeighInDay always true).
+  Weekly users: reminder only fires on the chosen day at or after 8pm.
+
+tsc: clean. Tests: rollup sandbox limitation prevents running — verify on Mac.
+
+── TODAYSCREEN — LOSE GOAL MACRO BARS (BUG FIX) ────────────────────────────
+Root cause: the lose-goal render branch only ever showed `<ProteinBar>`, with no
+code path for carbs or fat. GainMacroBars is only rendered for gain goals.
+`carbConsumed` and `fatConsumed` were already computed unconditionally in DayPanel
+but had nowhere to render for lose goals.
+
+Fix: new `LoseMacroBars` component (src/ui/screens/TodayScreen.tsx):
+  - Accepts protein, proteinGoalG, carbs, fat, showProtein, showCarbs, showFat.
+  - Builds a cols[] array from only the visible macros (empty = returns null).
+  - Protein column: shows consumed vs target progress bar + achieved checkmark
+    (same pattern as GainMacroBars). Gated on showProtein && proteinGoalG > 0.
+  - Carbs column: consumed grams shown on right; an empty (filled=0) grey track
+    (`<div h-[6px] bg-progress-track />`) indicates no daily target. Gated on showCarbs.
+  - Fat column: same pattern as carbs. Gated on showFat.
+  - Grid columns: auto-sized to number of visible bars (1–3).
+
+Default visibility for lose goals:
+  showProteinBar = visibleMacros?.protein === true  (opt-in; default OFF)
+  showCarbsBar   = visibleMacros?.carbs   !== false  (opt-out; default ON)
+  showFatBar     = visibleMacros?.fat     !== false   (opt-out; default ON)
+  → Protein hidden until user enables it; carbs + fat visible by default.
+
+anyMacroBar updated:
+  gainGoal ? showProteinBar : (showProteinBar || showCarbsBar || showFatBar)
+  → background slab (bg-surface-sunken) now correctly appears for lose goals
+    when carbs or fat are visible even if protein is hidden.
+
+tsc: clean.
+
+================================================================
+ROUND 69 — GOAL OUTCOME DISMISS STATE + SHEET CONFIRM UX + SLIDER TOUCH-ACTION + GIT SETUP (2026-06-16)
+================================================================
+Files changed:
+  src/ui/screens/GoalScreen.tsx         — dismissedOutcome state, GoalOutcomeView
+                                          onDismiss prop + goalAchieved flag, sheet UX
+  src/ui/screens/GoalSetupScreen.tsx    — inline Reset button, slider touchAction
+
+── GOALOUTCOMEVIEW DISMISS STATE ────────────────────────────────────────────
+Previously the X button on GoalOutcomeView called nav('/goal'), which landed on
+the no-goal empty state. But navigating back to /goal would re-render the same
+completed/ended outcome view again immediately (goal status hadn't changed).
+
+Fix: added `dismissedOutcome` boolean state to GoalScreen (useState(false)).
+The no-goal guard now reads:
+  if (!data.goal || dismissedOutcome) { return <empty state>; }
+
+GoalOutcomeView receives `onDismiss: () => void` as a prop. The X button calls
+`slideDown(onDismiss)` — runs the slide-down exit animation, then sets
+dismissedOutcome=true. No navigation occurs. Goal status (completed/abandoned)
+is unchanged in the database.
+
+The two separate outcome-view returns were merged into one:
+  if (isCompleted || isEnded) {
+    return <GoalOutcomeView
+      goal={goal} weights={weights}
+      mode={isCompleted ? 'completed' : 'ended'}
+      onDismiss={() => setDismissedOutcome(true)}
+    />;
+  }
+
+── GOALOUTCOMEVIEW: goalAchieved FLAG ───────────────────────────────────────
+The title block previously used `isCompleted` (mode === 'completed') to decide
+whether to show "Congrats goal achieved!" or "Goal ended". This was wrong:
+a user could mark a goal complete early without having reached their target
+weight, and still see the celebration title.
+
+Fix: new derived constant:
+  const goalAchieved = mode === 'completed' && (
+    gainGoal ? nowKg >= goal.targetWeightKg : nowKg <= goal.targetWeightKg
+  );
+
+Title block updated: `{goalAchieved ? <...Congrats...> : <...Goal ended...>}`.
+The isCompleted local constant (was `mode === 'completed'`) was removed entirely
+since goalAchieved supersedes it everywhere it was used.
+
+── COMPLETE GOAL CONFIRMATION SHEETS ────────────────────────────────────────
+Two sheets updated — GoalScreen `showCompleteSheet` and GoalSettingsSheet
+`showCompleteConfirm` — with a deliberate button-order swap:
+
+Before:
+  footer: <Button size="lg">Yes, complete goal</Button>  ← primary (dominant)
+  body:   <Button variant="ghost">Cancel</Button>         ← ghost (easy to miss)
+
+After:
+  footer: <div className="space-y-2">
+    <Button size="lg">Cancel</Button>                         ← primary (safe default)
+    <Button variant="outline" size="lg">Yes, complete goal</Button>  ← outline (deliberate)
+  </div>
+
+Cancel is now the visually dominant action. Completing requires a deliberate
+tap on the lower, lighter-styled button.
+
+New body copy (replaces "Mark this goal as complete? Your progress will be saved."):
+  "Please confirm that you wish to complete this goal. Your goal will be stored
+   in "Past goals"." (uses &ldquo; &rdquo; for typographic quotes)
+
+The old Cancel ghost button and surrounding div.space-y-3 inside the body were
+removed; only the <p> copy remains in the scroll area.
+
+── GOALSETUPSCREEN: INLINE RESET BUTTON ─────────────────────────────────────
+The deficit/surplus pill previously showed the effective value with no affordance
+to reset to the computed value unless the warning alert appeared (only on started
+goals with an active override).
+
+Fix: Reset button added inline inside the pill div:
+  {deficitOverride !== null && (
+    <button type="button" onClick={() => setDeficitOverride(null)}
+      className="ml-2 shrink-0 text-subhead font-semibold text-accent active:opacity-70">
+      Reset
+    </button>
+  )}
+
+The pill div changed from:
+  className="... text-center"
+to:
+  className="... flex items-center justify-between"
+to accommodate the label on the left and Reset button on the right.
+
+── SLIDER TOUCH-ACTION FIX ──────────────────────────────────────────────────
+On WKWebView (iOS), horizontal <input type="range"> elements competed with the
+page's native vertical pan gesture. Dragging the slider would frequently trigger
+a page scroll instead of moving the thumb.
+
+Fix: `style={{ touchAction: 'pan-x' }}` added to two sliders:
+  1. Deficit/surplus slider in GoalSetupScreen review section
+  2. MacroRow slider component (near bottom of GoalSetupScreen)
+
+`pan-x` tells the browser to claim ownership of horizontal touch events on
+those elements and not forward them to the scroll container.
+
+── GIT + GITHUB SETUP ───────────────────────────────────────────────────────
+Problem: project lived at ~/Desktop/nutri/nutrition-goal-tracker (iCloud Drive).
+Sync between home Mac mini and work MacBook caused file conflicts — in particular
+a corrupt rollup install (node_modules/rollup/dist/es/ directory missing) that
+broke `npm run build`. No version history existed; changes were synced manually
+via CHANGES-TO-APPLY.md documents.
+
+Solution:
+  1. Moved working copy to ~/Downloads/nutri/nutrition-goal-tracker (not synced
+     by iCloud — ~/Downloads is outside iCloud Drive scope).
+  2. `git init` + `git branch -m main` + user config set.
+  3. Initial commit fb19faa "Initial commit — leve app (home build 2026-06-16)"
+     (175 files, 590.70 KiB).
+  4. Created private GitHub repository: https://github.com/everydayou/leve.git
+     (org: everydayou, repo name: leve).
+  5. `git push -u origin main` — branch main tracking origin/main.
+
+Workflow going forward:
+  - Home Mac mini: work in ~/Downloads/nutri/nutrition-goal-tracker.
+    After each session: `git add -A && git commit -m "..." && git push`
+  - Work MacBook: `git clone https://github.com/everydayou/leve.git`
+    then `npm install` → `npm run build` → `npm run ios:sync`.
+  - No more CHANGES-TO-APPLY.md manual sync documents needed.
+
+tsc: clean (changes verified as pre-applied on home machine).

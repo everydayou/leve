@@ -10,7 +10,7 @@ import { getThemePref, setThemePref, type ThemePref } from '../../lib/theme';
 import { hapticLight, getHapticsPref, setHapticsPref } from '../../lib/haptics';
 import { getWithingsService, type WithingsStatus } from '../../data/withings';
 import { DevMenu } from '../components/DevMenu';
-import type { User, Sex, Goal, Units } from '../../domain/types';
+import type { User, Sex, Goal, Units, MacroStyle } from '../../domain/types';
 
 export function AccountScreen() {
   const nav = useNavigate();
@@ -18,6 +18,7 @@ export function AccountScreen() {
   const [managingGoal, setManagingGoal] = useState(false);
   const [showBmrInfo, setShowBmrInfo] = useState(false);
   const [editingProtein, setEditingProtein] = useState(false);
+  const [editingMacro, setEditingMacro] = useState(false);
   const data = useLive(async () => {
     const [user, goal] = await Promise.all([
       repos.user.get(), repos.goals.getActive(),
@@ -112,6 +113,11 @@ export function AccountScreen() {
 
       <SectionLabel>Tracking</SectionLabel>
       <WeightCadenceCard user={user} />
+      {goal?.macroStyle && (
+        <div className="mt-2">
+          <MacroTrackingCard goal={goal} onEdit={() => setEditingMacro(true)} />
+        </div>
+      )}
 
       <SectionLabel>Appearance</SectionLabel>
       <AppearanceCard />
@@ -129,6 +135,7 @@ export function AccountScreen() {
       <p className="mt-8 text-center text-micro text-content-muted">v0.1.0</p>
 
       {editingProfile && <ProfileSheet user={user} onClose={() => setEditingProfile(false)} />}
+      {editingMacro && goal && <MacroStyleSheet goal={goal} onClose={() => setEditingMacro(false)} />}
       {managingGoal && goal && <GoalManageSheet goal={goal} onClose={() => setManagingGoal(false)} onNavigate={(path) => { setManagingGoal(false); nav(path); }} />}
       {showBmrInfo && <BmrInfoSheet onClose={() => setShowBmrInfo(false)} />}
       {editingProtein && <ProteinGoalSheet current={user.proteinGoalG} onClose={() => setEditingProtein(false)} />}
@@ -472,3 +479,78 @@ function GoalManageSheet({ goal, onClose, onNavigate }: { goal: Goal; onClose: (
   );
 }
 
+const MACRO_STYLE_LABELS: Record<MacroStyle, string> = {
+  balanced:    'Balanced',
+  performance: 'Performance',
+  lower_carb:  'Lower carb',
+};
+
+function MacroTrackingCard({ goal, onEdit }: { goal: Goal; onEdit: () => void }) {
+  const label = goal.macroStyle ? MACRO_STYLE_LABELS[goal.macroStyle] : '—';
+  return (
+    <div className="overflow-hidden rounded-control border border-border-subtle bg-surface p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-label font-medium text-content-secondary">Macro tracking</p>
+          <p className="text-subhead font-semibold">{label}</p>
+        </div>
+        <Button variant="subtle" size="xs" fullWidth={false} onClick={onEdit}>Edit</Button>
+      </div>
+    </div>
+  );
+}
+
+function MacroStyleSheet({ goal, onClose }: { goal: Goal; onClose: () => void }) {
+  const [selected, setSelected] = useState<MacroStyle | null>(goal.macroStyle ?? null);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    await repos.goals.save({ ...goal, macroStyle: selected ?? undefined });
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <Sheet
+      title="Macro tracking"
+      onClose={onClose}
+      forceExpanded
+      footer={<Button size="lg" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>}
+    >
+      <div className="space-y-2 pb-2">
+        <p className="text-subhead text-content-secondary mb-3">
+          Choose how carbs and fat are distributed across your day.
+        </p>
+        {([
+          { id: 'balanced'    as MacroStyle, title: 'Balanced',    subtitle: 'Good everyday default' },
+          { id: 'performance' as MacroStyle, title: 'Performance', subtitle: 'More carbs around activity' },
+          { id: 'lower_carb'  as MacroStyle, title: 'Lower carb',  subtitle: 'Lower carb, higher fat' },
+        ] as { id: MacroStyle; title: string; subtitle: string }[]).map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => { hapticLight(); setSelected(selected === s.id ? null : s.id); }}
+            className={`flex w-full flex-col rounded-card text-left transition-colors ${
+              selected === s.id
+                ? 'border-2 border-accent bg-surface p-[15px] shadow-card'
+                : 'border border-border-subtle bg-surface p-4 shadow-card'
+            }`}
+          >
+            <span className="text-callout font-semibold text-content">{s.title}</span>
+            <span className="mt-0.5 text-subhead text-content-secondary">{s.subtitle}</span>
+          </button>
+        ))}
+        {selected && (
+          <button
+            type="button"
+            onClick={() => { hapticLight(); setSelected(null); }}
+            className="mt-1 w-full text-center text-subhead font-normal text-accent-hover active:opacity-70"
+          >
+            Remove tracking
+          </button>
+        )}
+      </div>
+    </Sheet>
+  );
+}

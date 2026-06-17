@@ -176,7 +176,7 @@ export function GoalSetupForm({
   const sliderMin = Math.max(200, computedMagnitude - 500);
   const sliderMax = computedMagnitude + 500;
   const effectiveMagnitude = deficitOverride ?? computedMagnitude;
-  const goalHasStarted = editing && !!activeGoal && activeGoal.startDate <= todayISO();
+  const goalHasStarted = editing && !!activeGoal && activeGoal.startDate < todayISO();
   const showDeficitWarning = goalHasStarted && deficitOverride !== null && deficitOverride !== computedMagnitude;
 
   // Total daily calorie target — drives macro defaults on tracking step
@@ -466,27 +466,27 @@ export function GoalSetupForm({
                       />
                       <div className="mt-3 mb-5 -mx-5 border-t border-border-subtle" />
                       <PaceMeter level={intensity.level} />
+                      {showDeficitWarning && (
+                        <div className="mt-4 flex items-start gap-2.5 rounded-control border border-border-subtle bg-surface-sunken p-3">
+                          <Icon name="info" size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-content-secondary" />
+                          <div className="flex-1">
+                            <p className="text-subhead text-content-secondary">
+                              Changing the daily {isGain ? 'surplus' : 'deficit'} will affect how your remaining days are budgeted. Past entries are not changed.
+                            </p>
+                            <button
+                              onClick={() => setDeficitOverride(null)}
+                              className="mt-1.5 text-subhead font-semibold text-content active:opacity-70"
+                            >
+                              Reset to calculated ({computedMagnitude} kcal)
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <p className="text-subhead text-content-muted">Fill in your details to preview your goal pace.</p>
                   )}
                 </div>
-                {showDeficitWarning && (
-                  <div className="mt-3 flex items-start gap-2.5 rounded-control border border-border-subtle bg-surface-sunken p-3">
-                    <Icon name="info" size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-content-secondary" />
-                    <div className="flex-1">
-                      <p className="text-subhead text-content-secondary">
-                        Changing the daily {isGain ? 'surplus' : 'deficit'} will affect how your remaining days are budgeted. Past entries are not changed.
-                      </p>
-                      <button
-                        onClick={() => setDeficitOverride(null)}
-                        className="mt-1.5 text-subhead font-semibold text-content active:opacity-70"
-                      >
-                        Reset to calculated ({computedMagnitude} kcal)
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="mt-5">
@@ -534,7 +534,7 @@ export function GoalSetupForm({
                 <span className="text-headline font-semibold text-content">Tracking</span>
                 <button
                   onClick={() => { setMacroStyle(null); void create(); }}
-                  className="flex h-10 items-center pr-1 text-subhead font-medium text-content"
+                  className="self-end pb-[3px] pr-1 text-subhead font-normal text-accent-hover active:opacity-70"
                 >
                   Skip
                 </button>
@@ -543,7 +543,7 @@ export function GoalSetupForm({
 
             <div className="px-6 pb-6">
               {/* Info text — free text, no container, no icon */}
-              <p className="text-callout text-content-secondary mb-5">
+              <p className="text-callout text-content mb-5">
                 Choose how carbs and fat are distributed across your day. You can adjust this later as your routine changes.
               </p>
 
@@ -668,10 +668,12 @@ export function GoalSetupForm({
                 </>
               )}
 
-              {/* Done CTA */}
-              <div className="mt-5">
-                <Button size="lg" onClick={() => void create()}>Done</Button>
-              </div>
+              {/* Done CTA — only shown once a tracking style is selected */}
+              {macroStyle !== null && (
+                <div className="mt-5">
+                  <Button size="lg" onClick={() => void create()}>Done</Button>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -718,9 +720,9 @@ function MacroRow({
           <button
             type="button"
             onClick={isEditing ? onReset : onEditToggle}
-            className="text-subhead font-semibold text-accent"
+            className="text-subhead font-normal text-accent-hover active:opacity-70"
           >
-            {isEditing ? 'Reset' : 'Edit'}
+            {isEditing ? 'Save' : 'Edit'}
           </button>
         )}
       </div>
@@ -787,7 +789,7 @@ function FullScreen({
   const animClass = exiting ? 'slide-down-out' : slideUp ? 'slide-up-in' : '';
   return (
     <div
-      className={`fixed inset-0 flex justify-center overflow-hidden bg-surface-sunken sm:items-center sm:py-[max(1.5rem,2dvh)] ${animClass}`}
+      className={`fixed inset-0 ${slideUp ? 'z-[200]' : ''} flex justify-center overflow-hidden bg-surface-sunken sm:items-center sm:py-[max(1.5rem,2dvh)] ${animClass}`}
       style={{ touchAction: 'manipulation' }}
     >
       <div

@@ -749,7 +749,7 @@ function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, units = 'kg
   // Ahead = weight is on the right side of the plan:
   //   lose: actual ≤ planned (lighter than planned = ahead)
   //   gain: actual ≥ planned (heavier than planned = ahead)
-  const lastLogged = daySeries.filter((d) => d.actual !== null && d.date <= today).slice(-1)[0];
+  const lastLogged = daySeries.filter((d) => d.actual !== null && d.date <= today && !d.isBeforeGoal).slice(-1)[0];
   const isAhead    = lastLogged
     ? (gain ? lastLogged.actual! >= lastLogged.planned : lastLogged.actual! <= lastLogged.planned)
     : false;

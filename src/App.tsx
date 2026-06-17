@@ -5,6 +5,7 @@ import { GoalScreen } from './ui/screens/GoalScreen';
 import { PantryScreen } from './ui/screens/PantryScreen';
 import { AccountScreen } from './ui/screens/AccountScreen';
 import { GoalSetupScreen } from './ui/screens/GoalSetupScreen';
+import { PastGoalsScreen, PastGoalDetailScreen } from './ui/screens/PastGoalsScreen';
 import { OnboardingScreen } from './ui/screens/OnboardingScreen';
 import OnboardingDailyAllowance from './ui/screens/OnboardingDailyAllowance';
 import { StyleguideScreen } from './ui/screens/StyleguideScreen';
@@ -22,6 +23,9 @@ export default function App() {
       <Route path="/onboarding" element={<OnboardingScreen />} />
       <Route path="/onboarding2" element={<OnboardingDailyAllowance />} />
       <Route path="/goal-setup" element={<GoalSetupScreen />} />
+      {/* Past goals — full-screen push navigation (no tab bar) */}
+      <Route path="/past-goals" element={<PastGoalsScreen />} />
+      <Route path="/past-goals/:id" element={<PastGoalDetailScreen />} />
       {/* Design-system gallery (dev reference) */}
       <Route path="/styleguide" element={<StyleguideScreen />} />
       {/* Tabbed app */}

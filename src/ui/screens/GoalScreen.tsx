@@ -473,9 +473,9 @@ export function GoalScreen() {
 /** Bottom sheet with plan summary + Complete / Edit plan / End goal actions.
  *  Accessible from the normal active view via the ⋯ button in the header. */
 function GoalSettingsSheet({ goal, onClose, isEarlyComplete, previousGoals, onEditPlan }: { goal: Goal; onClose: () => void; isEarlyComplete: boolean; previousGoals: Goal[]; onEditPlan: () => void; }) {
+  const nav = useNavigate();
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
-  const [showPastGoalsList, setShowPastGoalsList] = useState(false);
 
   async function markComplete() {
     await repos.goals.put({ ...goal, status: 'completed' });
@@ -499,7 +499,7 @@ function GoalSettingsSheet({ goal, onClose, isEarlyComplete, previousGoals, onEd
           {previousGoals.length > 0 && (
             <button
               className="flex w-full items-center justify-between rounded-control px-1 py-3 text-subhead text-content active:bg-surface-sunken"
-              onClick={() => setShowPastGoalsList(true)}
+              onClick={() => { onClose(); nav('/past-goals'); }}
             >
               Past goals
               <Icon name="chevronRight" size={18} strokeWidth={2} />
@@ -507,15 +507,6 @@ function GoalSettingsSheet({ goal, onClose, isEarlyComplete, previousGoals, onEd
           )}
         </div>
       </Sheet>
-      {showPastGoalsList && (
-        <Sheet title="Past goals" onClose={() => setShowPastGoalsList(false)}>
-          <div className="pb-2 divide-y divide-border-subtle">
-            {previousGoals.map((g) => (
-              <PreviousGoalRow key={g.id} goal={g} />
-            ))}
-          </div>
-        </Sheet>
-      )}
 
       {showCompleteConfirm && (
         <Sheet
@@ -672,7 +663,7 @@ function GoalOutcomeView({ goal, weights, mode, onDismiss, units = 'kg' }: {
 /** 7-day weight chart for the viewed week.
  *  Dashed planned trajectory line + mint dots for actual weigh-ins.
  *  Verdict row below: ahead (mint) or behind (dark) plan. */
-function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, units = 'kg' }: {
+export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, units = 'kg' }: {
   goal: Goal; weights: WeightEntry[]; weekOffset: number; today: string;
   navDir?: 1 | -1 | 0; units?: 'kg' | 'lbs';
 }) {
@@ -1082,7 +1073,7 @@ function WeekChart({ goal, weights, user, items, weekOffset, today, animTrigger 
     .join(' ');
 
   // Summary: last past day with data
-  const lastWithData = cumulData.filter((d) => d.hasData && !d.isFuture).slice(-1)[0];
+  const lastWithData = cumulData.filter((d) => d.hasData && !d.isFuture && !d.isBeforeGoal).slice(-1)[0];
   const hasAnyData   = Boolean(lastWithData);
   const cumCons      = lastWithData?.cumConsumed ?? 0;
   const cumBudg      = lastWithData?.cumBudget   ?? 0;

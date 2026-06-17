@@ -50,22 +50,22 @@ export default function LeveLoadingScreen({ exiting = false }: { exiting?: boole
             stroke-dashoffset: 0;
             animation-timing-function: linear;
           }
-          8.3% {
+          5.56% {
             stroke-dasharray: 0 ${c.toFixed(1)};
             stroke-dashoffset: 0;
             animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
           }
-          33.3% {
+          33.33% {
             stroke-dasharray: ${fill60.toFixed(1)} ${(c - fill60).toFixed(1)};
             stroke-dashoffset: 0;
             animation-timing-function: linear;
           }
-          66.7% {
+          66.67% {
             stroke-dasharray: ${fill60.toFixed(1)} ${(c - fill60).toFixed(1)};
             stroke-dashoffset: -${slide60.toFixed(1)};
             animation-timing-function: ease;
           }
-          91.7% {
+          94.44% {
             stroke-dasharray: 0 ${c.toFixed(1)};
             stroke-dashoffset: -${arcLen.toFixed(1)};
             animation-timing-function: linear;
@@ -114,7 +114,7 @@ export default function LeveLoadingScreen({ exiting = false }: { exiting?: boole
               strokeLinecap="round"
               strokeDasharray={`0 ${c.toFixed(1)}`}
               style={{
-                animation: 'leve-arc-fill 1.2s linear alternate infinite',
+                animation: 'leve-arc-fill 0.9s linear infinite',
               }}
             />
           </g>

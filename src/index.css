@@ -418,3 +418,15 @@ input, textarea, [contenteditable] {
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* ── Push navigation: slide from right (past-goals screens) ─────────────────── */
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes slideOutRight {
+  from { transform: translateX(0); }
+  to   { transform: translateX(100%); }
+}
+.slide-in-right  { animation: slideInRight  0.32s cubic-bezier(0.32, 0.72, 0, 1) both; }
+.slide-out-right { animation: slideOutRight 0.28s cubic-bezier(0.32, 0.72, 0, 1) both; }

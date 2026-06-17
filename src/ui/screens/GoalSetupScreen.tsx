@@ -158,6 +158,7 @@ export function GoalSetupForm({
   const [deficitOverride, setDeficitOverride] = useState<number | null>(
     activeGoal?.dailyDeficitKcalOverride ?? null,
   );
+  const [sessionTouched, setSessionTouched] = useState(false);
   // Field-level errors — set on attempted submit when fields are invalid
   const [fieldErrors, setFieldErrors] = useState<{
     start?: string; target?: string; date?: string; startDate?: string;
@@ -177,7 +178,7 @@ export function GoalSetupForm({
   const sliderMax = computedMagnitude + 500;
   const effectiveMagnitude = deficitOverride ?? computedMagnitude;
   const goalHasStarted = editing && !!activeGoal && activeGoal.startDate < todayISO();
-  const showDeficitWarning = goalHasStarted && deficitOverride !== null && deficitOverride !== computedMagnitude;
+  const showDeficitWarning = goalHasStarted && sessionTouched;
 
   // Total daily calorie target — drives macro defaults on tracking step
   const safeBmr = userBmr > 0 ? userBmr : 2000;
@@ -434,10 +435,10 @@ export function GoalSetupForm({
                     <>
                       {/* Top row: stats centered, Reset at top-right */}
                       <div className="relative">
-                        {deficitOverride !== null && (
+                        {sessionTouched && (
                           <button
                             type="button"
-                            onClick={() => setDeficitOverride(null)}
+                            onClick={() => { setDeficitOverride(null); setSessionTouched(false); }}
                             className="absolute top-0 right-0 text-subhead font-normal text-accent-hover active:opacity-70"
                           >
                             Reset
@@ -460,7 +461,7 @@ export function GoalSetupForm({
                         max={sliderMax}
                         step={10}
                         value={effectiveMagnitude}
-                        onChange={(e) => setDeficitOverride(Number(e.target.value))}
+                        onChange={(e) => { setDeficitOverride(Number(e.target.value)); setSessionTouched(true); }}
                         className="mt-[2px] w-full accent-accent"
                         style={{ touchAction: 'pan-x' }}
                       />
@@ -474,8 +475,8 @@ export function GoalSetupForm({
                               Changing the daily {isGain ? 'surplus' : 'deficit'} will affect how your remaining days are budgeted. Past entries are not changed.
                             </p>
                             <button
-                              onClick={() => setDeficitOverride(null)}
-                              className="mt-1.5 text-subhead font-semibold text-content active:opacity-70"
+                              onClick={() => { setDeficitOverride(null); setSessionTouched(false); }}
+                              className="mt-1.5 text-subhead font-normal text-accent-hover active:opacity-70"
                             >
                               Reset to calculated ({computedMagnitude} kcal)
                             </button>

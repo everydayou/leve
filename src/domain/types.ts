@@ -55,6 +55,10 @@ export interface Goal {
   fatTargetG?: number;
   /** Lower carb only: max carb intake (g/day). */
   carbLimitG?: number;
+  /** Which macros are visible in the Diary gauge card (only when macroStyle is set). Default true. */
+  diaryShowProtein?: boolean;
+  diaryShowCarbs?: boolean;
+  diaryShowFat?: boolean;
 }
 
 export interface FoodItem {

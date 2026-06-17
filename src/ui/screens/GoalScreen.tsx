@@ -692,12 +692,12 @@ function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, units = 'kg
     const latestActual = daySeries.filter((d) => d.actual !== null && d.date <= today).slice(-1)[0];
     const parts: string[] = [`Weight chart for the week of ${weekStart}.`];
     if (latestActual) {
-      parts.push(`Latest logged weight: ${displayWeight(latestActual.actual!, user?.units ?? 'kg')} on ${latestActual.date}.`);
-      parts.push(`${displayWeight(diffKg, user?.units ?? 'kg')} ${isAhead ? 'ahead of' : 'behind'} target.`);
+      parts.push(`Latest logged weight: ${displayWeight(latestActual.actual!, units)} on ${latestActual.date}.`);
+      parts.push(`${displayWeight(diffKg, units)} ${isAhead ? 'ahead of' : 'behind'} target.`);
     } else {
       parts.push('No weight logged this week.');
     }
-    parts.push(`Goal: ${displayWeight(goal.startWeightKg, user?.units ?? 'kg')} → ${displayWeight(goal.targetWeightKg, user?.units ?? 'kg')} by ${goal.targetDate}.`);
+    parts.push(`Goal: ${displayWeight(goal.startWeightKg, units)} → ${displayWeight(goal.targetWeightKg, units)} by ${goal.targetDate}.`);
     return parts.join(' ');
   })();
 
@@ -728,12 +728,12 @@ function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, units = 'kg
         <g key={v}>
           <line x1={padLeft + 16} y1={yFor(v)} x2={padLeft + chartW - 16} y2={yFor(v)}
             stroke="var(--color-border-subtle)" strokeWidth={0.75} />
-          {(user?.units === 'lbs' ? Number.isInteger(Math.round(kgToLbs(v))) : v === Math.floor(v)) && (
+          {(units === 'lbs' ? Number.isInteger(Math.round(kgToLbs(v))) : v === Math.floor(v)) && (
             <text x={padLeft - 4} y={yFor(v)} textAnchor="end" dominantBaseline="middle"
               fontSize="12"
               fontWeight="400"
               fill="var(--color-content-muted)"
-            >{user?.units === 'lbs' ? Math.round(kgToLbs(v)) : v}</text>
+            >{units === 'lbs' ? Math.round(kgToLbs(v)) : v}</text>
           )}
         </g>
       ))}

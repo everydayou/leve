@@ -506,7 +506,7 @@ function MacroStyleSheet({ goal, onClose }: { goal: Goal; onClose: () => void })
 
   async function save() {
     setSaving(true);
-    await repos.goals.save({ ...goal, macroStyle: selected ?? undefined });
+    await repos.goals.put({ ...goal, macroStyle: selected ?? undefined });
     setSaving(false);
     onClose();
   }

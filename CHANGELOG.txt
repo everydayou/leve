@@ -2170,10 +2170,13 @@ The domain/units.ts helpers (kgToLbs, lbsToKg, displayWeight) already existed
 but were unused. All weight display and input sites now respect user.units.
 
 GoalScreen:
-  - All fmtKg(x) + " kg" sites replaced with displayWeight(x, user?.units).
-  - WeekChart y-axis tick labels convert to lbs; integers shown when lbs
+  - All fmtKg(x) + " kg" sites replaced with displayWeight(x, units).
+  - KgWeekChart y-axis tick labels convert to lbs; integers shown when lbs
     (Math.round(kgToLbs(v))) to avoid fractional clutter.
-  - WeekChart aria-label strings also use displayWeight.
+  - KgWeekChart and GoalOutcomeView are sub-components without `user` in scope:
+    added units?: 'kg'|'lbs' prop to each, passed from GoalScreen (user?.units ?? 'kg').
+    Replaced all user?.units references in their bodies with the units prop.
+  - WeekChart (separate function, has user prop) uses user?.units directly.
 
 GoalSetupScreen:
   - userUnits loaded in useLive and passed to GoalSetupForm.
@@ -2191,12 +2194,18 @@ AddEntrySheet WeightForm:
   - Save: converts display value back to kg before upsertForDate.
 
 AccountScreen goal card: fmtKg → displayWeight for "Active · lose X" line.
-
 TodayScreen weight tile: fmtKg(dayWeightKg) → displayWeight(dayWeightKg, units).
 
+── SCOPE DECISION ───────────────────────────────────────────────────────────
+Macro nutrients (protein, carbs, fat) confirmed to stay in grams. Ounces is
+not a nutrition unit — US labels, all fitness apps, and dietary literature
+universally use grams for macros even in imperial-unit countries.
+
 ── BUILD HEALTH ─────────────────────────────────────────────────────────────
-tsc: clean (strict). lint: clean. No raw hex or text-size violations.
+tsc: clean (strict). lint: clean.
 Removed stale fmtKg imports from GoalScreen, TodayScreen, AccountScreen.
+3 commits: main feature (bb9da4f), sub-component units prop fix for
+GoalOutcomeView + KgWeekChart (d96f0e3), KgWeekChart body fix (5844eef).
 
 ROUND 70 — CTA VALIDATION + KCAL LABEL + MACRO BARS + TRACKING REDESIGN + EDIT PLAN FLOW + SLIDER/SHEET/THUMB/SPLASH POLISH (2026-06-16)
 ================================================================

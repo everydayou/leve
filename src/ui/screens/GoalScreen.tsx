@@ -13,6 +13,7 @@ import { getMondayOfWeek, MS_PER_DAY } from '../../lib/date';
 import { round1 } from '../../lib/num';
 import { displayWeight, kgToLbs } from '../../domain/units';
 import { Card, SegmentedControl, Button, Icon, Skeleton, Badge, Sheet } from '../kit';
+import { GoalSetupForm } from './GoalSetupScreen';
 import { bmrForDate } from '../../domain/bmr';
 import type { Goal, WeightEntry, FoodItem, User } from '../../domain/types';
 
@@ -63,6 +64,7 @@ export function GoalScreen() {
   const [dismissedOutcome, setDismissedOutcome] = useState(false);
   const [showPastGoalsOptions, setShowPastGoalsOptions] = useState(false);
   const [showPastGoalsList, setShowPastGoalsList] = useState(false);
+  const [showEditPlan, setShowEditPlan] = useState(false);
   const handleTabChange = (t: Tab) => {
     hapticLight();
     setNavDir(0);
@@ -400,7 +402,13 @@ export function GoalScreen() {
       </div>
 
       {showSettings && (
-        <GoalSettingsSheet goal={goal} onClose={() => setShowSettings(false)} isEarlyComplete={isEarlyComplete} />
+        <GoalSettingsSheet
+        goal={goal}
+        onClose={() => setShowSettings(false)}
+        isEarlyComplete={isEarlyComplete}
+        previousGoals={data.previousGoals}
+        onEditPlan={() => { setShowSettings(false); setShowEditPlan(true); }}
+      />
       )}
 
       {/* Complete goal confirmation sheet */}
@@ -442,6 +450,20 @@ export function GoalScreen() {
           </p>
         </Sheet>
       )}
+
+      {/* Edit plan portal — rendered over GoalScreen so GoalScreen stays mounted behind it */}
+      {showEditPlan && createPortal(
+        <GoalSetupForm
+          activeGoal={goal}
+          currentWeight={currentWeightKg(weights) ?? null}
+          currentProteinGoal={user?.proteinGoalG}
+          userBmr={user?.bmr ?? 0}
+          skipType={true}
+          userUnits={user?.units}
+          onClose={() => setShowEditPlan(false)}
+        />,
+        document.body,
+      )}
     </div>
   );
 }
@@ -450,10 +472,10 @@ export function GoalScreen() {
 
 /** Bottom sheet with plan summary + Complete / Edit plan / End goal actions.
  *  Accessible from the normal active view via the ⋯ button in the header. */
-function GoalSettingsSheet({ goal, onClose, isEarlyComplete }: { goal: Goal; onClose: () => void; isEarlyComplete: boolean }) {
-  const nav = useNavigate();
+function GoalSettingsSheet({ goal, onClose, isEarlyComplete, previousGoals, onEditPlan }: { goal: Goal; onClose: () => void; isEarlyComplete: boolean; previousGoals: Goal[]; onEditPlan: () => void; }) {
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [showPastGoalsList, setShowPastGoalsList] = useState(false);
 
   async function markComplete() {
     await repos.goals.put({ ...goal, status: 'completed' });
@@ -472,10 +494,28 @@ function GoalSettingsSheet({ goal, onClose, isEarlyComplete }: { goal: Goal; onC
           {isEarlyComplete && (
             <Button size="lg" onClick={() => setShowCompleteConfirm(true)}>Mark as complete</Button>
           )}
-          <Button variant="outline" onClick={() => { onClose(); nav('/goal-setup?skip-type=true'); }}>Edit plan</Button>
+          <Button variant="outline" onClick={onEditPlan}>Edit plan</Button>
           <Button variant="outline" onClick={() => setShowEndConfirm(true)}>End goal</Button>
+          {previousGoals.length > 0 && (
+            <button
+              className="flex w-full items-center justify-between rounded-control px-1 py-3 text-subhead text-content active:bg-surface-sunken"
+              onClick={() => setShowPastGoalsList(true)}
+            >
+              Past goals
+              <Icon name="chevronRight" size={18} strokeWidth={2} />
+            </button>
+          )}
         </div>
       </Sheet>
+      {showPastGoalsList && (
+        <Sheet title="Past goals" onClose={() => setShowPastGoalsList(false)}>
+          <div className="pb-2 divide-y divide-border-subtle">
+            {previousGoals.map((g) => (
+              <PreviousGoalRow key={g.id} goal={g} />
+            ))}
+          </div>
+        </Sheet>
+      )}
 
       {showCompleteConfirm && (
         <Sheet
@@ -892,14 +932,14 @@ function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, units = 'kg
 
     </svg>
 
-    {/* Weekly verdict — badge */}
+    {/* Weekly verdict — text when no data, badge when data */}
     <div className="mt-3 flex justify-center">
       {lastLogged ? (
         <Badge status={isAhead ? 'success' : 'default'} size="lg">
           {isAhead ? 'Ahead' : 'Behind'}{'  ·  '}{displayWeight(diffKg, units)}
         </Badge>
       ) : (
-        <Badge status="neutral" size="lg">No weigh-ins yet</Badge>
+        <p className="text-subhead text-content-muted text-center">Log weigh-ins to see your trend</p>
       )}
     </div>
     </>
@@ -1148,11 +1188,10 @@ function WeekChart({ goal, weights, user, items, weekOffset, today, animTrigger 
       })}
     </svg>
 
-    {/* Weekly summary — badge.
-        Lose: under budget (not over) = success. Gain: over budget = success. */}
+    {/* Weekly summary — text when no data, badge when data. */}
     <div className="mt-3 flex justify-center">
       {!hasAnyData ? (
-        <Badge status="neutral" size="lg">No data yet</Badge>
+        <p className="text-subhead text-content-muted text-center">Log meals or activity to see your weekly total</p>
       ) : gainChart ? (
         <Badge status={isOver ? 'success' : 'default'} size="lg">
           {isOver ? 'On target' : 'Under target'}{'  ·  '}{diff.toLocaleString()} kcal

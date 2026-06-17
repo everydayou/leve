@@ -108,13 +108,14 @@ export function GoalSetupScreen() {
 }
 
 // ── Main form ─────────────────────────────────────────────────────────────────
-function GoalSetupForm({
+export function GoalSetupForm({
   activeGoal,
   currentWeight,
   currentProteinGoal,
   userBmr,
   skipType = false,
   userUnits,
+  onClose,
 }: {
   activeGoal: Goal | null;
   currentWeight: number | null;
@@ -122,6 +123,7 @@ function GoalSetupForm({
   userBmr: number;
   skipType?: boolean;
   userUnits?: Units;
+  onClose?: () => void;
 }) {
   const nav = useNavigate();
   const units = userUnits ?? 'kg';
@@ -153,9 +155,6 @@ function GoalSetupForm({
   });
   const [date, setDate] = useState(activeGoal?.targetDate ?? '');
   const [startDate, setStartDate] = useState(activeGoal?.startDate ?? todayISO());
-  // Protein for lose goals (existing pattern)
-  const [protein, setProtein] = useState(currentProteinGoal ? String(currentProteinGoal) : '');
-  const [proteinEnabled, setProteinEnabled] = useState((currentProteinGoal ?? 0) > 0);
   const [deficitOverride, setDeficitOverride] = useState<number | null>(
     activeGoal?.dailyDeficitKcalOverride ?? null,
   );
@@ -217,8 +216,6 @@ function GoalSetupForm({
       if (activeGoal.fatTargetG)   setFatG(activeGoal.fatTargetG);
       if (activeGoal.carbLimitG)   setCarbLimitG(activeGoal.carbLimitG);
       if (currentProteinGoal) {
-        setProtein(String(currentProteinGoal));
-        setProteinEnabled(true);
         setProteinG(currentProteinGoal);
       }
       /* eslint-enable react-hooks/set-state-in-effect */
@@ -227,12 +224,15 @@ function GoalSetupForm({
   }, [activeGoal?.id]);
 
   // ── Navigation ──────────────────────────────────────────────────────────────
-  const close = () => nav(-1);
+  const close = () => {
+    if (onClose) { setExiting(true); setTimeout(onClose, 320); }
+    else { nav(-1); }
+  };
 
   function goBackFromDetails() {
-    if (skipType || editing) {
+    if (onClose || skipType || editing) {
       setExiting(true);
-      setTimeout(() => nav(-1), 320);
+      setTimeout(() => onClose ? onClose() : nav(-1), 320);
     } else {
       setStep('choose');
     }
@@ -254,23 +254,23 @@ function GoalSetupForm({
       targetDate: date,
       status: 'active',
       dailyDeficitKcalOverride: deficitOverride ?? undefined,
-      // Tracking (gain goals only) — macroStyle null = simple/skip
-      trackingMode:  goalType === 'gain_by_date' ? (macroStyle ? 'detailed' : 'simple') : undefined,
-      macroStyle:    (goalType === 'gain_by_date' && macroStyle) ? macroStyle : undefined,
-      fatTargetG:    (goalType === 'gain_by_date' && macroStyle) ? fatG : undefined,
-      carbLimitG:    (goalType === 'gain_by_date' && macroStyle === 'lower_carb')
-        ? carbLimitG
-        : undefined,
+      // Tracking — applies to all goal types; null macroStyle = simple/no macro tracking
+      trackingMode: macroStyle ? 'detailed' : 'simple',
+      macroStyle:   macroStyle ?? undefined,
+      fatTargetG:   macroStyle ? fatG : undefined,
+      carbLimitG:   macroStyle === 'lower_carb' ? carbLimitG : undefined,
     });
 
     const user = await repos.user.get();
     if (user) {
-      const proteinGoalG = goalType === 'gain_by_date'
-        ? proteinG
-        : (proteinEnabled && protein ? (Number(protein) || undefined) : undefined);
+      // Protein goal: use the MacroRow value when macro tracking is set, else clear
+      const proteinGoalG = macroStyle ? proteinG : undefined;
       await repos.user.save({ ...user, proteinGoalG });
     }
-    if (skipType) {
+    if (onClose) {
+      setExiting(true);
+      setTimeout(onClose, 320);
+    } else if (skipType) {
       setExiting(true);
       setTimeout(() => nav(-1), 320);
     } else {
@@ -280,7 +280,7 @@ function GoalSetupForm({
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <FullScreen slideUp={skipType} exiting={exiting}>
+    <FullScreen slideUp={!!(skipType || onClose)} exiting={exiting}>
       <div ref={stepRef}>
 
         {/* ── Step 1: Choose goal type ── */}
@@ -339,17 +339,21 @@ function GoalSetupForm({
               <span className="w-10" />
             </div>
             <div className="px-6 pb-6">
-              {/* Goal name */}
-              <p className="mb-2 text-headline font-semibold text-content">Goal name</p>
-              <LabeledInput
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Summer Cut"
-                className="!bg-surface-sunken !border-transparent focus:!border-transparent"
-              />
+              <p className="mb-3 text-headline font-semibold text-content">Set your goal</p>
 
-              {/* Grouped card: Weight / Dates / Protein (lose only) */}
-              <div className="mt-2 overflow-hidden border border-border-subtle bg-surface" style={{ borderRadius: 24 }}>
+              {/* Grouped card: Name / Weight / Dates */}
+              <div className="overflow-hidden border border-border-field bg-surface" style={{ borderRadius: 24 }}>
+                {/* Goal name */}
+                <div className="p-4">
+                  <span className="block mb-2 text-subhead font-semibold text-content">Goal name</span>
+                  <LabeledInput
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Summer Cut"
+                    className="!bg-surface-sunken !border-transparent focus:!border-transparent"
+                  />
+                </div>
+                <div className="border-t border-border-subtle" />
                 {/* Weight */}
                 <div className="p-4 pb-5">
                   <div className="mb-3 flex items-center gap-2">
@@ -419,26 +423,7 @@ function GoalSetupForm({
                     </div>
                   </div>
                 </div>
-                {/* Protein — lose goals only (gain goals handle protein in the Tracking step) */}
-                {!isGain && (
-                  <div className="p-4">
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="text-subhead font-semibold text-content">
-                        Daily protein target <span className="font-normal">(g)</span>
-                      </span>
-                      <ProteinToggle enabled={proteinEnabled} onChange={setProteinEnabled} />
-                    </div>
-                    {proteinEnabled && (
-                      <LabeledInput
-                        value={protein}
-                        onChange={(e) => setProtein(e.target.value)}
-                        inputMode="numeric"
-                        placeholder="e.g. 120"
-                        className="!bg-surface-sunken !border-transparent focus:!border-transparent"
-                      />
-                    )}
-                  </div>
-                )}
+
               </div>
 
               {/* Review section */}
@@ -447,23 +432,26 @@ function GoalSetupForm({
                 <div className="overflow-hidden border border-border-subtle bg-surface p-5 shadow-card" style={{ borderRadius: 24 }}>
                   {intensity ? (
                     <>
-                      <p className="text-display font-bold text-center">{units === 'lbs' ? `${kgToLbs(intensity.kgToLose).toFixed(1)} lbs` : `${intensity.kgToLose.toFixed(1)} kg`}</p>
-                      <p className="text-center text-subhead text-content-secondary">
-                        {Math.round(intensity.weeks)} weeks{'  ·  '}≈ {units === 'lbs' ? `${kgToLbs(intensity.kgPerWeek).toFixed(2)} lbs/week` : `${intensity.kgPerWeek} kg/week`}
-                      </p>
-                      <div className="mt-3 rounded-field bg-surface-sunken px-3 py-2.5 flex items-center justify-between">
-                        <p className="text-subhead text-content-secondary">
-                          {isGain ? `≈ +${effectiveMagnitude} kcal/day surplus` : `≈ –${effectiveMagnitude} kcal/day`}
-                        </p>
+                      {/* Top row: stats centered, Reset at top-right */}
+                      <div className="relative">
                         {deficitOverride !== null && (
                           <button
                             type="button"
                             onClick={() => setDeficitOverride(null)}
-                            className="ml-2 shrink-0 text-subhead font-semibold text-accent active:opacity-70"
+                            className="absolute top-0 right-0 text-subhead font-normal text-accent-hover active:opacity-70"
                           >
                             Reset
                           </button>
                         )}
+                        <p className="text-display font-bold text-center">{units === 'lbs' ? `${kgToLbs(intensity.kgToLose).toFixed(1)} lbs` : `${intensity.kgToLose.toFixed(1)} kg`}</p>
+                        <p className="text-center text-subhead text-content-secondary">
+                          {Math.round(intensity.weeks)} weeks{'  ·  '}≈ {units === 'lbs' ? `${kgToLbs(intensity.kgPerWeek).toFixed(2)} lbs/week` : `${intensity.kgPerWeek} kg/week`}
+                        </p>
+                      </div>
+                      <div className="mt-3 rounded-field bg-surface-sunken px-3 py-2.5 text-center">
+                        <p className="text-subhead text-content-secondary">
+                          {isGain ? `≈ +${effectiveMagnitude} kcal/day surplus` : `≈ –${effectiveMagnitude} kcal/day`}
+                        </p>
                       </div>
                       <input
                         type="range"
@@ -516,10 +504,10 @@ function GoalSetupForm({
                     else if (startDate && date <= startDate) errs.date = 'Target date must be after start date';
                     if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
                     setFieldErrors({});
-                    if (isGain) setStep('tracking'); else void create();
+                    setStep('tracking');
                   }}
                 >
-                  {isGain ? 'Continue' : (editing ? 'Confirm' : 'Create goal')}
+                  Continue
                 </Button>
               </div>
             </div>
@@ -579,7 +567,7 @@ function GoalSetupForm({
               {macroStyle && (
                 <>
                   <p className="mt-5 mb-3 text-headline font-semibold text-content">Macro targets</p>
-                  <div className="overflow-hidden border border-border-subtle bg-surface" style={{ borderRadius: 24 }}>
+                  <div className="overflow-hidden border border-border-field bg-surface" style={{ borderRadius: 24 }}>
 
                     {/* Protein row — always present */}
                     <MacroRow
@@ -860,27 +848,6 @@ function PaceMeter({ level }: { level: 'gentle' | 'moderate' | 'aggressive' }) {
   );
 }
 
-function ProteinToggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={enabled}
-      onClick={() => onChange(!enabled)}
-      className="flex shrink-0 h-7 w-12 items-center rounded-pill p-0.5 transition-colors duration-200"
-      style={{ background: enabled ? 'var(--color-accent)' : 'var(--color-border-strong)' }}
-    >
-      <span
-        className="block h-6 w-6 shrink-0 rounded-full shadow"
-        style={{
-          background: 'white',
-          transform: enabled ? 'translateX(20px)' : 'translateX(0)',
-          transition: 'transform 200ms ease',
-        }}
-      />
-    </button>
-  );
-}
 
 const GOAL_ICON_BODY = "M8.7704 4.44851C8.42901 4.10768 8.25831 3.69789 8.25831 3.21914C8.25831 2.74052 8.4288 2.33052 8.76977 1.98913C9.11061 1.64775 9.5204 1.47705 9.99915 1.47705C10.4778 1.47705 10.8878 1.64754 11.2291 1.98851C11.5705 2.32934 11.7412 2.73913 11.7412 3.21788C11.7412 3.6965 11.5707 4.1065 11.2298 4.44789C10.8889 4.78927 10.4791 4.95997 10.0004 4.95997C9.52179 4.95997 9.11179 4.78948 8.7704 4.44851ZM7.41019 17.4798V7.58851C6.74283 7.53351 6.07026 7.45907 5.39248 7.36518C4.71456 7.27129 4.04727 7.14962 3.39061 7.00018C3.13463 6.94129 2.9304 6.79941 2.7779 6.57455C2.6254 6.34955 2.58554 6.10907 2.65831 5.85309C2.73109 5.59698 2.88686 5.4092 3.12561 5.28976C3.36449 5.17045 3.6172 5.14025 3.88373 5.19914C4.85929 5.40747 5.86894 5.55858 6.91269 5.65247C7.9563 5.74636 8.98533 5.7933 9.99977 5.7933C11.0142 5.7933 12.0441 5.74636 13.0894 5.65247C14.1348 5.55858 15.1469 5.40747 16.1256 5.19914C16.3923 5.14025 16.6439 5.17073 16.8804 5.29059C17.1171 5.41059 17.2723 5.59809 17.3462 5.85309C17.419 6.10907 17.3783 6.34872 17.2241 6.57205C17.07 6.79525 16.8649 6.93629 16.6089 6.99518C15.9523 7.14462 15.285 7.26712 14.6071 7.36268C13.9293 7.45823 13.2567 7.53351 12.5894 7.58851V17.4798C12.5894 17.7371 12.5023 17.9528 12.3283 18.1268C12.1543 18.3009 11.9387 18.3879 11.6814 18.3879C11.4241 18.3879 11.2084 18.3009 11.0344 18.1268C10.8603 17.9528 10.7733 17.7371 10.7733 17.4798V13.3331H9.22623V17.4798C9.22623 17.7371 9.13922 17.9528 8.96519 18.1268C8.79116 18.3009 8.57547 18.3879 8.31811 18.3879C8.06088 18.3879 7.84526 18.3009 7.67123 18.1268C7.4972 17.9528 7.41019 17.7371 7.41019 17.4798Z";
 const GOAL_ICON_ARROWS: Record<GoalTypeOpt['id'], string> = {

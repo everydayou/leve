@@ -2143,6 +2143,189 @@ Workflow going forward:
 tsc: clean (changes verified as pre-applied on home machine).
 
 ================================================================
+ROUND 74 — DIARY MACRO TOGGLES + DEFICIT SESSION WARNING + PAST GOALS PORTAL + LOADING ANIMATION (2026-06-17)
+================================================================
+
+── ACCOUNTSCREEN: MACRO DIARY VISIBILITY TOGGLES ────────────────────────────
+Previous r73 implementation (MacroTrackingCard + MacroStyleSheet for changing
+macro style) was wrong. Correct feature: individual Protein / Carbs / Fat
+ON/OFF toggles that control which macro bars appear in the Diary gauge card.
+
+New component: MacroDiaryCard (AccountScreen.tsx).
+  - Only rendered when goal?.macroStyle is set (tracking must be configured).
+  - Three toggle rows: Protein, Carbs, Fat — each a pill toggle (bg-accent
+    when on, bg-neutral-300 when off, white thumb).
+  - On toggle: repos.goals.put({ ...goal, [field]: !current }).
+  - Fields on Goal type (types.ts): diaryShowProtein?, diaryShowCarbs?, diaryShowFat?
+    (all optional, default = true when macroStyle is set).
+
+TodayScreen: MacroBarsRow and MacroCol updated to accept showProtein, showCarbs,
+showFat props. DayPanelProps gains diaryShowProtein?, diaryShowCarbs?, diaryShowFat?.
+DayPanel call site passes goal?.diaryShowProtein etc.
+
+── GOALSETUPSCREEN: DEFICIT WARNING SESSION-TOUCH PATTERN ───────────────────
+Previous behaviour: showed "You're above your calculated deficit" warning
+whenever the slider value differed from the computed deficit. This meant the
+warning appeared immediately on opening the Edit plan view even when the user
+hadn't touched anything.
+
+New pattern:
+  - sessionTouched: boolean state (starts false).
+  - Slider onChange sets sessionTouched = true alongside setting deficitOverride.
+  - showDeficitWarning = goalHasStarted && sessionTouched.
+  - After saving, the saved value becomes the new reference — reopening the
+    sheet doesn't warn until the user moves the slider again.
+  - Top-right Reset button: only shown when sessionTouched. On tap: clears
+    both deficitOverride and sessionTouched. Styled font-normal text-accent-hover.
+  - "Reset to calculated" inline button: same style, same clear behaviour.
+  - Slider still initialises from activeGoal?.dailyDeficitKcalOverride ?? null
+    so the saved override value is visible in the thumb immediately.
+
+── DIARY MACROS: HORIZONTAL INLINE LAYOUT ───────────────────────────────────
+MacroBarsRow redesigned from vertical stacked rows to a horizontal flex layout.
+
+MacroCol component (TodayScreen.tsx):
+  - Container: flex-1 min-w-0.
+  - Top row: flex items-center justify-between — label (text-subhead,
+    text-content-secondary) left-aligned; value (text-subhead font-semibold,
+    text-content) right-aligned. Success icon (daySucceed, 14px) appears
+    inline before the value when goal hit.
+  - Bottom: ProgressBar, full-width, mt-1.
+MacroBarsRow: flex gap-4 row of MacroCol items.
+Carbs/fat now gate on !!macroStyle (any goal type, not just gain goals).
+
+── PAST GOALS: PORTAL-BASED NAVIGATION (NO FLICKER) ────────────────────────
+Previous implementation used React Router routes (/past-goals, /past-goals/:id).
+Navigating back caused GoalScreen to remount → blank loading flash.
+
+New approach: PastGoalsPortal renders via createPortal(…, document.body).
+GoalScreen stays mounted behind the overlay; no route change; no remount.
+
+PastGoalsScreen.tsx — complete rewrite:
+  - Exports PastGoalsPortal({ goal, weights, user, onClose }).
+  - Internal state manages list vs. detail view (no React Router).
+  - SlideScreen wrapper: fixed inset-0 z-[150], slide-in-right on mount,
+    slide-out-right on close (setExiting → setTimeout 280ms → callback).
+  - PastGoalsList: loads all non-active goals via useLive, sorted by
+    startDate desc. Each row: goal name, type label, date range, status badge.
+  - PastGoalDetail: loads full goal + weights + food items + user via useLive.
+    Goal overview card: 3-col StatCard grid (weight lost/gained, final weight,
+    total days) + status badge. No green header.
+  - Full chart (PastGoalChart): identical to GoalScreen's chart card.
+    SegmentedControl (Weight / Calories tabs), week navigation with prev/next
+    arrows, "Week N" label, week range subtitle (fmtWeekRange), KgWeekChart
+    and WeekChart from GoalScreen. chartToday capped at goal.targetDate.
+    Week bounds clamped to [goalStartMonday … goalEndMonday].
+
+GoalScreen.tsx changes:
+  - KgWeekChart and WeekChart exported.
+  - weekNumber and fmtWeekRange moved to new chartUtils.ts (see below).
+  - Added showPastGoals: boolean state.
+  - GoalSettingsSheet gains onPastGoals: () => void prop (replaces useNavigate).
+  - GoalSettingsSheet "Past goals" button: onClose() then onPastGoals().
+  - Portal block added: {showPastGoals && createPortal(<PastGoalsPortal …/>, document.body)}.
+
+chartUtils.ts — new file (src/ui/screens/chartUtils.ts):
+  - weekNumber(goalStartDate, weekOffset, today): 1-based week counter.
+  - fmtWeekRange(start, end): "Jun 3 – 9" or cross-month "Jun 28 – Jul 4".
+  - Extracted from GoalScreen to fix react-refresh/only-export-components
+    lint rule (GoalScreen must export components only).
+
+index.css: .slide-in-right / .slide-out-right keyframe classes added (used by
+  PastGoalsScreen SlideScreen wrapper).
+
+── LOADING ANIMATION REFINEMENT ─────────────────────────────────────────────
+LeveLoadingScreen.tsx arc animation updated:
+  Total duration: 0.9s (was 1.2s with 100-300-400-300-100ms phases).
+  New phases: 50ms hold → 250ms grow → 300ms slide → 250ms collapse → 50ms hold.
+  Keyframe %: 0%, 5.56%, 33.33%, 66.67%, 94.44%, 100%.
+  animation string: 'leve-arc-fill 0.9s linear alternate infinite'
+  `alternate` keyword restored (was accidentally dropped in an earlier edit):
+  arc goes forward then reverses, looping smoothly in both directions.
+
+── BUILD HEALTH ─────────────────────────────────────────────────────────────
+tsc: clean (strict). lint: clean.
+Files changed: src/domain/types.ts, src/ui/screens/AccountScreen.tsx,
+  src/ui/screens/GoalSetupScreen.tsx, src/ui/screens/TodayScreen.tsx,
+  src/ui/screens/GoalScreen.tsx, src/ui/screens/PastGoalsScreen.tsx (rewrite),
+  src/ui/screens/chartUtils.ts (new), src/ui/screens/LeveLoadingScreen.tsx,
+  src/index.css.
+3 commits: main r74 batch (1804243), diary macros label/value alignment (bb3da3c).
+
+================================================================
+ROUND 73 — GOALSETUPSCREEN + GOALSCREEN + ACCOUNTSCREEN POLISH (2026-06-17)
+================================================================
+
+── ACCOUNTSCREEN MACRO SETTINGS ENTRY POINT ─────────────────────────────────
+Added MacroTrackingCard to AccountScreen: visible whenever goal.macroStyle is set
+(any goal type with tracking configured). Initial implementation showed current
+macro style name with an "Edit" button opening MacroStyleSheet. This was later
+corrected in r74 to be individual diary visibility toggles instead.
+
+── EDIT PLAN PORTAL: COVERS BOTTOM NAV BAR ──────────────────────────────────
+GoalSetupScreen FullScreen wrapper: added conditional z-[200] class when
+slideUp === true. Previously the Edit plan sheet sat below the tab bar
+z-index on WKWebView. Now covers it entirely (same z-level as GoalOutcomeView).
+
+── GRAPH EMPTY STATES FIX ───────────────────────────────────────────────────
+KgWeekChart `lastLogged` calculation was including weight entries logged before
+the goal started (isBeforeGoal === true), which caused the "no data yet" empty
+state to never trigger for new goals.
+Fix: added `&& !d.isBeforeGoal` filter to the lastLogged derivation.
+Same fix applied to `lastWithData` in WeekChart.
+
+── RESET BUTTON: ONLY AFTER GOAL HAS STARTED ────────────────────────────────
+goalHasStarted definition changed: activeGoal.startDate < todayISO() (strict
+less-than). Previously was <=, meaning the Reset button appeared on the very
+first day of the goal before any real progress was possible.
+Info container (pace meter + status text) moved inside the Review card, below
+the PaceMeter component.
+
+── TRACKING STEP POLISH ─────────────────────────────────────────────────────
+GoalSetupScreen tracking step refinements:
+  - Done CTA: only enabled when a macro style card is selected (macroStyle !== null).
+    Previously enabled at all times.
+  - Top copy (instruction text): changed from text-content-secondary → text-content.
+  - Skip button: self-end pb-[3px], font-normal, text-accent-hover. Positioned
+    top-right, bottom-aligned with the step title.
+  - MacroRow "Save" button (when editing): font-normal text-accent-hover.
+  - "Edit" / "Save" button text: font-normal + text-accent-hover throughout.
+
+── LOADING ANIMATION TIMINGS ────────────────────────────────────────────────
+LeveLoadingScreen arc animation updated to 1.2s total:
+  100ms hold → 300ms grow → 400ms slide → 300ms collapse → 100ms hold.
+  (Subsequently refined to 0.9s with alternate in r74.)
+
+── BUILD HEALTH ─────────────────────────────────────────────────────────────
+tsc: clean (strict). lint: clean.
+Files changed: src/ui/screens/GoalSetupScreen.tsx, src/ui/screens/GoalScreen.tsx,
+  src/ui/screens/AccountScreen.tsx, src/ui/screens/LeveLoadingScreen.tsx,
+  src/index.css.
+
+================================================================
+ROUND 72 — GOALSCREEN + GOALSETUPSCREEN IMPROVEMENTS (2026-06-17)
+================================================================
+
+── PAST GOALS ENTRY IN ⋯ MENU ───────────────────────────────────────────────
+GoalSettingsSheet: "Past goals" row always visible in the ⋯ options menu
+whenever past goals exist (previously only accessible from the empty-state
+screen). Tapping navigates to the past goals list.
+
+── GOALSCREEN EARLY-COMPLETE + LIFECYCLE POLISH ─────────────────────────────
+Reviewed and verified all 9 goal lifecycle states. Early-complete detection
+(isEarlyComplete flag) and hasTodayWeight guard refined to eliminate edge-case
+mismatches. GoalOutcomeView portal overlay confirmed working on WKWebView.
+
+── EDIT PLAN ANIMATION ──────────────────────────────────────────────────────
+GoalSetupForm slide-up animation confirmed applied when opened from
+GoalSettingsSheet "Edit plan" action. Back navigation from editing closes
+the overlay cleanly.
+
+── BUILD HEALTH ─────────────────────────────────────────────────────────────
+tsc: clean (strict). lint: clean.
+Files changed: src/ui/screens/GoalScreen.tsx, src/ui/screens/GoalSetupScreen.tsx.
+
+================================================================
 ROUND 71 — WEEKLY WEIGHT CADENCE + KG/LBS UNIT CONVERSION (2026-06-17)
 ================================================================
 

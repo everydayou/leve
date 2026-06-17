@@ -270,7 +270,12 @@ function GoalSetupForm({
         : (proteinEnabled && protein ? (Number(protein) || undefined) : undefined);
       await repos.user.save({ ...user, proteinGoalG });
     }
-    nav(-1);
+    if (skipType) {
+      setExiting(true);
+      setTimeout(() => nav(-1), 320);
+    } else {
+      nav(-1);
+    }
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────

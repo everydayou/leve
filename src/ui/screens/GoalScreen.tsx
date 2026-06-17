@@ -61,6 +61,8 @@ export function GoalScreen() {
   const [showCompleteSheet, setShowCompleteSheet] = useState(false);
   const [showEndSheet, setShowEndSheet] = useState(false);
   const [dismissedOutcome, setDismissedOutcome] = useState(false);
+  const [showPastGoalsOptions, setShowPastGoalsOptions] = useState(false);
+  const [showPastGoalsList, setShowPastGoalsList] = useState(false);
   const handleTabChange = (t: Tab) => {
     hapticLight();
     setNavDir(0);
@@ -86,7 +88,8 @@ export function GoalScreen() {
     const active = goals.find(g => g.status === 'active');
     const sorted = [...goals].sort((a, b) => b.startDate.localeCompare(a.startDate));
     const goal = active ?? sorted[0];
-    return { goal, weights, user, items };
+    const previousGoals = sorted.filter(g => g.status !== 'active');
+    return { goal, weights, user, items, previousGoals };
   }, []);
 
   if (!data) {
@@ -101,10 +104,20 @@ export function GoalScreen() {
   }
 
   if (!data.goal || dismissedOutcome) {
+    const prevGoals = data.previousGoals;
     return (
       <div>
-        <div className="px-6 pt-4 pb-2">
+        <div className="px-6 pt-4 pb-2 flex items-start justify-between">
           <h1 className="text-title font-semibold text-content">Goal</h1>
+          {prevGoals.length > 0 && (
+            <button
+              onClick={() => setShowPastGoalsOptions(true)}
+              aria-label="Options"
+              className="flex h-11 w-11 items-center justify-center -mr-2.5 rounded-control text-content-secondary active:bg-surface-sunken"
+            >
+              <Icon name="moreHoriz" size={20} />
+            </button>
+          )}
         </div>
       <div className="flex min-h-[65vh] flex-col items-center justify-center gap-4 px-6 text-center">
         <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -118,6 +131,31 @@ export function GoalScreen() {
           <Button onClick={() => nav('/goal-setup')}>Set a goal</Button>
         </div>
       </div>
+
+        {showPastGoalsOptions && (
+          <>
+            <Sheet title="Options" onClose={() => setShowPastGoalsOptions(false)}>
+              <div className="pb-2">
+                <button
+                  className="flex w-full items-center justify-between rounded-control px-1 py-3 text-subhead text-content active:bg-surface-sunken"
+                  onClick={() => setShowPastGoalsList(true)}
+                >
+                  Past goals
+                  <Icon name="chevronRight" size={18} strokeWidth={2} />
+                </button>
+              </div>
+            </Sheet>
+            {showPastGoalsList && (
+              <Sheet title="Past goals" onClose={() => setShowPastGoalsList(false)}>
+                <div className="pb-2 divide-y divide-border-subtle">
+                  {prevGoals.map((g) => (
+                    <PreviousGoalRow key={g.id} goal={g} />
+                  ))}
+                </div>
+              </Sheet>
+            )}
+          </>
+        )}
       </div>
     );
   }
@@ -362,7 +400,7 @@ export function GoalScreen() {
       </div>
 
       {showSettings && (
-        <GoalSettingsSheet goal={goal} onClose={() => setShowSettings(false)} />
+        <GoalSettingsSheet goal={goal} onClose={() => setShowSettings(false)} isEarlyComplete={isEarlyComplete} />
       )}
 
       {/* Complete goal confirmation sheet */}
@@ -391,17 +429,17 @@ export function GoalScreen() {
           title="End goal"
           onClose={() => setShowEndSheet(false)}
           footer={
-            <Button size="lg" variant="destructive" onClick={async () => { setShowEndSheet(false); await endGoalOverdue(); }}>
-              Yes, end goal
-            </Button>
+            <div className="space-y-2">
+              <Button size="lg" onClick={() => setShowEndSheet(false)}>Cancel</Button>
+              <Button variant="outline" size="lg" onClick={async () => { setShowEndSheet(false); await endGoalOverdue(); }}>
+                Yes, end goal
+              </Button>
+            </div>
           }
         >
-          <div className="space-y-3 pb-2">
-            <p className="text-subhead text-content-secondary">
-              End this goal? It'll stay in your history. You can start a new one anytime.
-            </p>
-            <Button variant="ghost" onClick={() => setShowEndSheet(false)}>Cancel</Button>
-          </div>
+          <p className="text-subhead text-content-secondary pb-2">
+            Please confirm that you wish to end this goal. It will be stored in Past goals.
+          </p>
         </Sheet>
       )}
     </div>
@@ -412,7 +450,7 @@ export function GoalScreen() {
 
 /** Bottom sheet with plan summary + Complete / Edit plan / End goal actions.
  *  Accessible from the normal active view via the ⋯ button in the header. */
-function GoalSettingsSheet({ goal, onClose }: { goal: Goal; onClose: () => void }) {
+function GoalSettingsSheet({ goal, onClose, isEarlyComplete }: { goal: Goal; onClose: () => void; isEarlyComplete: boolean }) {
   const nav = useNavigate();
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
@@ -431,8 +469,10 @@ function GoalSettingsSheet({ goal, onClose }: { goal: Goal; onClose: () => void 
     <>
       <Sheet title="Goal" onClose={onClose}>
         <div className="space-y-3 pb-2">
-          <Button size="lg" onClick={() => setShowCompleteConfirm(true)}>Mark as complete</Button>
-          <Button variant="outline" onClick={() => { onClose(); nav('/goal-setup'); }}>Edit plan</Button>
+          {isEarlyComplete && (
+            <Button size="lg" onClick={() => setShowCompleteConfirm(true)}>Mark as complete</Button>
+          )}
+          <Button variant="outline" onClick={() => { onClose(); nav('/goal-setup?skip-type=true'); }}>Edit plan</Button>
           <Button variant="outline" onClick={() => setShowEndConfirm(true)}>End goal</Button>
         </div>
       </Sheet>
@@ -458,15 +498,37 @@ function GoalSettingsSheet({ goal, onClose }: { goal: Goal; onClose: () => void 
         <Sheet
           title="End goal"
           onClose={() => setShowEndConfirm(false)}
-          footer={<Button size="lg" variant="destructive" onClick={endGoal}>Yes, end goal</Button>}
+          footer={
+            <div className="space-y-2">
+              <Button size="lg" onClick={() => setShowEndConfirm(false)}>Cancel</Button>
+              <Button variant="outline" size="lg" onClick={endGoal}>Yes, end goal</Button>
+            </div>
+          }
         >
-          <div className="space-y-3 pb-2">
-            <p className="text-subhead text-content-secondary">End this goal? It'll stay in your history. You can start a new one anytime.</p>
-            <Button variant="ghost" onClick={() => setShowEndConfirm(false)}>Cancel</Button>
-          </div>
+          <p className="text-subhead text-content-secondary pb-2">
+            Please confirm that you wish to end this goal. It will be stored in Past goals.
+          </p>
         </Sheet>
       )}
     </>
+  );
+}
+
+// ── Previous goal row (used in past goals sheet) ─────────────────────────────
+function PreviousGoalRow({ goal }: { goal: Goal }) {
+  const typeLabel = isGainGoal(goal) ? 'Build muscle' : 'Lose weight';
+  const statusLabel = goal.status === 'completed' ? 'Completed' : 'Ended';
+  const statusBadge: 'success' | 'neutral' = goal.status === 'completed' ? 'success' : 'neutral';
+  return (
+    <div className="flex items-center justify-between py-3">
+      <div className="min-w-0 flex-1 pr-3">
+        <p className="text-subhead font-semibold text-content truncate">{goal.name}</p>
+        <p className="text-footnote text-content-secondary">
+          {typeLabel} · {fmtShortDate(goal.startDate)} – {fmtShortDate(goal.targetDate)}
+        </p>
+      </div>
+      <Badge status={statusBadge}>{statusLabel}</Badge>
+    </div>
   );
 }
 
@@ -828,24 +890,16 @@ function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, units = 'kg
         );
       })}
 
-      {/* No data hint */}
-      {daySeries.every((d) => d.actual === null || d.isBeforeGoal) && (
-        <text x={padLeft + chartW / 2} y={padTop + chartH / 2}
-          textAnchor="middle" dominantBaseline="middle"
-          fontSize="9" fill="var(--color-content-muted)">
-          Log weigh-ins to see your trend
-        </text>
-      )}
     </svg>
 
     {/* Weekly verdict — badge */}
     <div className="mt-3 flex justify-center">
       {lastLogged ? (
-        <Badge status={isAhead ? 'success' : 'default'}>
+        <Badge status={isAhead ? 'success' : 'default'} size="lg">
           {isAhead ? 'Ahead' : 'Behind'}{'  ·  '}{displayWeight(diffKg, units)}
         </Badge>
       ) : (
-        <Badge status="neutral">No weigh-ins yet</Badge>
+        <Badge status="neutral" size="lg">No weigh-ins yet</Badge>
       )}
     </div>
     </>
@@ -1098,13 +1152,13 @@ function WeekChart({ goal, weights, user, items, weekOffset, today, animTrigger 
         Lose: under budget (not over) = success. Gain: over budget = success. */}
     <div className="mt-3 flex justify-center">
       {!hasAnyData ? (
-        <Badge status="neutral">No data yet</Badge>
+        <Badge status="neutral" size="lg">No data yet</Badge>
       ) : gainChart ? (
-        <Badge status={isOver ? 'success' : 'default'}>
+        <Badge status={isOver ? 'success' : 'default'} size="lg">
           {isOver ? 'On target' : 'Under target'}{'  ·  '}{diff.toLocaleString()} kcal
         </Badge>
       ) : (
-        <Badge status={!isOver ? 'success' : 'default'}>
+        <Badge status={!isOver ? 'success' : 'default'} size="lg">
           {isOver ? 'Over' : 'On target'}{'  ·  '}{diff.toLocaleString()} kcal
         </Badge>
       )}

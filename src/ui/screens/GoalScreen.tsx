@@ -10,19 +10,14 @@ import { currentWeightKg, requiredDailyDeficit, isGainGoal } from '../../domain/
 import { summarizeDay, itemsByIdMap } from '../../domain/calc';
 import { addDays, todayISO } from '../../data/ids';
 import { getMondayOfWeek, MS_PER_DAY } from '../../lib/date';
+import { weekNumber, fmtWeekRange } from './chartUtils';
 import { round1 } from '../../lib/num';
 import { displayWeight, kgToLbs } from '../../domain/units';
 import { Card, SegmentedControl, Button, Icon, Skeleton, Badge, Sheet } from '../kit';
 import { GoalSetupForm } from './GoalSetupScreen';
+import { PastGoalsPortal } from './PastGoalsScreen';
 import { bmrForDate } from '../../domain/bmr';
 import type { Goal, WeightEntry, FoodItem, User } from '../../domain/types';
-
-/** 1-based week number counting from the goal's start week. */
-function weekNumber(goalStartDate: string, weekOffset: number, today: string): number {
-  const goalMondayMs = +new Date(getMondayOfWeek(goalStartDate) + 'T00:00:00');
-  const viewedMondayMs = +new Date(addDays(getMondayOfWeek(today), weekOffset * 7) + 'T00:00:00');
-  return Math.round((viewedMondayMs - goalMondayMs) / (7 * MS_PER_DAY)) + 1;
-}
 
 /** Short date label e.g. "19 Jun". Used in chart header subtitle. */
 const fmtShortDate = (iso: string) =>
@@ -32,20 +27,6 @@ const fmtShortDate = (iso: string) =>
 /** Short weekday label e.g. "M". */
 const fmtWeekday = (iso: string) =>
   new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 1);
-
-/** Week range label e.g. "Jun 3 – 9" or "Jun 28 – Jul 4". */
-const fmtWeekRange = (start: string, end: string): string => {
-  const s = new Date(start + 'T00:00:00');
-  const e = new Date(end   + 'T00:00:00');
-  const sDay = s.toLocaleDateString(undefined, { day: 'numeric' });
-  const eDay = e.toLocaleDateString(undefined, { day: 'numeric' });
-  const eMon = e.toLocaleDateString(undefined, { month: 'short' });
-  if (s.getMonth() === e.getMonth()) {
-    return `${sDay} – ${eDay} ${eMon}`;
-  }
-  const sMon = s.toLocaleDateString(undefined, { month: 'short' });
-  return `${sDay} ${sMon} – ${eDay} ${eMon}`;
-};
 
 type Tab = 'overview' | 'week';
 
@@ -65,6 +46,7 @@ export function GoalScreen() {
   const [showPastGoalsOptions, setShowPastGoalsOptions] = useState(false);
   const [showPastGoalsList, setShowPastGoalsList] = useState(false);
   const [showEditPlan, setShowEditPlan] = useState(false);
+  const [showPastGoals, setShowPastGoals] = useState(false);
   const handleTabChange = (t: Tab) => {
     hapticLight();
     setNavDir(0);
@@ -408,6 +390,7 @@ export function GoalScreen() {
         isEarlyComplete={isEarlyComplete}
         previousGoals={data.previousGoals}
         onEditPlan={() => { setShowSettings(false); setShowEditPlan(true); }}
+        onPastGoals={() => setShowPastGoals(true)}
       />
       )}
 
@@ -464,6 +447,17 @@ export function GoalScreen() {
         />,
         document.body,
       )}
+
+      {/* Past goals portal — GoalScreen stays mounted (no route change, no flicker) */}
+      {showPastGoals && createPortal(
+        <PastGoalsPortal
+          goal={goal}
+          weights={weights}
+          user={user ?? null}
+          onClose={() => setShowPastGoals(false)}
+        />,
+        document.body,
+      )}
     </div>
   );
 }
@@ -472,8 +466,7 @@ export function GoalScreen() {
 
 /** Bottom sheet with plan summary + Complete / Edit plan / End goal actions.
  *  Accessible from the normal active view via the ⋯ button in the header. */
-function GoalSettingsSheet({ goal, onClose, isEarlyComplete, previousGoals, onEditPlan }: { goal: Goal; onClose: () => void; isEarlyComplete: boolean; previousGoals: Goal[]; onEditPlan: () => void; }) {
-  const nav = useNavigate();
+function GoalSettingsSheet({ goal, onClose, isEarlyComplete, previousGoals, onEditPlan, onPastGoals }: { goal: Goal; onClose: () => void; isEarlyComplete: boolean; previousGoals: Goal[]; onEditPlan: () => void; onPastGoals: () => void; }) {
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
 
@@ -499,7 +492,7 @@ function GoalSettingsSheet({ goal, onClose, isEarlyComplete, previousGoals, onEd
           {previousGoals.length > 0 && (
             <button
               className="flex w-full items-center justify-between rounded-control px-1 py-3 text-subhead text-content active:bg-surface-sunken"
-              onClick={() => { onClose(); nav('/past-goals'); }}
+              onClick={() => { onClose(); onPastGoals(); }}
             >
               Past goals
               <Icon name="chevronRight" size={18} strokeWidth={2} />
@@ -945,7 +938,7 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
 
 interface DayBar { date: string; consumed: number; budget: number; hasData: boolean }
 
-function WeekChart({ goal, weights, user, items, weekOffset, today, animTrigger = 0 }: {
+export function WeekChart({ goal, weights, user, items, weekOffset, today, animTrigger = 0 }: {
   goal: Goal; weights: WeightEntry[]; user: User | null | undefined; items: FoodItem[];
   weekOffset: number; today: string; animTrigger?: number; navDir?: 1 | -1 | 0;
 }) {

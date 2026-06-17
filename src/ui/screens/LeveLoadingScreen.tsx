@@ -114,7 +114,7 @@ export default function LeveLoadingScreen({ exiting = false }: { exiting?: boole
               strokeLinecap="round"
               strokeDasharray={`0 ${c.toFixed(1)}`}
               style={{
-                animation: 'leve-arc-fill 0.9s linear infinite',
+                animation: 'leve-arc-fill 0.9s linear alternate infinite',
               }}
             />
           </g>

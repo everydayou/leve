@@ -258,11 +258,13 @@ function MacroCol({
   const achieved  = hasTarget && consumed >= targetG;
   return (
     <div className="flex-1 min-w-0">
-      <span className="block text-footnote text-content-secondary truncate">{label}</span>
-      <span className="flex items-center gap-0.5 text-callout font-bold text-content">
-        {achieved && <Icon name="daySucceed" size={14} className="text-success" />}
-        {consumed}
-      </span>
+      <div className="flex items-baseline gap-1">
+        <span className="text-footnote text-content-secondary">{label}</span>
+        <span className="flex items-center gap-0.5 text-callout font-bold text-content">
+          {achieved && <Icon name="daySucceed" size={14} className="text-success" />}
+          {consumed}
+        </span>
+      </div>
       <div className="mt-1">
         <ProgressBar value={hasTarget ? Math.min(1, consumed / targetG) : 0} />
       </div>

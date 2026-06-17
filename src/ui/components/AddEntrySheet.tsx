@@ -4,6 +4,7 @@ import { repos } from '../../state/repos';
 import { newId, todayISO } from '../../data/ids';
 import { nutritionFor } from '../../domain/calc';
 import { currentWeightKg } from '../../domain/goal';
+import { kgToLbs, lbsToKg } from '../../domain/units';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { onDecimalChange } from '../../lib/num';
 import { fmtDiaryDate } from '../../lib/date';
@@ -1111,18 +1112,21 @@ function ActivityForm({ date, onDone, showToast }: {
 
 function WeightForm({ date, onDone }: { date: string; onDone: () => void }) {
   const weights = useLive(() => repos.weights.all(), []) ?? [];
+  const user = useLive(() => repos.user.get(), []);
+  const units = user?.units ?? 'kg';
   const existing = weights.find((w) => w.date === date);
   const prefill = existing?.weightKg ?? currentWeightKg(weights);
-  const [kg, setKg] = useState('');
+  const [val, setVal] = useState('');
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- populate field when async prefill resolves
-    if (prefill != null) setKg(String(prefill));
-  }, [prefill]);
+    if (prefill != null) setVal(units === 'lbs' ? String(parseFloat(kgToLbs(prefill).toFixed(1))) : String(prefill));
+  }, [prefill, units]);
 
   async function save() {
-    const v = Number(kg);
-    if (!v) return;
+    const display = Number(val);
+    if (!display) return;
+    const v = units === 'lbs' ? lbsToKg(display) : display;
     await repos.weights.upsertForDate({ id: newId(), date, weightKg: v, source: 'manual' });
     // Recalculate account BMR from the most-recent weight ≤ today (not always the
     // just-saved one — editing a past entry shouldn't overwrite the current BMR).
@@ -1134,23 +1138,27 @@ function WeightForm({ date, onDone }: { date: string; onDone: () => void }) {
   const saveRef = useRef<() => Promise<void>>(() => Promise.resolve());
   saveRef.current = save; // eslint-disable-line react-hooks/refs -- keep ref current; onClick reads it at call time, not during render
   useSheetSetFooter(
-    <Button size="lg" onClick={() => void saveRef.current()} disabled={!Number(kg)}>Save weight</Button>,
-    [!Number(kg)],
+    <Button size="lg" onClick={() => void saveRef.current()} disabled={!Number(val)}>Save weight</Button>,
+    [!Number(val)],
   );
+
+  const prevDisplay = existing
+    ? (units === 'lbs' ? `${kgToLbs(existing.weightKg).toFixed(1)} lbs` : `${existing.weightKg.toFixed(1)} kg`)
+    : null;
 
   return (
     <div className="space-y-3">
       <LabeledInput
-        label="Weight (kg)"
-        value={kg}
-        onChange={onDecimalChange(setKg)}
+        label={`Weight (${units})`}
+        value={val}
+        onChange={onDecimalChange(setVal)}
         inputMode="decimal"
         autoFocus
         onFocus={(e) => e.target.select()}
       />
       {existing && (
         <p className="text-caption text-content-secondary">
-          Previously {existing.weightKg.toFixed(1)} kg — saving will update it.
+          Previously {prevDisplay} — saving will update it.
         </p>
       )}
     </div>

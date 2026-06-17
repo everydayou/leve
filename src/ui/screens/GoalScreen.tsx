@@ -10,7 +10,8 @@ import { currentWeightKg, requiredDailyDeficit, isGainGoal } from '../../domain/
 import { summarizeDay, itemsByIdMap } from '../../domain/calc';
 import { addDays, todayISO } from '../../data/ids';
 import { getMondayOfWeek, MS_PER_DAY } from '../../lib/date';
-import { fmtKg, round1 } from '../../lib/num';
+import { round1 } from '../../lib/num';
+import { displayWeight, kgToLbs } from '../../domain/units';
 import { Card, SegmentedControl, Button, Icon, Skeleton, Badge, Sheet } from '../kit';
 import { bmrForDate } from '../../domain/bmr';
 import type { Goal, WeightEntry, FoodItem, User } from '../../domain/types';
@@ -250,16 +251,16 @@ export function GoalScreen() {
         <div className="pt-5 px-6 pb-4">
           <h1 className="text-headline font-semibold text-center text-content">{goal.name}</h1>
           <p className="mt-0 text-subhead text-content text-center mb-4">
-            Goal {fmtKg(goal.targetWeightKg)} kg  ·  by {fmtShortDate(goal.targetDate)}
+            Goal {displayWeight(goal.targetWeightKg, user?.units ?? 'kg')}  ·  by {fmtShortDate(goal.targetDate)}
           </p>
           {/* Stat tiles: white bg + shadow */}
           <div className="grid grid-cols-3 gap-2 items-stretch">
             <button onClick={() => { hapticLight(); setShowSettings(true); }} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
-              <span className="text-callout font-semibold text-content">{fmtKg(now)} kg</span>
+              <span className="text-callout font-semibold text-content">{displayWeight(now, user?.units ?? 'kg')}</span>
               <span className="-mt-0.5 text-center text-subhead text-content-secondary">Current</span>
             </button>
             <button onClick={() => { hapticLight(); setShowSettings(true); }} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
-              <span className="text-callout font-semibold text-content">{isEarlyComplete ? '🎯' : `${fmtKg(remaining)} kg`}</span>
+              <span className="text-callout font-semibold text-content">{isEarlyComplete ? '🎯' : displayWeight(remaining, user?.units ?? 'kg')}</span>
               <span className="-mt-0.5 text-center text-subhead text-content-secondary">{isGainGoal(goal) ? 'To gain' : 'Weight left'}</span>
             </button>
             <button onClick={() => { hapticLight(); setShowSettings(true); }} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
@@ -532,15 +533,15 @@ function GoalOutcomeView({ goal, weights, mode, onDismiss }: {
             <div className="pt-5 px-6 pb-5">
               <h1 className="text-headline font-semibold text-center text-content">{goal.name}</h1>
               <p className="mt-0 text-subhead text-content-secondary text-center mb-4">
-                Goal {fmtKg(goal.targetWeightKg)} kg · by {fmtShortDate(goal.targetDate)}
+                Goal {displayWeight(goal.targetWeightKg, user?.units ?? 'kg')} · by {fmtShortDate(goal.targetDate)}
               </p>
               <div className="grid grid-cols-3 gap-2">
                 <div className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5">
-                  <span className="text-callout font-semibold text-content">{fmtKg(lostKg)} kg</span>
+                  <span className="text-callout font-semibold text-content">{displayWeight(lostKg, user?.units ?? 'kg')}</span>
                   <span className="-mt-0.5 text-center text-subhead text-content-secondary leading-tight">Weight<br/>{gainGoal ? 'gained' : 'lost'}</span>
                 </div>
                 <div className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5">
-                  <span className="text-callout font-semibold text-content">{fmtKg(nowKg)} kg</span>
+                  <span className="text-callout font-semibold text-content">{displayWeight(nowKg, user?.units ?? 'kg')}</span>
                   <span className="-mt-0.5 text-center text-subhead text-content-secondary leading-tight">Final<br/>weight</span>
                 </div>
                 <div className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5">
@@ -689,12 +690,12 @@ function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0 }: {
     const latestActual = daySeries.filter((d) => d.actual !== null && d.date <= today).slice(-1)[0];
     const parts: string[] = [`Weight chart for the week of ${weekStart}.`];
     if (latestActual) {
-      parts.push(`Latest logged weight: ${latestActual.actual!.toFixed(1)} kg on ${latestActual.date}.`);
-      parts.push(`${diffKg.toFixed(1)} kg ${isAhead ? 'ahead of' : 'behind'} target.`);
+      parts.push(`Latest logged weight: ${displayWeight(latestActual.actual!, user?.units ?? 'kg')} on ${latestActual.date}.`);
+      parts.push(`${displayWeight(diffKg, user?.units ?? 'kg')} ${isAhead ? 'ahead of' : 'behind'} target.`);
     } else {
       parts.push('No weight logged this week.');
     }
-    parts.push(`Goal: ${goal.startWeightKg} kg → ${goal.targetWeightKg} kg by ${goal.targetDate}.`);
+    parts.push(`Goal: ${displayWeight(goal.startWeightKg, user?.units ?? 'kg')} → ${displayWeight(goal.targetWeightKg, user?.units ?? 'kg')} by ${goal.targetDate}.`);
     return parts.join(' ');
   })();
 
@@ -725,12 +726,12 @@ function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0 }: {
         <g key={v}>
           <line x1={padLeft + 16} y1={yFor(v)} x2={padLeft + chartW - 16} y2={yFor(v)}
             stroke="var(--color-border-subtle)" strokeWidth={0.75} />
-          {v === Math.floor(v) && (
+          {(user?.units === 'lbs' ? Number.isInteger(Math.round(kgToLbs(v))) : v === Math.floor(v)) && (
             <text x={padLeft - 4} y={yFor(v)} textAnchor="end" dominantBaseline="middle"
               fontSize="12"
               fontWeight="400"
               fill="var(--color-content-muted)"
-            >{v}</text>
+            >{user?.units === 'lbs' ? Math.round(kgToLbs(v)) : v}</text>
           )}
         </g>
       ))}
@@ -839,7 +840,7 @@ function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0 }: {
     <div className="mt-3 flex justify-center">
       {lastLogged ? (
         <Badge status={isAhead ? 'success' : 'default'}>
-          {isAhead ? 'Ahead' : 'Behind'}{'  ·  '}{fmtKg(diffKg)} kg
+          {isAhead ? 'Ahead' : 'Behind'}{'  ·  '}{displayWeight(diffKg, user?.units ?? 'kg')}
         </Badge>
       ) : (
         <Badge status="neutral">No weigh-ins yet</Badge>

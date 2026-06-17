@@ -9,7 +9,8 @@ import { todayISO, addDays, newId } from '../../data/ids';
 import { getMondayOfWeek, fmtDiaryDate } from '../../lib/date';
 import { nutritionFor, effectiveNutrition, calcDigestionCalories } from '../../domain/calc';
 import { requiredDailyDeficit, isGainGoal } from '../../domain/goal';
-import { onDecimalChange, fmtKg } from '../../lib/num';
+import { onDecimalChange } from '../../lib/num';
+import { displayWeight } from '../../domain/units';
 import { prefersReducedMotion } from '../../lib/motion';
 import {
   Card, QuickLogCard, Badge, Button, LabeledInput, NumberField,
@@ -230,6 +231,9 @@ export function TodayScreen() {
                   macroStyle={goal?.macroStyle}
                   fatTargetG={goal?.fatTargetG}
                   carbLimitG={goal?.carbLimitG}
+                  weightCadence={user?.weightCadence ?? 'daily'}
+                  weeklyWeightDay={user?.weeklyWeightDay ?? 0}
+                  units={user?.units ?? 'kg'}
                 />
               </div>
             ))}
@@ -516,9 +520,12 @@ interface DayPanelProps {
   macroStyle?: string;
   fatTargetG?: number;
   carbLimitG?: number;
+  weightCadence?: 'daily' | 'weekly';
+  weeklyWeightDay?: number;
+  units?: 'kg' | 'lbs';
 }
 
-function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoalG, isActive, gainGoal = false, macroStyle, fatTargetG, carbLimitG }: DayPanelProps) {
+function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoalG, isActive, gainGoal = false, macroStyle, fatTargetG, carbLimitG, weightCadence = 'daily', weeklyWeightDay = 0, units = 'kg' }: DayPanelProps) {
   const nav = useNavigate();
   const ctx = useOutletContext<DayContext>();
   const [editFood,          setEditFood]          = useState<FoodEntry | null>(null);
@@ -534,7 +541,12 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const showFrequent = frequentFoods.length >= FREQUENT_MIN_FOODS;
   const todayWeightEntry = weights.find((w) => w.date === todayISO());
   const isAfter8pm = new Date().getHours() >= 20;
-  const showWeightReminder = isToday && isAfter8pm && !todayWeightEntry && !reminderDismissed;
+  // Gate reminder to the user's chosen weigh-in day.
+  // weeklyWeightDay: 0=Mon…6=Sun; JS Date.getDay(): 0=Sun…6=Sat
+  const todayJsDay = new Date().getDay(); // 0=Sun
+  const todayDowIndex = todayJsDay === 0 ? 6 : todayJsDay - 1; // convert to 0=Mon
+  const isWeighInDay = weightCadence === 'daily' || todayDowIndex === weeklyWeightDay;
+  const showWeightReminder = isToday && isAfter8pm && !todayWeightEntry && !reminderDismissed && isWeighInDay;
   function dismissReminder() {
     localStorage.setItem(reminderKey(todayISO()), '1');
     setReminderDismissed(true);
@@ -690,7 +702,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary" style={{ transform: 'translateX(-2px)' }}><Icon name="activityIcon" size={12} />Activity</span>
                 </button>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('weight', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
-                  <span className={`text-callout font-semibold ${dayWeightKg != null ? 'text-content' : 'text-content-muted'}`}>{dayWeightKg != null ? fmtKg(dayWeightKg) : '—'}</span>
+                  <span className={`text-callout font-semibold ${dayWeightKg != null ? 'text-content' : 'text-content-muted'}`}>{dayWeightKg != null ? displayWeight(dayWeightKg, units) : '—'}</span>
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary" style={{ transform: 'translateX(-2px)' }}><Icon name="weight" size={12} />Weight</span>
                 </button>
               </div>
@@ -748,7 +760,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary" style={{ transform: 'translateX(-2px)' }}><Icon name="activityIcon" size={12} />Activity</span>
                 </button>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('weight', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
-                  <span className={`text-callout font-semibold ${dayWeightKg != null ? 'text-content' : 'text-content-muted'}`}>{dayWeightKg != null ? fmtKg(dayWeightKg) : '—'}</span>
+                  <span className={`text-callout font-semibold ${dayWeightKg != null ? 'text-content' : 'text-content-muted'}`}>{dayWeightKg != null ? displayWeight(dayWeightKg, units) : '—'}</span>
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary" style={{ transform: 'translateX(-2px)' }}><Icon name="weight" size={12} />Weight</span>
                 </button>
               </div>

@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-16 — Round 70 (CTA always enabled + field errors, kcal label, macro bars, tracking step redesign, edit plan flow, slider spacing, sheet 91dvh, thumb fix, splash timings).
+Last updated: 2026-06-17 — Round 71 (weekly weight cadence, kg/lbs unit conversion throughout).
 Full change history: see CHANGELOG.txt (rounds 1–65).
 
 HOW TO READ THIS DOC:
@@ -177,6 +177,12 @@ User model additions (r68): visibleMacros?: { protein?, carbs?, fat? };
 - Round 67: slider thumb pill, gain zone UI, WeekChart dual ramps, 3-state badge.
 - Round 68: slider thumb active-scale, per-type goal-setup state memory, goal history
   in ⋯ sheet, macro visibility toggles, LoseMacroBars, weekly weight cadence.
+- Round 71 (2026-06-17):
+  · Weekly weight cadence (weightCadence/weeklyWeightDay) added to User type,
+    AccountScreen WeightCadenceCard, TodayScreen reminder gating.
+  · kg/lbs unit conversion wired: GoalSetupScreen inputs, AddEntrySheet WeightForm,
+    GoalScreen tiles + WeekChart labels, TodayScreen weight tile, AccountScreen goal card.
+  · ProfileSheet: Units (kg/lbs) segmented control added.
 - Round 70 (2026-06-16):
   · "Your plan" CTA always enabled; validate on tap + inline field errors (red border + message);
     weight direction check (lose: target < start; gain: target > start).
@@ -242,36 +248,29 @@ on the Mac: `rm -rf node_modules package-lock.json && npm install`
 KNOWN GAPS (current as of round 70)
 ----------------------------------------------------------------
 MED:
-- AccountScreen: macro visibility toggles (visibleMacros) and weekly weight cadence
-  card (r68) were never pushed to the GitHub repo. These features exist only on the
-  MacBook but the AccountScreen toggles are INTENTIONALLY removed going forward (r70
-  decision). Weekly weight cadence (weightCadence / weeklyWeightDay on User type) is
-  also missing from the repo — needs a decision on whether to rebuild.
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
   entries. (Goal actions DO confirm via Sheet; entry deletes are immediate.)
-- UNITS: kg/lbs toggle doesn't convert displayed values yet.
+- UNITS: kg/lbs conversion wired throughout (r71). Toggle in ProfileSheet; all weight
+  display + input sites respect user.units.
 - KEYBOARD/VIEW CONFLICT (residual): body background partially visible as a
   thin dark strip in some keyboard+sheet combinations on WKWebView. Main
   impact (CTA floating mid-form) fixed in r63. Full fix if still needed:
   @capacitor/keyboard with KeyboardResize.None.
-- ACCOUNT IA: still needs a dedicated IA/UX pass (Today view + Weight tracking
-  cards added r68, but overall layout is growing — consider grouping).
+- ACCOUNT IA: WeightCadenceCard added (r71); overall layout still growing — a
+  grouping/IA pass is worthwhile when more prefs land.
 - GoalScreen WeekChart height compensation (H=153) is approximate.
 - HAPTIC FEEDBACK: wired (r22); device enablement needs one Mac step
   (npm install @capacitor/haptics → npx pod-install ios → ios:sync).
 
 LOW:
 - GoalOutcomeView: no haptic on appearance.
-- Weekly weight cadence: reminder gating wired (r68), but the goal trend chart
-  does not yet use the anchor day as a special interpolation point. Low impact
-  since chart uses all available weight entries regardless.
 
 WITHINGS: mock scaffold only. Real data needs backend proxy + credentials.
 
 DEFERRED V1.5+: JSON import, HealthKit, BMR auto-calibration, full tablet
 layouts, per-piece measurement types, time-of-day food suggestions.
 
-ALREADY DONE (do NOT re-flag): r70 all items (see round 70 notes above). GoalOutcomeView dismissedOutcome state + onDismiss prop
+ALREADY DONE (do NOT re-flag): r71 all items (see round 71 notes below). r70 all items (see round 70 notes). GoalOutcomeView dismissedOutcome state + onDismiss prop
 (r69), goalAchieved flag replaces isCompleted in outcome title (r69), complete goal sheet
 confirm UX swap Cancel→primary (r69), slider touchAction pan-x deficit+MacroRow (r69),
 inline Reset on deficit pill (r69), git init + GitHub push everydayou/leve (r69),
@@ -292,6 +291,25 @@ earlier work through r62 (see CHANGELOG for full list).
 ----------------------------------------------------------------
 RECENT ROUNDS (for context on what was just touched)
 ----------------------------------------------------------------
+ROUND 71 — WEEKLY WEIGHT CADENCE + KG/LBS UNIT CONVERSION (2026-06-17)
+Files: src/domain/types.ts, src/ui/screens/AccountScreen.tsx,
+       src/ui/screens/TodayScreen.tsx, src/ui/screens/GoalScreen.tsx,
+       src/ui/screens/GoalSetupScreen.tsx, src/ui/components/AddEntrySheet.tsx
+- types.ts: User gains weightCadence?: 'daily'|'weekly' and weeklyWeightDay?: number (0=Mon…6=Sun).
+- AccountScreen: WeightCadenceCard added under new 'Tracking' section label.
+  Daily/Weekly SegmentedControl + Mon–Sun pill picker (shown when weekly).
+  Saves immediately on change. ProfileSheet gains Units segmented control (kg/lbs).
+- TodayScreen: DayPanel receives weightCadence + weeklyWeightDay + units props.
+  Evening weight reminder gated to weigh-in days only (isWeighInDay flag).
+  Weight tile uses displayWeight(kg, units).
+- GoalScreen: all weight display sites → displayWeight(x, user.units). WeekChart
+  y-axis tick labels + aria-label strings convert to lbs when units='lbs'.
+- GoalSetupScreen: toDisplay()/toKg() helpers wrap weight field init, typeStash
+  restore, and save. Labels and intensity summary (kgToLose, kgPerWeek) in user units.
+- AddEntrySheet WeightForm: label, prefill, and 'Previously…' note respect user units;
+  save converts back to kg.
+- tsc: clean. lint: clean.
+
 ROUND 70 — CTA VALIDATION + KCAL LABEL + MACRO BARS + TRACKING REDESIGN + EDIT PLAN + POLISH (2026-06-16)
 Files: src/ui/screens/GoalSetupScreen.tsx, src/ui/screens/TodayScreen.tsx,
        src/ui/screens/OnboardingDailyAllowance.tsx, src/ui/screens/LeveLoadingScreen.tsx,

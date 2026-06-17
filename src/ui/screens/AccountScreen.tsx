@@ -4,12 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import { repos } from '../../state/repos';
 import { exportAsJson } from '../../data/exportJson';
 import { Card, SectionLabel, Badge, SegmentedControl, Button, LabeledInput, Sheet, ListRow, Skeleton, Icon } from '../kit';
-import { onDecimalChange, fmtKg } from '../../lib/num';
+import { onDecimalChange } from '../../lib/num';
+import { displayWeight } from '../../domain/units';
 import { getThemePref, setThemePref, type ThemePref } from '../../lib/theme';
 import { hapticLight, getHapticsPref, setHapticsPref } from '../../lib/haptics';
 import { getWithingsService, type WithingsStatus } from '../../data/withings';
 import { DevMenu } from '../components/DevMenu';
-import type { User, Sex, Goal } from '../../domain/types';
+import type { User, Sex, Goal, Units } from '../../domain/types';
 
 export function AccountScreen() {
   const nav = useNavigate();
@@ -78,7 +79,7 @@ export function AccountScreen() {
         <div className="flex items-center justify-between">
           <div>
             <p className="font-semibold">{goal?.name ?? 'No active goal'}</p>
-            {goal && <p className="text-label text-content-secondary">Active · lose {fmtKg(goal.startWeightKg - goal.targetWeightKg)} kg</p>}
+            {goal && <p className="text-label text-content-secondary">Active · lose {displayWeight(goal.startWeightKg - goal.targetWeightKg, user.units ?? 'kg')}</p>}
           </div>
           {goal ? (
             <Button variant="subtle" size="xs" fullWidth={false} onClick={() => setManagingGoal(true)}>Manage</Button>
@@ -109,6 +110,9 @@ export function AccountScreen() {
       <SectionLabel>Connections</SectionLabel>
       <WithingsCard />
 
+      <SectionLabel>Tracking</SectionLabel>
+      <WeightCadenceCard user={user} />
+
       <SectionLabel>Appearance</SectionLabel>
       <AppearanceCard />
 
@@ -136,12 +140,14 @@ function ProfileSheet({ user, onClose }: { user: User; onClose: () => void }) {
   const [height, setHeight] = useState(String(user.heightCm));
   const [age, setAge] = useState(user.age != null ? String(user.age) : '');
   const [sex, setSex] = useState<Sex | undefined>(user.sex);
+  const [units, setUnits] = useState<Units>(user.units ?? 'kg');
   async function save() {
     await repos.user.save({
       ...user,
       heightCm: Number(height) || user.heightCm,
       age: age ? Number(age) : undefined,
       sex,
+      units,
     });
     onClose();
   }
@@ -157,6 +163,16 @@ function ProfileSheet({ user, onClose }: { user: User; onClose: () => void }) {
               value={(sex ?? '') as Sex}
               onChange={setSex}
               options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]}
+            />
+          </div>
+        </div>
+        <div>
+          <span className="text-micro uppercase text-content-secondary">Units</span>
+          <div className="mt-1">
+            <SegmentedControl<Units>
+              value={units}
+              onChange={setUnits}
+              options={[{ value: 'kg', label: 'kg' }, { value: 'lbs', label: 'lbs' }]}
             />
           </div>
         </div>
@@ -338,6 +354,63 @@ function WithingsCard() {
       )}
 
       {note && <p className="mt-2 text-label text-content-secondary">{note}</p>}
+    </Card>
+  );
+}
+
+const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+function WeightCadenceCard({ user }: { user: User }) {
+  const [cadence, setCadence] = useState<'daily' | 'weekly'>(user.weightCadence ?? 'daily');
+  const [day, setDay] = useState<number>(user.weeklyWeightDay ?? 0);
+
+  async function saveCadence(next: 'daily' | 'weekly') {
+    setCadence(next);
+    const u = await repos.user.get();
+    if (u) await repos.user.save({ ...u, weightCadence: next, weeklyWeightDay: day });
+  }
+
+  async function saveDay(nextDay: number) {
+    setDay(nextDay);
+    const u = await repos.user.get();
+    if (u) await repos.user.save({ ...u, weightCadence: cadence, weeklyWeightDay: nextDay });
+  }
+
+  return (
+    <Card padded={false} className="p-4">
+      <p className="mb-2 text-label font-medium text-content-secondary">Weigh-in frequency</p>
+      <SegmentedControl<'daily' | 'weekly'>
+        value={cadence}
+        onChange={saveCadence}
+        options={[{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }]}
+      />
+      {cadence === 'weekly' && (
+        <div className="mt-3">
+          <p className="mb-2 text-label text-content-secondary">Which day?</p>
+          <div className="flex gap-1.5" role="group" aria-label="Day of week">
+            {DOW_LABELS.map((label, i) => (
+              <button
+                key={i}
+                onClick={() => void saveDay(i)}
+                aria-pressed={day === i}
+                className={[
+                  'flex-1 rounded-control py-1.5 text-caption font-medium transition-colors',
+                  day === i
+                    ? 'bg-accent text-on-accent'
+                    : 'bg-surface-sunken text-content-secondary active:opacity-70',
+                ].join(' ')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <p className="mt-3 text-caption text-content-secondary">
+        {cadence === 'daily'
+          ? "You'll see a weight reminder each evening until you log."
+          : `You'll see a weight reminder on ${DOW_LABELS[day]}s.`}
+      </p>
     </Card>
   );
 }

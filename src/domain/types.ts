@@ -23,6 +23,11 @@ export interface User {
   sex?: Sex;
   /** Daily protein target in grams. When set, Diary shows a progress bar. */
   proteinGoalG?: number;
+  /** How often the user weighs in. Defaults to 'daily' when absent. */
+  weightCadence?: 'daily' | 'weekly';
+  /** Day of week for weekly weigh-in: 0 = Monday … 6 = Sunday.
+   *  Only meaningful when weightCadence === 'weekly'. */
+  weeklyWeightDay?: number;
 }
 
 export type TrackingMode = 'simple' | 'detailed';

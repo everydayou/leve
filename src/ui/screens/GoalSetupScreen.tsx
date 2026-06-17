@@ -5,9 +5,10 @@ import { repos } from '../../state/repos';
 import { newId, todayISO } from '../../data/ids';
 import { goalIntensity, currentWeightKg } from '../../domain/goal';
 import { onDecimalChange } from '../../lib/num';
+import { kgToLbs, lbsToKg } from '../../domain/units';
 import { Button, LabeledInput, Icon } from '../kit';
 import { hapticLight } from '../../lib/haptics';
-import type { Goal, GoalType, MacroStyle } from '../../domain/types';
+import type { Goal, GoalType, MacroStyle, Units } from '../../domain/types';
 
 // ── Local types ───────────────────────────────────────────────────────────────
 type GoalTypeOpt = { id: GoalType | 'maintain'; title: string; desc: string; enabled: boolean };
@@ -91,6 +92,7 @@ export function GoalSetupScreen() {
       currentWeight: currentWeightKg(weights),
       proteinGoal: user?.proteinGoalG,
       userBmr: user?.bmr ?? 0,
+      userUnits: (user?.units ?? 'kg') as Units,
     };
   }, []);
 
@@ -101,6 +103,7 @@ export function GoalSetupScreen() {
     currentProteinGoal={data.proteinGoal}
     userBmr={data.userBmr}
     skipType={skipType}
+    userUnits={data.userUnits}
   />;
 }
 
@@ -111,14 +114,19 @@ function GoalSetupForm({
   currentProteinGoal,
   userBmr,
   skipType = false,
+  userUnits,
 }: {
   activeGoal: Goal | null;
   currentWeight: number | null;
   currentProteinGoal?: number;
   userBmr: number;
   skipType?: boolean;
+  userUnits?: Units;
 }) {
   const nav = useNavigate();
+  const units = userUnits ?? 'kg';
+  const toDisplay = (kg: number) => units === 'lbs' ? parseFloat(kgToLbs(kg).toFixed(1)) : kg;
+  const toKg = (v: number) => units === 'lbs' ? lbsToKg(v) : v;
   const editing = !!activeGoal;
   const [step, setStep] = useState<Step>((skipType || editing) ? 'details' : 'choose');
   const [exiting, setExiting] = useState(false);
@@ -135,10 +143,14 @@ function GoalSetupForm({
   // ── Your plan fields ────────────────────────────────────────────────────────
   const [type, setType] = useState<GoalTypeOpt['id']>(activeGoal?.type ?? 'lose_by_date');
   const [name, setName] = useState(activeGoal?.name ?? '');
-  const [start, setStart] = useState(
-    activeGoal ? String(activeGoal.startWeightKg) : currentWeight != null ? String(currentWeight) : '',
-  );
-  const [target, setTarget] = useState(activeGoal ? String(activeGoal.targetWeightKg) : '');
+  const [start, setStart] = useState(() => {
+    const kg = activeGoal ? activeGoal.startWeightKg : currentWeight;
+    return kg != null ? String(toDisplay(kg)) : '';
+  });
+  const [target, setTarget] = useState(() => {
+    const kg = activeGoal ? activeGoal.targetWeightKg : null;
+    return kg != null ? String(toDisplay(kg)) : '';
+  });
   const [date, setDate] = useState(activeGoal?.targetDate ?? '');
   const [startDate, setStartDate] = useState(activeGoal?.startDate ?? todayISO());
   // Protein for lose goals (existing pattern)
@@ -160,7 +172,7 @@ function GoalSetupForm({
     ? sNum > 0 && tNum > 0 && tNum > sNum
     : sNum > 0 && tNum > 0 && sNum > tNum;
   const valid = weightValid && !!startDate && !!date && startDate < date;
-  const intensity = valid ? goalIntensity(sNum, tNum, startDate, date) : null;
+  const intensity = valid ? goalIntensity(toKg(sNum), toKg(tNum), startDate, date) : null;
   const computedMagnitude = intensity?.kcalPerDay ?? 0;
   const sliderMin = Math.max(200, computedMagnitude - 500);
   const sliderMax = computedMagnitude + 500;
@@ -180,7 +192,7 @@ function GoalSetupForm({
   const [editingRow, setEditingRow] = useState<EditTarget>(null);
   // Protein for gain goals
   const [proteinG, setProteinG] = useState<number>(
-    currentProteinGoal ?? defProtein(activeGoal?.startWeightKg ?? sNum),
+    currentProteinGoal ?? defProtein(activeGoal ? activeGoal.startWeightKg : toKg(sNum)),
   );
   // Single fat anchor — represents fat target (balanced) or fat baseline (performance)
   const [fatG, setFatG] = useState<number>(
@@ -196,8 +208,8 @@ function GoalSetupForm({
       /* eslint-disable react-hooks/set-state-in-effect -- populates edit form when async goal data first resolves */
       setType(activeGoal.type);
       setName(activeGoal.name);
-      setStart(String(activeGoal.startWeightKg));
-      setTarget(String(activeGoal.targetWeightKg));
+      setStart(String(toDisplay(activeGoal.startWeightKg)));
+      setTarget(String(toDisplay(activeGoal.targetWeightKg)));
       setDate(activeGoal.targetDate);
       setStartDate(activeGoal.startDate);
       setDeficitOverride(activeGoal.dailyDeficitKcalOverride ?? null);
@@ -229,7 +241,7 @@ function GoalSetupForm({
   // ── Save ────────────────────────────────────────────────────────────────────
   async function create() {
     if (!valid) return;
-    const startWeightKg = +start || 0;
+    const startWeightKg = toKg(+start || 0);
     const goalType = (type === 'maintain' ? 'lose_by_date' : type) as GoalType;
 
     await repos.goals.put({
@@ -237,7 +249,7 @@ function GoalSetupForm({
       name: name.trim() || 'New goal',
       type: goalType,
       startWeightKg,
-      targetWeightKg: +target || 0,
+      targetWeightKg: toKg(+target || 0),
       startDate,
       targetDate: date,
       status: 'active',
@@ -343,7 +355,7 @@ function GoalSetupForm({
                     <div className="flex-1 min-w-0">
                       <LabeledInput
                         wrapClassName="w-full"
-                        label="Start (kg)"
+                        label={`Start (${units})`}
                         labelClassName="text-subhead text-content-secondary"
                         value={start}
                         onChange={(e) => { onDecimalChange(setStart)(e); setFieldErrors((p) => ({ ...p, start: undefined })); }}
@@ -356,7 +368,7 @@ function GoalSetupForm({
                     <div className="flex-1 min-w-0">
                       <LabeledInput
                         wrapClassName="w-full"
-                        label="Target (kg)"
+                        label={`Target (${units})`}
                         labelClassName="text-subhead text-content-secondary"
                         value={target}
                         onChange={(e) => { onDecimalChange(setTarget)(e); setFieldErrors((p) => ({ ...p, target: undefined })); }}
@@ -430,9 +442,9 @@ function GoalSetupForm({
                 <div className="overflow-hidden border border-border-subtle bg-surface p-5 shadow-card" style={{ borderRadius: 24 }}>
                   {intensity ? (
                     <>
-                      <p className="text-display font-bold text-center">{intensity.kgToLose.toFixed(1)} kg</p>
+                      <p className="text-display font-bold text-center">{units === 'lbs' ? `${kgToLbs(intensity.kgToLose).toFixed(1)} lbs` : `${intensity.kgToLose.toFixed(1)} kg`}</p>
                       <p className="text-center text-subhead text-content-secondary">
-                        {Math.round(intensity.weeks)} weeks{'  ·  '}≈ {intensity.kgPerWeek} kg/week
+                        {Math.round(intensity.weeks)} weeks{'  ·  '}≈ {units === 'lbs' ? `${kgToLbs(intensity.kgPerWeek).toFixed(2)} lbs/week` : `${intensity.kgPerWeek} kg/week`}
                       </p>
                       <div className="mt-3 rounded-field bg-surface-sunken px-3 py-2.5 flex items-center justify-between">
                         <p className="text-subhead text-content-secondary">

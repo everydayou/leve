@@ -138,6 +138,7 @@ export function GoalScreen() {
       weights={weights}
       mode={isCompleted ? 'completed' : 'ended'}
       onDismiss={() => setDismissedOutcome(true)}
+      units={user?.units ?? 'kg'}
     />;
   }
   // ─────────────────────────────────────────────────────────────────────────
@@ -341,6 +342,7 @@ export function GoalScreen() {
                 weekOffset={weekOffset}
                 today={today}
                 navDir={navDir}
+                units={user?.units ?? 'kg'}
               />
             ) : (
               <WeekChart
@@ -469,8 +471,8 @@ function GoalSettingsSheet({ goal, onClose }: { goal: Goal; onClose: () => void 
 }
 
 /** Full-screen outcome view for completed or ended goals. */
-function GoalOutcomeView({ goal, weights, mode, onDismiss }: {
-  goal: Goal; weights: WeightEntry[]; mode: 'completed' | 'ended'; onDismiss: () => void;
+function GoalOutcomeView({ goal, weights, mode, onDismiss, units = 'kg' }: {
+  goal: Goal; weights: WeightEntry[]; mode: 'completed' | 'ended'; onDismiss: () => void; units?: 'kg' | 'lbs';
 }) {
   const nav = useNavigate();
   const [exiting, setExiting] = useState(false);
@@ -533,15 +535,15 @@ function GoalOutcomeView({ goal, weights, mode, onDismiss }: {
             <div className="pt-5 px-6 pb-5">
               <h1 className="text-headline font-semibold text-center text-content">{goal.name}</h1>
               <p className="mt-0 text-subhead text-content-secondary text-center mb-4">
-                Goal {displayWeight(goal.targetWeightKg, user?.units ?? 'kg')} · by {fmtShortDate(goal.targetDate)}
+                Goal {displayWeight(goal.targetWeightKg, units)} · by {fmtShortDate(goal.targetDate)}
               </p>
               <div className="grid grid-cols-3 gap-2">
                 <div className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5">
-                  <span className="text-callout font-semibold text-content">{displayWeight(lostKg, user?.units ?? 'kg')}</span>
+                  <span className="text-callout font-semibold text-content">{displayWeight(lostKg, units)}</span>
                   <span className="-mt-0.5 text-center text-subhead text-content-secondary leading-tight">Weight<br/>{gainGoal ? 'gained' : 'lost'}</span>
                 </div>
                 <div className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5">
-                  <span className="text-callout font-semibold text-content">{displayWeight(nowKg, user?.units ?? 'kg')}</span>
+                  <span className="text-callout font-semibold text-content">{displayWeight(nowKg, units)}</span>
                   <span className="-mt-0.5 text-center text-subhead text-content-secondary leading-tight">Final<br/>weight</span>
                 </div>
                 <div className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5">
@@ -568,9 +570,9 @@ function GoalOutcomeView({ goal, weights, mode, onDismiss }: {
 /** 7-day weight chart for the viewed week.
  *  Dashed planned trajectory line + mint dots for actual weigh-ins.
  *  Verdict row below: ahead (mint) or behind (dark) plan. */
-function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0 }: {
+function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, units = 'kg' }: {
   goal: Goal; weights: WeightEntry[]; weekOffset: number; today: string;
-  navDir?: 1 | -1 | 0;
+  navDir?: 1 | -1 | 0; units?: 'kg' | 'lbs';
 }) {
   const weekStart = addDays(getMondayOfWeek(today), weekOffset * 7);
   const days      = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -840,7 +842,7 @@ function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0 }: {
     <div className="mt-3 flex justify-center">
       {lastLogged ? (
         <Badge status={isAhead ? 'success' : 'default'}>
-          {isAhead ? 'Ahead' : 'Behind'}{'  ·  '}{displayWeight(diffKg, user?.units ?? 'kg')}
+          {isAhead ? 'Ahead' : 'Behind'}{'  ·  '}{displayWeight(diffKg, units)}
         </Badge>
       ) : (
         <Badge status="neutral">No weigh-ins yet</Badge>

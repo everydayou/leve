@@ -14,11 +14,11 @@ const STATUS: Record<Status, string> = {
 };
 
 export function Badge({
-  children, status = 'neutral', size = 'sm',
-}: { children: ReactNode; status?: Status; size?: 'sm' | 'lg' }) {
+  children, status = 'neutral', size = 'sm', className = '',
+}: { children: ReactNode; status?: Status; size?: 'sm' | 'lg'; className?: string }) {
   const sizeClass = size === 'lg' ? 'text-subhead px-3 py-1' : 'text-footnote px-2.5 py-1';
   return (
-    <span className={`inline-flex items-center gap-1 rounded-pill font-semibold ${sizeClass} ${STATUS[status]}`}>
+    <span className={`inline-flex items-center gap-1 rounded-pill font-semibold ${sizeClass} ${STATUS[status]} ${className}`.trimEnd()}>
       {children}
     </span>
   );

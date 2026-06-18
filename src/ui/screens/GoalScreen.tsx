@@ -939,7 +939,7 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
     {/* Weekly verdict — text when no data, badge when data */}
     <div className="mt-3 flex justify-center">
       {lastLogged ? (
-        <Badge status={isAhead ? 'success' : 'default'} size="lg">
+        <Badge status={isAhead ? 'success' : 'default'} size="lg" className="text-[15px]">
           {isAhead ? 'Ahead' : 'Behind'}{'  ·  '}{displayWeight(diffKg, units)}
         </Badge>
       ) : (
@@ -1229,11 +1229,11 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
       {!hasAnyData ? (
         <p className="text-subhead text-content-muted text-center">Log meals or activity to see your weekly total</p>
       ) : gainChart ? (
-        <Badge status={gainWeekZone === 'in' ? 'success' : 'default'} size="lg">
+        <Badge status={gainWeekZone === 'in' ? 'success' : 'default'} size="lg" className="text-[15px]">
           {gainWeekZone === 'below' ? 'Under target' : gainWeekZone === 'in' ? 'In range' : 'Over'}{'  ·  '}{diff.toLocaleString()} kcal
         </Badge>
       ) : (
-        <Badge status={!isOver ? 'success' : 'default'} size="lg">
+        <Badge status={!isOver ? 'success' : 'default'} size="lg" className="text-[15px]">
           {isOver ? 'Over' : 'On target'}{'  ·  '}{diff.toLocaleString()} kcal
         </Badge>
       )}

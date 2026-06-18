@@ -288,7 +288,7 @@ function OnboardingKgWeekChart({ drawDuration }: { drawDuration: number }) {
 
     {/* Badge — Fri actual 66.1 < planned 66.4 → ahead by 0.3 kg */}
     <div className="mt-3 flex justify-center">
-      <Badge status="success">Ahead · 0.3 kg</Badge>
+      <Badge status="success">Ahead{'  ·  '}0.3 kg</Badge>
     </div>
     </>
   );
@@ -412,7 +412,7 @@ function OnboardingWeekChart({ visible, growDuration }: { visible: boolean; grow
 
     {/* Badge */}
     <div className="mt-3 flex justify-center">
-      <Badge status="default">Over · {diff.toLocaleString()} kcal</Badge>
+      <Badge status="default">Over{'  ·  '}{diff.toLocaleString()} kcal</Badge>
     </div>
     </>
   );

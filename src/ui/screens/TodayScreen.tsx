@@ -331,8 +331,12 @@ function MacroBarsRow({
   showFat?: boolean;
 }) {
   const wantProtein = proteinGoal > 0 && (showProtein !== false);
-  const wantCarbs   = gainDetailed && (showCarbs !== false);
-  const wantFat     = gainDetailed && (showFat !== false);
+  // Default visibility per tracking mode: carbs only for lower_carb, fat only for balanced/performance.
+  // showCarbs/showFat undefined = use per-mode default; true/false = explicit user override.
+  const carbsDefault = macroStyle === 'lower_carb';
+  const fatDefault   = macroStyle === 'balanced' || macroStyle === 'performance';
+  const wantCarbs    = gainDetailed && (showCarbs ?? carbsDefault);
+  const wantFat      = gainDetailed && (showFat   ?? fatDefault);
   if (!wantProtein && !wantCarbs && !wantFat) return null;
   return (
     <div className="flex gap-4 px-6 pt-3 pb-5">
@@ -1167,11 +1171,11 @@ function BreakdownSheet({
             {gainGoal ? (
               // Gain: 3-state based on gainZone
               <Badge status={gainZone === 'in' ? 'success' : 'default'} size="lg">
-                {gainZone === 'below' ? 'Under target' : gainZone === 'in' ? 'In range' : 'Over'} · {Math.abs(left).toLocaleString()} kcal
+                {gainZone === 'below' ? 'Under target' : gainZone === 'in' ? 'In range' : 'Over'}{'  ·  '}{Math.abs(left).toLocaleString()} kcal
               </Badge>
             ) : (
               <Badge status={isOver ? 'default' : 'success'} size="lg">
-                {isOver ? 'Over' : 'On target'} · {Math.abs(left).toLocaleString()} kcal
+                {isOver ? 'Over' : 'On target'}{'  ·  '}{Math.abs(left).toLocaleString()} kcal
               </Badge>
             )}
           </div>

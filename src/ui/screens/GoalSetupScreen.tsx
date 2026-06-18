@@ -798,7 +798,7 @@ function FullScreen({
   slideUp?: boolean;
   exiting?: boolean;
   onScroll?: React.UIEventHandler<HTMLDivElement>;
-  scrollRef?: React.RefObject<HTMLDivElement>;
+  scrollRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const animClass = exiting ? 'slide-down-out' : slideUp ? 'slide-up-in' : '';
   return (

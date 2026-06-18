@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-17 — Round 74 (diary macro visibility toggles, deficit session-touch warning, PastGoalsPortal no-flicker navigation, full past-goal chart, loading animation refinement, diary macro label/value inline layout).
+Last updated: 2026-06-18 — Round 79 (activity multi-entry log, WheelPicker centerAt/empty state, GoalOutcome CTA fix, diary past-goal badge + disabled day states, Build Muscle surplus range ±100, merged food+activity log, past-day gauge disabled, weight sheet small, EditActivitySheet Save fix, split-wheel empty state).
 Full change history: see CHANGELOG.txt (rounds 1–68).
 
 HOW TO READ THIS DOC:
@@ -168,43 +168,40 @@ User model additions (r71): weightCadence?: 'daily'|'weekly'; weeklyWeightDay?: 
 - BMR auto-calibration: parked (V1.5+).
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 74, 2026-06-17)
+7. CURRENT STATUS (as of round 79, 2026-06-18)
 ----------------------------------------------------------------
 - App name: "leve"; brand loading screen; native splash white flash eliminated. DONE.
 - "Build muscle" (gain_by_date) goal type: fully wired r61, bug-fixed r62.
 - All 9 goal lifecycle states implemented (r55). GoalOutcomeView portal overlay. DONE.
 - Tracking step Simple/Detailed modes (r65). Gain gauge + GainMacroBars (r66). DONE.
-- Round 67–71: slider polish, gain zone UI, WeekChart dual ramps, per-type goal setup
-  memory, goal history in ⋯ sheet, GoalOutcomeView dismiss state, kg/lbs units,
-  weekly weight cadence. All fully shipped.
-- Round 72 (2026-06-17):
-  · Past goals entry in ⋯ menu always shown when past goals exist.
-  · GoalScreen lifecycle + early-complete polish. Edit plan animation confirmed.
-- Round 73 (2026-06-17):
-  · GoalSetupScreen FullScreen z-[200] so Edit plan portal covers bottom nav bar.
-  · Graph empty states fixed: isBeforeGoal filter on lastLogged (KgWeekChart) and
-    lastWithData (WeekChart) — pre-goal weight entries no longer suppress empty state.
-  · Reset button: goalHasStarted uses strict < (not <=); info container moved inside
-    Review card below PaceMeter.
-  · Tracking step: Done CTA gated on macroStyle !== null; top copy text-content;
-    Skip/Edit/Save = font-normal text-accent-hover.
-  · Loading animation: 1.2s, 100-300-400-300-100ms phases.
-- Round 74 (2026-06-17):
-  · Goal type gains diaryShowProtein?, diaryShowCarbs?, diaryShowFat? fields.
-  · AccountScreen: MacroDiaryCard — individual Protein/Carbs/Fat visibility toggles
-    for the diary gauge card. Only shown when goal.macroStyle is set.
-  · GoalSetupScreen: sessionTouched pattern — deficit warning only appears when user
-    actively moves the slider this session; Reset clears both state and warning.
-  · TodayScreen diary macros: MacroCol with label left / value right (text-subhead,
-    justify-between), full-width ProgressBar below. flex gap-4 horizontal row.
-  · PastGoalsScreen.tsx fully rewritten as PastGoalsPortal — portal-based overlay,
-    no React Router, GoalScreen stays mounted (zero back-navigation flicker).
-    Internal list → detail state. Detail view: goal stats card + full chart identical
-    to GoalScreen (SegmentedControl, week nav, week numbers, KgWeekChart + WeekChart).
-  · chartUtils.ts: new shared file with weekNumber + fmtWeekRange (fixes fast-refresh
-    lint rule; GoalScreen now imports from there).
-  · Loading animation: 0.9s, 50-250-300-250-50ms phases, alternate loops both ways.
-- Code quality: tsc strict clean, lint clean (r74).
+- Rounds 67–74: slider polish, gain zone UI, WeekChart dual ramps, per-type goal setup
+  memory, goal history, GoalOutcomeView dismiss, kg/lbs, weekly weight cadence, diary
+  macro toggles, deficit session-touch warning, PastGoalsPortal. All fully shipped.
+- Round 75 (2026-06-17): GoalSetupScreen dividers/shadow/date-min/macro-warnings,
+  scroll-nav shadow, GoalOutcomeView white-bg + persistent dismiss, tracking scroll reset.
+- Round 76 (2026-06-17): Weight chart week Y-axis, splash warmup/skip-on-reload.
+- Round 77 (2026-06-17): Gauge arc scales to daily budget, pantry/sheet/input polish.
+- Round 78 (2026-06-17): WheelPicker native drum-roll for weight/goal/macros/account.
+- Round 79 (2026-06-18):
+  · Activity log: multi-entry (always adds, never overrides). EditActivitySheet with
+    Save button (via footer prop), delete+undo toast. Activities listed in day log.
+  · WheelPicker centerAt: empty state shows "—", drum-roll opens centred at centerAt.
+    Applied to all food/activity/account/goal pickers. Split wheel now supports centerAt
+    via single unified select for empty state.
+  · GoalOutcomeView "Start next goal" CTA marks outcomeViewed:true immediately (fixes
+    CTA loop when user goes back from GoalSetupScreen without creating a new goal).
+  · Diary without active goal: allGoals fetched; pastGoal derived (most recently
+    ended/completed). Week strip shows succeed-past/fail-past at 40% opacity for days
+    within past goal's range. "No goal set" badge → "Past goal" (taps to /goal).
+  · Build Muscle surplus range: GoalSetupScreen label shows "+200 to +400 kcal/day"
+    instead of "+300 kcal/day surplus". Diary "On target" badge is symmetric ±100.
+    Week strip success: |surplus − target| ≤ 100.
+  · Merged food + activity log: single chronological card (newest first by createdAt).
+    Food shows −X kcal, activity shows +X kcal. Empty state when both empty.
+  · Past-day gauge: date < today → GaugeArc disabled (0.45 opacity, no animation).
+    Center text switches to past tense: "kcal under"/"kcal over", "on target"/"kcal short".
+  · Weight sheet opens small: forceExpanded removed from weight tab + WeightLogSheet.
+- Code quality: tsc strict clean, lint clean (r79).
 
 ----------------------------------------------------------------
 8. TECH / ARCHITECTURE
@@ -234,11 +231,12 @@ on the Mac: `rm -rf node_modules package-lock.json && npm install`
 → `npm test` → `npm run build` → `npm run ios:sync`.
 
 ----------------------------------------------------------------
-KNOWN GAPS (current as of round 74)
+KNOWN GAPS (current as of round 79)
 ----------------------------------------------------------------
 MED:
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
-  entries. (Goal actions DO confirm via Sheet; entry deletes are immediate.)
+  entries. (Goal actions DO confirm via Sheet; entry deletes are immediate.
+  Activity delete has undo toast via showToast.)
 - KEYBOARD/VIEW CONFLICT (residual): body background partially visible as a
   thin dark strip in some keyboard+sheet combinations on WKWebView. Main
   impact (CTA floating mid-form) fixed in r63. Full fix if still needed:
@@ -253,13 +251,23 @@ LOW:
 - GoalOutcomeView: no haptic on appearance.
 - App.tsx still contains /past-goals and /past-goals/:id routes (now unused
   stubs since PastGoalsPortal is portal-based). Safe to remove eventually.
+- Past-day gauge: GaugeArc bidirectional disabled=true freezes arc at 0, not
+  at the actual value (only unidirectional mode renders at a non-zero frozen
+  value). Visually fine since opacity-0.45 conveys "historical" well enough.
 
 WITHINGS: mock scaffold only. Real data needs backend proxy + credentials.
 
 DEFERRED V1.5+: JSON import, HealthKit, BMR auto-calibration, full tablet
 layouts, per-piece measurement types, time-of-day food suggestions.
 
-ALREADY DONE (do NOT re-flag): r74 all items (diary macro toggles, deficit
+ALREADY DONE (do NOT re-flag): r79 all items (activity multi-entry log,
+EditActivitySheet Save fix, WheelPicker centerAt + split-wheel empty state,
+GoalOutcome CTA loop fix, diary past-goal badge + disabled day states, Build
+Muscle ±100 surplus range, merged food+activity log, past-day gauge disabled,
+weight sheet small). r75–r78 all items (GoalSetupScreen dividers/shadow,
+scroll-nav shadow, outcome white-bg, tracking scroll reset, weight chart Y-axis,
+splash warmup, gauge arc budget scaling, pantry/sheet/input polish, WheelPicker
+native drum-roll for all pickers). r74 all items (diary macro toggles, deficit
 session-touch, PastGoalsPortal, chartUtils.ts, diary macro inline layout, loading
 animation). r73 all items (edit plan z-index, graph empty states, reset button
 strict-<, tracking step CTA/skip/save styling). r72 all items (past goals always
@@ -286,51 +294,69 @@ through r62 (see CHANGELOG for full list).
 ----------------------------------------------------------------
 RECENT ROUNDS (for context on what was just touched)
 ----------------------------------------------------------------
-ROUND 74 — DIARY MACRO TOGGLES + DEFICIT SESSION WARNING + PAST GOALS PORTAL + LOADING ANIMATION (2026-06-17)
-Files: src/domain/types.ts, src/ui/screens/AccountScreen.tsx,
-       src/ui/screens/GoalSetupScreen.tsx, src/ui/screens/TodayScreen.tsx,
-       src/ui/screens/GoalScreen.tsx, src/ui/screens/PastGoalsScreen.tsx (rewrite),
-       src/ui/screens/chartUtils.ts (new), src/ui/screens/LeveLoadingScreen.tsx,
-       src/index.css
-- types.ts: Goal gains diaryShowProtein?, diaryShowCarbs?, diaryShowFat? (optional bool).
-- AccountScreen: MacroDiaryCard — Protein/Carbs/Fat ON/OFF toggles (pill style,
-  bg-accent / bg-neutral-300). Only rendered when goal.macroStyle is set.
-  Replaces wrong r73 MacroTrackingCard/MacroStyleSheet implementation.
-- GoalSetupScreen: sessionTouched state. Deficit warning = goalHasStarted && sessionTouched.
-  Slider onChange sets sessionTouched. Reset (top-right + "Reset to calculated") clears
-  both. Both reset buttons: font-normal text-accent-hover.
-- TodayScreen: MacroCol — flex items-center justify-between (label left, value right),
-  both text-subhead; value font-semibold. ProgressBar full-width below. MacroBarsRow =
-  flex gap-4. Carbs/fat gate on !!macroStyle (any goal type). showProtein/Carbs/Fat props.
-- PastGoalsScreen.tsx fully rewritten: PastGoalsPortal (portal to document.body, z-[150]).
-  No React Router — internal state for list vs. detail. SlideScreen with slide-in-right /
-  slide-out-right (setExiting + 280ms timeout). Detail: 3-col StatCard grid + full chart
-  (SegmentedControl, week nav, week numbers, KgWeekChart + WeekChart, chartToday capped
-  at goal.targetDate).
-- GoalScreen: KgWeekChart + WeekChart exported. showPastGoals state. GoalSettingsSheet
-  onPastGoals prop (no useNavigate). Portal block for PastGoalsPortal.
-- chartUtils.ts (new): weekNumber + fmtWeekRange. Fixes react-refresh lint rule.
-- LeveLoadingScreen: 0.9s, 50-250-300-250-50ms phases, alternate infinite.
+ROUND 79 — ACTIVITY LOG, WHEELPEICKER EMPTY STATE, DIARY PAST GOAL, SURPLUS RANGE, LOG MERGE (2026-06-18)
+Files: src/ui/kit/WheelPicker.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/screens/TodayScreen.tsx, src/ui/screens/GoalScreen.tsx,
+       src/ui/screens/GoalSetupScreen.tsx, src/ui/kit/Progress.tsx,
+       src/ui/components/WeightLogSheet.tsx
+- WheelPicker centerAt: single wheel — inserts <option value="">—</option> at the
+  centerAt position; closed field shows "—", drum-roll opens centred there. Split
+  wheel — when isEmpty && centerAt set, renders a single unified select with all
+  decimal-precision options + "—" placeholder at centerAt; first pick fires onChange
+  and switches back to normal split mode. Applied to: all food NumberFields
+  (cal=350, protein=25, carbs=30, fat=12, fiber=5, est.weight=150), activity kcal
+  (centerAt=300), account height (centerAt=170) + age (centerAt=30), goal target
+  weight (centerAt=+start||default).
+- AddEntrySheet ActivityForm rewritten: always repos.activities.add() (never overrides);
+  name field ("e.g. Morning run"); kcal WheelPicker; estimate mode auto-names
+  "Intensity · Duration". Footer: "Log activity". canSave gates on non-zero kcal.
+- TodayScreen: activities displayed in day log (edit on tap → EditActivitySheet).
+  EditActivitySheet: name + kcal fields, trash button, footer=<Button> prop (NOT
+  useSheetSetFooter — that requires being inside a Sheet's children). Delete has
+  undo toast. Fixed Save button missing by switching useSheetSetFooter → footer prop.
+- GoalScreen GoalOutcomeView "Start next goal": repos.goals.put({...goal,
+  outcomeViewed:true}) called immediately before nav('/goal-setup?new=true'). Fixes
+  loop where returning from GoalSetupScreen without creating a goal re-showed outcome.
+- Diary without active goal: allGoals fetched via useLive. pastGoal = most recently
+  ended/completed. DayState gains 'succeed-past' | 'fail-past'. Week strip renders
+  these at opacity-40. "No goal set" badge → "Past goal" (when pastGoal exists),
+  hasPastGoal prop threaded to DayPanel.
+- Build Muscle surplus range ±100: GoalSetupScreen label: "+200 to +400 kcal/day"
+  (effectiveMagnitude ±100). DayPanel "On target" badge: left >= -100 && left <= 100
+  (symmetric, was only left <= 0 && >= -100). Week strip success: gainGoal ?
+  (deficit >= target-100 && deficit <= target+100) : deficit >= target.
+- Merged food+activity log: single IIFE inside DayPanel renders one Card with all
+  entries sorted by createdAt descending. Food rows −X kcal, activity rows +X kcal.
+  Empty state when logItems.length === 0.
+- Past-day gauge (date < today): GaugeArc bidirectional/unidirectional gets
+  disabled={isPastDay} (opacity 0.45). Animation skipped (prefersReducedMotion ||
+  isPastDay jumps to final value). Center subtext: lose="kcal under"/"kcal over";
+  gain="on target"/"kcal short"/"kcal over". Badge: "Ate short" instead of "Eat more".
+- Weight sheet small: AddEntrySheet forceExpanded now tab==='food' ?
+  foodScanState !== 'source-picking' : tab === 'activity' (weight no longer forced).
+  WeightLogSheet: forceExpanded removed.
 - tsc: clean. lint: clean.
 
-ROUND 73 — GOALSETUPSCREEN + GOALSCREEN + ACCOUNTSCREEN POLISH (2026-06-17)
-Files: src/ui/screens/GoalSetupScreen.tsx, src/ui/screens/GoalScreen.tsx,
-       src/ui/screens/AccountScreen.tsx, src/ui/screens/LeveLoadingScreen.tsx,
-       src/index.css
-- GoalSetupScreen FullScreen: z-[200] when slideUp — edit plan portal now covers tab bar.
-- GoalScreen KgWeekChart + WeekChart: added && !d.isBeforeGoal filter to lastLogged /
-  lastWithData — graph empty states now trigger correctly for new goals.
-- goalHasStarted: strict < (was <=). Info container moved inside Review card below PaceMeter.
-- Tracking step: Done CTA gated on macroStyle !== null. Top copy text-content.
-  Skip = self-end pb-[3px] font-normal text-accent-hover. MacroRow buttons font-normal text-accent-hover.
-- LeveLoadingScreen: 1.2s, 100-300-400-300-100ms phases (refined to 0.9s + alternate in r74).
-- index.css: slideInRight/slideOutRight keyframes + .slide-in-right/.slide-out-right classes.
+ROUND 78 — WHEELPEICKER NATIVE DRUM-ROLL FOR ALL PICKERS (2026-06-17)
+Files: src/ui/kit/WheelPicker.tsx, src/ui/kit/NumberField.tsx,
+       src/ui/components/AddEntrySheet.tsx, src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/screens/AccountScreen.tsx
+- WheelPicker: native <select> drum-roll component. Single wheel (step≥1) or split
+  two-wheel (step<1). value/onChange use string. Replaces all NumberField inputs in
+  food, activity, goal setup, account height/age, weight log.
+- NumberField: wraps WheelPicker, all macro fields use drum-roll.
+- GoalSetupScreen: start/target weight, deficit slider all use WheelPicker.
+- AccountScreen: height (centerAt=170) + age (centerAt=30) use WheelPicker.
 - tsc: clean. lint: clean.
 
-ROUND 72 — GOALSCREEN + GOALSETUPSCREEN IMPROVEMENTS (2026-06-17)
-Files: src/ui/screens/GoalScreen.tsx, src/ui/screens/GoalSetupScreen.tsx
-- Past goals "Past goals" row in GoalSettingsSheet ⋯ menu: always shown when past goals exist.
-- GoalScreen lifecycle states reviewed; early-complete detection and hasTodayWeight guard refined.
-- Edit plan slide-up animation confirmed working from GoalSettingsSheet action.
+ROUND 77 — GAUGE ARC BUDGET SCALING + PANTRY/SHEET/INPUT POLISH (2026-06-17)
+Files: src/ui/screens/TodayScreen.tsx, src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/screens/PantryScreen.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/kit/Sheet.tsx
+- Gauge arc scales to daily budget (gaugeRange = budget > 0 ? budget : GAUGE_RANGE)
+  instead of fixed ±500 kcal — loss and gain goals fill proportionally.
+- Pantry add button flush right. Sheet icons use accent-hover. Save-to-pantry
+  position below form. Input label style. Goal options title. Tracking Reset label
+  and protein default fix. Weight entry no unit label.
 - tsc: clean. lint: clean.
 

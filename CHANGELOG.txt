@@ -6,6 +6,121 @@ know WHY something was decided or what changed in a specific round.
 
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
+================================================================
+ROUND 79 — ACTIVITY LOG, WHEELPEICKER EMPTY STATE, DIARY PAST GOAL, SURPLUS RANGE, LOG MERGE (2026-06-18)
+================================================================
+Files: src/ui/kit/WheelPicker.tsx, src/ui/kit/NumberField.tsx,
+       src/ui/kit/Progress.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/components/WeightLogSheet.tsx, src/ui/screens/TodayScreen.tsx,
+       src/ui/screens/GoalScreen.tsx, src/ui/screens/GoalSetupScreen.tsx
+
+── WheelPicker centerAt prop (single wheel) ──
+- New optional `centerAt?: number` prop.
+- When value==='' and centerAt is given, inserts <option value="">—</option> at the
+  centerAt position in the options list. Closed field shows "—". iOS drum-roll opens
+  with "—" centred near centerAt value. onChange ignores re-selection of placeholder.
+- Mount-sync useEffect skips when isEmpty (intentional empty state).
+
+── WheelPicker centerAt prop (split wheel) ──
+- When isEmpty && centerAt set: renders a single unified <select> with all
+  decimal-precision options (e.g. 40.0…200.0 at 0.1 step) plus "—" placeholder at
+  centerAt position. Same visual shell as single wheel.
+- First user pick fires onChange → parent sets real value → component re-renders in
+  normal split mode.
+- Mount-sync useEffect still skips isEmpty to avoid pre-filling.
+
+── centerAt applied to all pickers ──
+- Food fields (AddEntrySheet): calories=350, protein=25, carbs=30, fat=12, fiber=5,
+  estimated weight=150.
+- Activity kcal: centerAt=300.
+- AccountScreen: height centerAt=170, age centerAt=30.
+- GoalSetupScreen target weight: centerAt={+start || (units==='lbs' ? 154 : 70)}.
+
+── Activity multi-entry log (AddEntrySheet) ──
+- ActivityForm rewritten: save always calls repos.activities.add() — never overrides.
+  Each activity is a separate entry in the database.
+- Added name field (LabeledInput, placeholder "e.g. Morning run").
+- Calories: WheelPicker min=0 max=3000 step=5 centerAt=300.
+- changeMode() resets kcal/intensity/duration when switching manual↔estimate.
+- Estimate mode auto-names: "${intensity.label} · ${duration.label}".
+- Footer button label: "Log activity".
+- canSave = manual ? !!Number(kcal) : !!(intensity && duration && Number(kcal)).
+- Toast on save: "Activity logged" with undo (repos.activities.remove).
+
+── TodayScreen: activities in day log ──
+- Activities listed in DayPanel below food (separate Card, tap to edit).
+- editActivity state + EditActivitySheet mounted when set.
+
+── EditActivitySheet ──
+- Fields: name (LabeledInput) + kcal (WheelPicker, centerAt=300).
+- Trash button (rightAction): delete + undo toast.
+- Save: repos.activities.update({...entry, name, activeCalories}).
+- IMPORTANT: footer passed as prop directly to <Sheet> — NOT useSheetSetFooter.
+  useSheetSetFooter only works from within a Sheet's children (reads context from
+  parent Sheet). EditActivitySheet renders its own Sheet, so there is no parent
+  Sheet context. Using the footer prop is the correct pattern here.
+- Fixed bug: Save button was silently missing because useSheetSetFooter had no
+  context to register with.
+
+── GoalOutcomeView CTA fix ──
+- "Start next goal" button now calls repos.goals.put({...goal, outcomeViewed:true})
+  immediately before nav('/goal-setup?new=true').
+- Fixes loop: previously if the user went back from GoalSetupScreen without creating
+  a goal, GoalScreen remounted with outcomeLocalDismissed=false (local state reset),
+  causing the outcome view to reappear. Writing outcomeViewed:true to DB means the
+  check `goal.outcomeViewed` is true on remount → outcome view skipped.
+
+── Diary without active goal: "Past goal" badge + disabled day states ──
+- TodayScreen: allGoals = useLive(() => repos.goals.getAll(), []).
+- pastGoal derived: when !goal, find most recently ended/completed goal by targetDate.
+- DayState type gains 'succeed-past' | 'fail-past'.
+- Day state computation: days within pastGoal.startDate…targetDate use pastGoal's
+  requiredDailyDeficit + isGainGoal. Result is 'succeed-past' or 'fail-past'.
+  Days outside any goal range → 'no-info' (unchanged).
+- WeekStrip: succeed-past → <span className="opacity-40"><Icon name="daySucceed"/></span>;
+  fail-past → <span className="opacity-40"><Icon name="dayFail"/></span>.
+- DayPanel: hasPastGoal prop threaded from TodayScreen.
+- "No goal set" badge → "Past goal" when hasPastGoal; aria-label updated.
+  Both cases navigate to /goal.
+
+── Build Muscle surplus range ±100 kcal ──
+- GoalSetupScreen label: was "≈ +300 kcal/day surplus" → "+200 to +400 kcal/day"
+  (effectiveMagnitude−100 to effectiveMagnitude+100).
+- DayPanel "On target" badge: symmetric window left >= -100 && left <= 100
+  (was left <= 0 && left >= -100). "Eat more" when left > 100 (was left > 0).
+  Past-day badge: "Ate short" instead of "Eat more".
+- Week strip success for gain goals: deficit >= dailyTarget−100 && deficit <= dailyTarget+100.
+  Same ±100 applied to past goal day states for gain goals.
+- SR live region text updated to match symmetric window.
+
+── Merged food + activity log ──
+- Single chronological Card replaces separate food Card + activities Card.
+- IIFE inside DayPanel builds LogItem[] array (discriminated union: kind:'food' | 'activity')
+  from day.foods + day.activities, sorted by createdAt descending.
+- Food rows: icon=foodIcon/scanFood, label, quantity, −X kcal.
+- Activity rows: icon=activityIcon, name ?? 'Activity', +X kcal.
+- Dividers: border-b on all but last item (isLast check, not index comparison).
+- Empty state: single "Add food by tapping on the + button" when logItems.length===0.
+
+── Past-day gauge: disabled appearance + no animation ──
+- DayPanel: isPastDay = date < todayISO().
+- GaugeArc bidirectional: disabled prop now sets opacity 0.45 on SVG (parity with
+  unidirectional mode). bidiValue = disabled ? 0 : value (arc frozen at 0).
+- Animation effect: (prefersReducedMotion() || isPastDay) → jump straight to gaugeValue,
+  no 0→value animation, no haptic pulses.
+- Center subtext: lose + isPastDay → "kcal under" / "kcal over";
+  gain + isPastDay → "on target" / "kcal short" / "kcal over".
+- Badge: gain + isPastDay → "Ate short" (was "Eat more").
+
+── Weight sheet small ──
+- AddEntrySheet: forceExpanded now tab==='food' ? foodScanState!=='source-picking' :
+  tab==='activity'. Weight tab no longer forces expanded state.
+- WeightLogSheet: forceExpanded prop removed entirely.
+
+tsc: clean. lint: clean.
+
+
+
 NOTE: Rounds 16–43 are summarised below rather than fully expanded.
 The detailed per-item notes for those rounds existed in the original
 PROJECT-CONTEXT.txt and were not extracted before the file was split.

@@ -586,7 +586,8 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const hasTarget  = dailyTarget !== 0 && totalBurn > 0; // !== 0 covers gain (negative)
   const budget     = Math.max(0, totalBurn - dailyTarget);
   const left       = Math.round(budget - consumed);
-  const gaugeValue = Math.max(-1, Math.min(1, left / GAUGE_RANGE));
+  const gaugeRange = budget > 0 ? budget : GAUGE_RANGE;
+  const gaugeValue = Math.max(-1, Math.min(1, left / gaugeRange));
   // Day-specific weight entry (shown in the Weight stat tile)
   const dayWeightKg = weights.find((w) => w.date === date)?.weightKg ?? null;
 

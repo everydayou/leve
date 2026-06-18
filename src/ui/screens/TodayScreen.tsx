@@ -13,14 +13,15 @@ import { onDecimalChange } from '../../lib/num';
 import { kgToLbs } from '../../domain/units';
 import { prefersReducedMotion } from '../../lib/motion';
 import {
-  Card, QuickLogCard, Badge, Button, LabeledInput, NumberField,
+  Card, QuickLogCard, Badge, Button, LabeledInput, NumberField, WheelPicker,
   Icon, GaugeArc, Sheet, Skeleton, ProgressBar, ServingStepper,
+  useSheetSetFooter,
 } from '../kit';
 import { WeightLogSheet } from '../components/WeightLogSheet';
 import type { ShowToast } from '../components/Toaster';
 import type { NutritionSnapshot } from '../../domain/types';
 import { Thumb } from '../components/PhotoPicker';
-import type { FoodEntry, FoodItem, WeightEntry } from '../../domain/types';
+import type { FoodEntry, FoodItem, WeightEntry, ActivityEntry } from '../../domain/types';
 import { ScanResults } from '../components/AddEntrySheet';
 import type { ResultItem } from '../components/AddEntrySheet';
 
@@ -549,6 +550,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const ctx = useOutletContext<DayContext>();
   const [editFood,          setEditFood]          = useState<FoodEntry | null>(null);
   const [editMeal,          setEditMeal]          = useState<FoodEntry | null>(null);
+  const [editActivity,      setEditActivity]      = useState<ActivityEntry | null>(null);
   const [showWeightSheet,   setShowWeightSheet]   = useState(false);
   const [showBreakdown,     setShowBreakdown]     = useState(false);
   const [reminderDismissed, setReminderDismissed] = useState(
@@ -915,10 +917,36 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
             )}
           </ul>
         </Card>
+
+        {day.activities.length > 0 && (
+          <Card tone="base" padded={false} className="mt-2 overflow-hidden py-2 !shadow-none">
+            <ul>
+              {[...day.activities].reverse().map((act, index) => (
+                <li key={act.id}>
+                  <button
+                    onClick={() => { hapticLight(); setEditActivity(act); }}
+                    className={`flex w-full items-center justify-between px-4 py-2.5 text-left active:bg-surface-sunken${index < day.activities.length - 1 ? ' border-b border-border-subtle' : ''}`}
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Icon name="activityIcon" size={16} className="shrink-0 text-content-secondary" />
+                      <span className="truncate text-subhead text-content">
+                        {act.name ?? 'Activity'}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-subhead font-bold text-content">
+                      +{act.activeCalories} kcal
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
       </section>
 
       {editFood && <EditFoodSheet entry={editFood} items={items} onClose={() => setEditFood(null)} showToast={ctx.showToast} />}
       {editMeal && <MealEditSheet entry={editMeal} pantryItems={items} onClose={() => setEditMeal(null)} showToast={ctx.showToast} />}
+      {editActivity && <EditActivitySheet entry={editActivity} onClose={() => setEditActivity(null)} showToast={ctx.showToast} />}
       {showWeightSheet && <WeightLogSheet date={todayISO()} onClose={() => setShowWeightSheet(false)} />}
     </div>
   );
@@ -1295,6 +1323,71 @@ function MealEditSheet({ entry, pantryItems, onClose, showToast }: {
         logLabel="Save changes"
         extraSection={pickerSection}
       />
+    </Sheet>
+  );
+}
+
+
+// ── Edit activity sheet ───────────────────────────────────────────────────────
+
+function EditActivitySheet({ entry, onClose, showToast }: {
+  entry: ActivityEntry;
+  onClose: () => void;
+  showToast?: ShowToast;
+}) {
+  const [name, setName] = useState(entry.name ?? '');
+  const [kcal, setKcal] = useState(String(entry.activeCalories));
+
+  async function save() {
+    const v = Number(kcal);
+    if (!v) return;
+    await repos.activities.update({
+      ...entry,
+      name: name.trim() || undefined,
+      activeCalories: v,
+    });
+    onClose();
+  }
+
+  async function del() {
+    await repos.activities.remove(entry.id);
+    showToast?.('Activity deleted', async () => repos.activities.add(entry));
+    onClose();
+  }
+
+  const saveRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  saveRef.current = save; // eslint-disable-line react-hooks/refs -- keep ref current; onClick reads it at call time, not during render
+  useSheetSetFooter(
+    <Button size="lg" onClick={() => void saveRef.current()} disabled={!Number(kcal)}>Save</Button>,
+    [!Number(kcal)],
+  );
+
+  const trashBtn = (
+    <button onClick={() => void del()} className="-m-1 p-1 text-accent-hover active:text-danger transition-colors">
+      <Icon name="trash" size={20} strokeWidth={2} />
+    </button>
+  );
+
+  return (
+    <Sheet title={entry.name ?? 'Activity'} onClose={onClose} forceExpanded rightAction={trashBtn}>
+      <div className="space-y-3">
+        <LabeledInput
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Morning run"
+        />
+        <WheelPicker
+          label="Calories"
+          value={kcal}
+          onChange={setKcal}
+          min={0}
+          max={3000}
+          step={5}
+          unit="kcal"
+          centerAt={300}
+        />
+      </div>
     </Sheet>
   );
 }

@@ -9,11 +9,17 @@ import { Icon } from './Icon';
  *
  *  `value`/`onChange` use string to match the NumberField / LabeledInput API.
  *  If `value` is empty or out of range the component snaps to min and fires
- *  onChange on mount so parent state stays consistent. */
+ *  onChange on mount so parent state stays consistent.
+ *
+ *  `centerAt` — when provided and `value` is '', positions the wheel at this
+ *  value without committing it (parent state stays ''). Useful for fields that
+ *  start empty but should open near a sensible default position. The parent's
+ *  save-disabled check (!Number(value)) keeps the form blocked until the user
+ *  actually moves the wheel and onChange fires. */
 
 export function WheelPicker({
   label, value, onChange, min, max, step = 1,
-  unit, invalid = false, wrapClassName = '', selectClassName = '',
+  unit, invalid = false, wrapClassName = '', selectClassName = '', centerAt,
 }: {
   label?: string;
   value: string;
@@ -25,6 +31,8 @@ export function WheelPicker({
   invalid?: boolean;
   wrapClassName?: string;
   selectClassName?: string;
+  /** When value is '', position the wheel here without pre-filling parent state. */
+  centerAt?: number;
 }) {
   const isDecimal = step < 1;
 
@@ -39,13 +47,19 @@ export function WheelPicker({
 
   /* ── Single wheel ── */
   if (!isDecimal) {
-    const options = buildRange(min, max, step);
-    const num     = parseFloat(value);
-    const clamped = isNaN(num) ? min : clamp(snap(num, step, min), min, max);
+    const options  = buildRange(min, max, step);
+    const isEmpty  = value === '';
+    const num      = parseFloat(value);
+    const clamped  = isNaN(num) ? min : clamp(snap(num, step, min), min, max);
+    // Position: if empty + centerAt given, show centerAt; otherwise show clamped.
+    const displayVal = (isEmpty && centerAt !== undefined)
+      ? clamp(snap(centerAt, step, min), min, max)
+      : clamped;
 
-    // Sync parent state on mount if value is empty / out of range.
+    // Sync parent state on mount — skip when intentionally empty with centerAt.
     // eslint-disable-next-line react-hooks/rules-of-hooks -- conditional on stable `isDecimal`
     useEffect(() => {
+      if (isEmpty && centerAt !== undefined) return; // unset but centered — don't pre-fill
       if (String(clamped) !== value) onChange(String(clamped));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount
     }, []);
@@ -57,7 +71,7 @@ export function WheelPicker({
         )}
         <div className="relative mt-1">
           <select
-            value={clamped}
+            value={displayVal}
             onChange={e => onChange(e.target.value)}
             className={baseCls}
           >
@@ -82,10 +96,13 @@ export function WheelPicker({
   const stepTenths = Math.round(step * Math.pow(10, decPlaces)); // e.g. 0.1→1, 0.5→5
   const decOptions = buildRange(0, 9, stepTenths);
 
-  const num     = parseFloat(value);
-  const safeNum = isNaN(num) ? min : clamp(num, min, max);
-  const whole   = Math.floor(safeNum);
-  const dec     = Math.round((safeNum - whole) * Math.pow(10, decPlaces));
+  const isEmpty  = value === '';
+  const num      = parseFloat(value);
+  // Position: if empty + centerAt given, use centerAt; otherwise use safeNum.
+  const centerPos = (isEmpty && centerAt !== undefined) ? clamp(centerAt, min, max) : null;
+  const safeNum   = centerPos ?? (isNaN(num) ? min : clamp(num, min, max));
+  const whole     = Math.floor(safeNum);
+  const dec       = Math.round((safeNum - whole) * Math.pow(10, decPlaces));
 
   const wholeMin = Math.floor(min);
   const wholeMax = Math.floor(max);
@@ -99,9 +116,10 @@ export function WheelPicker({
     onChange(result.toFixed(decPlaces));
   }
 
-  // Sync on mount if value is empty/out-of-range.
+  // Sync on mount — skip when intentionally empty with centerAt.
   // eslint-disable-next-line react-hooks/rules-of-hooks -- conditional on stable `isDecimal`
   useEffect(() => {
+    if (isEmpty && centerAt !== undefined) return; // unset but centered — don't pre-fill
     const expected = safeNum.toFixed(decPlaces);
     if (expected !== value) onChange(expected);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount

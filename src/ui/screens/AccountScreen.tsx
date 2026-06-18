@@ -160,8 +160,8 @@ function ProfileSheet({ user, onClose }: { user: User; onClose: () => void }) {
   return (
     <Sheet title="Edit profile" onClose={onClose} forceExpanded footer={<Button size="lg" onClick={save}>Save profile</Button>}>
       <div className="space-y-3 pb-2">
-        <WheelPicker label="Height (cm)" value={height} onChange={setHeight} min={100} max={250} step={1} unit="cm" />
-        <WheelPicker label="Age" value={age} onChange={setAge} min={10} max={100} step={1} />
+        <WheelPicker label="Height (cm)" value={height} onChange={setHeight} min={100} max={250} step={1} unit="cm" centerAt={170} />
+        <WheelPicker label="Age" value={age} onChange={setAge} min={10} max={100} step={1} centerAt={30} />
         <div>
           <span className="text-micro uppercase text-content-secondary">Sex</span>
           <div className="mt-1">

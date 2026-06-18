@@ -670,12 +670,12 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
                 {expandedIdx === idx && (
                   <div className="border-t border-border-subtle pt-3">
                     <div className="grid grid-cols-2 gap-2">
-                      <NumberField label="Calories" value={String(item.calories)} set={(v) => update(idx, { calories: +v || 0 })} />
-                      <NumberField label="Protein (g)" value={String(item.protein)} set={(v) => update(idx, { protein: +v || 0 })} />
-                      <NumberField label="Carbs (g)" value={String(item.carbs)} set={(v) => update(idx, { carbs: +v || 0 })} />
-                      <NumberField label="Fiber (g)" value={String(item.fiber)} set={(v) => update(idx, { fiber: +v || 0 })} />
-                      <NumberField label="Fat (g)" value={String(item.fat)} set={(v) => update(idx, { fat: +v || 0 })} />
-                      <NumberField label="Est. weight (g)" value={String(item.estimatedGrams)} set={(v) => updateGrams(idx, +v || 0)} max={2000} step={5} />
+                      <NumberField label="Calories" value={String(item.calories)} set={(v) => update(idx, { calories: +v || 0 })} centerAt={350} />
+                      <NumberField label="Protein (g)" value={String(item.protein)} set={(v) => update(idx, { protein: +v || 0 })} centerAt={25} />
+                      <NumberField label="Carbs (g)" value={String(item.carbs)} set={(v) => update(idx, { carbs: +v || 0 })} centerAt={30} />
+                      <NumberField label="Fiber (g)" value={String(item.fiber)} set={(v) => update(idx, { fiber: +v || 0 })} centerAt={5} />
+                      <NumberField label="Fat (g)" value={String(item.fat)} set={(v) => update(idx, { fat: +v || 0 })} centerAt={12} />
+                      <NumberField label="Est. weight (g)" value={String(item.estimatedGrams)} set={(v) => updateGrams(idx, +v || 0)} max={2000} step={5} centerAt={150} />
                     </div>
                   </div>
                 )}
@@ -942,11 +942,11 @@ function NewFood({ date, items, onDone, showToast }: {
       </label>
       <MeasurementTypeSelector value={mt} onChange={setMt} />
       <div className="grid grid-cols-2 gap-2">
-        <NumberField label="Calories" value={cal} set={setCal} max={5000} step={1} />
-        <NumberField label="Protein (g)" value={pro} set={setPro} max={500} step={1} />
-        <NumberField label="Carbs (g)" value={carb} set={setCarb} max={800} step={1} />
-        <NumberField label="Fiber (g)" value={fib} set={setFib} max={200} step={1} />
-        <NumberField label="Fat (g)" value={fat} set={setFat} max={400} step={1} />
+        <NumberField label="Calories" value={cal} set={setCal} max={5000} step={1} centerAt={350} />
+        <NumberField label="Protein (g)" value={pro} set={setPro} max={500} step={1} centerAt={25} />
+        <NumberField label="Carbs (g)" value={carb} set={setCarb} max={800} step={1} centerAt={30} />
+        <NumberField label="Fiber (g)" value={fib} set={setFib} max={200} step={1} centerAt={5} />
+        <NumberField label="Fat (g)" value={fat} set={setFat} max={400} step={1} centerAt={12} />
         <NumberField label={mt === 'per_100g' ? 'Quantity (g)' : 'Servings'} value={qty} set={setQty} />
       </div>
 
@@ -974,55 +974,79 @@ const ACTIVITY_MODE_KEY = 'ngt-activity-mode';
 function ActivityForm({ date, onDone, showToast }: {
   date: string; onDone: () => void; showToast?: ShowToast;
 }) {
-  const activities = useLive(() => repos.activities.byDate(date), [date]) ?? [];
-  const existing = activities[0];
-
   const [mode, setMode] = useState<ActivityMode>(
     () => (localStorage.getItem(ACTIVITY_MODE_KEY) === 'estimate' ? 'estimate' : 'manual')
   );
-  const [kcal, setKcal] = useState('');
+  const [name, setName]       = useState('');
+  const [kcal, setKcal]       = useState('');
   const [intensity, setIntensity] = useState<string | null>(null);
   const [duration,  setDuration]  = useState<string | null>(null);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- populate field when async activity data resolves
-    if (existing != null) setKcal(String(existing.activeCalories));
-  }, [existing?.activeCalories]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function changeMode(m: ActivityMode) {
     setMode(m);
     localStorage.setItem(ACTIVITY_MODE_KEY, m);
+    // Reset fields when switching modes
+    setKcal('');
+    setIntensity(null);
+    setDuration(null);
   }
 
-  // Recalculate whenever either picker changes
+  // Recalculate kcal and auto-name whenever intensity/duration changes
   function handleIntensity(val: string | null) {
     setIntensity(val);
     const i = INTENSITY_OPTIONS.find((o) => o.value === val);
     const d = DURATION_OPTIONS.find((o) => o.value === duration);
-    if (i && d) setKcal(String(Math.round(i.kcalPerMin * d.minutes)));
+    if (i && d) {
+      setKcal(String(Math.round(i.kcalPerMin * d.minutes)));
+    } else {
+      setKcal('');
+    }
   }
   function handleDuration(val: string | null) {
     setDuration(val);
     const i = INTENSITY_OPTIONS.find((o) => o.value === intensity);
     const d = DURATION_OPTIONS.find((o) => o.value === val);
-    if (i && d) setKcal(String(Math.round(i.kcalPerMin * d.minutes)));
+    if (i && d) {
+      setKcal(String(Math.round(i.kcalPerMin * d.minutes)));
+    } else {
+      setKcal('');
+    }
   }
 
+  // Derive auto-name for estimate mode
+  function estimateName(): string {
+    const i = INTENSITY_OPTIONS.find((o) => o.value === intensity);
+    const d = DURATION_OPTIONS.find((o) => o.value === duration);
+    if (i && d) return `${i.label} · ${d.label}`;
+    return '';
+  }
+
+  const canSave = mode === 'manual' ? !!Number(kcal) : !!(intensity && duration && Number(kcal));
+
   async function save() {
+    if (!canSave) return;
     const v = Number(kcal);
-    if (!v) return;
-    if (existing) await repos.activities.remove(existing.id);
-    await repos.activities.add({ id: newId(), date, activeCalories: v, createdAt: new Date().toISOString() });
-    showToast?.('Activity saved');
+    const entryName = mode === 'manual'
+      ? (name.trim() || undefined)
+      : (estimateName() || undefined);
+    const entryId = newId();
+    await repos.activities.add({
+      id: entryId,
+      date,
+      name: entryName,
+      activeCalories: v,
+      createdAt: new Date().toISOString(),
+    });
+    showToast?.('Activity logged', async () => repos.activities.remove(entryId));
     onDone();
   }
 
-  // Register "Save activity" in Sheet's pinned footer slot.
+  // Register "Log activity" in Sheet's pinned footer slot.
   const saveRef = useRef<() => Promise<void>>(() => Promise.resolve());
   saveRef.current = save; // eslint-disable-line react-hooks/refs -- keep ref current; onClick reads it at call time, not during render
   useSheetSetFooter(
-    <Button size="lg" onClick={() => void saveRef.current()} disabled={!Number(kcal)}>Save activity</Button>,
-    [!Number(kcal)],
+    <Button size="lg" onClick={() => void saveRef.current()} disabled={!canSave}>Log activity</Button>,
+    [canSave],
   );
 
   return (
@@ -1040,16 +1064,25 @@ function ActivityForm({ date, onDone, showToast }: {
       </div>
 
       {mode === 'manual' ? (
-        /* ── Manual: free-text field ──────────────────────────────────── */
-        <LabeledInput
-          label="Active calories"
-          value={kcal}
-          onChange={(e) => setKcal(e.target.value)}
-          inputMode="numeric"
-          placeholder="e.g. 300"
-          autoFocus
-          onFocus={(e) => e.target.select()}
-        />
+        /* ── Manual: name + calories drum-roll ────────────────────────── */
+        <div className="space-y-3">
+          <LabeledInput
+            label="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Morning run"
+          />
+          <WheelPicker
+            label="Calories"
+            value={kcal}
+            onChange={setKcal}
+            min={0}
+            max={3000}
+            step={5}
+            unit="kcal"
+            centerAt={300}
+          />
+        </div>
       ) : (
         /* ── Estimate: two native pickers → auto-fills kcal ───────────── */
         <div className="space-y-3">
@@ -1100,12 +1133,6 @@ function ActivityForm({ date, onDone, showToast }: {
             </p>
           ) : null}
         </div>
-      )}
-
-      {existing && (
-        <p className="text-caption text-content-secondary">
-          Previously {existing.activeCalories} kcal — saving will update it.
-        </p>
       )}
     </div>
   );

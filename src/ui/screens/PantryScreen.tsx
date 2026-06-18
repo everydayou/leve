@@ -30,7 +30,7 @@ export function PantryScreen() {
     <div className="pb-6">
       <header className="flex items-start justify-between px-6 pt-4">
         <h1 className="text-title font-semibold">Pantry</h1>
-        <Button variant="ghost" size="sm" fullWidth={false} className="!font-normal !text-accent-hover" onClick={() => setAdding(true)}>+ Add food</Button>
+        <Button variant="ghost" size="sm" fullWidth={false} className="!font-normal !text-accent-hover -mr-3.5" onClick={() => setAdding(true)}>+ Add food</Button>
       </header>
 
       <div className="px-6">

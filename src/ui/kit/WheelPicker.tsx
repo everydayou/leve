@@ -138,7 +138,7 @@ export function WheelPicker({
     onChange(result.toFixed(decPlaces));
   }
 
-  // Sync on mount if value is empty/out-of-range (split wheel is always pre-filled).
+  // Sync on mount if value is out-of-range. Skip when intentionally empty.
   // eslint-disable-next-line react-hooks/rules-of-hooks -- conditional on stable `isDecimal`
   useEffect(() => {
     if (isEmpty) return;
@@ -154,6 +154,41 @@ export function WheelPicker({
     invalid ? 'border-danger' : 'border-border-field focus:border-accent',
     selectClassName,
   ].join(' ');
+
+  // ── Empty state: single unified select with "—" placeholder ──────────────
+  // When value is '' and centerAt is provided, show a single select (all decimal
+  // values in one list) with a "—" option centred at centerAt. iOS opens the drum
+  // roll there. First pick fires onChange → switches to normal split mode.
+  if (isEmpty && centerAt !== undefined) {
+    const allOptions = buildRange(min, max, step);
+    const center     = clamp(snap(centerAt, step, min), min, max);
+    const insertIdx  = allOptions.findIndex(v => v >= center);
+    const idx        = insertIdx === -1 ? allOptions.length : insertIdx;
+    const unified: Array<{ v: number | null; label: string }> = [
+      ...allOptions.slice(0, idx).map(v => ({ v, label: unit ? `${v.toFixed(decPlaces)} ${unit}` : v.toFixed(decPlaces) })),
+      { v: null, label: '—' },
+      ...allOptions.slice(idx).map(v => ({ v, label: unit ? `${v.toFixed(decPlaces)} ${unit}` : v.toFixed(decPlaces) })),
+    ];
+    return (
+      <label className={`block ${wrapClassName}`}>
+        {label && <span className="text-subhead font-normal text-content-secondary">{label}</span>}
+        <div className="relative mt-1">
+          <select
+            value=""
+            onChange={e => { if (e.target.value !== '') onChange(e.target.value); }}
+            className={baseCls}
+          >
+            {unified.map((opt) =>
+              opt.v === null
+                ? <option key="__placeholder" value="">—</option>
+                : <option key={opt.v} value={opt.v.toFixed(decPlaces)}>{opt.label}</option>
+            )}
+          </select>
+          <Icon name="chevronDown" size={16} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted" />
+        </div>
+      </label>
+    );
+  }
 
   return (
     <label className={`block ${wrapClassName}`}>

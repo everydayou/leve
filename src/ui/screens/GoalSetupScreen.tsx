@@ -407,6 +407,7 @@ export function GoalSetupForm({
                             onChange={(v) => { setTarget(v); setFieldErrors((p) => ({ ...p, target: undefined })); }}
                             min={wMin} max={wMax} step={0.1} unit={units}
                             invalid={!!fieldErrors.target}
+                            centerAt={+start || (units === 'lbs' ? 154 : 70)}
                             selectClassName="!bg-surface-sunken !border-transparent focus:!border-transparent"
                           />
                           {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}

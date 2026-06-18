@@ -15,7 +15,6 @@ import { prefersReducedMotion } from '../../lib/motion';
 import {
   Card, QuickLogCard, Badge, Button, LabeledInput, NumberField, WheelPicker,
   Icon, GaugeArc, Sheet, Skeleton, ProgressBar, ServingStepper,
-  useSheetSetFooter,
 } from '../kit';
 import { WeightLogSheet } from '../components/WeightLogSheet';
 import type { ShowToast } from '../components/Toaster';
@@ -1383,13 +1382,6 @@ function EditActivitySheet({ entry, onClose, showToast }: {
     onClose();
   }
 
-  const saveRef = useRef<() => Promise<void>>(() => Promise.resolve());
-  saveRef.current = save; // eslint-disable-line react-hooks/refs -- keep ref current; onClick reads it at call time, not during render
-  useSheetSetFooter(
-    <Button size="lg" onClick={() => void saveRef.current()} disabled={!Number(kcal)}>Save</Button>,
-    [!Number(kcal)],
-  );
-
   const trashBtn = (
     <button onClick={() => void del()} className="-m-1 p-1 text-accent-hover active:text-danger transition-colors">
       <Icon name="trash" size={20} strokeWidth={2} />
@@ -1397,7 +1389,13 @@ function EditActivitySheet({ entry, onClose, showToast }: {
   );
 
   return (
-    <Sheet title={entry.name ?? 'Activity'} onClose={onClose} forceExpanded rightAction={trashBtn}>
+    <Sheet
+      title={entry.name ?? 'Activity'}
+      onClose={onClose}
+      forceExpanded
+      rightAction={trashBtn}
+      footer={<Button size="lg" onClick={() => void save()} disabled={!Number(kcal)}>Save</Button>}
+    >
       <div className="space-y-3">
         <LabeledInput
           label="Name"

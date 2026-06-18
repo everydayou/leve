@@ -61,6 +61,11 @@ export interface Goal {
   diaryShowFat?: boolean;
   /** Set to true when the user has dismissed the GoalOutcomeView for this goal. */
   outcomeViewed?: boolean;
+  // ── Surplus range (gain_by_date goals only, r66) ──────────────────────────
+  /** Min daily surplus (kcal) for the gauge arc to turn green. */
+  surplusFloor?: number;
+  /** Max daily surplus (kcal) before the gauge arc turns dark again. */
+  surplusCeiling?: number;
 }
 
 export interface FoodItem {

@@ -20,7 +20,7 @@ import { WeightLogSheet } from '../components/WeightLogSheet';
 import type { ShowToast } from '../components/Toaster';
 import type { NutritionSnapshot } from '../../domain/types';
 import { Thumb } from '../components/PhotoPicker';
-import type { FoodEntry, FoodItem, WeightEntry, ActivityEntry } from '../../domain/types';
+import type { FoodEntry, FoodItem, WeightEntry, ActivityEntry, Goal } from '../../domain/types';
 import { ScanResults } from '../components/AddEntrySheet';
 import type { ResultItem } from '../components/AddEntrySheet';
 
@@ -86,13 +86,27 @@ export function TodayScreen() {
 
         if (goal) {
           // Active goal: normal succeed/fail.
-          // Gain goals succeed within ±100 kcal of target (surplus range); lose goals need exact deficit.
-        dayStates[d] = (gainGoal ? (deficit >= dailyTarget - 100 && deficit <= dailyTarget + 100) : deficit >= dailyTarget) ? 'succeed' : 'fail';
+          if (gainGoal) {
+            // Gain: succeed only when consumed is within the surplus floor–ceiling band.
+            const totalBurnD = bmr + actCals + digestion;
+            const floorEff   = goal.surplusFloor  != null ? goal.surplusFloor  : Math.max(50, Math.abs(dailyTarget) - 100);
+            const ceilEff    = goal.surplusCeiling != null ? goal.surplusCeiling : Math.abs(dailyTarget) + 100;
+            dayStates[d] = consumed >= totalBurnD + floorEff && consumed <= totalBurnD + ceilEff ? 'succeed' : 'fail';
+          } else {
+            dayStates[d] = deficit >= dailyTarget ? 'succeed' : 'fail';
+          }
         } else if (pastGoal && d >= pastGoal.startDate && d <= pastGoal.targetDate) {
           // Past goal: succeed/fail but visually desaturated ("past" variant).
           const pTarget  = requiredDailyDeficit(pastGoal);
           const pGain    = isGainGoal(pastGoal);
-          dayStates[d]   = (pGain ? (deficit >= pTarget - 100 && deficit <= pTarget + 100) : deficit >= pTarget) ? 'succeed-past' : 'fail-past';
+          if (pGain) {
+            const totalBurnD = bmr + actCals + digestion;
+            const floorEff   = (pastGoal as Goal).surplusFloor  != null ? (pastGoal as Goal).surplusFloor! : Math.max(50, Math.abs(pTarget) - 100);
+            const ceilEff    = (pastGoal as Goal).surplusCeiling != null ? (pastGoal as Goal).surplusCeiling! : Math.abs(pTarget) + 100;
+            dayStates[d] = consumed >= totalBurnD + floorEff && consumed <= totalBurnD + ceilEff ? 'succeed-past' : 'fail-past';
+          } else {
+            dayStates[d] = deficit >= pTarget ? 'succeed-past' : 'fail-past';
+          }
         } else {
           dayStates[d] = 'no-info';
         }
@@ -246,6 +260,7 @@ export function TodayScreen() {
                   proteinGoalG={user?.proteinGoalG ?? 0}
                   isActive={d === date}
                   gainGoal={gainGoal}
+                  goal={goal}
                   macroStyle={goal?.macroStyle}
                   fatTargetG={goal?.fatTargetG}
                   carbLimitG={goal?.carbLimitG}
@@ -554,6 +569,8 @@ interface DayPanelProps {
   proteinGoalG: number;
   isActive: boolean;
   gainGoal?: boolean;
+  /** Full goal object — used for surplusFloor/surplusCeiling range logic. */
+  goal?: Goal | null;
   /** For gain goals in detailed tracking — drives macro bar display. */
   macroStyle?: string;
   fatTargetG?: number;
@@ -566,7 +583,7 @@ interface DayPanelProps {
   units?: 'kg' | 'lbs';
 }
 
-function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoalG, isActive, gainGoal = false, macroStyle, fatTargetG, carbLimitG, diaryShowProtein, diaryShowCarbs, diaryShowFat, weightCadence = 'daily', weeklyWeightDay = 0, units = 'kg', hasPastGoal = false }: DayPanelProps) {
+function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoalG, isActive, gainGoal = false, goal = null, macroStyle, fatTargetG, carbLimitG, diaryShowProtein, diaryShowCarbs, diaryShowFat, weightCadence = 'daily', weeklyWeightDay = 0, units = 'kg', hasPastGoal = false }: DayPanelProps) {
   const nav = useNavigate();
   const ctx = useOutletContext<DayContext>();
   const [editFood,          setEditFood]          = useState<FoodEntry | null>(null);
@@ -612,6 +629,31 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const gaugeRange = budget > 0 ? budget : GAUGE_RANGE;
   const gaugeValue = Math.max(-1, Math.min(1, left / gaugeRange));
   const isPastDay  = date < todayISO();
+
+  // ── Gain goal zone computation ─────────────────────────────────────────────
+  // Floor/ceiling surplus range. Falls back to |dailyTarget| ± 100 for old goals.
+  const gainFloorEff    = gainGoal ? (goal?.surplusFloor  != null ? goal.surplusFloor  : Math.max(50, Math.abs(dailyTarget) - 100)) : 0;
+  const gainCeilEff     = gainGoal ? (goal?.surplusCeiling != null ? goal.surplusCeiling : Math.abs(dailyTarget) + 100) : 0;
+  const gainFloorBudget = totalBurn + gainFloorEff;
+  const gainCeilBudget  = totalBurn + gainCeilEff;
+  type GainZone = 'below' | 'in' | 'above';
+  const gainZone: GainZone = gainGoal
+    ? (consumed < gainFloorBudget ? 'below' : consumed <= gainCeilBudget ? 'in' : 'above')
+    : 'below'; // unused for lose
+  // Zone-specific display number and label for the gauge center.
+  const gainDisplayNum = gainZone === 'below'
+    ? Math.round(gainFloorBudget - consumed)   // kcal until floor
+    : gainZone === 'in'
+      ? Math.round(gainCeilBudget - consumed)  // kcal room left in range
+      : Math.round(consumed - gainCeilBudget); // kcal over ceiling
+  const gainLabel = gainZone === 'below' ? 'kcal to go' : gainZone === 'in' ? 'kcal available' : 'kcal over';
+  // Arc color: both arcs mint when in range, both dark otherwise.
+  const gainArcColor = gainZone === 'in' ? 'var(--color-accent)' : 'var(--color-content)';
+  // effectiveGaugeValue: for gain, drive the arc by distance from midpoint.
+  const gainMidBudget   = totalBurn + (gainFloorEff + gainCeilEff) / 2;
+  const gainGaugeValue  = gainMidBudget > 0 ? Math.max(-1, Math.min(1, (gainMidBudget - consumed) / gainMidBudget)) : gaugeValue;
+  const effectiveGaugeValue = gainGoal ? gainGaugeValue : gaugeValue;
+
   // Day-specific weight entry (shown in the Weight stat tile)
   const dayWeightKg = weights.find((w) => w.date === date)?.weightKg ?? null;
 
@@ -629,12 +671,12 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
     s.activated = true;
     // Skip animation for past days and when Reduce Motion is enabled — jump straight to value.
     if (prefersReducedMotion() || isPastDay) {
-      setGaugeDisplay(gaugeValue);
+      setGaugeDisplay(effectiveGaugeValue);
       return;
     }
     s.inPhase = true;
     setGaugeDisplay(0);
-    const t = setTimeout(() => { s.inPhase = false; setGaugeDisplay(gaugeValue); }, 80);
+    const t = setTimeout(() => { s.inPhase = false; setGaugeDisplay(effectiveGaugeValue); }, 80);
     // Two haptic pulses: one at the start of the arc fill, one at the end.
     const h1 = setTimeout(() => hapticLight(), 130);  // ~50ms after arc activation
     const h2 = setTimeout(() => hapticLight(), 680);  // arc activation (80ms) + fill duration (600ms)
@@ -648,8 +690,8 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   // Live update: while active, reflect food/activity changes smoothly
   useEffect(() => {
     if (!isActive || !anim.current.activated || anim.current.inPhase) return;
-    setGaugeDisplay(gaugeValue);
-  }, [gaugeValue]); // eslint-disable-line react-hooks/exhaustive-deps
+    setGaugeDisplay(effectiveGaugeValue);
+  }, [effectiveGaugeValue]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!day) return (
     <div className="space-y-4 p-4" aria-busy>
@@ -699,11 +741,9 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                     aria-label="View calorie breakdown"
                   >
                     {gainGoal ? (
-                      // Gain: "Ate short" / "On target" (±100) / "Over"
-                      <Badge status={left >= -100 && left <= 100 ? 'success' : 'default'}>
-                        {left > 100
-                          ? (isPastDay ? 'Ate short' : 'Eat more')
-                          : left >= -100 ? 'On target' : 'Over'}
+                      // Gain: 3-state by zone
+                      <Badge status={gainZone === 'in' ? 'success' : 'default'}>
+                        {gainZone === 'below' ? (isPastDay ? 'Under target' : 'Under target') : gainZone === 'in' ? 'In range' : 'Over'}
                       </Badge>
                     ) : (
                       <Badge status={left >= 0 ? 'success' : 'default'}>
@@ -713,7 +753,13 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                   </button>
                 </div>
                 <div className="mt-3">
-                  <GaugeArc value={gaugeDisplay} bidirectional disabled={isPastDay}>
+                  <GaugeArc
+                    value={gaugeDisplay}
+                    bidirectional
+                    disabled={isPastDay}
+                    strokePositive={gainGoal ? gainArcColor : undefined}
+                    strokeNegative={gainGoal ? gainArcColor : undefined}
+                  >
                     <button
                       onClick={() => { hapticLight(); setShowBreakdown(true); }}
                       className="flex flex-col items-center rounded-xl px-6 py-2 active:bg-surface-sunken transition-colors"
@@ -723,17 +769,16 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                         className="flex items-center gap-1"
                         style={left < 0 && !gainGoal ? { transform: 'translateX(-4px)' } : undefined}
                       >
-                        {/* For gain goals the label already says "kcal above goal" — no minus prefix needed */}
                         {left < 0 && !gainGoal && (
                           <span className="text-title font-semibold leading-none text-content">−</span>
                         )}
-                        <span className="text-hero font-semibold leading-none tracking-tight text-content">{Math.abs(left)}</span>
+                        <span className="text-hero font-semibold leading-none tracking-tight text-content">
+                          {gainGoal ? gainDisplayNum : Math.abs(left)}
+                        </span>
                       </div>
                       <span className="mt-0.5 text-subhead text-content-secondary whitespace-nowrap">
                         {gainGoal
-                          ? isPastDay
-                            ? (left > 100 ? 'kcal short' : left >= -100 ? 'on target' : 'kcal over')
-                            : (left <= 0 ? 'kcal above goal' : 'kcal to go')
+                          ? gainLabel
                           : isPastDay
                             ? (left >= 0 ? 'kcal under' : 'kcal over')
                             : (left >= 0 ? 'kcal available' : 'kcal over')}
@@ -744,11 +789,11 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
               </div>
               <div className="grid grid-cols-3 pb-2" style={{ marginTop: 0 }}>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('food', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
-                  <span className={`text-callout font-semibold ${day.foods.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.foods.length === 0 ? '—' : `−${Math.round(consumed)}`}</span>
+                  <span className={`text-callout font-semibold ${day.foods.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.foods.length === 0 ? '—' : gainGoal ? `${Math.round(consumed)}` : `−${Math.round(consumed)}`}</span>
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary"><Icon name="foodIcon" size={12} />Food</span>
                 </button>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('activity', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
-                  <span className={`text-callout font-semibold ${day.activities.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.activities.length === 0 ? '—' : Math.round(actCals)}</span>
+                  <span className={`text-callout font-semibold ${day.activities.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.activities.length === 0 ? '—' : gainGoal ? `−${Math.round(actCals)}` : Math.round(actCals)}</span>
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary" style={{ transform: 'translateX(-2px)' }}><Icon name="activityIcon" size={12} />Activity</span>
                 </button>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('weight', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
@@ -805,11 +850,11 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
               </div>
               <div className="grid grid-cols-3 pb-2" style={{ marginTop: 0 }}>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('food', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
-                  <span className={`text-callout font-semibold ${day.foods.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.foods.length === 0 ? '—' : `−${Math.round(consumed)}`}</span>
+                  <span className={`text-callout font-semibold ${day.foods.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.foods.length === 0 ? '—' : gainGoal ? `${Math.round(consumed)}` : `−${Math.round(consumed)}`}</span>
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary"><Icon name="foodIcon" size={12} />Food</span>
                 </button>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('activity', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
-                  <span className={`text-callout font-semibold ${day.activities.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.activities.length === 0 ? '—' : Math.round(actCals)}</span>
+                  <span className={`text-callout font-semibold ${day.activities.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.activities.length === 0 ? '—' : gainGoal ? `−${Math.round(actCals)}` : Math.round(actCals)}</span>
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary" style={{ transform: 'translateX(-2px)' }}><Icon name="activityIcon" size={12} />Activity</span>
                 </button>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('weight', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
@@ -844,6 +889,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
           digestionCalories={day.summary.digestionCalories}
           dailyTarget={dailyTarget}
           gainGoal={gainGoal}
+          gainZone={gainZone}
           onClose={() => setShowBreakdown(false)}
         />
       )}
@@ -934,7 +980,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                             </span>
                           </span>
                           <span className="shrink-0 text-subhead font-bold text-content">
-                            −{effectiveNutrition(entry, day.itemsById).calories} kcal
+                            {gainGoal ? '' : '−'}{effectiveNutrition(entry, day.itemsById).calories} kcal
                           </span>
                         </button>
                       </li>
@@ -951,7 +997,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                             <Icon name="activityIcon" size={16} className="shrink-0 text-content-secondary" />
                             <span className="truncate text-subhead text-content">{act.name ?? 'Activity'}</span>
                           </span>
-                          <span className="shrink-0 text-subhead font-bold text-content">+{act.activeCalories} kcal</span>
+                          <span className="shrink-0 text-subhead font-bold text-content">{gainGoal ? '−' : '+'}{act.activeCalories} kcal</span>
                         </button>
                       </li>
                     );
@@ -982,11 +1028,11 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
 // ── Breakdown sheet ───────────────────────────────────────────────────────────
 
 function BreakdownSheet({
-  mode = 'goal', bmr, consumed, actCals, digestionCalories, dailyTarget, gainGoal = false, onClose,
+  mode = 'goal', bmr, consumed, actCals, digestionCalories, dailyTarget, gainGoal = false, gainZone = 'below', onClose,
 }: {
   mode?: 'goal' | 'no-goal';
   bmr: number; consumed: number; actCals: number; digestionCalories: number;
-  dailyTarget: number; gainGoal?: boolean; onClose: () => void;
+  dailyTarget: number; gainGoal?: boolean; gainZone?: 'below' | 'in' | 'above'; onClose: () => void;
 }) {
   const [showDigestionInfo, setShowDigestionInfo] = useState(false);
   const [infoEntered, setInfoEntered] = useState(false);
@@ -1061,7 +1107,7 @@ function BreakdownSheet({
   // ── Goal mode: full deficit breakdown ────────────────────────────────────
   const burnRows = [
     { label: 'BMR',      value: `${Math.round(bmr).toLocaleString()} kcal`, isDigestion: false },
-    { label: 'Activity', value: `+${Math.round(actCals).toLocaleString()} kcal`, isDigestion: false },
+    { label: 'Activity', value: gainGoal ? `−${Math.round(actCals).toLocaleString()} kcal` : `+${Math.round(actCals).toLocaleString()} kcal`, isDigestion: false },
     ...(digestionCalories > 0 ? [{
       label: 'Estimated digestion',
       value: `+${digestionCalories.toLocaleString()} kcal`,
@@ -1070,7 +1116,7 @@ function BreakdownSheet({
   ];
   const targetMagnitude = Math.round(Math.abs(dailyTarget));
   const spendRows = [
-    { label: 'Food', value: `−${Math.round(consumed).toLocaleString()} kcal` },
+    { label: 'Food', value: gainGoal ? `+${Math.round(consumed).toLocaleString()} kcal` : `−${Math.round(consumed).toLocaleString()} kcal` },
     {
       label: gainGoal ? 'Target surplus' : 'Goal',
       value: gainGoal
@@ -1119,9 +1165,9 @@ function BreakdownSheet({
           <div className="flex items-center justify-between bg-surface px-4 py-3">
             <span className="text-subhead font-semibold text-content">Total</span>
             {gainGoal ? (
-              // Gain: 3-state — "Under target" (not enough), "On target" (≤100 kcal above), "Over" (>100 kcal above)
-              <Badge status={isOver && left >= -100 ? 'success' : 'default'} size="lg">
-                {!isOver ? 'Under target' : left >= -100 ? 'On target' : 'Over'} · {Math.abs(left).toLocaleString()} kcal
+              // Gain: 3-state based on gainZone
+              <Badge status={gainZone === 'in' ? 'success' : 'default'} size="lg">
+                {gainZone === 'below' ? 'Under target' : gainZone === 'in' ? 'In range' : 'Over'} · {Math.abs(left).toLocaleString()} kcal
               </Badge>
             ) : (
               <Badge status={isOver ? 'default' : 'success'} size="lg">

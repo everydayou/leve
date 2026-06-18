@@ -956,7 +956,7 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
 // Bar exceeds ramp = over budget = bad (dark).
 // Bar stays below ramp = on track (mint).
 
-interface DayBar { date: string; consumed: number; budget: number; hasData: boolean }
+interface DayBar { date: string; consumed: number; budget: number; floorBudget: number; ceilBudget: number; hasData: boolean }
 
 export function WeekChart({ goal, weights, user, items, weekOffset, today, animTrigger = 0 }: {
   goal: Goal; weights: WeightEntry[]; user: User | null | undefined; items: FoodItem[];
@@ -967,6 +967,8 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
   const iMap         = itemsByIdMap(items);
   const dailyTarget  = requiredDailyDeficit(goal); // signed: negative for gain
   const gainChart    = isGainGoal(goal);
+  const gainFloorEff = gainChart ? (goal.surplusFloor  != null ? goal.surplusFloor  : Math.max(50, Math.abs(dailyTarget) - 100)) : 0;
+  const gainCeilEff  = gainChart ? (goal.surplusCeiling != null ? goal.surplusCeiling : Math.abs(dailyTarget) + 100) : 0;
 
   const rawData = useLive(async (): Promise<DayBar[]> => {
     return Promise.all(days.map(async (d) => {
@@ -981,8 +983,11 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
       // budget = what you should eat to hit the target:
       //   lose: totalBurn - deficit (eat LESS than burn)
       //   gain: totalBurn - (-surplus) = totalBurn + surplus (eat MORE than burn)
-      const budget = (totalBurn > 0 ? totalBurn : bmr) - dailyTarget;
-      return { date: d, consumed, budget, hasData };
+      const effectiveBurn = totalBurn > 0 ? totalBurn : bmr;
+      const budget      = effectiveBurn - dailyTarget;
+      const floorBudget = gainChart ? effectiveBurn + gainFloorEff : budget;
+      const ceilBudget  = gainChart ? effectiveBurn + gainCeilEff  : budget;
+      return { date: d, consumed, budget, floorBudget, ceilBudget, hasData };
     }));
   }, [weekOffset, weights, user]);
 
@@ -1055,7 +1060,7 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
   const dayData = displayData;
 
   // Build cumulative consumed + cumulative budget
-  const cumulData = dayData.reduce<(DayBar & { cumConsumed: number; cumBudget: number; isFuture: boolean; isBeforeGoal: boolean })[]>(
+  const cumulData = dayData.reduce<(DayBar & { cumConsumed: number; cumBudget: number; cumFloor: number; cumCeil: number; isFuture: boolean; isBeforeGoal: boolean })[]>(
     (acc, d) => {
       const prev = acc[acc.length - 1];
       const isFuture     = d.date > today;
@@ -1065,14 +1070,17 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
       // Budget: always project forward for goal days (fixes flat-line on new weeks)
       // but skip pre-goal days so the ramp starts at goal start
       const cumBudget = (prev?.cumBudget ?? 0) + (!isBeforeGoal ? d.budget : 0);
-      return [...acc, { ...d, cumConsumed, cumBudget, isFuture, isBeforeGoal }];
+      const cumFloor  = (prev?.cumFloor  ?? 0) + (!isBeforeGoal ? d.floorBudget : 0);
+      const cumCeil   = (prev?.cumCeil   ?? 0) + (!isBeforeGoal ? d.ceilBudget  : 0);
+      return [...acc, { ...d, cumConsumed, cumBudget, cumFloor, cumCeil, isFuture, isBeforeGoal }];
     },
     [],
   );
 
   const maxBudget   = Math.max(...cumulData.map((d) => d.cumBudget));
   const maxConsumed = Math.max(...cumulData.map((d) => d.cumConsumed));
-  const maxY = Math.max(maxBudget, maxConsumed) * 1.1 || 9000;
+  const maxCeil     = gainChart ? Math.max(...cumulData.map((d) => d.cumCeil)) : 0;
+  const maxY = Math.max(maxBudget, maxConsumed, maxCeil) * 1.1 || 9000;
 
   const toY     = (v: number) => padTop + chartH * (1 - Math.max(0, v) / maxY);
   const barSlot = chartW / 7;
@@ -1081,17 +1089,30 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
   const midX    = (i: number) => padLeft + (i + 0.5) * barSlot;
 
   // Budget ramp through all 7 days
+  // For gain: two dashed ramps (floor + ceiling band); for lose: single ramp
   const rampPoints = cumulData
     .map((d, i) => `${midX(i).toFixed(1)},${toY(d.cumBudget).toFixed(1)}`)
     .join(' ');
+  const floorRampPoints = gainChart
+    ? cumulData.map((d, i) => `${midX(i).toFixed(1)},${toY(d.cumFloor).toFixed(1)}`).join(' ')
+    : '';
+  const ceilRampPoints = gainChart
+    ? cumulData.map((d, i) => `${midX(i).toFixed(1)},${toY(d.cumCeil).toFixed(1)}`).join(' ')
+    : '';
 
   // Summary: last past day with data
   const lastWithData = cumulData.filter((d) => d.hasData && !d.isFuture && !d.isBeforeGoal).slice(-1)[0];
   const hasAnyData   = Boolean(lastWithData);
   const cumCons      = lastWithData?.cumConsumed ?? 0;
   const cumBudg      = lastWithData?.cumBudget   ?? 0;
+  const cumFloorLast = lastWithData?.cumFloor ?? 0;
+  const cumCeilLast  = lastWithData?.cumCeil  ?? 0;
   const isOver       = cumCons > cumBudg;
   const diff         = Math.abs(Math.round(cumCons - cumBudg));
+  // Gain: 3-state zone for week badge
+  const gainWeekZone = gainChart
+    ? (cumCons < cumFloorLast ? 'below' : cumCons <= cumCeilLast ? 'in' : 'above')
+    : 'below';
 
   const weekChartLabel = hasAnyData
     ? `Calorie ${gainChart ? 'surplus' : 'deficit'} chart, week of ${weekStart}. Cumulative consumed: ${Math.round(cumCons)} kcal, budget: ${Math.round(cumBudg)} kcal. ${isOver ? `Over budget by ${diff} kcal.` : `Under budget by ${diff} kcal.`}`
@@ -1128,15 +1149,24 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
         ));
       })()}
 
-      {/* Budget ramp — dashed. For lose: bar exceeds it = over budget (bad).
-          For gain: bar stays below it = under budget (bad). */}
-      {dailyTarget !== 0 && (
+      {/* Budget ramp — dashed. For lose: single ramp. For gain: floor + ceiling band. */}
+      {dailyTarget !== 0 && !gainChart && (
         <polyline points={rampPoints} fill="none"
           stroke="var(--color-border-strong)" strokeWidth={1.5}
           strokeDasharray="4 4" strokeLinejoin="round" />
       )}
+      {gainChart && (
+        <>
+          <polyline points={floorRampPoints} fill="none"
+            stroke="var(--color-border-strong)" strokeWidth={1.5}
+            strokeDasharray="4 4" strokeLinejoin="round" />
+          <polyline points={ceilRampPoints} fill="none"
+            stroke="var(--color-border-strong)" strokeWidth={1.5}
+            strokeDasharray="4 4" strokeLinejoin="round" />
+        </>
+      )}
 
-      {cumulData.map(({ date, cumConsumed, cumBudget, isFuture, isBeforeGoal, hasData }, i) => {
+      {cumulData.map(({ date, cumConsumed, cumBudget, cumFloor, cumCeil, isFuture, isBeforeGoal, hasData }, i) => {
         const isToday = date === today;
         const x = barX(i);
 
@@ -1158,8 +1188,10 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
         const barH     = Math.max(ratio * chartH, hasData ? 5 : 0);
         const barY     = padTop + chartH - barH;
         // Lose: over budget (bar > ramp) = bad (dark); under = mint.
-        // Gain: under budget (bar < ramp) = bad (dark); over = mint (eating enough).
-        const onTarget = gainChart ? cumConsumed >= cumBudget : cumConsumed <= cumBudget;
+        // Gain: in range (floor ≤ consumed ≤ ceil) = mint; outside = dark.
+        const onTarget = gainChart
+          ? (cumConsumed >= cumFloor && cumConsumed <= cumCeil)
+          : cumConsumed <= cumBudget;
         const fillColor = !hasData
           ? 'var(--color-border-subtle)'
           : onTarget
@@ -1197,8 +1229,8 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
       {!hasAnyData ? (
         <p className="text-subhead text-content-muted text-center">Log meals or activity to see your weekly total</p>
       ) : gainChart ? (
-        <Badge status={isOver ? 'success' : 'default'} size="lg">
-          {isOver ? 'On target' : 'Under target'}{'  ·  '}{diff.toLocaleString()} kcal
+        <Badge status={gainWeekZone === 'in' ? 'success' : 'default'} size="lg">
+          {gainWeekZone === 'below' ? 'Under target' : gainWeekZone === 'in' ? 'In range' : 'Over'}{'  ·  '}{diff.toLocaleString()} kcal
         </Badge>
       ) : (
         <Badge status={!isOver ? 'success' : 'default'} size="lg">

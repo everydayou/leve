@@ -37,10 +37,16 @@ export function ProgressBar({ value, status = 'accent' }: { value: number; statu
  *  Negative → red counter-clockwise arc (over budget). */
 export function GaugeArc({
   value, status = 'accent', size = 224, stroke = 22, sweep = 0.7,
-  bidirectional = false, transitionMs = 600, disabled = false, children,
+  bidirectional = false, transitionMs = 600, disabled = false,
+  strokePositive, strokeNegative, children,
 }: {
   value: number; status?: Status; size?: number; stroke?: number; sweep?: number;
-  bidirectional?: boolean; transitionMs?: number; disabled?: boolean; children?: React.ReactNode;
+  bidirectional?: boolean; transitionMs?: number; disabled?: boolean;
+  /** Override arc color for positive values in bidirectional mode. */
+  strokePositive?: string;
+  /** Override arc color for negative values in bidirectional mode. */
+  strokeNegative?: string;
+  children?: React.ReactNode;
 }) {
   const r       = (size - stroke) / 2;
   const c       = 2 * Math.PI * r;
@@ -78,16 +84,16 @@ export function GaugeArc({
             <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={stroke}
               stroke="var(--color-surface-sunken)" strokeLinecap="round"
               strokeDasharray={`${arcLen} ${c}`} />
-            {/* Mint arc — counter-clockwise from 12 o'clock (remaining, fills LEFT) */}
+            {/* Positive arc — counter-clockwise from 12 o'clock (remaining, fills LEFT) */}
             <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={stroke}
-              stroke="var(--color-accent)" strokeLinecap="round"
+              stroke={strokePositive ?? 'var(--color-accent)'} strokeLinecap="round"
               strokeDasharray={`${greenLen} ${c - greenLen}`}
               strokeDashoffset={c - arcLen / 2 + greenLen}
               opacity={greenFrac > 0 ? 1 : 0}
               style={{ transition: fullTrans }} />
-            {/* Dark arc — clockwise from 12 o'clock (over budget, fills RIGHT) */}
+            {/* Negative arc — clockwise from 12 o'clock (over budget, fills RIGHT) */}
             <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={stroke}
-              stroke="var(--color-content)" strokeLinecap="round"
+              stroke={strokeNegative ?? 'var(--color-content)'} strokeLinecap="round"
               strokeDasharray={`${redLen} ${c - redLen}`}
               strokeDashoffset={c - arcLen / 2}
               opacity={redFrac > 0 ? 1 : 0}

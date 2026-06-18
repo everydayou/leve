@@ -160,6 +160,7 @@ export function GoalSetupForm({
   );
   const [sessionTouched, setSessionTouched] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   // Field-level errors — set on attempted submit when fields are invalid
   const [fieldErrors, setFieldErrors] = useState<{
     start?: string; target?: string; date?: string; startDate?: string;
@@ -230,6 +231,12 @@ export function GoalSetupForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on id only
   }, [activeGoal?.id]);
 
+  // Reset scroll to top whenever the user moves between steps.
+  useEffect(() => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+    setNavScrolled(false); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [step]);
+
   // ── Navigation ──────────────────────────────────────────────────────────────
   const close = () => {
     if (onClose) { setExiting(true); setTimeout(onClose, 320); }
@@ -287,7 +294,7 @@ export function GoalSetupForm({
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <FullScreen slideUp={!!(skipType || onClose)} exiting={exiting} onScroll={(e) => setNavScrolled(e.currentTarget.scrollTop > 0)}>
+    <FullScreen slideUp={!!(skipType || onClose)} exiting={exiting} onScroll={(e) => setNavScrolled(e.currentTarget.scrollTop > 0)} scrollRef={scrollContainerRef}>
       <div ref={stepRef}>
 
         {/* ── Step 1: Choose goal type ── */}
@@ -594,13 +601,11 @@ export function GoalSetupForm({
 
                     {/* Balanced rows */}
                     {macroStyle === 'balanced' && (() => {
-                      const impliedCarb = Math.max(0, Math.round((totalCal - proteinG * 4 - fatG * 9) / 4));
                       return (
                         <>
                           <MacroRow
                             label="Carb target (g)"
                             displayValue="Adjusts with activity"
-                            note={macroNote('balanced', 'carb', impliedCarb, totalCal)}
                           />
                           <MacroRow
                             label="Fat target (g)"
@@ -627,7 +632,6 @@ export function GoalSetupForm({
                           <MacroRow
                             label="Carb target (g)"
                             displayValue={`Base ${carbG} g · adjusts with activity`}
-                            note={macroNote('performance', 'carb', carbG, totalCal)}
                           />
                           <MacroRow
                             label="Fat baseline (g)"
@@ -648,7 +652,6 @@ export function GoalSetupForm({
 
                     {/* Lower carb rows */}
                     {macroStyle === 'lower_carb' && (() => {
-                      const impliedFat = Math.max(0, Math.round((totalCal - proteinG * 4 - carbLimitG * 4) / 9));
                       return (
                         <>
                           <MacroRow
@@ -667,7 +670,6 @@ export function GoalSetupForm({
                           <MacroRow
                             label="Fat target (g)"
                             displayValue="Adjusts with activity"
-                            note={macroNote('lower_carb', 'fat', impliedFat, totalCal)}
                           />
                         </>
                       );
@@ -790,11 +792,13 @@ function FullScreen({
   slideUp,
   exiting,
   onScroll,
+  scrollRef,
 }: {
   children: React.ReactNode;
   slideUp?: boolean;
   exiting?: boolean;
   onScroll?: React.UIEventHandler<HTMLDivElement>;
+  scrollRef?: React.RefObject<HTMLDivElement>;
 }) {
   const animClass = exiting ? 'slide-down-out' : slideUp ? 'slide-up-in' : '';
   return (
@@ -803,6 +807,7 @@ function FullScreen({
       style={{ touchAction: 'manipulation' }}
     >
       <div
+        ref={scrollRef}
         className="safe-top safe-bottom flex h-[100dvh] w-full max-w-[26.25rem] flex-col overflow-x-hidden overflow-y-auto bg-surface sm:h-[min(880px,94dvh)] sm:rounded-[2rem] sm:border sm:border-border-subtle sm:shadow-xl"
         style={{ touchAction: 'pan-y' }}
         onScroll={onScroll}

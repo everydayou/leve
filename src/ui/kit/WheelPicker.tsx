@@ -8,14 +8,12 @@ import { Icon } from './Icon';
  *    step <  1  → split wheel: [whole] · [decimal digit(s)] [unit]
  *
  *  `value`/`onChange` use string to match the NumberField / LabeledInput API.
- *  If `value` is empty or out of range the component snaps to min and fires
- *  onChange on mount so parent state stays consistent.
  *
- *  `centerAt` — when provided and `value` is '', positions the wheel at this
- *  value without committing it (parent state stays ''). Useful for fields that
- *  start empty but should open near a sensible default position. The parent's
- *  save-disabled check (!Number(value)) keeps the form blocked until the user
- *  actually moves the wheel and onChange fires. */
+ *  `centerAt` — when provided and `value` is '', a "—" placeholder option is
+ *  inserted at the `centerAt` position in the drum-roll list. The closed
+ *  field shows "—" (empty-looking) while the native picker opens centred on
+ *  `centerAt`. Once the user moves the wheel, onChange fires with a real
+ *  value and the placeholder option disappears. */
 
 export function WheelPicker({
   label, value, onChange, min, max, step = 1,
@@ -31,7 +29,8 @@ export function WheelPicker({
   invalid?: boolean;
   wrapClassName?: string;
   selectClassName?: string;
-  /** When value is '', position the wheel here without pre-filling parent state. */
+  /** When value is '', insert a "—" placeholder at this position so the
+   *  drum roll opens centred here while the closed field looks empty. */
   centerAt?: number;
 }) {
   const isDecimal = step < 1;
@@ -47,19 +46,39 @@ export function WheelPicker({
 
   /* ── Single wheel ── */
   if (!isDecimal) {
-    const options  = buildRange(min, max, step);
-    const isEmpty  = value === '';
-    const num      = parseFloat(value);
-    const clamped  = isNaN(num) ? min : clamp(snap(num, step, min), min, max);
-    // Position: if empty + centerAt given, show centerAt; otherwise show clamped.
-    const displayVal = (isEmpty && centerAt !== undefined)
-      ? clamp(snap(centerAt, step, min), min, max)
-      : clamped;
+    const options = buildRange(min, max, step);
+    const isEmpty = value === '';
 
-    // Sync parent state on mount — skip when intentionally empty with centerAt.
+    // When empty and centerAt given: find insertion index for the placeholder.
+    // We insert "—" (value="") just before the option nearest to centerAt so
+    // iOS opens the drum roll with "—" visible in the centre.
+    const center = isEmpty && centerAt !== undefined
+      ? clamp(snap(centerAt, step, min), min, max)
+      : null;
+
+    // Build the displayed options list, injecting placeholder when needed.
+    const displayOptions: Array<{ v: number | null; label: string }> =
+      center !== null
+        ? (() => {
+            const insertIdx = options.findIndex(v => v >= center);
+            const idx = insertIdx === -1 ? options.length : insertIdx;
+            return [
+              ...options.slice(0, idx).map(v => ({ v, label: unit ? `${v} ${unit}` : String(v) })),
+              { v: null, label: '—' },
+              ...options.slice(idx).map(v => ({ v, label: unit ? `${v} ${unit}` : String(v) })),
+            ];
+          })()
+        : options.map(v => ({ v, label: unit ? `${v} ${unit}` : String(v) }));
+
+    const num     = parseFloat(value);
+    const clamped = isNaN(num) ? min : clamp(snap(num, step, min), min, max);
+    // Select value: '' for placeholder (empty state), otherwise clamped numeric string.
+    const selectVal = isEmpty ? '' : String(clamped);
+
+    // Sync: if value is out of range (but not intentionally empty), snap it.
     // eslint-disable-next-line react-hooks/rules-of-hooks -- conditional on stable `isDecimal`
     useEffect(() => {
-      if (isEmpty && centerAt !== undefined) return; // unset but centered — don't pre-fill
+      if (isEmpty) return; // intentionally empty — don't pre-fill
       if (String(clamped) !== value) onChange(String(clamped));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount
     }, []);
@@ -71,13 +90,18 @@ export function WheelPicker({
         )}
         <div className="relative mt-1">
           <select
-            value={displayVal}
-            onChange={e => onChange(e.target.value)}
+            value={selectVal}
+            onChange={e => {
+              const v = e.target.value;
+              if (v !== '') onChange(v); // ignore re-selecting the placeholder
+            }}
             className={baseCls}
           >
-            {options.map(v => (
-              <option key={v} value={v}>{v}{unit ? ` ${unit}` : ''}</option>
-            ))}
+            {displayOptions.map((opt) =>
+              opt.v === null
+                ? <option key="__placeholder" value="">—</option>
+                : <option key={opt.v} value={opt.v}>{opt.label}</option>
+            )}
           </select>
           <Icon
             name="chevronDown"
@@ -98,11 +122,9 @@ export function WheelPicker({
 
   const isEmpty  = value === '';
   const num      = parseFloat(value);
-  // Position: if empty + centerAt given, use centerAt; otherwise use safeNum.
-  const centerPos = (isEmpty && centerAt !== undefined) ? clamp(centerAt, min, max) : null;
-  const safeNum   = centerPos ?? (isNaN(num) ? min : clamp(num, min, max));
-  const whole     = Math.floor(safeNum);
-  const dec       = Math.round((safeNum - whole) * Math.pow(10, decPlaces));
+  const safeNum  = isNaN(num) ? min : clamp(num, min, max);
+  const whole    = Math.floor(safeNum);
+  const dec      = Math.round((safeNum - whole) * Math.pow(10, decPlaces));
 
   const wholeMin = Math.floor(min);
   const wholeMax = Math.floor(max);
@@ -116,10 +138,10 @@ export function WheelPicker({
     onChange(result.toFixed(decPlaces));
   }
 
-  // Sync on mount — skip when intentionally empty with centerAt.
+  // Sync on mount if value is empty/out-of-range (split wheel is always pre-filled).
   // eslint-disable-next-line react-hooks/rules-of-hooks -- conditional on stable `isDecimal`
   useEffect(() => {
-    if (isEmpty && centerAt !== undefined) return; // unset but centered — don't pre-fill
+    if (isEmpty) return;
     const expected = safeNum.toFixed(decPlaces);
     if (expected !== value) onChange(expected);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount

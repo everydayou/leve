@@ -392,7 +392,7 @@ export function GoalSetupForm({
                         <div>
                           <WheelPicker
                             label={`Start (${units})`}
-                            value={start || String(units === 'lbs' ? 154 : 70)}
+                            value={start}
                             onChange={(v) => { setStart(v); setFieldErrors((p) => ({ ...p, start: undefined })); }}
                             min={wMin} max={wMax} step={0.1} unit={units}
                             invalid={!!fieldErrors.start}
@@ -403,7 +403,7 @@ export function GoalSetupForm({
                         <div>
                           <WheelPicker
                             label={`Target (${units})`}
-                            value={target || String(units === 'lbs' ? 143 : 65)}
+                            value={target}
                             onChange={(v) => { setTarget(v); setFieldErrors((p) => ({ ...p, target: undefined })); }}
                             min={wMin} max={wMax} step={0.1} unit={units}
                             invalid={!!fieldErrors.target}

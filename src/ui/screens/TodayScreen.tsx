@@ -293,10 +293,11 @@ function MacroCol({
   return (
     <div className="flex-1 min-w-0">
       <div className="flex items-center justify-between">
-        <span className="text-subhead text-content-secondary">{label}</span>
-        <span className="flex items-center gap-0.5 text-subhead font-semibold text-content">
-          {achieved && <Icon name="daySucceed" size={14} className="text-success" />}
-          {consumed}
+        <span className="text-footnote text-content-secondary">{label}</span>
+        <span className="flex items-center gap-0.5 text-footnote text-content">
+          {achieved && <Icon name="daySucceed" size={13} className="text-success" />}
+          <span className="font-semibold">{consumed}</span>
+          {hasTarget && <span className="text-content-muted"> / {targetG}</span>}
         </span>
       </div>
       <div className="mt-1">

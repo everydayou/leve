@@ -477,7 +477,7 @@ export function GoalSetupForm({
                       </div>
                       <div className="mt-3 rounded-field bg-surface-sunken px-3 py-2.5 text-center">
                         <p className="text-subhead text-content-secondary">
-                          {isGain ? `≈ +${effectiveMagnitude} kcal/day surplus` : `≈ –${effectiveMagnitude} kcal/day`}
+                          {isGain ? `+${effectiveMagnitude - 100} to +${effectiveMagnitude + 100} kcal/day` : `≈ –${effectiveMagnitude} kcal/day`}
                         </p>
                       </div>
                       <input

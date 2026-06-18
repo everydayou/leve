@@ -87,12 +87,13 @@ export function TodayScreen() {
 
         if (goal) {
           // Active goal: normal succeed/fail.
-          dayStates[d] = (gainGoal ? deficit <= dailyTarget : deficit >= dailyTarget) ? 'succeed' : 'fail';
+          // Gain goals succeed within ±100 kcal of target (surplus range); lose goals need exact deficit.
+        dayStates[d] = (gainGoal ? (deficit >= dailyTarget - 100 && deficit <= dailyTarget + 100) : deficit >= dailyTarget) ? 'succeed' : 'fail';
         } else if (pastGoal && d >= pastGoal.startDate && d <= pastGoal.targetDate) {
           // Past goal: succeed/fail but visually desaturated ("past" variant).
           const pTarget  = requiredDailyDeficit(pastGoal);
           const pGain    = isGainGoal(pastGoal);
-          dayStates[d]   = (pGain ? deficit <= pTarget : deficit >= pTarget) ? 'succeed-past' : 'fail-past';
+          dayStates[d]   = (pGain ? (deficit >= pTarget - 100 && deficit <= pTarget + 100) : deficit >= pTarget) ? 'succeed-past' : 'fail-past';
         } else {
           dayStates[d] = 'no-info';
         }
@@ -677,7 +678,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
       >
         {hasTarget
           ? gainGoal
-            ? `${Math.abs(left)} kcal ${left <= 0 ? 'above goal' : 'to go'}`
+            ? `${Math.abs(left)} kcal ${left <= 0 && left >= -100 ? 'on target' : left > 0 ? 'to go' : 'over'}`
             : `${Math.abs(left)} kcal ${left >= 0 ? 'remaining' : 'over budget'}`
           : ''}
       </div>
@@ -698,9 +699,9 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                     aria-label="View calorie breakdown"
                   >
                     {gainGoal ? (
-                      // Gain: "Eat more" (under target) → "On target" (within 100 kcal of target) → "Over" (>100 kcal above target)
-                      <Badge status={left <= 0 && left >= -100 ? 'success' : 'default'}>
-                        {left > 0 ? 'Eat more' : left >= -100 ? 'On target' : 'Over'}
+                      // Gain: "Eat more" (>100 below mid) → "On target" (±100 of mid) → "Over" (>100 above mid)
+                      <Badge status={left >= -100 && left <= 100 ? 'success' : 'default'}>
+                        {left > 100 ? 'Eat more' : left >= -100 ? 'On target' : 'Over'}
                       </Badge>
                     ) : (
                       <Badge status={left >= 0 ? 'success' : 'default'}>

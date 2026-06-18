@@ -1,10 +1,10 @@
+import { WheelPicker } from '../kit';
 import { useEffect, useMemo, useState } from 'react';
 import { useLive } from '../../state/live';
 import { useNavigate } from 'react-router-dom';
 import { repos } from '../../state/repos';
 import { exportAsJson } from '../../data/exportJson';
 import { Card, SectionLabel, Badge, SegmentedControl, Button, LabeledInput, Sheet, ListRow, Skeleton, Icon } from '../kit';
-import { onDecimalChange } from '../../lib/num';
 import { displayWeight } from '../../domain/units';
 import { getThemePref, setThemePref, type ThemePref } from '../../lib/theme';
 import { hapticLight, getHapticsPref, setHapticsPref } from '../../lib/haptics';
@@ -160,8 +160,8 @@ function ProfileSheet({ user, onClose }: { user: User; onClose: () => void }) {
   return (
     <Sheet title="Edit profile" onClose={onClose} forceExpanded footer={<Button size="lg" onClick={save}>Save profile</Button>}>
       <div className="space-y-3 pb-2">
-        <LabeledInput label="Height (cm)" value={height} onChange={onDecimalChange(setHeight)} inputMode="decimal" />
-        <LabeledInput label="Age" value={age} onChange={(e) => setAge(e.target.value)} inputMode="numeric" />
+        <WheelPicker label="Height (cm)" value={height} onChange={setHeight} min={100} max={250} step={1} unit="cm" />
+        <WheelPicker label="Age" value={age} onChange={setAge} min={10} max={100} step={1} />
         <div>
           <span className="text-micro uppercase text-content-secondary">Sex</span>
           <div className="mt-1">

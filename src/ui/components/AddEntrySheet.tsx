@@ -14,7 +14,7 @@ import { captureFromCamera, captureFromLibrary, isNativeIOS } from '../../lib/ca
 import { scanFood } from '../../lib/foodScan';
 
 const SCAN_ENABLED = !!(import.meta.env.VITE_FOOD_SCAN_API_URL as string | undefined);
-import { SegmentedControl, Button, LabeledInput, NumberField, Icon, Sheet, MeasurementTypeSelector, ServingStepper, useSheetSetFooter } from '../kit';
+import { SegmentedControl, Button, LabeledInput, NumberField, WheelPicker, Icon, Sheet, MeasurementTypeSelector, ServingStepper, useSheetSetFooter } from '../kit';
 import type { ShowToast } from './Toaster';
 import { findByName } from '../../domain/pantry';
 import type { FoodItem, MeasurementType, MealItem } from '../../domain/types';
@@ -675,7 +675,7 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
                       <NumberField label="Carbs (g)" value={String(item.carbs)} set={(v) => update(idx, { carbs: +v || 0 })} />
                       <NumberField label="Fiber (g)" value={String(item.fiber)} set={(v) => update(idx, { fiber: +v || 0 })} />
                       <NumberField label="Fat (g)" value={String(item.fat)} set={(v) => update(idx, { fat: +v || 0 })} />
-                      <NumberField label="Est. weight (g)" value={String(item.estimatedGrams)} set={(v) => updateGrams(idx, +v || 0)} />
+                      <NumberField label="Est. weight (g)" value={String(item.estimatedGrams)} set={(v) => updateGrams(idx, +v || 0)} max={2000} step={5} />
                     </div>
                   </div>
                 )}
@@ -942,11 +942,11 @@ function NewFood({ date, items, onDone, showToast }: {
       </label>
       <MeasurementTypeSelector value={mt} onChange={setMt} />
       <div className="grid grid-cols-2 gap-2">
-        <NumberField label="Calories" value={cal} set={setCal} />
-        <NumberField label="Protein (g)" value={pro} set={setPro} />
-        <NumberField label="Carbs (g)" value={carb} set={setCarb} />
-        <NumberField label="Fiber (g)" value={fib} set={setFib} />
-        <NumberField label="Fat (g)" value={fat} set={setFat} />
+        <NumberField label="Calories" value={cal} set={setCal} max={5000} step={1} />
+        <NumberField label="Protein (g)" value={pro} set={setPro} max={500} step={1} />
+        <NumberField label="Carbs (g)" value={carb} set={setCarb} max={800} step={1} />
+        <NumberField label="Fiber (g)" value={fib} set={setFib} max={200} step={1} />
+        <NumberField label="Fat (g)" value={fat} set={setFat} max={400} step={1} />
         <NumberField label={mt === 'per_100g' ? 'Quantity (g)' : 'Servings'} value={qty} set={setQty} />
       </div>
 
@@ -1147,15 +1147,19 @@ function WeightForm({ date, onDone }: { date: string; onDone: () => void }) {
     ? (units === 'lbs' ? `${kgToLbs(existing.weightKg).toFixed(1)} lbs` : `${existing.weightKg.toFixed(1)} kg`)
     : null;
 
+  const weightMin = units === 'lbs' ? 66  : 30;
+  const weightMax = units === 'lbs' ? 660 : 300;
+
   return (
     <div className="space-y-3">
-      <LabeledInput
+      <WheelPicker
         label={`Weight (${units})`}
         value={val}
-        onChange={onDecimalChange(setVal)}
-        inputMode="decimal"
-        autoFocus
-        onFocus={(e) => e.target.select()}
+        onChange={setVal}
+        min={weightMin}
+        max={weightMax}
+        step={0.1}
+        unit={units}
       />
       {existing && (
         <p className="text-caption text-content-secondary">

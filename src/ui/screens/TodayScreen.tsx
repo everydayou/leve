@@ -1186,11 +1186,11 @@ function ManualFoodFields({ entry, onClose }: { entry: FoodEntry; onClose: () =>
     <div className="flex flex-col gap-3">
       <LabeledInput label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Food name" />
       <div className="grid grid-cols-2 gap-2">
-        <NumberField label="Calories"    value={cal}  set={setCal} />
-        <NumberField label="Protein (g)" value={pro}  set={setPro} />
-        <NumberField label="Carbs (g)"   value={carb} set={setCarb} />
-        <NumberField label="Fiber (g)"   value={fib}  set={setFib} />
-        <NumberField label="Fat (g)"     value={fat}  set={setFat} />
+        <NumberField label="Calories"    value={cal}  set={setCal} max={5000} step={1} />
+        <NumberField label="Protein (g)" value={pro}  set={setPro} max={500} step={1} />
+        <NumberField label="Carbs (g)"   value={carb} set={setCarb} max={800} step={1} />
+        <NumberField label="Fiber (g)"   value={fib}  set={setFib} max={200} step={1} />
+        <NumberField label="Fat (g)"     value={fat}  set={setFat} max={400} step={1} />
       </div>
       <Button size="lg" onClick={save} disabled={!name.trim()} className="mt-1">Save changes</Button>
     </div>

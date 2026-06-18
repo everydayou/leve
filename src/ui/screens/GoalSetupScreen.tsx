@@ -4,9 +4,8 @@ import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
 import { newId, todayISO } from '../../data/ids';
 import { goalIntensity, currentWeightKg } from '../../domain/goal';
-import { onDecimalChange } from '../../lib/num';
 import { kgToLbs, lbsToKg } from '../../domain/units';
-import { Button, LabeledInput, Icon } from '../kit';
+import { Button, LabeledInput, WheelPicker, Icon } from '../kit';
 import { hapticLight } from '../../lib/haptics';
 import type { Goal, GoalType, MacroStyle, Units } from '../../domain/types';
 
@@ -234,6 +233,15 @@ export function GoalSetupForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on id only
   }, [activeGoal?.id]);
 
+  // For new goals, sync the start weight field when useLive resolves currentWeight.
+  useEffect(() => {
+    if (!activeGoal && currentWeight != null && start === '') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from async useLive
+      setStart(String(toDisplay(currentWeight)));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on currentWeight
+  }, [currentWeight]);
+
   // Reset scroll to top whenever the user moves between steps.
   useEffect(() => {
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'instant' });
@@ -376,34 +384,36 @@ export function GoalSetupForm({
                     <Icon name="weight" size={18} className="text-content" />
                     <span className="text-subhead font-semibold text-content">Weight</span>
                   </div>
-                  <div className="flex gap-2">
-                    <div className="flex-1 min-w-0">
-                      <LabeledInput
-                        wrapClassName="w-full"
-                        label={`Start (${units})`}
-                        labelClassName="text-subhead text-content-secondary"
-                        value={start}
-                        onChange={(e) => { onDecimalChange(setStart)(e); setFieldErrors((p) => ({ ...p, start: undefined })); }}
-                        inputMode="decimal"
-                        invalid={!!fieldErrors.start}
-                        className="!bg-surface-sunken !border-transparent focus:!border-transparent"
-                      />
-                      {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <LabeledInput
-                        wrapClassName="w-full"
-                        label={`Target (${units})`}
-                        labelClassName="text-subhead text-content-secondary"
-                        value={target}
-                        onChange={(e) => { onDecimalChange(setTarget)(e); setFieldErrors((p) => ({ ...p, target: undefined })); }}
-                        inputMode="decimal"
-                        invalid={!!fieldErrors.target}
-                        className="!bg-surface-sunken !border-transparent focus:!border-transparent"
-                      />
-                      {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
-                    </div>
-                  </div>
+                  {(() => {
+                    const wMin = units === 'lbs' ? 66  : 30;
+                    const wMax = units === 'lbs' ? 660 : 300;
+                    return (
+                      <div className="space-y-3">
+                        <div>
+                          <WheelPicker
+                            label={`Start (${units})`}
+                            value={start || String(units === 'lbs' ? 154 : 70)}
+                            onChange={(v) => { setStart(v); setFieldErrors((p) => ({ ...p, start: undefined })); }}
+                            min={wMin} max={wMax} step={0.1} unit={units}
+                            invalid={!!fieldErrors.start}
+                            selectClassName="!bg-surface-sunken !border-transparent focus:!border-transparent"
+                          />
+                          {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
+                        </div>
+                        <div>
+                          <WheelPicker
+                            label={`Target (${units})`}
+                            value={target || String(units === 'lbs' ? 143 : 65)}
+                            onChange={(v) => { setTarget(v); setFieldErrors((p) => ({ ...p, target: undefined })); }}
+                            min={wMin} max={wMax} step={0.1} unit={units}
+                            invalid={!!fieldErrors.target}
+                            selectClassName="!bg-surface-sunken !border-transparent focus:!border-transparent"
+                          />
+                          {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
                 {/* Dates */}
                 <div className="p-4 pb-5">

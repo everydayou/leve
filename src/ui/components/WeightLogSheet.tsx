@@ -4,8 +4,8 @@ import { repos } from '../../state/repos';
 import { newId, todayISO } from '../../data/ids';
 import { currentWeightKg } from '../../domain/goal';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
-import { onDecimalChange } from '../../lib/num';
-import { Sheet, Button, LabeledInput } from '../kit';
+import { Sheet, Button, WheelPicker } from '../kit';
+import { kgToLbs, lbsToKg } from '../../domain/units';
 
 /** Recalculate and persist the account BMR using the most recent weight entry
  *  on or before today. Editing a past entry should not change the account BMR
@@ -29,21 +29,25 @@ async function syncAccountBmr() {
  *  Used by GoalScreen and TodayScreen. Pre-fills with the logged weight for
  *  `date` (or latest weight as a starting point when no entry exists yet). */
 export function WeightLogSheet({ date, onClose }: { date: string; onClose: () => void }) {
-  const weights = useLive(() => repos.weights.all(), []) ?? [];
+  const weights  = useLive(() => repos.weights.all(), []) ?? [];
+  const user     = useLive(() => repos.user.get(), []);
+  const units    = user?.units ?? 'kg';
   const existing = weights.find((w) => w.date === date);
-  const prefill = existing?.weightKg ?? currentWeightKg(weights);
-  const [kg, setKg] = useState('');
+  const prefill  = existing?.weightKg ?? currentWeightKg(weights);
+  // Store display value in user's units; convert to kg only on save.
+  const [val, setVal] = useState('');
 
-  // Initialise / update the field when the prefill resolves from the live query.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- populate field when async prefill resolves
-    if (prefill != null) setKg(String(prefill));
-  }, [prefill]);
+    if (prefill != null) {
+      setVal(units === 'lbs' ? kgToLbs(prefill).toFixed(1) : prefill.toFixed(1)); // eslint-disable-line react-hooks/set-state-in-effect
+    }
+  }, [prefill, units]);
 
   async function save() {
-    const v = Number(kg);
-    if (!v) return;
-    await repos.weights.upsertForDate({ id: newId(), date, weightKg: v, source: 'manual' });
+    const display = Number(val);
+    if (!display) return;
+    const weightKg = units === 'lbs' ? lbsToKg(display) : display;
+    await repos.weights.upsertForDate({ id: newId(), date, weightKg, source: 'manual' });
     // Recalculate account BMR from the most-recent weight ≤ today (not always the
     // just-saved one — editing a past entry shouldn't overwrite the current BMR).
     await syncAccountBmr();
@@ -53,25 +57,33 @@ export function WeightLogSheet({ date, onClose }: { date: string; onClose: () =>
   const isToday = date === todayISO();
   const title = isToday ? "Log today's weight" : `Weight · ${fmtDate(date)}`;
 
+  
+  const weightMin = units === 'lbs' ? 66  : 30;
+  const weightMax = units === 'lbs' ? 660 : 300;
+  const prevDisplay = existing
+    ? (units === 'lbs' ? `${kgToLbs(existing.weightKg).toFixed(1)} lbs` : `${existing.weightKg.toFixed(1)} kg`)
+    : null;
+
   return (
     <Sheet
       title={title}
       onClose={onClose}
       forceExpanded
-      footer={<Button size="lg" onClick={save} disabled={!Number(kg)}>Save weight</Button>}
+      footer={<Button size="lg" onClick={save} disabled={!Number(val)}>Save weight</Button>}
     >
       <div className="space-y-3 pb-2">
-        <LabeledInput
-          label="Weight (kg)"
-          value={kg}
-          onChange={onDecimalChange(setKg)}
-          inputMode="decimal"
-          autoFocus
-          onFocus={(e) => e.target.select()}
+        <WheelPicker
+          label={`Weight (${units})`}
+          value={val}
+          onChange={setVal}
+          min={weightMin}
+          max={weightMax}
+          step={0.1}
+          unit={units}
         />
         {existing && (
           <p className="text-caption text-content-secondary">
-            Previously {existing.weightKg.toFixed(1)} kg — saving will update it.
+            Previously {prevDisplay} — saving will update it.
           </p>
         )}
       </div>

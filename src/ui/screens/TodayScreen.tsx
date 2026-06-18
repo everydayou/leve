@@ -338,7 +338,7 @@ function MacroDetailSheet({
   macroStyle?: string; fatTarget?: number; carbLimit?: number;
   onClose: () => void;
 }) {
-  const carbTarget = macroStyle === 'lower_carb' ? carbLimit : 0;
+  const carbTarget = carbLimit; // pre-computed per mode in DayPanel
   const fatTargetEff = (macroStyle === 'balanced' || macroStyle === 'performance') ? fatTarget : 0;
   return (
     <Sheet title="Macros" onClose={onClose}>
@@ -381,7 +381,7 @@ function MacroBarsRow({
   const wantProtein = proteinGoal > 0 && (showProtein !== false);
   // Default visibility per tracking mode: carbs only for lower_carb, fat only for balanced/performance.
   // showCarbs/showFat undefined = use per-mode default; true/false = explicit user override.
-  const carbsDefault = macroStyle === 'lower_carb';
+  const carbsDefault = gainDetailed; // all detailed modes have a computable carb target
   const fatDefault   = macroStyle === 'balanced' || macroStyle === 'performance';
   const wantCarbs    = gainDetailed && (showCarbs ?? carbsDefault);
   const wantFat      = gainDetailed && (showFat   ?? fatDefault);
@@ -400,7 +400,7 @@ function MacroBarsRow({
           <MacroCol
             label="Carbs"
             consumed={Math.round(carbs)}
-            targetG={macroStyle === 'lower_carb' ? carbLimit : 0}
+            targetG={carbLimit}
           />
         )}
         {wantFat && (
@@ -689,13 +689,21 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const gaugeValue = Math.max(-1, Math.min(1, left / gaugeRange));
   const isPastDay  = date < todayISO();
 
-  // Effective carb limit: if the goal is lower_carb but carbLimitG wasn't saved
-  // (e.g. goal created before that field existed), fall back to the same formula
-  // GoalSetupScreen uses (≈25% of target kcal as carbs, rounded to nearest 5g).
+  // Effective carb target, computed the same way GoalSetupScreen shows it:
+  //   lower_carb  → explicit carbLimitG (falls back to ~25% of target kcal)
+  //   balanced / performance → residual: (targetKcal − protein_kcal − fat_kcal) ÷ 4
+  //     ("Adjusts with activity" in setup — so we recompute daily from live totalBurn)
   const targetKcal = totalBurn > 0 ? totalBurn - dailyTarget : 0; // lose: +deficit, gain: +surplus
-  const effectiveCarbLimit = (macroStyle === 'lower_carb' && !carbLimitG && targetKcal > 0)
-    ? Math.max(20, Math.round(targetKcal * 0.25 / 4 / 5) * 5)
-    : (carbLimitG ?? 0);
+  const effectiveCarbLimit: number = (() => {
+    if (!macroStyle || targetKcal <= 0) return 0;
+    if (macroStyle === 'lower_carb') {
+      return carbLimitG
+        ? carbLimitG
+        : Math.max(20, Math.round(targetKcal * 0.25 / 4 / 5) * 5);
+    }
+    // balanced / performance: residual kcal → grams
+    return Math.max(0, Math.round((targetKcal - proteinGoalG * 4 - (fatTargetG ?? 0) * 9) / 4));
+  })();
 
   // ── Gain goal zone computation ─────────────────────────────────────────────
   // Floor/ceiling surplus range. Falls back to |dailyTarget| ± 100 for old goals.

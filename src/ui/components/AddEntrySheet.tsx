@@ -128,7 +128,7 @@ export function AddEntrySheet({ date, onClose, initialTab = 'food', hideTabs = f
       titleIcon={titleIcon}
       subtitle={dateSubtitle}
       rightAction={sheetRightAction}
-      forceExpanded={tab !== 'food' || foodScanState !== 'source-picking'}
+      forceExpanded={tab === 'food' ? foodScanState !== 'source-picking' : tab === 'activity'}
       scrollAreaPaddingBottom={foodScanState === 'results' ? '0px' : undefined}
     >
       {/* Full-width underline tab bar — hidden when caller pre-selected a type */}

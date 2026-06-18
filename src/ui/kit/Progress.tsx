@@ -63,15 +63,16 @@ export function GaugeArc({
     // transitions fire smoothly across the 0 boundary. Opacity fades the
     // inactive arc to 0 — this also hides the tiny dot that strokeLinecap="round"
     // would render for a zero-length dash.
-    const greenFrac = Math.max(0, value);
-    const redFrac   = Math.max(0, -value);
+    const bidiValue = disabled ? 0 : value;
+    const greenFrac = Math.max(0, bidiValue);
+    const redFrac   = Math.max(0, -bidiValue);
     const greenLen  = greenFrac * arcLen / 2;
     const redLen    = redFrac   * arcLen / 2;
     const fullTrans = `${trans}, opacity 300ms ease`;
 
     return (
       <div className="relative mx-auto" style={{ width: size, height: h }}>
-        <svg width={size} height={size} className="absolute left-0 top-0">
+        <svg width={size} height={size} className="absolute left-0 top-0" style={{ opacity: disabled ? 0.45 : 1 }}>
           <g transform={`rotate(${rotate} ${cx} ${cy})`}>
             {/* Track */}
             <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={stroke}

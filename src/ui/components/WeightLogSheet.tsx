@@ -68,7 +68,6 @@ export function WeightLogSheet({ date, onClose }: { date: string; onClose: () =>
     <Sheet
       title={title}
       onClose={onClose}
-      forceExpanded
       footer={<Button size="lg" onClick={save} disabled={!Number(val)}>Save weight</Button>}
     >
       <div className="space-y-3 pb-2">

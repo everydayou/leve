@@ -612,6 +612,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const left       = Math.round(budget - consumed);
   const gaugeRange = budget > 0 ? budget : GAUGE_RANGE;
   const gaugeValue = Math.max(-1, Math.min(1, left / gaugeRange));
+  const isPastDay  = date < todayISO();
   // Day-specific weight entry (shown in the Weight stat tile)
   const dayWeightKg = weights.find((w) => w.date === date)?.weightKg ?? null;
 
@@ -627,8 +628,8 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
     }
     if (!day || s.activated) return;
     s.activated = true;
-    // Skip animation when the user has Reduce Motion enabled — jump straight to value.
-    if (prefersReducedMotion()) {
+    // Skip animation for past days and when Reduce Motion is enabled — jump straight to value.
+    if (prefersReducedMotion() || isPastDay) {
       setGaugeDisplay(gaugeValue);
       return;
     }
@@ -699,9 +700,11 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                     aria-label="View calorie breakdown"
                   >
                     {gainGoal ? (
-                      // Gain: "Eat more" (>100 below mid) → "On target" (±100 of mid) → "Over" (>100 above mid)
+                      // Gain: "Ate short" / "On target" (±100) / "Over"
                       <Badge status={left >= -100 && left <= 100 ? 'success' : 'default'}>
-                        {left > 100 ? 'Eat more' : left >= -100 ? 'On target' : 'Over'}
+                        {left > 100
+                          ? (isPastDay ? 'Ate short' : 'Eat more')
+                          : left >= -100 ? 'On target' : 'Over'}
                       </Badge>
                     ) : (
                       <Badge status={left >= 0 ? 'success' : 'default'}>
@@ -711,7 +714,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                   </button>
                 </div>
                 <div className="mt-3">
-                  <GaugeArc value={gaugeDisplay} bidirectional>
+                  <GaugeArc value={gaugeDisplay} bidirectional disabled={isPastDay}>
                     <button
                       onClick={() => { hapticLight(); setShowBreakdown(true); }}
                       className="flex flex-col items-center rounded-xl px-6 py-2 active:bg-surface-sunken transition-colors"
@@ -729,8 +732,12 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                       </div>
                       <span className="mt-0.5 text-subhead text-content-secondary whitespace-nowrap">
                         {gainGoal
-                          ? (left <= 0 ? 'kcal above goal' : 'kcal to go')
-                          : (left >= 0 ? 'kcal available' : 'kcal over')}
+                          ? isPastDay
+                            ? (left > 100 ? 'kcal short' : left >= -100 ? 'on target' : 'kcal over')
+                            : (left <= 0 ? 'kcal above goal' : 'kcal to go')
+                          : isPastDay
+                            ? (left >= 0 ? 'kcal under' : 'kcal over')
+                            : (left >= 0 ? 'kcal available' : 'kcal over')}
                       </span>
                     </button>
                   </GaugeArc>
@@ -891,79 +898,78 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
           </div>
         )}
 
-        <Card tone="base" padded={false} className="overflow-hidden py-2 !shadow-none">
-          <ul>
-            {[...day.foods].reverse().map((entry, index) => {
-              const foodItem = entry.foodItemId
-                ? items.find((i) => i.id === entry.foodItemId) : null;
-              const isMealEntry = !!entry.mealData;
-              return (
-                <li key={entry.id}>
-                  <button
-                    onClick={() => {
-                      hapticLight();
-                      if (isMealEntry) setEditMeal(entry);
-                      else setEditFood(entry);
-                    }}
-                    className={`flex w-full items-center justify-between px-4 py-2.5 text-left active:bg-surface-sunken${index < day.foods.length - 1 ? ' border-b border-border-subtle' : ''}`}
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <Icon
-                        name={isMealEntry ? 'scanFood' : 'foodIcon'}
-                        size={16}
-                        className="shrink-0 text-content-secondary"
-                      />
-                      <span className="truncate text-subhead text-content">
-                        {entry.manualName ?? labelFor(items, entry.foodItemId)}
-                        {foodItem && entry.quantity != null && (
-                          <span className="ml-1 text-content-secondary">
-                            ({entry.quantity}{foodItem.measurementType === 'per_100g' ? 'g' : 'x'})
-                          </span>
-                        )}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-subhead font-bold text-content">
-                      −{effectiveNutrition(entry, day.itemsById).calories} kcal
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-            {day.foods.length === 0 && (
-              <li className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-                <Icon name="foodIcon" size={24} className="text-content-muted" />
-                <span className="text-subhead text-content-muted">
-                  Add food by tapping<br />on the + button
-                </span>
-              </li>
-            )}
-          </ul>
-        </Card>
+        {(() => {
+          // Merge food + activity entries into a single chronological log (newest first).
+          type LogItem =
+            | { kind: 'food'; entry: FoodEntry }
+            | { kind: 'activity'; entry: ActivityEntry };
+          const logItems: LogItem[] = [
+            ...day.foods.map((e): LogItem => ({ kind: 'food', entry: e })),
+            ...day.activities.map((a): LogItem => ({ kind: 'activity', entry: a })),
+          ].sort((a, b) => (b.entry.createdAt > a.entry.createdAt ? 1 : -1));
 
-        {day.activities.length > 0 && (
-          <Card tone="base" padded={false} className="mt-2 overflow-hidden py-2 !shadow-none">
-            <ul>
-              {[...day.activities].reverse().map((act, index) => (
-                <li key={act.id}>
-                  <button
-                    onClick={() => { hapticLight(); setEditActivity(act); }}
-                    className={`flex w-full items-center justify-between px-4 py-2.5 text-left active:bg-surface-sunken${index < day.activities.length - 1 ? ' border-b border-border-subtle' : ''}`}
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <Icon name="activityIcon" size={16} className="shrink-0 text-content-secondary" />
-                      <span className="truncate text-subhead text-content">
-                        {act.name ?? 'Activity'}
-                      </span>
+          return (
+            <Card tone="base" padded={false} className="overflow-hidden py-2 !shadow-none">
+              <ul>
+                {logItems.map((item, index) => {
+                  const isLast = index === logItems.length - 1;
+                  if (item.kind === 'food') {
+                    const entry = item.entry;
+                    const foodItem = entry.foodItemId ? items.find((i) => i.id === entry.foodItemId) : null;
+                    const isMealEntry = !!entry.mealData;
+                    return (
+                      <li key={entry.id}>
+                        <button
+                          onClick={() => { hapticLight(); if (isMealEntry) setEditMeal(entry); else setEditFood(entry); }}
+                          className={`flex w-full items-center justify-between px-4 py-2.5 text-left active:bg-surface-sunken${!isLast ? ' border-b border-border-subtle' : ''}`}
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <Icon name={isMealEntry ? 'scanFood' : 'foodIcon'} size={16} className="shrink-0 text-content-secondary" />
+                            <span className="truncate text-subhead text-content">
+                              {entry.manualName ?? labelFor(items, entry.foodItemId)}
+                              {foodItem && entry.quantity != null && (
+                                <span className="ml-1 text-content-secondary">
+                                  ({entry.quantity}{foodItem.measurementType === 'per_100g' ? 'g' : 'x'})
+                                </span>
+                              )}
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-subhead font-bold text-content">
+                            −{effectiveNutrition(entry, day.itemsById).calories} kcal
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  } else {
+                    const act = item.entry;
+                    return (
+                      <li key={act.id}>
+                        <button
+                          onClick={() => { hapticLight(); setEditActivity(act); }}
+                          className={`flex w-full items-center justify-between px-4 py-2.5 text-left active:bg-surface-sunken${!isLast ? ' border-b border-border-subtle' : ''}`}
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <Icon name="activityIcon" size={16} className="shrink-0 text-content-secondary" />
+                            <span className="truncate text-subhead text-content">{act.name ?? 'Activity'}</span>
+                          </span>
+                          <span className="shrink-0 text-subhead font-bold text-content">+{act.activeCalories} kcal</span>
+                        </button>
+                      </li>
+                    );
+                  }
+                })}
+                {logItems.length === 0 && (
+                  <li className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+                    <Icon name="foodIcon" size={24} className="text-content-muted" />
+                    <span className="text-subhead text-content-muted">
+                      Add food by tapping<br />on the + button
                     </span>
-                    <span className="shrink-0 text-subhead font-bold text-content">
-                      +{act.activeCalories} kcal
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
+                  </li>
+                )}
+              </ul>
+            </Card>
+          );
+        })()}
       </section>
 
       {editFood && <EditFoodSheet entry={editFood} items={items} onClose={() => setEditFood(null)} showToast={ctx.showToast} />}

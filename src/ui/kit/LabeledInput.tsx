@@ -27,7 +27,7 @@ export function LabeledInput({
   return (
     <label htmlFor={inputId} className={`block ${wrapClassName}`}>
       {label && (
-        <span className={labelClassName ?? 'text-micro font-medium uppercase text-content-secondary'}>
+        <span className={labelClassName ?? 'text-subhead font-normal text-content-secondary'}>
           {label}
         </span>
       )}

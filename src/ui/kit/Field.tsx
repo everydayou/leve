@@ -22,7 +22,7 @@ export function Field({
   return (
     <label className={`block ${className}`}>
       {label && (
-        <span className="text-caption font-semibold uppercase tracking-wide text-content-secondary">
+        <span className="text-subhead font-normal text-content-secondary">
           {label}
         </span>
       )}

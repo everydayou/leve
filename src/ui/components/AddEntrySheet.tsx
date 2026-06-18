@@ -95,7 +95,7 @@ export function AddEntrySheet({ date, onClose, initialTab = 'food', hideTabs = f
     ? (
       <button
         onClick={() => foodScanTriggerRef.current?.()}
-        className="-m-1 p-1 text-content-secondary active:text-content transition-colors"
+        className="-m-1 p-1 text-accent-hover active:opacity-70 transition-colors"
         aria-label="Scan food"
       >
         <Icon name="scanFood" size={20} />
@@ -937,6 +937,9 @@ function NewFood({ date, items, onDone, showToast }: {
       {blocked && (
         <p className="text-caption text-danger">This name already exists in your pantry</p>
       )}
+      <label className="flex items-center gap-2 text-subhead text-content-secondary pb-2">
+        <input type="checkbox" checked={saveToPantry} onChange={(e) => setSaveToPantry(e.target.checked)} /> Save to pantry
+      </label>
       <MeasurementTypeSelector value={mt} onChange={setMt} />
       <div className="grid grid-cols-2 gap-2">
         <NumberField label="Calories" value={cal} set={setCal} />
@@ -946,9 +949,7 @@ function NewFood({ date, items, onDone, showToast }: {
         <NumberField label="Fat (g)" value={fat} set={setFat} />
         <NumberField label={mt === 'per_100g' ? 'Quantity (g)' : 'Servings'} value={qty} set={setQty} />
       </div>
-      <label className="flex items-center gap-2 text-subhead text-content-secondary pb-2">
-        <input type="checkbox" checked={saveToPantry} onChange={(e) => setSaveToPantry(e.target.checked)} /> Save to pantry
-      </label>
+
     </div>
   );
 }

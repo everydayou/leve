@@ -193,9 +193,12 @@ export function GoalSetupForm({
   );
   const [editingRow, setEditingRow] = useState<EditTarget>(null);
   // Protein for gain goals
-  const [proteinG, setProteinG] = useState<number>(
-    currentProteinGoal ?? defProtein(activeGoal ? activeGoal.startWeightKg : toKg(sNum)),
+  const [proteinGState, setProteinGState] = useState<number | null>(
+    currentProteinGoal ?? null,
   );
+  // Derived: null means "use default from current weight" — re-evaluates whenever
+  // sNum updates (e.g. after useLive resolves the most-recent weight entry).
+  const proteinG = proteinGState ?? defProtein(activeGoal ? activeGoal.startWeightKg : toKg(sNum));
   // Fat/carb overrides — null means "use computed default from totalCal".
   // This prevents spurious macro warnings when opening the tracking step fresh.
   const [fatGState, setFatGState] = useState<number | null>(
@@ -224,7 +227,7 @@ export function GoalSetupForm({
       if (activeGoal.fatTargetG)   setFatGState(activeGoal.fatTargetG);
       if (activeGoal.carbLimitG)   setCarbLimitGState(activeGoal.carbLimitG);
       if (currentProteinGoal) {
-        setProteinG(currentProteinGoal);
+        setProteinGState(currentProteinGoal);
       }
       /* eslint-enable react-hooks/set-state-in-effect */
     }
@@ -594,8 +597,8 @@ export function GoalSetupForm({
                       min={Math.max(40, r5(sNum * 0.8))}
                       max={r5(Math.max(sNum, 50) * 3.0)}
                       onEditToggle={() => setEditingRow(editingRow === 'protein' ? null : 'protein')}
-                      onReset={() => { setProteinG(defProtein(sNum)); setEditingRow(null); }}
-                      onChange={setProteinG}
+                      onReset={() => { setProteinGState(null); setEditingRow(null); }}
+                      onChange={setProteinGState}
                       note={proteinNote(proteinG, sNum)}
                     />
 
@@ -732,7 +735,7 @@ function MacroRow({
             onClick={isEditing ? onReset : onEditToggle}
             className="text-subhead font-normal text-accent-hover active:opacity-70"
           >
-            {isEditing ? 'Save' : 'Edit'}
+            {isEditing ? 'Reset' : 'Edit'}
           </button>
         )}
       </div>

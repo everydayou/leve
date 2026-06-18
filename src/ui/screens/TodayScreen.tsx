@@ -10,7 +10,7 @@ import { getMondayOfWeek, fmtDiaryDate } from '../../lib/date';
 import { nutritionFor, effectiveNutrition, calcDigestionCalories } from '../../domain/calc';
 import { requiredDailyDeficit, isGainGoal } from '../../domain/goal';
 import { onDecimalChange } from '../../lib/num';
-import { displayWeight } from '../../domain/units';
+import { kgToLbs } from '../../domain/units';
 import { prefersReducedMotion } from '../../lib/motion';
 import {
   Card, QuickLogCard, Badge, Button, LabeledInput, NumberField,
@@ -721,7 +721,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary" style={{ transform: 'translateX(-2px)' }}><Icon name="activityIcon" size={12} />Activity</span>
                 </button>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('weight', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
-                  <span className={`text-callout font-semibold ${dayWeightKg != null ? 'text-content' : 'text-content-muted'}`}>{dayWeightKg != null ? displayWeight(dayWeightKg, units) : '—'}</span>
+                  <span className={`text-callout font-semibold ${dayWeightKg != null ? 'text-content' : 'text-content-muted'}`}>{dayWeightKg != null ? (units === 'lbs' ? kgToLbs(dayWeightKg).toFixed(1) : dayWeightKg.toFixed(1)) : '—'}</span>
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary" style={{ transform: 'translateX(-2px)' }}><Icon name="weight" size={12} />Weight</span>
                 </button>
               </div>
@@ -782,7 +782,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary" style={{ transform: 'translateX(-2px)' }}><Icon name="activityIcon" size={12} />Activity</span>
                 </button>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('weight', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
-                  <span className={`text-callout font-semibold ${dayWeightKg != null ? 'text-content' : 'text-content-muted'}`}>{dayWeightKg != null ? displayWeight(dayWeightKg, units) : '—'}</span>
+                  <span className={`text-callout font-semibold ${dayWeightKg != null ? 'text-content' : 'text-content-muted'}`}>{dayWeightKg != null ? (units === 'lbs' ? kgToLbs(dayWeightKg).toFixed(1) : dayWeightKg.toFixed(1)) : '—'}</span>
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary" style={{ transform: 'translateX(-2px)' }}><Icon name="weight" size={12} />Weight</span>
                 </button>
               </div>
@@ -1129,7 +1129,7 @@ function EditFoodSheet({ entry, items, onClose, showToast }: {
 
   const trashBtn = (
     <button data-no-drag onClick={del} aria-label="Delete entry"
-      className="-m-1 p-1 text-content-secondary active:text-danger">
+      className="-m-1 p-1 text-accent-hover active:text-danger">
       <Icon name="trash" size={20} strokeWidth={2} />
     </button>
   );
@@ -1233,7 +1233,7 @@ function MealEditSheet({ entry, pantryItems, onClose, showToast }: {
 
   const trashBtn = (
     <button data-no-drag onClick={del} aria-label="Delete meal"
-      className="-m-1 p-1 text-content-secondary active:text-danger">
+      className="-m-1 p-1 text-accent-hover active:text-danger">
       <Icon name="trash" size={20} strokeWidth={2} />
     </button>
   );

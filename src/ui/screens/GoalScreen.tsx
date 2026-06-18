@@ -97,7 +97,7 @@ export function GoalScreen() {
             <button
               onClick={() => setShowPastGoalsOptions(true)}
               aria-label="Options"
-              className="flex h-11 w-11 items-center justify-center -mr-2.5 rounded-control text-content-secondary active:bg-surface-sunken"
+              className="flex h-11 w-11 items-center justify-center -mr-2.5 rounded-control text-accent-hover active:bg-surface-sunken"
             >
               <Icon name="moreHoriz" size={20} />
             </button>
@@ -251,7 +251,7 @@ export function GoalScreen() {
         <button
           onClick={() => setShowSettings(true)}
           aria-label="Goal settings"
-          className="flex h-11 w-11 items-center justify-center -mr-2.5 rounded-control text-content-secondary active:bg-surface-sunken"
+          className="flex h-11 w-11 items-center justify-center -mr-2.5 rounded-control text-accent-hover active:bg-surface-sunken"
         >
           <Icon name="moreHoriz" size={20} />
         </button>
@@ -485,7 +485,7 @@ function GoalSettingsSheet({ goal, onClose, isEarlyComplete, previousGoals, onEd
 
   return (
     <>
-      <Sheet title="Goal" onClose={onClose}>
+      <Sheet title="Goal options" onClose={onClose}>
         <div className="space-y-3 pb-2">
           {isEarlyComplete && (
             <Button size="lg" onClick={() => setShowCompleteConfirm(true)}>Mark as complete</Button>

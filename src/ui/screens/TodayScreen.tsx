@@ -37,6 +37,7 @@ export function TodayScreen() {
 
   // Shared data — fetched once, passed to each panel
   const goal          = useLive(() => repos.goals.getActive(), []);
+  const allGoals      = useLive(() => repos.goals.getAll(), []) ?? [];
   const user          = useLive(() => repos.user.get(), []);
   const items         = useLive(() => repos.foodItems.all(), []) ?? [];
   const weights       = useLive(() => repos.weights.all(), []) ?? [];
@@ -59,7 +60,14 @@ export function TodayScreen() {
   const stripDays   = Array.from({ length: 21 }, (_, i) => addDays(prevMonday, i));
   const today       = todayISO();
 
-  type DayState = 'succeed' | 'fail' | 'no-info' | 'not-completed' | 'future';
+  // Most recently ended/completed goal (used when no active goal).
+  const pastGoal = !goal
+    ? [...allGoals]
+        .filter((g) => g.status === 'completed' || g.status === 'abandoned')
+        .sort((a, b) => (b.targetDate > a.targetDate ? 1 : -1))[0]
+    : undefined;
+
+  type DayState = 'succeed' | 'fail' | 'succeed-past' | 'fail-past' | 'no-info' | 'not-completed' | 'future';
   const dayStates: Record<string, DayState> = {};
   for (const d of stripDays) {
     if (d > today) {
@@ -76,9 +84,18 @@ export function TodayScreen() {
         const actCals    = acts.reduce((s, a) => s + a.activeCalories, 0);
         const digestion  = calcDigestionCalories(foods);
         const deficit    = (bmr + actCals + digestion) - consumed;
-        // Lose: succeed when deficit ≥ target (ate little enough).
-        // Gain: succeed when deficit ≤ target (ate enough for the surplus).
-        dayStates[d]     = (gainGoal ? deficit <= dailyTarget : deficit >= dailyTarget) ? 'succeed' : 'fail';
+
+        if (goal) {
+          // Active goal: normal succeed/fail.
+          dayStates[d] = (gainGoal ? deficit <= dailyTarget : deficit >= dailyTarget) ? 'succeed' : 'fail';
+        } else if (pastGoal && d >= pastGoal.startDate && d <= pastGoal.targetDate) {
+          // Past goal: succeed/fail but visually desaturated ("past" variant).
+          const pTarget  = requiredDailyDeficit(pastGoal);
+          const pGain    = isGainGoal(pastGoal);
+          dayStates[d]   = (pGain ? deficit <= pTarget : deficit >= pTarget) ? 'succeed-past' : 'fail-past';
+        } else {
+          dayStates[d] = 'no-info';
+        }
       }
     }
   }
@@ -238,6 +255,7 @@ export function TodayScreen() {
                   weightCadence={user?.weightCadence ?? 'daily'}
                   weeklyWeightDay={user?.weeklyWeightDay ?? 0}
                   units={user?.units ?? 'kg'}
+                  hasPastGoal={!!pastGoal}
                 />
               </div>
             ))}
@@ -328,7 +346,7 @@ function MacroBarsRow({
 
 const WEEK_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
 
-type DayState = 'succeed' | 'fail' | 'no-info' | 'not-completed' | 'future';
+type DayState = 'succeed' | 'fail' | 'succeed-past' | 'fail-past' | 'no-info' | 'not-completed' | 'future';
 
 // ── Day-state indicator icons (24×24, matching uploaded assets) ───────────────
 
@@ -486,6 +504,8 @@ function WeekStrip({
                 ? <DisabledDayRing size={24} />
                 : state === 'succeed'       ? <Icon name="daySucceed" size={24} className="text-accent" />
                 : state === 'fail'          ? <Icon name="dayFail"    size={24} className="text-content" />
+                : state === 'succeed-past'  ? <span className="opacity-40"><Icon name="daySucceed" size={24} className="text-accent" /></span>
+                : state === 'fail-past'     ? <span className="opacity-40"><Icon name="dayFail"    size={24} className="text-content" /></span>
                 : state === 'not-completed' ? <CurrentDayRing size={24} />
                 : <span className="text-content-muted"><EmptyDayRing size={24} /></span>}
             </span>
@@ -526,6 +546,7 @@ function WeekStrip({
 
 interface DayPanelProps {
   date: string;
+  hasPastGoal?: boolean;
   items: FoodItem[];
   weights: WeightEntry[];
   frequentFoods: FoodItem[];
@@ -545,7 +566,7 @@ interface DayPanelProps {
   units?: 'kg' | 'lbs';
 }
 
-function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoalG, isActive, gainGoal = false, macroStyle, fatTargetG, carbLimitG, diaryShowProtein, diaryShowCarbs, diaryShowFat, weightCadence = 'daily', weeklyWeightDay = 0, units = 'kg' }: DayPanelProps) {
+function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoalG, isActive, gainGoal = false, macroStyle, fatTargetG, carbLimitG, diaryShowProtein, diaryShowCarbs, diaryShowFat, weightCadence = 'daily', weeklyWeightDay = 0, units = 'kg', hasPastGoal = false }: DayPanelProps) {
   const nav = useNavigate();
   const ctx = useOutletContext<DayContext>();
   const [editFood,          setEditFood]          = useState<FoodEntry | null>(null);
@@ -754,9 +775,9 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                 <button
                   onClick={() => { hapticLight(); nav('/goal'); }}
                   className="rounded-full bg-surface-sunken px-4 py-1.5 text-subhead font-medium text-content-secondary active:opacity-70 transition-opacity"
-                  aria-label="Set a goal"
+                  aria-label={hasPastGoal ? 'View past goal' : 'Set a goal'}
                 >
-                  No goal set
+                  {hasPastGoal ? 'Past goal' : 'No goal set'}
                 </button>
               </div>
               <div className="mt-3">

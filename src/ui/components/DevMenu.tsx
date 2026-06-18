@@ -371,6 +371,7 @@ export function DevMenu() {
   const [copied, setCopied] = useState(false);
   const [showScanPreview, setShowScanPreview] = useState(false);
   const [scanPreviewItems, setScanPreviewItems] = useState<ResultItem[]>(DUMMY_SCAN_ITEMS_INITIAL);
+  const [showPickerPlayground, setShowPickerPlayground] = useState(false);
   // Track original theme to restore on unmount
   const origDark = useRef(document.documentElement.classList.contains('dark'));
 
@@ -486,6 +487,31 @@ export function DevMenu() {
         </Sheet>
       )}
 
+      {/* ── Native pickers ────────────────────────────────────────────────── */}
+      <div className="mb-5 overflow-hidden rounded-control border border-border-subtle">
+        <div className="bg-surface px-4 py-2.5 border-b border-border-subtle">
+          <p className="text-micro font-semibold uppercase tracking-wider text-content-muted">Native pickers</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowPickerPlayground(true)}
+          className="flex w-full items-center gap-3 bg-surface px-4 py-3 text-left active:bg-surface-sunken transition-colors"
+        >
+          <Icon name="edit" size={18} className="shrink-0 text-content-secondary" />
+          <div>
+            <p className="text-subhead font-medium text-content">Picker playground</p>
+            <p className="text-caption text-content-muted">Compare input types for number entry on device</p>
+          </div>
+          <Icon name="chevronRight" size={16} className="ml-auto shrink-0 text-content-muted" />
+        </button>
+      </div>
+
+      {showPickerPlayground && (
+        <Sheet title="Picker playground" onClose={() => setShowPickerPlayground(false)} forceExpanded>
+          <PickerPlayground />
+        </Sheet>
+      )}
+
       {/* Mode toggle */}
       <div className="mb-4">
         <SegmentedControl<EditMode>
@@ -534,6 +560,91 @@ export function DevMenu() {
           </div>
         </Sheet>
       )}
+    </div>
+  );
+}
+
+// ── Picker playground ─────────────────────────────────────────────────────────
+
+/** Numeric range array from start to end (inclusive), step by, toFixed(decimals). */
+function numRange(start: number, end: number, by: number, decimals = 0): string[] {
+  const out: string[] = [];
+  for (let v = start; v <= end + 1e-9; v = Math.round((v + by) * 1e6) / 1e6) {
+    out.push(v.toFixed(decimals));
+  }
+  return out;
+}
+
+function PickerRow({ label, description, children }: {
+  label: string; description: string; children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-control border border-border-subtle bg-surface overflow-hidden">
+      <div className="px-4 pt-3 pb-2">
+        <p className="text-subhead font-semibold text-content">{label}</p>
+        <p className="text-caption text-content-muted mt-0.5">{description}</p>
+      </div>
+      <div className="px-4 pb-4 pt-1">{children}</div>
+    </div>
+  );
+}
+
+function PickerPlayground() {
+  const [numVal,     setNumVal]     = useState('69.2');
+  const [telVal,     setTelVal]     = useState('69.2');
+  const [selectVal,  setSelectVal]  = useState('69.2');
+  const [splitWhole, setSplitWhole] = useState('69');
+  const [splitDec,   setSplitDec]   = useState('2');
+  const [rangeVal,   setRangeVal]   = useState('69');
+
+  const wholeKg  = numRange(30, 200, 1);
+  const decDigits = ['0','1','2','3','4','5','6','7','8','9'];
+  const allKg    = numRange(30, 200, 0.1, 1);
+
+  const inputCls  = 'w-full rounded-field border border-border-field bg-surface px-3 py-2.5 text-subhead font-semibold text-content outline-none focus:border-accent';
+  const selectCls = inputCls + ' appearance-none';
+
+  return (
+    <div className="space-y-3 pb-4">
+      <p className="text-caption text-content-muted">
+        Tap each field on device to compare the keyboard / picker it triggers. All start at 69.2 kg.
+      </p>
+
+      <PickerRow label="1 · number + inputMode=decimal" description="Current approach — decimal keyboard on iOS.">
+        <input type="number" inputMode="decimal" value={numVal} onChange={e => setNumVal(e.target.value)} className={inputCls} />
+        <p className="mt-1.5 text-caption text-content-muted">Value: {numVal}</p>
+      </PickerRow>
+
+      <PickerRow label="2 · type=tel" description="Phone keypad — digits + * # only. No decimal on some devices.">
+        <input type="tel" value={telVal} onChange={e => setTelVal(e.target.value)} className={inputCls} />
+        <p className="mt-1.5 text-caption text-content-muted">Value: {telVal}</p>
+      </PickerRow>
+
+      <PickerRow label="3 · select — single wheel" description="Native iOS drum-roll. 30–200 kg in 0.1 steps.">
+        <select value={selectVal} onChange={e => setSelectVal(e.target.value)} className={selectCls}>
+          {allKg.map(v => <option key={v} value={v}>{v} kg</option>)}
+        </select>
+        <p className="mt-1.5 text-caption text-content-muted">Value: {selectVal}</p>
+      </PickerRow>
+
+      <PickerRow label="4 · split select — two wheels" description="Whole kg + decimal as separate drum-roll pickers.">
+        <div className="flex items-center gap-2">
+          <select value={splitWhole} onChange={e => setSplitWhole(e.target.value)} className={selectCls}>
+            {wholeKg.map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+          <span className="text-subhead font-semibold text-content">.</span>
+          <select value={splitDec} onChange={e => setSplitDec(e.target.value)} className={selectCls + ' w-20'}>
+            {decDigits.map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+          <span className="shrink-0 text-subhead font-semibold text-content-secondary">kg</span>
+        </div>
+        <p className="mt-1.5 text-caption text-content-muted">Value: {splitWhole}.{splitDec} kg</p>
+      </PickerRow>
+
+      <PickerRow label="5 · range slider" description="Horizontal slider, 30–200 kg in 0.1 steps.">
+        <input type="range" min={30} max={200} step={0.1} value={rangeVal} onChange={e => setRangeVal(e.target.value)} className="w-full" />
+        <p className="mt-1.5 text-caption text-content-muted">Value: {Number(rangeVal).toFixed(1)} kg</p>
+      </PickerRow>
     </div>
   );
 }

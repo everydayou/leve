@@ -297,7 +297,6 @@ function MacroCol({
         <span className="flex items-center gap-0.5 text-footnote text-content">
           {achieved && <Icon name="daySucceed" size={13} className="text-success" />}
           <span className="font-semibold">{consumed}</span>
-          {hasTarget && <span className="text-content-muted"> / {targetG}</span>}
         </span>
       </div>
       <div className="mt-1">
@@ -307,9 +306,55 @@ function MacroCol({
   );
 }
 
+/** Vertically-stacked macro row for the detail sheet. */
+function MacroDetailRow({ label, consumed, targetG = 0 }: {
+  label: string; consumed: number; targetG?: number;
+}) {
+  const hasTarget = targetG > 0;
+  const achieved  = hasTarget && consumed >= targetG;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-subhead text-content-secondary">{label}</span>
+        <span className="flex items-center gap-1 text-subhead text-content">
+          {achieved && <Icon name="daySucceed" size={14} className="text-success" />}
+          <span className="font-semibold">{consumed} g</span>
+          {hasTarget && <span className="text-content-muted"> / {targetG} g</span>}
+        </span>
+      </div>
+      <ProgressBar value={hasTarget ? Math.min(1, consumed / targetG) : 0} />
+    </div>
+  );
+}
+
+/** Full-screen sheet showing all three macros stacked vertically. */
+function MacroDetailSheet({
+  protein, proteinGoal, carbs, fat,
+  macroStyle, fatTarget = 0, carbLimit = 0,
+  onClose,
+}: {
+  protein: number; proteinGoal: number;
+  carbs: number; fat: number;
+  macroStyle?: string; fatTarget?: number; carbLimit?: number;
+  onClose: () => void;
+}) {
+  const carbTarget = macroStyle === 'lower_carb' ? carbLimit : 0;
+  const fatTargetEff = (macroStyle === 'balanced' || macroStyle === 'performance') ? fatTarget : 0;
+  return (
+    <Sheet title="Macros" onClose={onClose}>
+      <div className="px-4 pb-6 space-y-5">
+        <MacroDetailRow label="Protein" consumed={protein} targetG={proteinGoal} />
+        <MacroDetailRow label="Carbs"   consumed={carbs}   targetG={carbTarget} />
+        <MacroDetailRow label="Fat"     consumed={fat}     targetG={fatTargetEff} />
+      </div>
+    </Sheet>
+  );
+}
+
 /** Shown at the bottom of the gauge card. Macros are laid out horizontally.
  *  Protein shown when proteinGoal > 0; carbs + fat when macroStyle is set.
- *  Individual macros can be hidden via diary show flags. */
+ *  Individual macros can be hidden via diary show flags.
+ *  Tapping anywhere opens the MacroDetailSheet via onExpand. */
 function MacroBarsRow({
   protein, proteinGoal,
   carbs, fat,
@@ -320,6 +365,7 @@ function MacroBarsRow({
   showProtein,
   showCarbs,
   showFat,
+  onExpand,
 }: {
   protein: number; proteinGoal: number;
   carbs: number; fat: number;
@@ -330,6 +376,7 @@ function MacroBarsRow({
   showProtein?: boolean;
   showCarbs?: boolean;
   showFat?: boolean;
+  onExpand?: () => void;
 }) {
   const wantProtein = proteinGoal > 0 && (showProtein !== false);
   // Default visibility per tracking mode: carbs only for lower_carb, fat only for balanced/performance.
@@ -340,25 +387,31 @@ function MacroBarsRow({
   const wantFat      = gainDetailed && (showFat   ?? fatDefault);
   if (!wantProtein && !wantCarbs && !wantFat) return null;
   return (
-    <div className="flex gap-4 px-6 pt-3 pb-5">
-      {wantProtein && (
-        <MacroCol label="Protein" consumed={Math.round(protein)} targetG={proteinGoal} />
-      )}
-      {wantCarbs && (
-        <MacroCol
-          label="Carbs"
-          consumed={Math.round(carbs)}
-          targetG={macroStyle === 'lower_carb' ? carbLimit : 0}
-        />
-      )}
-      {wantFat && (
-        <MacroCol
-          label="Fat"
-          consumed={Math.round(fat)}
-          targetG={macroStyle === 'balanced' || macroStyle === 'performance' ? fatTarget : 0}
-        />
-      )}
-    </div>
+    <button
+      onClick={() => { hapticLight(); onExpand?.(); }}
+      className="w-full text-left active:opacity-70 transition-opacity"
+      aria-label="View macro details"
+    >
+      <div className="flex gap-4 px-6 pt-3 pb-5">
+        {wantProtein && (
+          <MacroCol label="Protein" consumed={Math.round(protein)} targetG={proteinGoal} />
+        )}
+        {wantCarbs && (
+          <MacroCol
+            label="Carbs"
+            consumed={Math.round(carbs)}
+            targetG={macroStyle === 'lower_carb' ? carbLimit : 0}
+          />
+        )}
+        {wantFat && (
+          <MacroCol
+            label="Fat"
+            consumed={Math.round(fat)}
+            targetG={macroStyle === 'balanced' || macroStyle === 'performance' ? fatTarget : 0}
+          />
+        )}
+      </div>
+    </button>
   );
 }
 
@@ -596,6 +649,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const [editActivity,      setEditActivity]      = useState<ActivityEntry | null>(null);
   const [showWeightSheet,   setShowWeightSheet]   = useState(false);
   const [showBreakdown,     setShowBreakdown]     = useState(false);
+  const [showMacroDetail,   setShowMacroDetail]   = useState(false);
   const [reminderDismissed, setReminderDismissed] = useState(
     () => localStorage.getItem(reminderKey(todayISO())) === '1',
   );
@@ -634,6 +688,14 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const gaugeRange = budget > 0 ? budget : GAUGE_RANGE;
   const gaugeValue = Math.max(-1, Math.min(1, left / gaugeRange));
   const isPastDay  = date < todayISO();
+
+  // Effective carb limit: if the goal is lower_carb but carbLimitG wasn't saved
+  // (e.g. goal created before that field existed), fall back to the same formula
+  // GoalSetupScreen uses (≈25% of target kcal as carbs, rounded to nearest 5g).
+  const targetKcal = totalBurn > 0 ? totalBurn - dailyTarget : 0; // lose: +deficit, gain: +surplus
+  const effectiveCarbLimit = (macroStyle === 'lower_carb' && !carbLimitG && targetKcal > 0)
+    ? Math.max(20, Math.round(targetKcal * 0.25 / 4 / 5) * 5)
+    : (carbLimitG ?? 0);
 
   // ── Gain goal zone computation ─────────────────────────────────────────────
   // Floor/ceiling surplus range. Falls back to |dailyTarget| ± 100 for old goals.
@@ -816,10 +878,11 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
               gainDetailed={!!macroStyle}
               macroStyle={macroStyle}
               fatTarget={fatTargetG}
-              carbLimit={carbLimitG}
+              carbLimit={effectiveCarbLimit}
               showProtein={diaryShowProtein}
               showCarbs={diaryShowCarbs}
               showFat={diaryShowFat}
+              onExpand={() => setShowMacroDetail(true)}
             />
           )}
         </div>
@@ -876,10 +939,11 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
               gainDetailed={!!macroStyle}
               macroStyle={macroStyle}
               fatTarget={fatTargetG}
-              carbLimit={carbLimitG}
+              carbLimit={effectiveCarbLimit}
               showProtein={diaryShowProtein}
               showCarbs={diaryShowCarbs}
               showFat={diaryShowFat}
+              onExpand={() => setShowMacroDetail(true)}
             />
           )}
         </div>
@@ -1022,6 +1086,16 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
         })()}
       </section>
 
+      {showMacroDetail && (
+        <MacroDetailSheet
+          protein={protein} proteinGoal={proteinGoalG}
+          carbs={carbs} fat={fat}
+          macroStyle={macroStyle}
+          fatTarget={fatTargetG}
+          carbLimit={effectiveCarbLimit}
+          onClose={() => setShowMacroDetail(false)}
+        />
+      )}
       {editFood && <EditFoodSheet entry={editFood} items={items} onClose={() => setEditFood(null)} showToast={ctx.showToast} />}
       {editMeal && <MealEditSheet entry={editMeal} pantryItems={items} onClose={() => setEditMeal(null)} showToast={ctx.showToast} />}
       {editActivity && <EditActivitySheet entry={editActivity} onClose={() => setEditActivity(null)} showToast={ctx.showToast} />}
@@ -1111,11 +1185,11 @@ function BreakdownSheet({
 
   // ── Goal mode: full deficit breakdown ────────────────────────────────────
   const burnRows = [
-    { label: 'BMR',      value: `${Math.round(bmr).toLocaleString()} kcal`, isDigestion: false },
+    { label: 'BMR',      value: gainGoal ? `−${Math.round(bmr).toLocaleString()} kcal` : `${Math.round(bmr).toLocaleString()} kcal`, isDigestion: false },
     { label: 'Activity', value: gainGoal ? `−${Math.round(actCals).toLocaleString()} kcal` : `+${Math.round(actCals).toLocaleString()} kcal`, isDigestion: false },
     ...(digestionCalories > 0 ? [{
       label: 'Estimated digestion',
-      value: `+${digestionCalories.toLocaleString()} kcal`,
+      value: gainGoal ? `−${digestionCalories.toLocaleString()} kcal` : `+${digestionCalories.toLocaleString()} kcal`,
       isDigestion: true,
     }] : []),
   ];

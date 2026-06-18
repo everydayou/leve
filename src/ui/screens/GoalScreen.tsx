@@ -645,7 +645,12 @@ function GoalOutcomeView({ goal, weights, mode, onDismiss, units = 'kg' }: {
 
           {/* CTA */}
           <div className="w-full">
-            <Button size="lg" onClick={() => slideDown(() => nav('/goal-setup?new=true'))}>Start next goal</Button>
+            <Button size="lg" onClick={() => {
+              // Mark this goal as viewed so the outcome screen doesn't loop if
+              // the user returns from GoalSetupScreen without creating a new goal.
+              void repos.goals.put({ ...goal, outcomeViewed: true });
+              slideDown(() => nav('/goal-setup?new=true'));
+            }}>Start next goal</Button>
           </div>
         </div>
       </div>

@@ -15,7 +15,7 @@ import type { Goal, WeightEntry, User, FoodItem } from '../../domain/types';
 
 // ── Slide container (right-to-left push) ────────────────────────────────────
 
-function SlideScreen({ children, exiting }: { children: React.ReactNode; exiting: boolean }) {
+function SlideScreen({ children, exiting, onScroll }: { children: React.ReactNode; exiting: boolean; onScroll?: React.UIEventHandler<HTMLDivElement> }) {
   return (
     <div
       className={`fixed inset-0 z-[150] flex justify-center overflow-hidden bg-surface-sunken ${exiting ? 'slide-out-right' : 'slide-in-right'}`}
@@ -24,6 +24,7 @@ function SlideScreen({ children, exiting }: { children: React.ReactNode; exiting
       <div
         className="safe-top safe-bottom flex h-[100dvh] w-full max-w-[26.25rem] flex-col overflow-x-hidden overflow-y-auto bg-surface"
         style={{ touchAction: 'pan-y' }}
+        onScroll={onScroll}
       >
         {children}
       </div>
@@ -33,9 +34,9 @@ function SlideScreen({ children, exiting }: { children: React.ReactNode; exiting
 
 // ── Shared nav header ────────────────────────────────────────────────────────
 
-function SlideHeader({ title, onBack }: { title: string; onBack: () => void }) {
+function SlideHeader({ title, onBack, scrolled = false }: { title: string; onBack: () => void; scrolled?: boolean }) {
   return (
-    <div className="sticky top-0 z-20 bg-surface">
+    <div className={`sticky top-0 z-20 bg-surface transition-[box-shadow] duration-200${scrolled ? ' shadow-nav' : ''}`}>
       <div className="pointer-events-none absolute left-0 right-0 bg-surface" style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
       <div className="flex items-center gap-2 px-4 pt-5 pb-4">
         <button onClick={onBack} aria-label="Back" className="-ml-2 flex h-10 w-10 items-center justify-center text-content-muted">
@@ -172,6 +173,7 @@ function PastGoalDetail({
   goalId: string; onBack: () => void;
 }) {
   const [exiting, setExiting] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   const data = useLive(async () => {
     const [allGoals, allWeights, allItems, user] = await Promise.all([
@@ -192,8 +194,8 @@ function PastGoalDetail({
 
   if (data === null) {
     return (
-      <SlideScreen exiting={exiting}>
-        <SlideHeader title="Goal" onBack={goBack} />
+      <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
+        <SlideHeader title="Goal" onBack={goBack} scrolled={scrolled} />
         <p className="px-6 text-subhead text-content-muted">Goal not found.</p>
       </SlideScreen>
     );
@@ -201,7 +203,7 @@ function PastGoalDetail({
 
   if (data === undefined) {
     return (
-      <SlideScreen exiting={exiting}>
+      <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
         <div className="p-6 space-y-3">
           <Skeleton className="h-7 w-40" />
           <Skeleton className="h-36 w-full rounded-main" />
@@ -224,8 +226,8 @@ function PastGoalDetail({
     new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
-    <SlideScreen exiting={exiting}>
-      <SlideHeader title={goal.name} onBack={goBack} />
+    <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
+      <SlideHeader title={goal.name} onBack={goBack} scrolled={scrolled} />
 
       <div className="px-6 pb-8 space-y-4">
         {/* Overview card */}
@@ -262,6 +264,7 @@ function PastGoalsList({
   onBack: () => void; onSelect: (id: string) => void;
 }) {
   const [exiting, setExiting] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   const goals = useLive(async () => {
     const all = await repos.goals.getAll();
@@ -279,8 +282,8 @@ function PastGoalsList({
     new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
-    <SlideScreen exiting={exiting}>
-      <SlideHeader title="Past goals" onBack={goBack} />
+    <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
+      <SlideHeader title="Past goals" onBack={goBack} scrolled={scrolled} />
 
       <div className="px-6 pb-8">
         {goals === undefined ? (

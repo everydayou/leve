@@ -159,6 +159,7 @@ export function GoalSetupForm({
     activeGoal?.dailyDeficitKcalOverride ?? null,
   );
   const [sessionTouched, setSessionTouched] = useState(false);
+  const [navScrolled, setNavScrolled] = useState(false);
   // Field-level errors — set on attempted submit when fields are invalid
   const [fieldErrors, setFieldErrors] = useState<{
     start?: string; target?: string; date?: string; startDate?: string;
@@ -194,13 +195,18 @@ export function GoalSetupForm({
   const [proteinG, setProteinG] = useState<number>(
     currentProteinGoal ?? defProtein(activeGoal ? activeGoal.startWeightKg : toKg(sNum)),
   );
-  // Single fat anchor — represents fat target (balanced) or fat baseline (performance)
-  const [fatG, setFatG] = useState<number>(
-    activeGoal?.fatTargetG ?? defFatBalanced(safeBmr),
+  // Fat/carb overrides — null means "use computed default from totalCal".
+  // This prevents spurious macro warnings when opening the tracking step fresh.
+  const [fatGState, setFatGState] = useState<number | null>(
+    activeGoal?.fatTargetG ?? null,
   );
-  const [carbLimitG, setCarbLimitG] = useState<number>(
-    activeGoal?.carbLimitG ?? defCarbLimit(safeBmr),
+  const [carbLimitGState, setCarbLimitGState] = useState<number | null>(
+    activeGoal?.carbLimitG ?? null,
   );
+  // Derived — updates whenever deficit slider moves, so defaults always match net calories.
+  // Performance uses a lower fat baseline; both clear the warning on first open.
+  const fatG = fatGState ?? (macroStyle === 'performance' ? defFatPerformance(totalCal) : defFatBalanced(totalCal));
+  const carbLimitG = carbLimitGState ?? defCarbLimit(totalCal);
 
   // Sync form fields when editing an existing goal (async data arrives)
   useEffect(() => {
@@ -214,8 +220,8 @@ export function GoalSetupForm({
       setStartDate(activeGoal.startDate);
       setDeficitOverride(activeGoal.dailyDeficitKcalOverride ?? null);
       setMacroStyle(activeGoal.macroStyle ?? null);
-      if (activeGoal.fatTargetG)   setFatG(activeGoal.fatTargetG);
-      if (activeGoal.carbLimitG)   setCarbLimitG(activeGoal.carbLimitG);
+      if (activeGoal.fatTargetG)   setFatGState(activeGoal.fatTargetG);
+      if (activeGoal.carbLimitG)   setCarbLimitGState(activeGoal.carbLimitG);
       if (currentProteinGoal) {
         setProteinG(currentProteinGoal);
       }
@@ -281,7 +287,7 @@ export function GoalSetupForm({
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <FullScreen slideUp={!!(skipType || onClose)} exiting={exiting}>
+    <FullScreen slideUp={!!(skipType || onClose)} exiting={exiting} onScroll={(e) => setNavScrolled(e.currentTarget.scrollTop > 0)}>
       <div ref={stepRef}>
 
         {/* ── Step 1: Choose goal type ── */}
@@ -324,7 +330,7 @@ export function GoalSetupForm({
         {/* ── Step 2: Your plan ── */}
         {step === 'details' && (
           <>
-            <div className="sticky top-0 z-20 bg-surface flex items-center justify-between px-4 pt-5 pb-4">
+            <div className={`sticky top-0 z-20 bg-surface flex items-center justify-between px-4 pt-5 pb-4 transition-[box-shadow] duration-200${navScrolled ? ' shadow-nav' : ''}`}>
               <div
                 className="pointer-events-none absolute left-0 right-0 bg-surface"
                 style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }}
@@ -354,7 +360,6 @@ export function GoalSetupForm({
                     className="!bg-surface-sunken !border-transparent focus:!border-transparent"
                   />
                 </div>
-                <div className="border-t border-border-subtle" />
                 {/* Weight */}
                 <div className="p-4 pb-5">
                   <div className="mb-3 flex items-center gap-2">
@@ -415,6 +420,7 @@ export function GoalSetupForm({
                         <input
                           type="date"
                           value={date}
+                          min={startDate}
                           onChange={(e) => { setDate(e.target.value); setFieldErrors((p) => ({ ...p, date: undefined })); }}
                           className="w-full bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content outline-none border-0"
                           style={{ minWidth: 0 }}
@@ -430,7 +436,7 @@ export function GoalSetupForm({
               {/* Review section */}
               <div className="mt-6">
                 <p className="mb-3 text-headline font-semibold text-content">Review your goal</p>
-                <div className="overflow-hidden border border-border-subtle bg-surface p-5 shadow-card" style={{ borderRadius: 24 }}>
+                <div className={`overflow-hidden border border-border-subtle bg-surface p-5${intensity ? ' shadow-card' : ''}`} style={{ borderRadius: 24 }}>
                   {intensity ? (
                     <>
                       {/* Top row: stats centered, Reset at top-right */}
@@ -465,8 +471,9 @@ export function GoalSetupForm({
                         className="mt-[2px] w-full accent-accent"
                         style={{ touchAction: 'pan-x' }}
                       />
-                      <div className="mt-3 mb-5 -mx-5 border-t border-border-subtle" />
-                      <PaceMeter level={intensity.level} />
+                      <div className="mt-5">
+                        <PaceMeter level={intensity.level} />
+                      </div>
                       {showDeficitWarning && (
                         <div className="mt-4 flex items-start gap-2.5 rounded-control border border-border-subtle bg-surface-sunken p-3">
                           <Icon name="info" size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-content-secondary" />
@@ -519,7 +526,7 @@ export function GoalSetupForm({
         {step === 'tracking' && (
           <>
             {/* Sticky header */}
-            <div className="sticky top-0 z-20 bg-surface">
+            <div className={`sticky top-0 z-20 bg-surface transition-[box-shadow] duration-200${navScrolled ? ' shadow-nav' : ''}`}>
               <div
                 className="pointer-events-none absolute left-0 right-0 bg-surface"
                 style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }}
@@ -604,8 +611,8 @@ export function GoalSetupForm({
                             min={10}
                             max={r5(totalCal * 0.55 / 9)}
                             onEditToggle={() => setEditingRow(editingRow === 'fat' ? null : 'fat')}
-                            onReset={() => { setFatG(defFatBalanced(totalCal)); setEditingRow(null); }}
-                            onChange={setFatG}
+                            onReset={() => { setFatGState(null); setEditingRow(null); }}
+                            onChange={setFatGState}
                             note={macroNote('balanced', 'fat', fatG, totalCal)}
                           />
                         </>
@@ -631,8 +638,8 @@ export function GoalSetupForm({
                             min={10}
                             max={r5(totalCal * 0.45 / 9)}
                             onEditToggle={() => setEditingRow(editingRow === 'fat' ? null : 'fat')}
-                            onReset={() => { setFatG(defFatPerformance(totalCal)); setEditingRow(null); }}
-                            onChange={setFatG}
+                            onReset={() => { setFatGState(null); setEditingRow(null); }}
+                            onChange={setFatGState}
                             note={macroNote('performance', 'fat', fatG, totalCal)}
                           />
                         </>
@@ -653,8 +660,8 @@ export function GoalSetupForm({
                             min={20}
                             max={r5(totalCal * 0.55 / 4)}
                             onEditToggle={() => setEditingRow(editingRow === 'carb' ? null : 'carb')}
-                            onReset={() => { setCarbLimitG(defCarbLimit(totalCal)); setEditingRow(null); }}
-                            onChange={setCarbLimitG}
+                            onReset={() => { setCarbLimitGState(null); setEditingRow(null); }}
+                            onChange={setCarbLimitGState}
                             note={macroNote('lower_carb', 'carb', carbLimitG, totalCal)}
                           />
                           <MacroRow
@@ -782,10 +789,12 @@ function FullScreen({
   children,
   slideUp,
   exiting,
+  onScroll,
 }: {
   children: React.ReactNode;
   slideUp?: boolean;
   exiting?: boolean;
+  onScroll?: React.UIEventHandler<HTMLDivElement>;
 }) {
   const animClass = exiting ? 'slide-down-out' : slideUp ? 'slide-up-in' : '';
   return (
@@ -796,6 +805,7 @@ function FullScreen({
       <div
         className="safe-top safe-bottom flex h-[100dvh] w-full max-w-[26.25rem] flex-col overflow-x-hidden overflow-y-auto bg-surface sm:h-[min(880px,94dvh)] sm:rounded-[2rem] sm:border sm:border-border-subtle sm:shadow-xl"
         style={{ touchAction: 'pan-y' }}
+        onScroll={onScroll}
       >
         {children}
       </div>

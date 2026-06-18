@@ -42,7 +42,7 @@ export function GoalScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const [showCompleteSheet, setShowCompleteSheet] = useState(false);
   const [showEndSheet, setShowEndSheet] = useState(false);
-  const [dismissedOutcome, setDismissedOutcome] = useState(false);
+  const [outcomeLocalDismissed, setOutcomeLocalDismissed] = useState(false);
   const [showPastGoalsOptions, setShowPastGoalsOptions] = useState(false);
   const [showPastGoalsList, setShowPastGoalsList] = useState(false);
   const [showEditPlan, setShowEditPlan] = useState(false);
@@ -87,7 +87,7 @@ export function GoalScreen() {
     );
   }
 
-  if (!data.goal || dismissedOutcome) {
+  if (!data.goal || outcomeLocalDismissed || data.goal.outcomeViewed) {
     const prevGoals = data.previousGoals;
     return (
       <div>
@@ -159,7 +159,10 @@ export function GoalScreen() {
       goal={goal}
       weights={weights}
       mode={isCompleted ? 'completed' : 'ended'}
-      onDismiss={() => setDismissedOutcome(true)}
+      onDismiss={() => {
+        setOutcomeLocalDismissed(true);
+        void repos.goals.put({ ...goal, outcomeViewed: true });
+      }}
       units={user?.units ?? 'kg'}
     />;
   }
@@ -584,8 +587,8 @@ function GoalOutcomeView({ goal, weights, mode, onDismiss, units = 'kg' }: {
   const animClass = exiting ? 'slide-down-out' : 'slide-up-in';
 
   return createPortal(
-    <div className={`fixed inset-0 z-[200] flex justify-center overflow-hidden bg-surface-sunken ${animClass}`} style={{ touchAction: 'manipulation' }}>
-      <div className="safe-top safe-bottom flex h-[100dvh] w-full max-w-[26.25rem] flex-col overflow-y-auto bg-surface-sunken" style={{ touchAction: 'pan-y' }}>
+    <div className={`fixed inset-0 z-[200] flex justify-center overflow-hidden bg-surface ${animClass}`} style={{ touchAction: 'manipulation' }}>
+      <div className="safe-top safe-bottom flex h-[100dvh] w-full max-w-[26.25rem] flex-col overflow-y-auto bg-surface" style={{ touchAction: 'pan-y' }}>
         {/* X dismiss button */}
         <div className="px-4 pt-5 pb-2 flex-shrink-0">
           <button

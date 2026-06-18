@@ -255,6 +255,8 @@ button, a, [role="button"] {
    This lets the .dark theme and the DevMenu shadow sliders both work. */
 .shadow-card    { --tw-shadow: var(--shadow-card); }
 .shadow-card-lg { --tw-shadow: var(--shadow-card-lg); }
+/* Navbar scroll-depth shadow — appears when content scrolls under a sticky header */
+.shadow-nav     { box-shadow: 0 2px 8px -2px rgba(17, 24, 28, 0.08); }
 
 /* ── Glass utilities ───────────────────────────────────────────────────────
    .glass        — standard frosted surface (tab bar, top bar, sheet header)

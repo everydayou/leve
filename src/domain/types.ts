@@ -59,6 +59,8 @@ export interface Goal {
   diaryShowProtein?: boolean;
   diaryShowCarbs?: boolean;
   diaryShowFat?: boolean;
+  /** Set to true when the user has dismissed the GoalOutcomeView for this goal. */
+  outcomeViewed?: boolean;
 }
 
 export interface FoodItem {

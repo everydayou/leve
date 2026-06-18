@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Capacitor } from '@capacitor/core';
 import { seedIfEmpty } from './data/seed';
 import { importStarterPantry } from './data/pantrySeed';
-import { PREVIEW } from './state/repos';
+import { PREVIEW, repos } from './state/repos';
 import { applyTheme, watchSystemTheme } from './lib/theme';
 import { clearStaleDevOverrides, applyDevOverrides } from './lib/devTokens';
 import { initDynamicType } from './lib/dynamicType';
@@ -11,8 +11,31 @@ import AppRoot from './AppRoot';
 import { initSplash } from './lib/splashCoordinator';
 import './index.css';
 
-// Minimum time the loading screen is shown (matches the 5 s arc animation).
-const MIN_SPLASH_MS = 5000;
+// Minimum time the loading screen is shown — two full animation cycles (0.9 s each).
+// On a dev-profile reload (sessionStorage flag set) we skip the minimum entirely
+// so profile switching isn't gated behind a 1.8 s wait.
+const SPLASH_SHOWN_KEY = 'leve-splash-shown';
+const alreadyShown = !!sessionStorage.getItem(SPLASH_SHOWN_KEY);
+sessionStorage.setItem(SPLASH_SHOWN_KEY, '1');
+const MIN_SPLASH_MS = alreadyShown ? 0 : 1800;
+
+/** Preload the most-read IndexedDB collections so the first modal open
+ *  (AddEntrySheet, WeightSheet, etc.) feels instant.  All reads are
+ *  fire-and-forget — failures are silently ignored. */
+async function warmUp(): Promise<void> {
+  if (PREVIEW) return;
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    await Promise.all([
+      repos.user.get(),
+      repos.goals.getActive(),
+      repos.foodItems.all(),
+      repos.foodEntries.byDate(today),
+      repos.activities.byDate(today),
+      repos.weights.all(),
+    ]);
+  } catch { /* non-fatal */ }
+}
 
 async function bootstrap() {
   // Apply theme before first paint (also reinforced by the inline script in
@@ -50,13 +73,12 @@ async function bootstrap() {
     });
   }
 
-  // Run data seeding in parallel with the minimum display time so the loading
-  // screen always shows for at least MIN_SPLASH_MS (matching the arc animation),
-  // while also staying up as long as seeding actually takes if it is slower.
+  // Run seeding + warm-up in parallel with the minimum display time.
+  // warmUp() fires after seeding so the DB is fully populated before reads.
   await Promise.all([
     PREVIEW
       ? Promise.resolve()
-      : seedIfEmpty().then(() => importStarterPantry()),
+      : seedIfEmpty().then(() => importStarterPantry()).then(() => warmUp()),
     new Promise<void>(r => setTimeout(r, MIN_SPLASH_MS)),
   ]);
 

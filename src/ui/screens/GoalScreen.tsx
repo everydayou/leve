@@ -689,28 +689,40 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
     isBeforeGoal:   d < goal.startDate,
   }));
 
-  // Y-axis: fixed to the full goal range.
-  // Lose: start at top, target at bottom (weight goes down).
-  // Gain: start at bottom, target at top (weight goes up).
-  const STEP = 0.5;
-  const BUFFER = 0.3;
-  const actualKgs = daySeries.map((d) => d.actual).filter((k): k is number => k !== null);
+  // Y-axis: week-focused window centred on this week's planned + actual data.
+  // Shows ≤ 8 gridlines at 0.5 kg step; labels on whole-number kg (or every
+  // tick in lbs mode). The window re-centres each week so detail is readable.
+  const STEP   = 0.5;
+  const MAX_TICKS = 8;
+  const BUFFER = 0.3; // kg padding so dots never sit on the edge
+  const MIN_SPAN = 1.5; // minimum visible span to avoid a nearly flat axis
   const gain = isGainGoal(goal);
 
-  // Base range: for lose, start(heavier) = top, target(lighter) = bottom.
-  //             for gain, target(heavier) = top, start(lighter) = bottom.
-  const baseMin = Math.floor(Math.min(goal.startWeightKg, goal.targetWeightKg) / STEP) * STEP;
-  const baseMax = Math.max(goal.startWeightKg, goal.targetWeightKg);
+  // Collect the week's planned values + any actual weigh-ins (goal days only).
+  const weekPlanned = daySeries.filter((d) => !d.isBeforeGoal).map((d) => d.planned);
+  const weekActual  = daySeries
+    .filter((d): d is typeof d & { actual: number } => d.actual !== null && !d.isBeforeGoal)
+    .map((d) => d.actual);
+  const allRelevant = [...weekPlanned, ...weekActual];
 
-  // Expand only if weigh-ins push outside the goal range.
-  const dataMin = actualKgs.length > 0 ? Math.min(...actualKgs) - BUFFER : baseMin;
-  const dataMax = actualKgs.length > 0 ? Math.max(...actualKgs) : baseMax;
+  const rawDataMin = allRelevant.length > 0 ? Math.min(...allRelevant) : goal.startWeightKg;
+  const rawDataMax = allRelevant.length > 0 ? Math.max(...allRelevant) : goal.startWeightKg;
 
-  const rawMin = Math.min(dataMin, baseMin);
-  const rawMax = Math.max(dataMax, baseMax);
+  // Centre the Y window on the week's data; enforce a minimum span.
+  const midpoint = (rawDataMin + rawDataMax) / 2;
+  const halfSpan  = Math.max((rawDataMax - rawDataMin) / 2 + BUFFER, MIN_SPAN / 2);
 
-  const tickMin = Math.floor(rawMin / STEP) * STEP;
-  const tickMax = Math.ceil( rawMax / STEP) * STEP;
+  let tickMin = Math.floor((midpoint - halfSpan) / STEP) * STEP;
+  let tickMax = Math.ceil ((midpoint + halfSpan) / STEP) * STEP;
+
+  // If natural tick count exceeds MAX_TICKS, re-centre an 8-tick window.
+  const naturalCount = Math.round((tickMax - tickMin) / STEP) + 1;
+  if (naturalCount > MAX_TICKS) {
+    const windowKg = STEP * (MAX_TICKS - 1); // 3.5 kg
+    tickMin = round1(Math.round((midpoint - windowKg / 2) / STEP) * STEP);
+    tickMax = round1(tickMin + windowKg);
+  }
+
   const ticks: number[] = [];
   for (let v = tickMin; v <= tickMax + 0.001; v = round1(v + STEP)) ticks.push(v);
 

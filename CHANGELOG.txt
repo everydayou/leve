@@ -7,6 +7,86 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUNDS 80–84 — GAIN GOAL ZONE UI RESTORE, MACRO BARS POLISH,
+               BADGE TWEAKS, BREAKDOWN SIGNS (2026-06-19)
+================================================================
+Files: src/domain/types.ts, src/ui/kit/Progress.tsx,
+       src/ui/kit/Badge.tsx, src/ui/screens/TodayScreen.tsx,
+       src/ui/screens/GoalScreen.tsx, src/ui/screens/OnboardingScreen1.tsx
+
+── r80: Restore gain goal zone UI (gauge, signs, week strip, WeekChart) ──
+- types.ts: added surplusFloor?: number and surplusCeiling?: number to Goal
+  interface (surplus band for gain goals, introduced in r66, lost from repo).
+- Progress.tsx GaugeArc: added strokePositive?: string and strokeNegative?: string
+  props. Bidirectional mode uses them instead of hardcoded accent/content tokens.
+- TodayScreen:
+  · gainZone: 'below'|'in'|'above' computed from floor/ceiling surplus band
+    (gainFloorEff/gainCeilEff, falls back to |dailyTarget| ±100 for old goals).
+  · Badge: 'Under target' (below) / 'In range' success (in) / 'Over' (above).
+  · GaugeArc arc color: mint (var(--color-accent)) when in-range, dark otherwise.
+  · effectiveGaugeValue anchored to midpoint of floor/ceil band for gain goals.
+  · Food tiles/log items: positive values for gain (removed − prefix).
+  · Activity tiles/log items: negative values for gain (added − prefix).
+  · BreakdownSheet: Food shows +, Activity shows −, Total badge uses gainZone
+    ('Under target' / 'In range' / 'Over') for gain goals.
+  · Week strip dayStates: gain goals succeed only when consumed is within
+    the floor/ceil surplus band (not the previous ±100 shortcut).
+- GoalScreen WeekChart:
+  · DayBar interface gains floorBudget: number and ceilBudget: number.
+  · gainFloorEff/gainCeilEff computed from goal.surplusFloor/surplusCeiling.
+  · cumulData accumulates cumFloor and cumCeil alongside cumBudget.
+  · maxY includes maxCeil for gain charts.
+  · SVG: two dashed polylines for gain (floor + ceiling ramps) instead of
+    the single ramp used for lose goals.
+  · Bar color: mint when cumConsumed ∈ [cumFloor, cumCeil], dark otherwise.
+  · Weekly summary badge: 3-state 'Under target' / 'In range' / 'Over'.
+
+── r81: Macro tracking defaults, badge font + separator polish ──
+- TodayScreen MacroBarsRow wantCarbs/wantFat default visibility:
+  · Previously: (showCarbs !== false) — carbs always visible for all detailed modes.
+  · Now: carbsDefault = macroStyle === 'lower_carb'; fatDefault = balanced||performance.
+  · showCarbs/showFat undefined → use per-mode default; true → always show;
+    false → always hide. Fixes carbs bar rendering with targetG=0 for non-lower_carb.
+- Badge.tsx: added className?: string passthrough prop.
+- GoalScreen WeekChart badges (weight + kcal): pinned to text-[15px] via className.
+- All badge · separators: changed from ' · ' to {'  ·  '} (double spaces) in
+  TodayScreen BreakdownSheet and OnboardingScreen1.
+
+── r82: MacroCol 13px font, consumed/target inline display ──
+- MacroCol: text-subhead → text-footnote (13 px) for both label and value.
+- Icon size: 14 → 13 to match.
+- Value now shows consumed (semibold) / target (regular muted) inline, e.g. "106 / 150".
+
+── r83: Macro detail sheet, carb limit fallback, breakdown signs ──
+- TodayScreen: MacroCol now shows only consumed (no target inline — moved to detail).
+- New MacroDetailRow component: stacked layout with label, consumed/target, ProgressBar.
+- New MacroDetailSheet component: Sheet titled "Macros" showing all three macros
+  vertically with full-width progress bars and consumed / target g values.
+- MacroBarsRow: added onExpand?: () => void; entire row wrapped in <button> that calls
+  hapticLight() + onExpand. Tapping any macro opens MacroDetailSheet.
+- DayPanel: showMacroDetail state; effectiveCarbLimit fallback for lower_carb goals
+  missing carbLimitG (formula: max(20, round5(targetKcal × 0.25 ÷ 4))).
+- Both MacroBarsRow call sites: pass carbLimit={effectiveCarbLimit} and
+  onExpand={() => setShowMacroDetail(true)}.
+- MacroDetailSheet rendered at end of DayPanel return, guarded by showMacroDetail.
+- BreakdownSheet burn rows for gain goals: BMR and Estimated digestion now show
+  with − prefix (e.g. −2,100 kcal), consistent with Activity's sign convention.
+
+── r84: Compute carb target for all detailed macro styles ──
+- effectiveCarbLimit now covers all three macroStyles:
+  · lower_carb: explicit carbLimitG (fallback: max(20, round5(targetKcal × 0.25 ÷ 4))).
+  · balanced/performance: residual formula — (targetKcal − protein_kcal − fat_kcal) ÷ 4
+    — same value shown as "Adjusts with activity" in GoalSetupScreen. Recomputed daily
+    from live totalBurn so the target genuinely adjusts with each day's activity.
+- MacroBarsRow carbs targetG: removed `macroStyle === 'lower_carb' ? carbLimit : 0`
+  condition; now always `carbLimit` (pre-computed per mode in DayPanel).
+- MacroDetailSheet carbTarget: similarly removed lower_carb gate; uses passed carbLimit.
+- carbsDefault changed to gainDetailed (= !!macroStyle): carbs now visible by default
+  for all three detailed tracking modes since all have a meaningful computed target.
+- tsc: clean. lint: clean.
+
+
+================================================================
 ROUND 79 — ACTIVITY LOG, WHEELPEICKER EMPTY STATE, DIARY PAST GOAL, SURPLUS RANGE, LOG MERGE (2026-06-18)
 ================================================================
 Files: src/ui/kit/WheelPicker.tsx, src/ui/kit/NumberField.tsx,

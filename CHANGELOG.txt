@@ -7,6 +7,25 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 85 — BREAKDOWN: SURPLUS TARGET RANGE IN BURN SECTION (2026-06-19)
+================================================================
+Files: src/ui/screens/TodayScreen.tsx
+
+── BreakdownSheet gain goal: Surplus target moved to burn rows ──
+- "Surplus target" (previously "Target surplus") moved from spendRows
+  (bottom section) to burnRows (top section), matching where BMR/Activity/
+  Digestion live.
+- Sign corrected to − (was + in spend section), consistent with the
+  burn-section convention.
+- Displayed as a floor–ceiling range instead of a single fixed number:
+  e.g. "−200–500 kcal/day" using gainFloorEff / gainCeilEff from DayPanel's
+  goal zone computation (same values that drive the gauge and week strip).
+- gainFloor and gainCeil props added to BreakdownSheet; passed from DayPanel's
+  existing gainFloorEff/gainCeilEff constants.
+- For lose goals, spendRows still shows "Goal" row unchanged.
+- tsc: clean. lint: clean.
+
+================================================================
 ROUNDS 80–84 — GAIN GOAL ZONE UI RESTORE, MACRO BARS POLISH,
                BADGE TWEAKS, BREAKDOWN SIGNS (2026-06-19)
 ================================================================

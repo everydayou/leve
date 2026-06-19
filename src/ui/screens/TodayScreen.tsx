@@ -967,6 +967,8 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
           dailyTarget={dailyTarget}
           gainGoal={gainGoal}
           gainZone={gainZone}
+          gainFloor={gainFloorEff}
+          gainCeil={gainCeilEff}
           onClose={() => setShowBreakdown(false)}
         />
       )}
@@ -1115,11 +1117,15 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
 // ── Breakdown sheet ───────────────────────────────────────────────────────────
 
 function BreakdownSheet({
-  mode = 'goal', bmr, consumed, actCals, digestionCalories, dailyTarget, gainGoal = false, gainZone = 'below', onClose,
+  mode = 'goal', bmr, consumed, actCals, digestionCalories, dailyTarget,
+  gainGoal = false, gainZone = 'below', gainFloor = 0, gainCeil = 0, onClose,
 }: {
   mode?: 'goal' | 'no-goal';
   bmr: number; consumed: number; actCals: number; digestionCalories: number;
-  dailyTarget: number; gainGoal?: boolean; gainZone?: 'below' | 'in' | 'above'; onClose: () => void;
+  dailyTarget: number; gainGoal?: boolean; gainZone?: 'below' | 'in' | 'above';
+  /** Surplus floor/ceiling (kcal) — for range display in burnRows. */
+  gainFloor?: number; gainCeil?: number;
+  onClose: () => void;
 }) {
   const [showDigestionInfo, setShowDigestionInfo] = useState(false);
   const [infoEntered, setInfoEntered] = useState(false);
@@ -1200,16 +1206,19 @@ function BreakdownSheet({
       value: gainGoal ? `−${digestionCalories.toLocaleString()} kcal` : `+${digestionCalories.toLocaleString()} kcal`,
       isDigestion: true,
     }] : []),
+    ...(gainGoal ? [{
+      label: 'Surplus target',
+      value: `−${gainFloor.toLocaleString()}–${gainCeil.toLocaleString()} kcal/day`,
+      isDigestion: false,
+    }] : []),
   ];
   const targetMagnitude = Math.round(Math.abs(dailyTarget));
   const spendRows = [
     { label: 'Food', value: gainGoal ? `+${Math.round(consumed).toLocaleString()} kcal` : `−${Math.round(consumed).toLocaleString()} kcal` },
-    {
-      label: gainGoal ? 'Target surplus' : 'Goal',
-      value: gainGoal
-        ? `+${targetMagnitude.toLocaleString()} kcal/day`
-        : `−${targetMagnitude.toLocaleString()} kcal/day`,
-    },
+    ...(!gainGoal ? [{
+      label: 'Goal',
+      value: `−${targetMagnitude.toLocaleString()} kcal/day`,
+    }] : []),
   ];
   const totalBurn = Math.round(bmr + actCals + digestionCalories);
   // left = how much room is left vs target (signed; lose: positive=good, gain: negative=good)

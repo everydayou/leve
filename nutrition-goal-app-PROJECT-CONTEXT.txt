@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-19 — Round 84 (gain goal zone UI restore, gauge arc colors, food/activity sign convention, week strip + WeekChart dual ramps, macro bar tracking defaults, badge font + separator polish, MacroCol 13px, macro detail sheet, carb target for all macro styles, breakdown sign polish).
+Last updated: 2026-06-19 — Round 85 (BreakdownSheet: Surplus target moved to burn section as floor–ceiling range for gain goals).
 Full change history: see CHANGELOG.txt (rounds 1–68).
 
 HOW TO READ THIS DOC:
@@ -291,7 +291,7 @@ through r62 (see CHANGELOG for full list).
 ----------------------------------------------------------------
 RECENT ROUNDS (for context on what was just touched)
 ----------------------------------------------------------------
-ROUNDS 80–84 — GAIN GOAL ZONE UI, MACRO BARS POLISH, BADGE TWEAKS, BREAKDOWN SIGNS (2026-06-19)
+ROUNDS 80–85 — GAIN GOAL ZONE UI, MACRO BARS POLISH, BADGE TWEAKS, BREAKDOWN SIGNS (2026-06-19)
 Files: src/domain/types.ts, src/ui/kit/Progress.tsx, src/ui/kit/Badge.tsx,
        src/ui/screens/TodayScreen.tsx, src/ui/screens/GoalScreen.tsx,
        src/ui/screens/OnboardingScreen1.tsx
@@ -309,6 +309,7 @@ Files: src/domain/types.ts, src/ui/kit/Progress.tsx, src/ui/kit/Badge.tsx,
   with all 3 macros stacked: label, consumed/target g, ProgressBar). MacroBarsRow
   wrapped in <button> + onExpand prop. effectiveCarbLimit fallback for lower_carb
   goals missing carbLimitG. BreakdownSheet gain: BMR and digestion show − prefix.
+- r85: BreakdownSheet gain goal: "Surplus target" moved to burnRows (top section) with − sign, displayed as a floor–ceiling range (e.g. −200–500 kcal/day) instead of a single fixed number. gainFloor/gainCeil props added to BreakdownSheet.
 - r84: effectiveCarbLimit covers all macroStyles. balanced/performance: residual
   (targetKcal−protein_kcal−fat_kcal)÷4, recalculated daily from live totalBurn.
   carbsDefault=gainDetailed (all detailed modes show carbs by default).

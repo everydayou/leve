@@ -7,6 +7,23 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 87 — GAIN GAUGE/BREAKDOWN POLISH (2026-06-19)
+================================================================
+Files: src/ui/screens/TodayScreen.tsx
+
+- Gauge: past days within an active goal no longer dimmed (disabled only
+  applies when there is no active goal — disabled={isPastDay && !goal}).
+- DayPanel gainDisplayNum: rounds consumed once (consumedRnd) before computing
+  floor/ceiling distances, so gauge number exactly matches breakdown numbers.
+- BreakdownSheet gain reference box:
+  · Border changed to border-field.
+  · Range format: "X to Y kcal/day" (was "X–Y").
+  · "Your surplus" row added below "Surplus target" row.
+- BreakdownSheet Total badge for 'in' zone: shows "In range · X kcal to
+  ceiling" — same X as the gauge center, directly comparable to Your surplus.
+- tsc: clean. lint: clean.
+
+================================================================
 ROUND 86 — GAIN BREAKDOWN CLARITY + PAST-DAY GAUGE FIX (2026-06-19)
 ================================================================
 Files: src/ui/kit/Progress.tsx, src/ui/screens/TodayScreen.tsx

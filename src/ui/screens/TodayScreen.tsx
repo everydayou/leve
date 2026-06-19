@@ -716,11 +716,13 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
     ? (consumed < gainFloorBudget ? 'below' : consumed <= gainCeilBudget ? 'in' : 'above')
     : 'below'; // unused for lose
   // Zone-specific display number and label for the gauge center.
+  // Round consumed once so this matches BreakdownSheet's consumedSurplus.
+  const consumedRnd    = Math.round(consumed);
   const gainDisplayNum = gainZone === 'below'
-    ? Math.round(gainFloorBudget - consumed)   // kcal until floor
+    ? gainFloorBudget - consumedRnd   // kcal until floor
     : gainZone === 'in'
-      ? Math.round(gainCeilBudget - consumed)  // kcal room left in range
-      : Math.round(consumed - gainCeilBudget); // kcal over ceiling
+      ? gainCeilBudget - consumedRnd  // kcal room left in range (matches breakdown)
+      : consumedRnd - gainCeilBudget; // kcal over ceiling
   const gainLabel = gainZone === 'below' ? 'kcal to go' : gainZone === 'in' ? 'kcal available' : 'kcal over';
   // Arc color: both arcs mint when in range, both dark otherwise.
   const gainArcColor = gainZone === 'in' ? 'var(--color-accent)' : 'var(--color-content)';
@@ -831,7 +833,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                   <GaugeArc
                     value={gaugeDisplay}
                     bidirectional
-                    disabled={isPastDay}
+                    disabled={isPastDay && !goal}
                     strokePositive={gainGoal ? gainArcColor : undefined}
                     strokeNegative={gainGoal ? gainArcColor : undefined}
                   >
@@ -1255,11 +1257,17 @@ function BreakdownSheet({
         </div>
 
         {gainGoal && (
-          <div className="overflow-hidden rounded-control border border-border-subtle mt-2">
-            <div className="flex items-center justify-between bg-surface px-4 py-3">
+          <div className="overflow-hidden rounded-control border border-field mt-2">
+            <div className="flex items-center justify-between bg-surface px-4 py-3 border-b border-field">
               <span className="text-subhead text-content-secondary">Surplus target</span>
               <span className="text-subhead font-semibold text-content-secondary">
-                {gainFloor.toLocaleString()}–{gainCeil.toLocaleString()} kcal/day
+                {gainFloor.toLocaleString()} to {gainCeil.toLocaleString()} kcal/day
+              </span>
+            </div>
+            <div className="flex items-center justify-between bg-surface px-4 py-3">
+              <span className="text-subhead text-content-secondary">Your surplus</span>
+              <span className="text-subhead font-semibold text-content-secondary">
+                {consumedSurplus.toLocaleString()} kcal
               </span>
             </div>
           </div>
@@ -1273,7 +1281,7 @@ function BreakdownSheet({
                 {gainZone === 'below'
                   ? `Under target  ·  ${(gainFloor - consumedSurplus).toLocaleString()} kcal to go`
                   : gainZone === 'in'
-                    ? `In range  ·  ${consumedSurplus.toLocaleString()} kcal surplus`
+                    ? `In range  ·  ${(gainCeil - consumedSurplus).toLocaleString()} kcal to ceiling`
                     : `Over  ·  ${(consumedSurplus - gainCeil).toLocaleString()} kcal above max`}
               </Badge>
             ) : (

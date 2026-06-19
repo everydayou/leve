@@ -291,7 +291,7 @@ through r62 (see CHANGELOG for full list).
 ----------------------------------------------------------------
 RECENT ROUNDS (for context on what was just touched)
 ----------------------------------------------------------------
-ROUNDS 80–87 — GAIN GOAL ZONE UI, MACRO BARS POLISH, BADGE TWEAKS, BREAKDOWN SIGNS (2026-06-19)
+ROUNDS 80–88 — GAIN GOAL ZONE UI, MACRO BARS POLISH, BADGE TWEAKS, BREAKDOWN SIGNS (2026-06-19)
 Files: src/domain/types.ts, src/ui/kit/Progress.tsx, src/ui/kit/Badge.tsx,
        src/ui/screens/TodayScreen.tsx, src/ui/screens/GoalScreen.tsx,
        src/ui/screens/OnboardingScreen1.tsx
@@ -309,6 +309,7 @@ Files: src/domain/types.ts, src/ui/kit/Progress.tsx, src/ui/kit/Badge.tsx,
   with all 3 macros stacked: label, consumed/target g, ProgressBar). MacroBarsRow
   wrapped in <button> + onExpand prop. effectiveCarbLimit fallback for lower_carb
   goals missing carbLimitG. BreakdownSheet gain: BMR and digestion show − prefix.
+- r88: BreakdownSheet full redesign — unified sign convention (BMR/Activity/Digestion always −, Food always +, Total = net balance). Single math box with Total and Goal rows inside. Second box: badge standalone top-left + Available label + large bold number. Goal row shows "Goal (surplus)" / "Goal (deficit)" with signed value. Available = gainCeil−consumedSurplus (gain) or left (lose). Removed separate burn/spend/reference boxes.
 - r87: Gauge: no dimming for past days within active goal period (disabled={isPastDay && !goal}). gainDisplayNum rounds consumed once for consistency with breakdown. BreakdownSheet gain: reference box uses border-field; range format "X to Y kcal/day"; "Your surplus" row added; Total badge for 'in' zone shows "X kcal to ceiling" (matches gauge).
 - r86: Past-day gauge (bidirectional): disabled now only dims opacity — arc renders at real value (was frozen at 0). BreakdownSheet gain: Surplus target moved out of burnRows into a muted reference row just above Total; Total badge now shows actual surplus vs target (e.g. "In range · 152 kcal surplus") instead of the confusing left-vs-midpoint number.
 - r85: BreakdownSheet gain goal: "Surplus target" moved to burnRows (top section) with − sign, displayed as a floor–ceiling range (e.g. −200–500 kcal/day) instead of a single fixed number. gainFloor/gainCeil props added to BreakdownSheet.

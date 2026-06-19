@@ -1199,41 +1199,55 @@ function BreakdownSheet({
     );
   }
 
-  // ── Goal mode: full deficit breakdown ────────────────────────────────────
-  const burnRows = [
-    { label: 'BMR',      value: gainGoal ? `−${Math.round(bmr).toLocaleString()} kcal` : `${Math.round(bmr).toLocaleString()} kcal`, isDigestion: false },
-    { label: 'Activity', value: gainGoal ? `−${Math.round(actCals).toLocaleString()} kcal` : `+${Math.round(actCals).toLocaleString()} kcal`, isDigestion: false },
+  // ── Goal mode: unified sign convention (burns −, food +, total = net) ───
+  // Burns and food always use same sign regardless of goal type.
+  const mathRows = [
+    { label: 'BMR',      value: `−${Math.round(bmr).toLocaleString()} kcal`,             isDigestion: false },
+    { label: 'Activity', value: `−${Math.round(actCals).toLocaleString()} kcal`,          isDigestion: false },
     ...(digestionCalories > 0 ? [{
       label: 'Estimated digestion',
-      value: gainGoal ? `−${digestionCalories.toLocaleString()} kcal` : `+${digestionCalories.toLocaleString()} kcal`,
+      value: `−${digestionCalories.toLocaleString()} kcal`,
       isDigestion: true,
     }] : []),
-  ];
-  const targetMagnitude = Math.round(Math.abs(dailyTarget));
-  const spendRows = [
-    { label: 'Food', value: gainGoal ? `+${Math.round(consumed).toLocaleString()} kcal` : `−${Math.round(consumed).toLocaleString()} kcal` },
-    ...(!gainGoal ? [{
-      label: 'Goal',
-      value: `−${targetMagnitude.toLocaleString()} kcal/day`,
-    }] : []),
+    { label: 'Food',     value: `+${Math.round(consumed).toLocaleString()} kcal`,         isDigestion: false },
   ];
   const totalBurn       = Math.round(bmr + actCals + digestionCalories);
-  // left = how much room is left vs target (signed; lose: positive=good, gain: negative=good)
-  const left            = totalBurn - Math.round(consumed) - Math.round(dailyTarget);
-  // isOver: for lose = ate too much; for gain = ate enough (surplus achieved)
+  const consumedRnd     = Math.round(consumed);
+  // Net balance: positive = surplus, negative = deficit
+  const netBalance      = consumedRnd - totalBurn;
+  const netBalanceStr   = `${netBalance >= 0 ? '+' : '−'}${Math.abs(netBalance).toLocaleString()} kcal`;
+  // left = budget remaining (lose: how many more kcal can be eaten; gain: dist from target)
+  const left            = totalBurn - consumedRnd - Math.round(dailyTarget);
   const isOver          = left < 0;
-  // For gain: actual surplus achieved (positive = over maintenance, negative = under)
-  const consumedSurplus = gainGoal ? Math.round(consumed) - totalBurn : 0;
+  const consumedSurplus = gainGoal ? netBalance : 0;
+  const targetMagnitude = Math.round(Math.abs(dailyTarget));
+  // Goal row: gain shows range, lose shows deficit target
+  const goalLabel = gainGoal ? 'Goal (surplus)' : 'Goal (deficit)';
+  const goalValue = gainGoal
+    ? `+${gainFloor.toLocaleString()} to +${gainCeil.toLocaleString()} kcal`
+    : `−${targetMagnitude.toLocaleString()} kcal`;
+  // Available number (always positive — magnitude of room or overage)
+  const availableNum = gainGoal
+    ? (gainZone === 'below' ? gainFloor - consumedSurplus
+       : gainZone === 'in'   ? gainCeil  - consumedSurplus
+                              : consumedSurplus - gainCeil)
+    : Math.abs(left);
+  // Badge
+  const bdBadgeStatus = (gainGoal ? gainZone === 'in' : !isOver) ? 'success' : 'default';
+  const bdBadgeText   = gainGoal
+    ? (gainZone === 'below' ? 'Under target' : gainZone === 'in' ? 'In range' : 'Over')
+    : (isOver ? 'Over' : 'On target');
 
   const scrollableContent = (
     <div className="relative overflow-hidden">
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
+        {/* ── Math box: all rows + Total + Goal ── */}
         <div className="overflow-hidden rounded-control border border-border-subtle">
-          {burnRows.map(({ label, value, isDigestion }, idx) => (
+          {mathRows.map(({ label, value, isDigestion }) => (
             <div key={label}
-              className={`flex items-center justify-between bg-surface px-4 py-3 ${idx < burnRows.length - 1 ? 'border-b border-border-subtle' : ''}`}>
+              className={`flex items-center justify-between bg-surface px-4 py-3 border-b border-border-subtle`}>
               <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-4">
-                <span className="text-subhead text-content">{label}</span>
+                <span className="text-subhead text-content-secondary">{label}</span>
                 {isDigestion && (
                   <button data-no-drag onClick={openInfo} className="-m-1 p-1 text-content-muted"
                     aria-label="Learn about estimated digestion">
@@ -1244,53 +1258,29 @@ function BreakdownSheet({
               <span className="text-subhead font-semibold text-content shrink-0">{value}</span>
             </div>
           ))}
-        </div>
-
-        <div className="overflow-hidden rounded-control border border-border-subtle mt-2">
-          {spendRows.map(({ label, value }, idx) => (
-            <div key={label}
-              className={`flex items-center justify-between bg-surface px-4 py-3 ${idx < spendRows.length - 1 ? 'border-b border-border-subtle' : ''}`}>
-              <span className="text-subhead text-content">{label}</span>
-              <span className="text-subhead font-semibold text-content">{value}</span>
-            </div>
-          ))}
-        </div>
-
-        {gainGoal && (
-          <div className="overflow-hidden rounded-control border border-field mt-2">
-            <div className="flex items-center justify-between bg-surface px-4 py-3 border-b border-field">
-              <span className="text-subhead text-content-secondary">Surplus target</span>
-              <span className="text-subhead font-semibold text-content-secondary">
-                {gainFloor.toLocaleString()} to {gainCeil.toLocaleString()} kcal/day
-              </span>
-            </div>
-            <div className="flex items-center justify-between bg-surface px-4 py-3">
-              <span className="text-subhead text-content-secondary">Your surplus</span>
-              <span className="text-subhead font-semibold text-content-secondary">
-                {consumedSurplus.toLocaleString()} kcal
-              </span>
-            </div>
+          {/* Total row */}
+          <div className="flex items-center justify-between bg-surface px-4 py-3 border-b border-border-subtle">
+            <span className="text-subhead text-content">Total</span>
+            <span className="text-subhead font-bold text-content">{netBalanceStr}</span>
           </div>
-        )}
-        <div className="overflow-hidden rounded-control border border-border-subtle mt-2">
+          {/* Goal row */}
           <div className="flex items-center justify-between bg-surface px-4 py-3">
-            <span className="text-subhead font-semibold text-content">Total</span>
-            {gainGoal ? (
-              // Gain: 3-state based on gainZone; show actual surplus vs target range
-              <Badge status={gainZone === 'in' ? 'success' : 'default'} size="lg">
-                {gainZone === 'below'
-                  ? `Under target  ·  ${(gainFloor - consumedSurplus).toLocaleString()} kcal to go`
-                  : gainZone === 'in'
-                    ? `In range  ·  ${(gainCeil - consumedSurplus).toLocaleString()} kcal to ceiling`
-                    : `Over  ·  ${(consumedSurplus - gainCeil).toLocaleString()} kcal above max`}
-              </Badge>
-            ) : (
-              <Badge status={isOver ? 'default' : 'success'} size="lg">
-                {isOver ? 'Over' : 'On target'}{'  ·  '}{Math.abs(left).toLocaleString()} kcal
-              </Badge>
-            )}
+            <span className="text-subhead text-content-secondary">{goalLabel}</span>
+            <span className="text-subhead font-semibold text-content">{goalValue}</span>
           </div>
         </div>
+
+        {/* ── Status box: badge + Available ── */}
+        <div className="overflow-hidden rounded-control border border-border-subtle mt-2">
+          <div className="px-4 pt-3 pb-0">
+            <Badge status={bdBadgeStatus}>{bdBadgeText}</Badge>
+          </div>
+          <div className="flex items-center justify-between px-4 pt-2 pb-4">
+            <span className="text-subhead text-content-secondary">Available</span>
+            <span className="text-title font-bold text-content">{availableNum.toLocaleString()} kcal</span>
+          </div>
+        </div>
+
         <div className="h-2" />
       </div>
 

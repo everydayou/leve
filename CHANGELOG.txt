@@ -7,6 +7,36 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 88 — BREAKDOWN SHEET REDESIGN: UNIFIED SIGNS + TWO-BOX LAYOUT (2026-06-19)
+================================================================
+Files: src/ui/screens/TodayScreen.tsx
+
+Complete BreakdownSheet goal-mode restructure to match Marco's mockup:
+
+Sign convention — now unified regardless of goal type:
+  BMR, Activity, Estimated digestion: always − (they consume calories)
+  Food: always + (it adds calories)
+  Total = consumed − totalBurn (signed net balance; + = surplus, − = deficit)
+
+Box 1 (math): single grouped box containing all four rows plus Total and
+  Goal rows below a divider. No more separate burn/spend boxes.
+  · Total: label regular weight, value font-bold
+  · Goal (surplus): "+floor to +ceil kcal" for gain
+  · Goal (deficit): "−target kcal" for lose
+
+Box 2 (status): badge floats top-left (standalone), then "Available" label
+  + large bold number (text-title font-bold) to the right. No sign on the
+  number — badge conveys the verdict, number conveys the quantity.
+  · Gain below: gainFloor − consumedSurplus kcal (to reach floor)
+  · Gain in:    gainCeil  − consumedSurplus kcal (room to ceiling)
+  · Gain above: consumedSurplus − gainCeil kcal (over by)
+  · Lose:       Math.abs(left) kcal (room or overage)
+
+Removed: separate burn box, spend box, reference box (Surplus target /
+  Your surplus rows). All information now lives in the two-box structure.
+- tsc: clean. lint: clean.
+
+================================================================
 ROUND 87 — GAIN GAUGE/BREAKDOWN POLISH (2026-06-19)
 ================================================================
 Files: src/ui/screens/TodayScreen.tsx

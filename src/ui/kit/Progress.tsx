@@ -69,7 +69,7 @@ export function GaugeArc({
     // transitions fire smoothly across the 0 boundary. Opacity fades the
     // inactive arc to 0 — this also hides the tiny dot that strokeLinecap="round"
     // would render for a zero-length dash.
-    const bidiValue = disabled ? 0 : value;
+    const bidiValue = value; // disabled only dims opacity; arc still renders at real value
     const greenFrac = Math.max(0, bidiValue);
     const redFrac   = Math.max(0, -bidiValue);
     const greenLen  = greenFrac * arcLen / 2;

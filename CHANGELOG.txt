@@ -7,6 +7,30 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 86 — GAIN BREAKDOWN CLARITY + PAST-DAY GAUGE FIX (2026-06-19)
+================================================================
+Files: src/ui/kit/Progress.tsx, src/ui/screens/TodayScreen.tsx
+
+── Past-day gauge (bidirectional mode) ──
+- GaugeArc: `const bidiValue = disabled ? 0 : value` → `const bidiValue = value`.
+  Disabled in bidirectional mode now only dims opacity (0.45) — the arc still
+  renders at the real historical value. Previously the arc was frozen at 0 while
+  the badge correctly showed "In range", creating a contradiction.
+
+── BreakdownSheet gain — clearer surplus reference + Total badge ──
+- Surplus target removed from burnRows (was part of the running sum, confusing).
+- New muted reference row inserted between the Food section and Total, styled
+  text-content-secondary to signal "this is your goal, not a calculation":
+    Surplus target: 100–300 kcal/day   (no sign; natural range)
+- Total badge now shows the actual surplus achieved, directly comparable to the
+  range above:
+    "In range · 152 kcal surplus"   (was confusing "In range · 48 kcal")
+    "Under target · 48 kcal to go"
+    "Over · 30 kcal above max"
+  Number = consumed − totalBurn (positive = surplus over maintenance).
+- tsc: clean. lint: clean.
+
+================================================================
 ROUND 85 — BREAKDOWN: SURPLUS TARGET RANGE IN BURN SECTION (2026-06-19)
 ================================================================
 Files: src/ui/screens/TodayScreen.tsx

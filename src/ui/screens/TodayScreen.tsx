@@ -1206,11 +1206,6 @@ function BreakdownSheet({
       value: gainGoal ? `−${digestionCalories.toLocaleString()} kcal` : `+${digestionCalories.toLocaleString()} kcal`,
       isDigestion: true,
     }] : []),
-    ...(gainGoal ? [{
-      label: 'Surplus target',
-      value: `−${gainFloor.toLocaleString()}–${gainCeil.toLocaleString()} kcal/day`,
-      isDigestion: false,
-    }] : []),
   ];
   const targetMagnitude = Math.round(Math.abs(dailyTarget));
   const spendRows = [
@@ -1220,11 +1215,13 @@ function BreakdownSheet({
       value: `−${targetMagnitude.toLocaleString()} kcal/day`,
     }] : []),
   ];
-  const totalBurn = Math.round(bmr + actCals + digestionCalories);
+  const totalBurn       = Math.round(bmr + actCals + digestionCalories);
   // left = how much room is left vs target (signed; lose: positive=good, gain: negative=good)
-  const left      = totalBurn - Math.round(consumed) - Math.round(dailyTarget);
+  const left            = totalBurn - Math.round(consumed) - Math.round(dailyTarget);
   // isOver: for lose = ate too much; for gain = ate enough (surplus achieved)
-  const isOver    = left < 0;
+  const isOver          = left < 0;
+  // For gain: actual surplus achieved (positive = over maintenance, negative = under)
+  const consumedSurplus = gainGoal ? Math.round(consumed) - totalBurn : 0;
 
   const scrollableContent = (
     <div className="relative overflow-hidden">
@@ -1257,13 +1254,27 @@ function BreakdownSheet({
           ))}
         </div>
 
+        {gainGoal && (
+          <div className="overflow-hidden rounded-control border border-border-subtle mt-2">
+            <div className="flex items-center justify-between bg-surface px-4 py-3">
+              <span className="text-subhead text-content-secondary">Surplus target</span>
+              <span className="text-subhead font-semibold text-content-secondary">
+                {gainFloor.toLocaleString()}–{gainCeil.toLocaleString()} kcal/day
+              </span>
+            </div>
+          </div>
+        )}
         <div className="overflow-hidden rounded-control border border-border-subtle mt-2">
           <div className="flex items-center justify-between bg-surface px-4 py-3">
             <span className="text-subhead font-semibold text-content">Total</span>
             {gainGoal ? (
-              // Gain: 3-state based on gainZone
+              // Gain: 3-state based on gainZone; show actual surplus vs target range
               <Badge status={gainZone === 'in' ? 'success' : 'default'} size="lg">
-                {gainZone === 'below' ? 'Under target' : gainZone === 'in' ? 'In range' : 'Over'}{'  ·  '}{Math.abs(left).toLocaleString()} kcal
+                {gainZone === 'below'
+                  ? `Under target  ·  ${(gainFloor - consumedSurplus).toLocaleString()} kcal to go`
+                  : gainZone === 'in'
+                    ? `In range  ·  ${consumedSurplus.toLocaleString()} kcal surplus`
+                    : `Over  ·  ${(consumedSurplus - gainCeil).toLocaleString()} kcal above max`}
               </Badge>
             ) : (
               <Badge status={isOver ? 'default' : 'success'} size="lg">

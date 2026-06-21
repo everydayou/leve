@@ -291,7 +291,7 @@ through r62 (see CHANGELOG for full list).
 ----------------------------------------------------------------
 RECENT ROUNDS (for context on what was just touched)
 ----------------------------------------------------------------
-ROUNDS 80–89 — GAIN GOAL ZONE UI, MACRO BARS POLISH, BADGE TWEAKS, BREAKDOWN SIGNS (2026-06-19)
+ROUNDS 80–90 — GAIN GOAL ZONE UI, MACRO BARS POLISH, BADGE TWEAKS, BREAKDOWN SIGNS (2026-06-19)
 Files: src/domain/types.ts, src/ui/kit/Progress.tsx, src/ui/kit/Badge.tsx,
        src/ui/screens/TodayScreen.tsx, src/ui/screens/GoalScreen.tsx,
        src/ui/screens/OnboardingScreen1.tsx
@@ -309,6 +309,7 @@ Files: src/domain/types.ts, src/ui/kit/Progress.tsx, src/ui/kit/Badge.tsx,
   with all 3 macros stacked: label, consumed/target g, ProgressBar). MacroBarsRow
   wrapped in <button> + onExpand prop. effectiveCarbLimit fallback for lower_carb
   goals missing carbLimitG. BreakdownSheet gain: BMR and digestion show − prefix.
+- r90: BreakdownSheet: border-field → border-border-field (correct token). shadow-card → shadow-card-lg. Outer wrapper overflow switches hidden↔visible based on showDigestionInfo so shadow-card-lg is never clipped at rest.
 - r89: BreakdownSheet: math row values + goal value → text-content-secondary. Box 1 border → border-field, single divider (border-t border-field) before Total, no per-row separators. Box 2 → shadow-card (no border). Available label mirrors gauge centre subtext: "To go" / "Available" / "Over by" derived from bdBadgeText.
 - r88: BreakdownSheet full redesign — unified sign convention (BMR/Activity/Digestion always −, Food always +, Total = net balance). Single math box with Total and Goal rows inside. Second box: badge standalone top-left + Available label + large bold number. Goal row shows "Goal (surplus)" / "Goal (deficit)" with signed value. Available = gainCeil−consumedSurplus (gain) or left (lose). Removed separate burn/spend/reference boxes.
 - r87: Gauge: no dimming for past days within active goal period (disabled={isPastDay && !goal}). gainDisplayNum rounds consumed once for consistency with breakdown. BreakdownSheet gain: reference box uses border-field; range format "X to Y kcal/day"; "Your surplus" row added; Total badge for 'in' zone shows "X kcal to ceiling" (matches gauge).

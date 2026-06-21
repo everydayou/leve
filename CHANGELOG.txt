@@ -7,6 +7,19 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 90 — BREAKDOWN SHEET: BORDER FIX + SHADOW FIX (2026-06-19)
+================================================================
+Files: src/ui/screens/TodayScreen.tsx
+
+- border-field → border-border-field (correct Tailwind token for #e4e4e7).
+- shadow-card → shadow-card-lg (darker shadow on status box).
+- Scrollable content wrapper: overflow was statically "hidden" which clipped
+  the shadow on all sides. Changed to overflow:hidden only while
+  showDigestionInfo is true (animation needs clip); otherwise overflow:visible
+  so shadow-card-lg renders unclipped.
+- tsc: clean. lint: clean.
+
+================================================================
 ROUND 89 — BREAKDOWN SHEET POLISH (2026-06-19)
 ================================================================
 Files: src/ui/screens/TodayScreen.tsx

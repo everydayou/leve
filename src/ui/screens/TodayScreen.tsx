@@ -1243,10 +1243,10 @@ function BreakdownSheet({
     : 'Available';
 
   const scrollableContent = (
-    <div className="relative overflow-hidden">
+    <div className="relative" style={{ overflow: showDigestionInfo ? 'hidden' : 'visible' }}>
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
         {/* ── Math box: all rows + Total + Goal ── */}
-        <div className="overflow-hidden rounded-control border border-field">
+        <div className="overflow-hidden rounded-control border border-border-field">
           {mathRows.map(({ label, value, isDigestion }) => (
             <div key={label}
               className="flex items-center justify-between bg-surface px-4 py-3">
@@ -1263,7 +1263,7 @@ function BreakdownSheet({
             </div>
           ))}
           {/* Total row */}
-          <div className="flex items-center justify-between bg-surface px-4 py-3 border-t border-field">
+          <div className="flex items-center justify-between bg-surface px-4 py-3 border-t border-border-field">
             <span className="text-subhead text-content">Total</span>
             <span className="text-subhead font-bold text-content">{netBalanceStr}</span>
           </div>
@@ -1275,7 +1275,7 @@ function BreakdownSheet({
         </div>
 
         {/* ── Status box: badge + Available ── */}
-        <div className="overflow-hidden rounded-control shadow-card mt-2">
+        <div className="rounded-control shadow-card-lg mt-2">
           <div className="px-4 pt-3 pb-0">
             <Badge status={bdBadgeStatus}>{bdBadgeText}</Badge>
           </div>

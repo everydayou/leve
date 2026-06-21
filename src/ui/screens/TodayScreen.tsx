@@ -1237,15 +1237,19 @@ function BreakdownSheet({
   const bdBadgeText   = gainGoal
     ? (gainZone === 'below' ? 'Under target' : gainZone === 'in' ? 'In range' : 'Over')
     : (isOver ? 'Over' : 'On target');
+  // Available label mirrors the gauge centre subtext (same language, without 'kcal').
+  const availableLabel = bdBadgeText === 'Under target' ? 'To go'
+    : bdBadgeText === 'Over' ? 'Over by'
+    : 'Available';
 
   const scrollableContent = (
     <div className="relative overflow-hidden">
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
         {/* ── Math box: all rows + Total + Goal ── */}
-        <div className="overflow-hidden rounded-control border border-border-subtle">
+        <div className="overflow-hidden rounded-control border border-field">
           {mathRows.map(({ label, value, isDigestion }) => (
             <div key={label}
-              className={`flex items-center justify-between bg-surface px-4 py-3 border-b border-border-subtle`}>
+              className="flex items-center justify-between bg-surface px-4 py-3">
               <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-4">
                 <span className="text-subhead text-content-secondary">{label}</span>
                 {isDigestion && (
@@ -1255,28 +1259,28 @@ function BreakdownSheet({
                   </button>
                 )}
               </div>
-              <span className="text-subhead font-semibold text-content shrink-0">{value}</span>
+              <span className="text-subhead font-semibold text-content-secondary shrink-0">{value}</span>
             </div>
           ))}
           {/* Total row */}
-          <div className="flex items-center justify-between bg-surface px-4 py-3 border-b border-border-subtle">
+          <div className="flex items-center justify-between bg-surface px-4 py-3 border-t border-field">
             <span className="text-subhead text-content">Total</span>
             <span className="text-subhead font-bold text-content">{netBalanceStr}</span>
           </div>
           {/* Goal row */}
           <div className="flex items-center justify-between bg-surface px-4 py-3">
             <span className="text-subhead text-content-secondary">{goalLabel}</span>
-            <span className="text-subhead font-semibold text-content">{goalValue}</span>
+            <span className="text-subhead font-semibold text-content-secondary">{goalValue}</span>
           </div>
         </div>
 
         {/* ── Status box: badge + Available ── */}
-        <div className="overflow-hidden rounded-control border border-border-subtle mt-2">
+        <div className="overflow-hidden rounded-control shadow-card mt-2">
           <div className="px-4 pt-3 pb-0">
             <Badge status={bdBadgeStatus}>{bdBadgeText}</Badge>
           </div>
           <div className="flex items-center justify-between px-4 pt-2 pb-4">
-            <span className="text-subhead text-content-secondary">Available</span>
+            <span className="text-subhead text-content-secondary">{availableLabel}</span>
             <span className="text-title font-bold text-content">{availableNum.toLocaleString()} kcal</span>
           </div>
         </div>

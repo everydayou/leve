@@ -1263,14 +1263,14 @@ function BreakdownSheet({
       <div className="space-y-3 leading-relaxed">
         <p className="text-subhead text-content">Your <span className="font-medium">Basal Metabolic Rate</span> is the energy your body burns at complete rest, just to keep your organs running, breathing, and staying warm.</p>
         <p className="text-subhead text-content">It's the largest part of your daily calorie burn, usually 60 to 70% of your total. You set it manually in your profile.</p>
-        <p className="text-subhead text-content-muted pb-2">Auto-calibration based on your logged data is coming in a future update.</p>
+        <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Note: </span>Auto-calibration based on your logged data is coming in a future update.</p>
       </div>
     ),
     activity: (
       <div className="space-y-3 leading-relaxed">
         <p className="text-subhead text-content">Calories burned from <span className="font-medium">physical activity</span> you've logged manually, including workouts, walks, or any other movement you add.</p>
         <p className="text-subhead text-content">This is added to your BMR to calculate how much you can eat to stay on track.</p>
-        <p className="text-subhead text-content-muted pb-2">Apple Health and device sync (Apple Watch, etc.) is coming in a future update.</p>
+        <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Note: </span>Apple Health and device sync (Apple Watch, etc.) is coming in a future update.</p>
       </div>
     ),
     digestion: (
@@ -1286,27 +1286,27 @@ function BreakdownSheet({
           ))}
         </div>
         <p className="text-subhead text-content">It gets added to your burn total because it's real energy your body uses. Days with more protein give you a slightly larger budget.</p>
-        <p className="text-subhead text-content-muted pb-2">Actual values vary depending on food composition and individual metabolism.</p>
+        <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Note: </span>Actual values vary depending on food composition and individual metabolism.</p>
       </div>
     ),
     food: (
       <div className="space-y-3 leading-relaxed">
         <p className="text-subhead text-content">Total calories from all <span className="font-medium">food entries</span> logged today.</p>
         <p className="text-subhead text-content">Every meal and snack you add contributes here. Food is the only positive number in the balance. Everything else is a burn.</p>
-        <p className="text-subhead text-content-muted pb-2">AI meal estimation and food scan are coming to make logging faster.</p>
+        <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Note: </span>AI meal estimation and food scan are coming to make logging faster.</p>
       </div>
     ),
     goal: gainGoal ? (
       <div className="space-y-3 leading-relaxed">
         <p className="text-subhead text-content">Your <span className="font-medium">daily surplus target</span> is the extra calories above your total burn that you're aiming to eat to support muscle growth.</p>
         <p className="text-subhead text-content">A controlled surplus combined with training gives your body the fuel it needs to build muscle while keeping fat gain low. Your target range is +{gainFloor.toLocaleString()} to +{gainCeil.toLocaleString()} kcal per day.</p>
-        <p className="text-subhead text-content-muted pb-2">Going well above the range tends to add more fat than muscle.</p>
+        <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Note: </span>Going well above the range tends to add more fat than muscle.</p>
       </div>
     ) : (
       <div className="space-y-3 leading-relaxed">
         <p className="text-subhead text-content">Your <span className="font-medium">daily deficit target</span> is how many fewer calories you need to eat than you burn each day to reach your goal weight on time.</p>
         <p className="text-subhead text-content">A deficit of {targetMagnitude.toLocaleString()} kcal per day means your body draws on stored fat to make up the difference. Around 7,700 kcal equals roughly 1 kg of fat.</p>
-        <p className="text-subhead text-content-muted pb-2">Your target is calculated from your start weight, goal weight, and deadline.</p>
+        <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Note: </span>Your target is calculated from your start weight, goal weight, and deadline.</p>
       </div>
     ),
     available: bdBadgeText === 'Under target' ? (
@@ -1364,10 +1364,9 @@ function BreakdownSheet({
             <span className="text-subhead text-content-secondary shrink-0">{goalValue}</span>
           </div>
 
-          {/* ── Status card — flush with outer container ── */}
-          <div className="shadow-card-lg bg-surface"
-            style={{ borderBottomLeftRadius: 'var(--radius-card)', borderBottomRightRadius: 'var(--radius-card)' }}>
-            <div className="px-4 pt-3 pb-0">
+          {/* ── Status card — flush with outer container, all corners rounded ── */}
+          <div className="rounded-card shadow-card-lg bg-surface">
+            <div className="px-4 pt-4 pb-0">
               <Badge status={bdBadgeStatus}>{bdBadgeText}</Badge>
             </div>
             <div className="flex items-center justify-between px-4 pb-4">

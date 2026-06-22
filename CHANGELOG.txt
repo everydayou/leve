@@ -328,6 +328,20 @@ and are captured in the PROJECT-CONTEXT.txt "Known Gaps / Already Done"
 sections.
 
 ================================================================
+ROUND 78 — WHEELPEICKER NATIVE DRUM-ROLL FOR ALL PICKERS (2026-06-17)
+================================================================
+Files: src/ui/kit/WheelPicker.tsx, src/ui/kit/NumberField.tsx,
+       src/ui/components/AddEntrySheet.tsx, src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/screens/AccountScreen.tsx
+- WheelPicker: native <select> drum-roll component. Single wheel (step≥1) or split
+  two-wheel (step<1). value/onChange use string. Replaces all NumberField inputs in
+  food, activity, goal setup, account height/age, weight log.
+- NumberField: wraps WheelPicker, all macro fields use drum-roll.
+- GoalSetupScreen: start/target weight, deficit slider all use WheelPicker.
+- AccountScreen: height (centerAt=170) + age (centerAt=30) use WheelPicker.
+- tsc: clean. lint: clean.
+
+================================================================
 ROUNDS 1–10 — UX DECISIONS FROM PROTOTYPE TESTING
 ================================================================
 Items implemented across rounds 1–12 (the "section 10" log):

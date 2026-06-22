@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-19 — Round 86 (gain breakdown + past-day gauge fixes)
+Last updated: 2026-06-19 — Round 90 (BreakdownSheet full redesign: unified signs, two-box layout, polish)
 Full change history: see CHANGELOG.txt (rounds 1–68).
 
 HOW TO READ THIS DOC:
@@ -168,37 +168,32 @@ User model additions (r71): weightCadence?: 'daily'|'weekly'; weeklyWeightDay?: 
 - BMR auto-calibration: parked (V1.5+).
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 84, 2026-06-19)
+7. CURRENT STATUS (as of round 90, 2026-06-19)
 ----------------------------------------------------------------
 - App name: "leve"; brand loading screen; native splash white flash eliminated. DONE.
 - "Build muscle" (gain_by_date) goal type: fully wired r61, bug-fixed r62.
 - All 9 goal lifecycle states implemented (r55). GoalOutcomeView portal overlay. DONE.
 - Tracking step Simple/Detailed modes (r65). Gain gauge + GainMacroBars (r66). DONE.
-- Rounds 67–79: slider polish, gain zone UI, WeekChart dual ramps, per-type goal setup
-  memory, goal history, GoalOutcomeView dismiss, kg/lbs, weekly weight cadence, diary
-  macro toggles, deficit session-touch warning, PastGoalsPortal, WheelPicker drum-roll,
-  gauge arc budget scaling, activity multi-entry log, merged log, past-day gauge. All shipped.
-- Rounds 80–84 (2026-06-19):
-  · r80: Gain goal zone UI fully restored: gainZone ('below'|'in'|'above') from
-    surplusFloor/surplusCeiling. Badge: 'Under target'/'In range'/'Over'. GaugeArc
-    strokePositive/strokeNegative (mint in-range, dark otherwise). Food tiles/log
-    positive for gain, Activity tiles/log negative. BreakdownSheet: Food+, Activity−,
-    3-state Total badge. Week strip success only when within floor/ceil band.
-    GoalScreen WeekChart: dual dashed ramps (floor + ceiling), bar mint when in band,
-    3-state weekly badge.
-  · r81: MacroBarsRow visibility defaults per macroStyle (carbs default=lower_carb,
-    fat default=balanced/performance). Badge.tsx className passthrough. GoalScreen
-    WeekChart badges pinned text-[15px]. All badge · separators → {'  ·  '}.
-  · r82: MacroCol font 13px (text-footnote). Value shows consumed/target inline.
-  · r83: MacroCol inline shows consumed only. New MacroDetailSheet (tap macro bar →
-    Sheet with all 3 macros stacked: label, consumed/target, ProgressBar). MacroBarsRow
-    fully tappable. Carb limit fallback for lower_carb goals missing carbLimitG.
-    BreakdownSheet: for gain goals BMR and Estimated digestion now show − prefix.
-  · r84: effectiveCarbLimit covers all detailed macro styles. balanced/performance
-    carb target = residual (targetKcal − protein_kcal − fat_kcal) ÷ 4, recomputed
-    daily from live totalBurn ("Adjusts with activity"). carbsDefault = gainDetailed
-    (all detailed modes show carbs by default since all have a meaningful target).
-- Code quality: tsc strict clean, lint clean (r84).
+- Rounds 67–84: slider polish, gain zone UI, WeekChart dual ramps, macro bars polish,
+  per-type goal setup memory, goal history, GoalOutcomeView dismiss, kg/lbs, weekly
+  weight cadence, diary macro toggles, deficit session-touch, PastGoalsPortal,
+  WheelPicker drum-roll, gauge arc budget scaling, activity multi-entry log, merged
+  log, past-day gauge, macro detail sheet, carb targets for all macro styles. All shipped.
+- Rounds 85–90 (2026-06-19) — BreakdownSheet + gain gauge overhaul:
+  · r85–87: Surplus target moved into burnRows as a range; past-day gauge arc now
+    renders at real value (disabled only dims opacity); gauge no longer dims within
+    active goal period; gainDisplayNum rounding fixed (gauge and breakdown now agree).
+  · r88: BreakdownSheet full redesign. Unified sign convention (burns always −,
+    food always +, total = net balance). Two-box layout: math box (all rows + Total
+    + Goal) and status box (badge standalone + Available label + large bold number).
+    "Goal (surplus)" / "Goal (deficit)" labels. Available = gainCeil−surplus (gain)
+    or left (lose).
+  · r89: Math row values + goal value → text-content-secondary. Box 1 border →
+    border-border-field, single divider before Total. Box 2 → shadow-card-lg.
+    Available label dynamically mirrors gauge centre: "To go" / "Available" / "Over by".
+  · r90: border-border-field token fix (was border-field). shadow-card-lg. Overflow
+    clip only during digestion info animation — shadow renders unclipped at rest.
+- Code quality: tsc strict clean, lint clean (r90).
 
 ----------------------------------------------------------------
 8. TECH / ARCHITECTURE
@@ -228,7 +223,7 @@ on the Mac: `rm -rf node_modules package-lock.json && npm install`
 → `npm test` → `npm run build` → `npm run ios:sync`.
 
 ----------------------------------------------------------------
-KNOWN GAPS (current as of round 84)
+KNOWN GAPS (current as of round 90)
 ----------------------------------------------------------------
 MED:
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
@@ -248,16 +243,16 @@ LOW:
 - GoalOutcomeView: no haptic on appearance.
 - App.tsx still contains /past-goals and /past-goals/:id routes (now unused
   stubs since PastGoalsPortal is portal-based). Safe to remove eventually.
-- Past-day gauge: GaugeArc bidirectional disabled=true freezes arc at 0, not
-  at the actual value (only unidirectional mode renders at a non-zero frozen
-  value). Visually fine since opacity-0.45 conveys "historical" well enough.
+- BreakdownSheet: "Available" label and number shown even when no food has
+  been logged yet (availableNum = gainCeil or left from zero base). Acceptable
+  but could show an empty/placeholder state instead.
 
 WITHINGS: mock scaffold only. Real data needs backend proxy + credentials.
 
 DEFERRED V1.5+: JSON import, HealthKit, BMR auto-calibration, full tablet
 layouts, per-piece measurement types, time-of-day food suggestions.
 
-ALREADY DONE (do NOT re-flag): r80–r84 all items (gain goal zone UI restore, gainZone 3-state badge + arc colors, food/activity sign convention, week strip + WeekChart dual ramps + 3-state badge, macro tracking defaults per macroStyle, Badge className passthrough, GoalScreen WeekChart badge text-[15px], badge · separator double-space, MacroCol 13px, macro detail sheet tap-to-expand, carb limit fallback for old lower_carb goals, BreakdownSheet BMR/digestion − for gain, effectiveCarbLimit for all macro styles). r79 all items (activity multi-entry log,
+ALREADY DONE (do NOT re-flag): r85–90 all items (BreakdownSheet redesign — unified signs, two-box layout, Available label, Goal (surplus/deficit) row, shadow-card-lg, border-border-field, overflow clip fix, past-day gauge arc fix, no goal-period dimming, gainDisplayNum rounding). r80–r84 all items (gain goal zone UI restore, gainZone 3-state badge + arc colors, food/activity sign convention, week strip + WeekChart dual ramps + 3-state badge, macro tracking defaults per macroStyle, Badge className passthrough, GoalScreen WeekChart badge text-[15px], badge · separator double-space, MacroCol 13px, macro detail sheet tap-to-expand, carb limit fallback for old lower_carb goals, BreakdownSheet BMR/digestion − for gain, effectiveCarbLimit for all macro styles). r79 all items (activity multi-entry log,
 EditActivitySheet Save fix, WheelPicker centerAt + split-wheel empty state,
 GoalOutcome CTA loop fix, diary past-goal badge + disabled day states, Build
 Muscle ±100 surplus range, merged food+activity log, past-day gauge disabled,
@@ -291,87 +286,53 @@ through r62 (see CHANGELOG for full list).
 ----------------------------------------------------------------
 RECENT ROUNDS (for context on what was just touched)
 ----------------------------------------------------------------
-ROUNDS 80–90 — GAIN GOAL ZONE UI, MACRO BARS POLISH, BADGE TWEAKS, BREAKDOWN SIGNS (2026-06-19)
+ROUNDS 85–90 — BREAKDOWNSHEET REDESIGN + GAIN GAUGE POLISH (2026-06-19)
+Files: src/ui/kit/Progress.tsx, src/ui/screens/TodayScreen.tsx
+- r85: BreakdownSheet gain: "Surplus target" moved to burnRows as a signed
+  floor–ceiling range (e.g. −100–300 kcal/day). gainFloor/gainCeil props added.
+- r86: Past-day gauge bidirectional: disabled only dims opacity — arc now renders
+  at real historical value. BreakdownSheet: surplus ref row above Total; Total badge
+  shows actual surplus (e.g. "In range · 152 kcal surplus").
+- r87: Gauge not dimmed for past days within active goal (disabled={isPastDay && !goal}).
+  gainDisplayNum rounds consumed once — gauge and breakdown now agree. Breakdown ref
+  box: border-field, "X to Y kcal/day" format, "Your surplus" row.
+- r88: BreakdownSheet full redesign. Unified sign convention: burns always −, food
+  always +, total = net balance. Two boxes: (1) math box with all rows + Total + Goal
+  (surplus/deficit) rows; (2) status box with badge + Available label + large bold
+  number. Available = gainCeil−surplus (gain) or left (lose).
+- r89: Math row + goal values → text-content-secondary. Box 1: border-border-field,
+  single divider (border-t) before Total, no per-row separators. Box 2: shadow-card-lg.
+  Available label mirrors gauge centre: "To go" / "Available" / "Over by".
+- r90: border-field → border-border-field (token fix). Overflow wrapper is
+  visible at rest; switches to hidden only during digestion panel animation —
+  shadow-card-lg renders unclipped.
+- tsc: clean. lint: clean (r90).
+
+ROUNDS 80–84 — GAIN GOAL ZONE UI, MACRO BARS POLISH, BREAKDOWN SIGNS (2026-06-19)
 Files: src/domain/types.ts, src/ui/kit/Progress.tsx, src/ui/kit/Badge.tsx,
        src/ui/screens/TodayScreen.tsx, src/ui/screens/GoalScreen.tsx,
        src/ui/screens/OnboardingScreen1.tsx
-- r80: gainZone ('below'|'in'|'above') from surplusFloor/surplusCeiling. Badge:
-  'Under target'/'In range' (success)/'Over'. GaugeArc strokePositive/strokeNegative:
-  mint when in-range, dark otherwise. effectiveGaugeValue = band midpoint. Food
-  tiles/log positive for gain, Activity negative. BreakdownSheet: Food+, Activity−,
-  3-state Total. Week strip success only within floor/ceil band. GoalScreen WeekChart:
-  cumFloor/cumCeil, two dashed ramps, bar mint when in band, 3-state weekly badge.
-- r81: MacroBarsRow defaults per macroStyle (carbsDefault=lower_carb, fatDefault=
-  balanced||performance). Badge className passthrough. WeekChart badges text-[15px].
-  All badge · separators → {'  ·  '} (OnboardingScreen1 + BreakdownSheet).
-- r82: MacroCol text-footnote (13px). Icon 13. Consumed/target inline (e.g. 106/150).
-- r83: MacroCol inline shows consumed only. MacroDetailSheet (tap macro bar → Sheet
-  with all 3 macros stacked: label, consumed/target g, ProgressBar). MacroBarsRow
-  wrapped in <button> + onExpand prop. effectiveCarbLimit fallback for lower_carb
-  goals missing carbLimitG. BreakdownSheet gain: BMR and digestion show − prefix.
-- r90: BreakdownSheet: border-field → border-border-field (correct token). shadow-card → shadow-card-lg. Outer wrapper overflow switches hidden↔visible based on showDigestionInfo so shadow-card-lg is never clipped at rest.
-- r89: BreakdownSheet: math row values + goal value → text-content-secondary. Box 1 border → border-field, single divider (border-t border-field) before Total, no per-row separators. Box 2 → shadow-card (no border). Available label mirrors gauge centre subtext: "To go" / "Available" / "Over by" derived from bdBadgeText.
-- r88: BreakdownSheet full redesign — unified sign convention (BMR/Activity/Digestion always −, Food always +, Total = net balance). Single math box with Total and Goal rows inside. Second box: badge standalone top-left + Available label + large bold number. Goal row shows "Goal (surplus)" / "Goal (deficit)" with signed value. Available = gainCeil−consumedSurplus (gain) or left (lose). Removed separate burn/spend/reference boxes.
-- r87: Gauge: no dimming for past days within active goal period (disabled={isPastDay && !goal}). gainDisplayNum rounds consumed once for consistency with breakdown. BreakdownSheet gain: reference box uses border-field; range format "X to Y kcal/day"; "Your surplus" row added; Total badge for 'in' zone shows "X kcal to ceiling" (matches gauge).
-- r86: Past-day gauge (bidirectional): disabled now only dims opacity — arc renders at real value (was frozen at 0). BreakdownSheet gain: Surplus target moved out of burnRows into a muted reference row just above Total; Total badge now shows actual surplus vs target (e.g. "In range · 152 kcal surplus") instead of the confusing left-vs-midpoint number.
-- r85: BreakdownSheet gain goal: "Surplus target" moved to burnRows (top section) with − sign, displayed as a floor–ceiling range (e.g. −200–500 kcal/day) instead of a single fixed number. gainFloor/gainCeil props added to BreakdownSheet.
-- r84: effectiveCarbLimit covers all macroStyles. balanced/performance: residual
-  (targetKcal−protein_kcal−fat_kcal)÷4, recalculated daily from live totalBurn.
-  carbsDefault=gainDetailed (all detailed modes show carbs by default).
-- tsc: clean. lint: clean.
+- r80: gainZone ('below'|'in'|'above'), GaugeArc strokePositive/strokeNegative (mint
+  in-range), effectiveGaugeValue = band midpoint. Week strip uses floor/ceil band.
+  WeekChart: dual dashed ramps, 3-state badge.
+- r81: MacroBarsRow defaults per macroStyle. Badge className passthrough. WeekChart
+  badge text-[15px]. Badge · separators → {'  ·  '}.
+- r82: MacroCol text-footnote (13px), consumed/target inline.
+- r83: MacroDetailSheet (tap → sheet with all 3 macros). effectiveCarbLimit fallback.
+  BreakdownSheet gain: BMR/digestion show − prefix.
+- r84: effectiveCarbLimit for all macroStyles. balanced/performance carb target =
+  residual ÷ 4 from live totalBurn. carbsDefault = gainDetailed.
+- tsc: clean. lint: clean (r84).
 
 ROUND 79 — ACTIVITY LOG, WHEELPEICKER EMPTY STATE, DIARY PAST GOAL, SURPLUS RANGE, LOG MERGE (2026-06-18)
 Files: src/ui/kit/WheelPicker.tsx, src/ui/components/AddEntrySheet.tsx,
        src/ui/screens/TodayScreen.tsx, src/ui/screens/GoalScreen.tsx,
        src/ui/screens/GoalSetupScreen.tsx, src/ui/kit/Progress.tsx,
        src/ui/components/WeightLogSheet.tsx
-- WheelPicker centerAt: single wheel — inserts <option value="">—</option> at the
-  centerAt position; closed field shows "—", drum-roll opens centred there. Split
-  wheel — when isEmpty && centerAt set, renders a single unified select with all
-  decimal-precision options + "—" placeholder at centerAt; first pick fires onChange
-  and switches back to normal split mode. Applied to: all food NumberFields
-  (cal=350, protein=25, carbs=30, fat=12, fiber=5, est.weight=150), activity kcal
-  (centerAt=300), account height (centerAt=170) + age (centerAt=30), goal target
-  weight (centerAt=+start||default).
-- AddEntrySheet ActivityForm rewritten: always repos.activities.add() (never overrides);
-  name field ("e.g. Morning run"); kcal WheelPicker; estimate mode auto-names
-  "Intensity · Duration". Footer: "Log activity". canSave gates on non-zero kcal.
-- TodayScreen: activities displayed in day log (edit on tap → EditActivitySheet).
-  EditActivitySheet: name + kcal fields, trash button, footer=<Button> prop (NOT
-  useSheetSetFooter — that requires being inside a Sheet's children). Delete has
-  undo toast. Fixed Save button missing by switching useSheetSetFooter → footer prop.
-- GoalScreen GoalOutcomeView "Start next goal": repos.goals.put({...goal,
-  outcomeViewed:true}) called immediately before nav('/goal-setup?new=true'). Fixes
-  loop where returning from GoalSetupScreen without creating a goal re-showed outcome.
-- Diary without active goal: allGoals fetched via useLive. pastGoal = most recently
-  ended/completed. DayState gains 'succeed-past' | 'fail-past'. Week strip renders
-  these at opacity-40. "No goal set" badge → "Past goal" (when pastGoal exists),
-  hasPastGoal prop threaded to DayPanel.
-- Build Muscle surplus range ±100: GoalSetupScreen label: "+200 to +400 kcal/day"
-  (effectiveMagnitude ±100). DayPanel "On target" badge: left >= -100 && left <= 100
-  (symmetric, was only left <= 0 && >= -100). Week strip success: gainGoal ?
-  (deficit >= target-100 && deficit <= target+100) : deficit >= target.
-- Merged food+activity log: single IIFE inside DayPanel renders one Card with all
-  entries sorted by createdAt descending. Food rows −X kcal, activity rows +X kcal.
-  Empty state when logItems.length === 0.
-- Past-day gauge (date < today): GaugeArc bidirectional/unidirectional gets
-  disabled={isPastDay} (opacity 0.45). Animation skipped (prefersReducedMotion ||
-  isPastDay jumps to final value). Center subtext: lose="kcal under"/"kcal over";
-  gain="on target"/"kcal short"/"kcal over". Badge: "Ate short" instead of "Eat more".
-- Weight sheet small: AddEntrySheet forceExpanded now tab==='food' ?
-  foodScanState !== 'source-picking' : tab === 'activity' (weight no longer forced).
-  WeightLogSheet: forceExpanded removed.
-- tsc: clean. lint: clean.
-
-ROUND 78 — WHEELPEICKER NATIVE DRUM-ROLL FOR ALL PICKERS (2026-06-17)
-Files: src/ui/kit/WheelPicker.tsx, src/ui/kit/NumberField.tsx,
-       src/ui/components/AddEntrySheet.tsx, src/ui/screens/GoalSetupScreen.tsx,
-       src/ui/screens/AccountScreen.tsx
-- WheelPicker: native <select> drum-roll component. Single wheel (step≥1) or split
-  two-wheel (step<1). value/onChange use string. Replaces all NumberField inputs in
-  food, activity, goal setup, account height/age, weight log.
-- NumberField: wraps WheelPicker, all macro fields use drum-roll.
-- GoalSetupScreen: start/target weight, deficit slider all use WheelPicker.
-- AccountScreen: height (centerAt=170) + age (centerAt=30) use WheelPicker.
+- WheelPicker centerAt for all NumberFields. ActivityForm rewritten (always add,
+  never override). Activities in day log (EditActivitySheet). GoalOutcomeView CTA
+  loop fix. Past-goal diary badge + succeed-past/fail-past week strip states.
+  Build Muscle ±100 surplus range. Merged food+activity log. Past-day gauge disabled.
+  Weight sheet no longer force-expanded.
 - tsc: clean. lint: clean.
 

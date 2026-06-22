@@ -1332,7 +1332,7 @@ function BreakdownSheet({
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
 
         {/* ── One unified container ── */}
-        <div className="rounded-card border border-border-field shadow-card bg-surface pt-1.5">
+        <div className="rounded-card border border-border-field bg-surface pt-2.5">
 
           {/* Math rows — left side is fully tappable to open info */}
           {mathRows.map(({ label, value, infoKey }) => (
@@ -1347,8 +1347,8 @@ function BreakdownSheet({
             </div>
           ))}
 
-          {/* Total row — mt-3 doubles the Food→Total gap */}
-          <div className="flex items-center justify-between px-4 mt-3 py-1.5 border-t border-border-field">
+          {/* Total row — mt-1.5 puts divider 12px below Food, pt-3 puts Total text 12px below divider */}
+          <div className="flex items-center justify-between px-4 mt-1.5 pt-3 pb-1.5 border-t border-border-field">
             <span className="text-subhead font-semibold text-content">Total</span>
             <span className="text-subhead font-bold text-content">{netBalanceStr}</span>
           </div>
@@ -1356,7 +1356,7 @@ function BreakdownSheet({
           {/* Goal row — pb-3 doubles the gap before the status card */}
           <div className="flex items-center px-4">
             <button data-no-drag onClick={() => openInfo('goal')}
-              className="flex items-center gap-1 min-w-0 flex-1 pr-3 pt-1.5 pb-3 text-left"
+              className="flex items-center gap-1 min-w-0 flex-1 pr-3 pt-1.5 pb-4 text-left"
               aria-label={`Learn about ${goalLabel}`}>
               <span className="text-subhead text-content-secondary">{goalLabel}</span>
               <Icon name="info" size={15} strokeWidth={1.75} className="text-content-muted shrink-0" />

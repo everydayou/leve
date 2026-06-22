@@ -1331,8 +1331,8 @@ function BreakdownSheet({
     <div ref={wrapperRef} className="relative" style={{ overflow: activeInfo ? 'hidden' : 'visible' }}>
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
 
-        {/* ── One unified container — shadow-card so border-subtle hairlines read correctly ── */}
-        <div className="rounded-card shadow-card bg-surface">
+        {/* ── One unified container ── */}
+        <div className="rounded-card border border-border-field shadow-card bg-surface pt-1.5">
 
           {/* Math rows — left side is fully tappable to open info */}
           {mathRows.map(({ label, value, infoKey }) => (
@@ -1347,16 +1347,16 @@ function BreakdownSheet({
             </div>
           ))}
 
-          {/* Total row */}
-          <div className="flex items-center justify-between px-4 py-1.5 border-t border-border-subtle">
+          {/* Total row — mt-3 doubles the Food→Total gap */}
+          <div className="flex items-center justify-between px-4 mt-3 py-1.5 border-t border-border-field">
             <span className="text-subhead font-semibold text-content">Total</span>
             <span className="text-subhead font-bold text-content">{netBalanceStr}</span>
           </div>
 
-          {/* Goal row — left side tappable */}
+          {/* Goal row — pb-3 doubles the gap before the status card */}
           <div className="flex items-center px-4">
             <button data-no-drag onClick={() => openInfo('goal')}
-              className="flex items-center gap-1 min-w-0 flex-1 pr-3 py-1.5 text-left"
+              className="flex items-center gap-1 min-w-0 flex-1 pr-3 pt-1.5 pb-3 text-left"
               aria-label={`Learn about ${goalLabel}`}>
               <span className="text-subhead text-content-secondary">{goalLabel}</span>
               <Icon name="info" size={15} strokeWidth={1.75} className="text-content-muted shrink-0" />
@@ -1364,12 +1364,12 @@ function BreakdownSheet({
             <span className="text-subhead text-content-secondary shrink-0">{goalValue}</span>
           </div>
 
-          {/* ── Status card — flush with outer container, all corners rounded ── */}
-          <div className="rounded-card shadow-card-lg bg-surface">
+          {/* ── Status card — -mx-px -mb-px so its bg covers the outer border on sides/bottom ── */}
+          <div className="rounded-card shadow-card-lg bg-surface -mx-px -mb-px">
             <div className="px-4 pt-4 pb-0">
               <Badge status={bdBadgeStatus}>{bdBadgeText}</Badge>
             </div>
-            <div className="flex items-center justify-between px-4 pb-4">
+            <div className="flex items-center justify-between px-4 pb-2">
               <button data-no-drag onClick={() => openInfo('available')}
                 className="flex items-center gap-1 py-2 text-left"
                 aria-label={`Learn about ${availableLabel}`}>

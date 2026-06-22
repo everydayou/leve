@@ -13,6 +13,7 @@ export interface GoalRepo {
   getActive(): Promise<Goal | undefined>;
   getAll(): Promise<Goal[]>;
   put(goal: Goal): Promise<void>;
+  remove(id: string): Promise<void>;
 }
 export interface FoodItemRepo {
   all(includeArchived?: boolean): Promise<FoodItem[]>;

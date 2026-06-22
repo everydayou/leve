@@ -10,6 +10,7 @@ export const dexieRepositories: Repositories = {
     getActive: () => db.goals.where('status').equals('active').first(),
     getAll: () => db.goals.toArray(),
     put: async (g) => { await db.goals.put(g); },
+    remove: async (id) => { await db.goals.delete(id); },
   },
   foodItems: {
     all: async (includeArchived = false) => {

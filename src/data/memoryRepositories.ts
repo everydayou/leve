@@ -108,6 +108,7 @@ export const memoryRepositories: Repositories = {
     getActive: () => Promise.resolve(store.goals.find((g) => g.status === 'active')),
     getAll: () => Promise.resolve([...store.goals]),
     put: (g) => { store.goals = [...store.goals.filter((x) => x.id !== g.id), g]; return done(); },
+    remove: (id) => { store.goals = store.goals.filter((g) => g.id !== id); return done(); },
   },
   foodItems: {
     all: (inc = false) => Promise.resolve(

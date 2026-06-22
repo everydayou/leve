@@ -712,9 +712,9 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
   const xFor  = (i: number) => padLeft + i * slotW + slotW / 2;
   const yFor  = (kg: number) => padTop + ((yMax - kg) / (yMax - yMin)) * chartH;
 
-  // Planned line: only from goal start date onward
+  // Planned line: only from goal start date up to today (caps at goal.targetDate for past goals)
   const planLine = daySeries
-    .map((d, i) => d.isBeforeGoal ? null : `${xFor(i).toFixed(1)},${yFor(d.planned).toFixed(1)}`)
+    .map((d, i) => (d.isBeforeGoal || d.date > today) ? null : `${xFor(i).toFixed(1)},${yFor(d.planned).toFixed(1)}`)
     .filter((p): p is string => p !== null)
     .join(' ');
 
@@ -1063,15 +1063,17 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
   const midX    = (i: number) => padLeft + (i + 0.5) * barSlot;
 
   // Budget ramp through all 7 days
-  // For gain: two dashed ramps (floor + ceiling band); for lose: single ramp
+  // For gain: two dashed ramps (floor + ceiling band); for lose: single ramp.
+  // Cap at today so ramps don't extend into future/post-goal days.
   const rampPoints = cumulData
-    .map((d, i) => `${midX(i).toFixed(1)},${toY(d.cumBudget).toFixed(1)}`)
+    .map((d, i) => d.isFuture ? null : `${midX(i).toFixed(1)},${toY(d.cumBudget).toFixed(1)}`)
+    .filter((p): p is string => p !== null)
     .join(' ');
   const floorRampPoints = gainChart
-    ? cumulData.map((d, i) => `${midX(i).toFixed(1)},${toY(d.cumFloor).toFixed(1)}`).join(' ')
+    ? cumulData.map((d, i) => d.isFuture ? null : `${midX(i).toFixed(1)},${toY(d.cumFloor).toFixed(1)}`).filter((p): p is string => p !== null).join(' ')
     : '';
   const ceilRampPoints = gainChart
-    ? cumulData.map((d, i) => `${midX(i).toFixed(1)},${toY(d.cumCeil).toFixed(1)}`).join(' ')
+    ? cumulData.map((d, i) => d.isFuture ? null : `${midX(i).toFixed(1)},${toY(d.cumCeil).toFixed(1)}`).filter((p): p is string => p !== null).join(' ')
     : '';
 
   // Summary: last past day with data

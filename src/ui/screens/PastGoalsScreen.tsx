@@ -8,7 +8,7 @@ import { todayISO, addDays } from '../../data/ids';
 import { getMondayOfWeek, MS_PER_DAY } from '../../lib/date';
 import { round1 } from '../../lib/num';
 import { hapticLight } from '../../lib/haptics';
-import { Icon, Badge, Skeleton, Card, SegmentedControl } from '../kit';
+import { Icon, Badge, Skeleton, Card, SegmentedControl, Sheet, Button } from '../kit';
 import { KgWeekChart, WeekChart } from './GoalScreen';
 import { weekNumber, fmtWeekRange } from './chartUtils';
 import type { Goal, WeightEntry, User, FoodItem } from '../../domain/types';
@@ -34,7 +34,7 @@ function SlideScreen({ children, exiting, onScroll }: { children: React.ReactNod
 
 // ── Shared nav header ────────────────────────────────────────────────────────
 
-function SlideHeader({ title, onBack, scrolled = false }: { title: string; onBack: () => void; scrolled?: boolean }) {
+function SlideHeader({ title, onBack, scrolled = false, rightAction }: { title: string; onBack: () => void; scrolled?: boolean; rightAction?: React.ReactNode }) {
   return (
     <div className={`sticky top-0 z-20 bg-surface transition-[box-shadow] duration-200${scrolled ? ' shadow-nav' : ''}`}>
       <div className="pointer-events-none absolute left-0 right-0 bg-surface" style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
@@ -44,6 +44,9 @@ function SlideHeader({ title, onBack, scrolled = false }: { title: string; onBac
         </button>
         {title ? (
           <span className="pointer-events-none absolute inset-x-0 text-center text-headline font-semibold text-content">{title}</span>
+        ) : null}
+        {rightAction ? (
+          <div className="ml-auto -mr-2">{rightAction}</div>
         ) : null}
       </div>
     </div>
@@ -226,6 +229,12 @@ function PastGoalDetail({
 }) {
   const [exiting, setExiting] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  async function deleteGoal(id: string) {
+    await repos.goals.remove(id);
+    goBack();
+  }
 
   const data = useLive(async () => {
     const [allGoals, allWeights, allItems, user] = await Promise.all([
@@ -280,9 +289,19 @@ function PastGoalDetail({
   const fmtDate = (iso: string) =>
     new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
+  const trashButton = (
+    <button
+      onClick={() => setShowDeleteConfirm(true)}
+      aria-label="Delete goal"
+      className="flex h-10 w-10 items-center justify-center rounded-control text-danger active:bg-surface-sunken"
+    >
+      <Icon name="trash" size={20} strokeWidth={1.75} />
+    </button>
+  );
+
   return (
     <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
-      <SlideHeader title="" onBack={goBack} scrolled={scrolled} />
+      <SlideHeader title="" onBack={goBack} scrolled={scrolled} rightAction={trashButton} />
 
       <div className="px-6 pb-8 space-y-4">
 
@@ -309,6 +328,25 @@ function PastGoalDetail({
         {/* ── Section 2: Full chart (same as GoalScreen) ── */}
         <PastGoalChart goal={goal} weights={weights} user={user} items={items} />
       </div>
+
+      {showDeleteConfirm && (
+        <Sheet
+          title="Delete goal"
+          onClose={() => setShowDeleteConfirm(false)}
+          footer={
+            <div className="space-y-2">
+              <Button size="lg" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+              <Button variant="outline" size="lg" onClick={() => { void deleteGoal(goal.id); }}>
+                Yes, delete goal
+              </Button>
+            </div>
+          }
+        >
+          <p className="text-subhead text-content-secondary pb-2">
+            This will permanently delete &ldquo;{goal.name}&rdquo; and cannot be undone.
+          </p>
+        </Sheet>
+      )}
     </SlideScreen>
   );
 }

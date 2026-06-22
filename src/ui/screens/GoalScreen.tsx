@@ -677,10 +677,10 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
   const MIN_SPAN = 1.5; // minimum visible span to avoid a nearly flat axis
   const gain = isGainGoal(goal);
 
-  // Collect the week's planned values + any actual weigh-ins (goal days only).
-  const weekPlanned = daySeries.filter((d) => !d.isBeforeGoal).map((d) => d.planned);
+  // Collect the week's planned values + any actual weigh-ins (goal days only, capped at today).
+  const weekPlanned = daySeries.filter((d) => !d.isBeforeGoal && d.date <= today).map((d) => d.planned);
   const weekActual  = daySeries
-    .filter((d): d is typeof d & { actual: number } => d.actual !== null && !d.isBeforeGoal)
+    .filter((d): d is typeof d & { actual: number } => d.actual !== null && !d.isBeforeGoal && d.date <= today)
     .map((d) => d.actual);
   const allRelevant = [...weekPlanned, ...weekActual];
 
@@ -718,9 +718,9 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
     .filter((p): p is string => p !== null)
     .join(' ');
 
-  // Actual dots + connecting polyline (only days with data, from goal start)
+  // Actual dots + connecting polyline (goal days only, capped at today)
   const actualPts = daySeries
-    .map((d, i) => (d.actual !== null && !d.isBeforeGoal) ? `${xFor(i).toFixed(1)},${yFor(d.actual).toFixed(1)}` : null)
+    .map((d, i) => (d.actual !== null && !d.isBeforeGoal && d.date <= today) ? `${xFor(i).toFixed(1)},${yFor(d.actual).toFixed(1)}` : null)
     .filter((p): p is string => p !== null);
 
   // Weekly summary: last day with data up to today.
@@ -874,9 +874,9 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
            The line draws via stroke-dashoffset 1200→0 over LINE_DUR. A dot at
            x=xFor(i) is reached at time proportional to its offset from xFirst. */}
       {(() => {
-        const dotIdxs = daySeries.map((d, i) => (!d.isBeforeGoal && d.actual !== null ? i : -1)).filter(x => x >= 0);
+        const dotIdxs = daySeries.map((d, i) => (!d.isBeforeGoal && d.date <= today && d.actual !== null ? i : -1)).filter(x => x >= 0);
         const xFirst = dotIdxs.length > 0 ? xFor(dotIdxs[0]) : xFor(0);
-        return daySeries.map((d, i) => d.actual !== null && !d.isBeforeGoal && (
+        return daySeries.map((d, i) => d.actual !== null && !d.isBeforeGoal && d.date <= today && (
           <circle key={d.date} cx={xFor(i)} cy={yFor(d.actual)} r={3.5}
             fill="var(--color-accent)"
             style={{
@@ -1149,7 +1149,7 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
         // Pre-goal or future: just a faint stub + label
         if (isBeforeGoal || isFuture) {
           return (
-            <g key={date} opacity={isBeforeGoal ? 0.2 : 1}>
+            <g key={date} opacity={isBeforeGoal ? 0.2 : 0.4}>
               <rect x={x} y={padTop + chartH - 4} width={barW} height={4}
                 rx={2} fill="var(--color-border-subtle)" />
               <text x={x + barW / 2} y={H - 7} textAnchor="middle"

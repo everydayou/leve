@@ -221,6 +221,9 @@ function PastGoalDetail({
   const daysTaken = Math.max(1, Math.round(
     (Date.parse(goal.targetDate) - Date.parse(goal.startDate)) / MS_PER_DAY,
   ));
+  const goalAchieved = goal.status === 'completed' && (
+    gainGoal ? nowKg >= goal.targetWeightKg : nowKg <= goal.targetWeightKg
+  );
 
   const fmtDate = (iso: string) =>
     new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -230,10 +233,12 @@ function PastGoalDetail({
       <SlideHeader title={goal.name} onBack={goBack} scrolled={scrolled} />
 
       <div className="px-6 pb-8 space-y-4">
-        {/* Overview card */}
-        <div className="rounded-main" style={{ boxShadow: 'inset 0 0 0 1px var(--color-border-field)' }}>
-          <div className="px-6 pt-5 pb-5">
-            <p className="text-subhead text-content-secondary text-center mb-4">
+
+        {/* ── Section 1: Outcome summary ── */}
+        <div className="w-full rounded-main pt-2" style={{ boxShadow: 'inset 0 0 0 1px var(--color-border-field)' }}>
+          <div className="pt-5 px-6 pb-5">
+            <h1 className="text-headline font-semibold text-center text-content">{goal.name}</h1>
+            <p className="mt-0 text-subhead text-content-secondary text-center mb-4">
               Goal {displayWeight(goal.targetWeightKg, units)} · by {fmtDate(goal.targetDate)}
             </p>
             <div className="grid grid-cols-3 gap-2">
@@ -242,14 +247,14 @@ function PastGoalDetail({
               <StatCard value={String(daysTaken)} label={'Total\ndays'} />
             </div>
             <div className="mt-3 flex justify-center">
-              <Badge status={goal.status === 'completed' ? 'success' : 'neutral'}>
-                {goal.status === 'completed' ? 'Completed' : 'Ended'}
+              <Badge status={goalAchieved ? 'success' : goal.status === 'completed' ? 'success' : 'neutral'}>
+                {goalAchieved ? 'Goal achieved' : goal.status === 'completed' ? 'Completed' : 'Ended'}
               </Badge>
             </div>
           </div>
         </div>
 
-        {/* Full chart — same as GoalScreen */}
+        {/* ── Section 2: Full chart (same as GoalScreen) ── */}
         <PastGoalChart goal={goal} weights={weights} user={user} items={items} />
       </div>
     </SlideScreen>

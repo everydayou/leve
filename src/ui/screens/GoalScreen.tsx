@@ -43,8 +43,6 @@ export function GoalScreen() {
   const [showCompleteSheet, setShowCompleteSheet] = useState(false);
   const [showEndSheet, setShowEndSheet] = useState(false);
   const [outcomeLocalDismissed, setOutcomeLocalDismissed] = useState(false);
-  const [showPastGoalsOptions, setShowPastGoalsOptions] = useState(false);
-  const [showPastGoalsList, setShowPastGoalsList] = useState(false);
   const [showEditPlan, setShowEditPlan] = useState(false);
   const [showPastGoals, setShowPastGoals] = useState(false);
   const handleTabChange = (t: Tab) => {
@@ -95,8 +93,8 @@ export function GoalScreen() {
           <h1 className="text-title font-semibold text-content">Goal</h1>
           {prevGoals.length > 0 && (
             <button
-              onClick={() => setShowPastGoalsOptions(true)}
-              aria-label="Options"
+              onClick={() => setShowPastGoals(true)}
+              aria-label="Past goals"
               className="flex h-11 w-11 items-center justify-center -mr-2.5 rounded-control text-accent-hover active:bg-surface-sunken"
             >
               <Icon name="moreHoriz" size={20} />
@@ -116,29 +114,9 @@ export function GoalScreen() {
         </div>
       </div>
 
-        {showPastGoalsOptions && (
-          <>
-            <Sheet title="Options" onClose={() => setShowPastGoalsOptions(false)}>
-              <div className="pb-2">
-                <button
-                  className="flex w-full items-center justify-between rounded-control px-1 py-3 text-subhead text-content active:bg-surface-sunken"
-                  onClick={() => setShowPastGoalsList(true)}
-                >
-                  Past goals
-                  <Icon name="chevronRight" size={18} strokeWidth={2} />
-                </button>
-              </div>
-            </Sheet>
-            {showPastGoalsList && (
-              <Sheet title="Past goals" onClose={() => setShowPastGoalsList(false)}>
-                <div className="pb-2 divide-y divide-border-subtle">
-                  {prevGoals.map((g) => (
-                    <PreviousGoalRow key={g.id} goal={g} />
-                  ))}
-                </div>
-              </Sheet>
-            )}
-          </>
+        {showPastGoals && createPortal(
+          <PastGoalsPortal onClose={() => setShowPastGoals(false)} />,
+          document.body,
         )}
       </div>
     );
@@ -538,24 +516,6 @@ function GoalSettingsSheet({ goal, onClose, isEarlyComplete, previousGoals, onEd
         </Sheet>
       )}
     </>
-  );
-}
-
-// ── Previous goal row (used in past goals sheet) ─────────────────────────────
-function PreviousGoalRow({ goal }: { goal: Goal }) {
-  const typeLabel = isGainGoal(goal) ? 'Build muscle' : 'Lose weight';
-  const statusLabel = goal.status === 'completed' ? 'Completed' : 'Ended';
-  const statusBadge: 'success' | 'neutral' = goal.status === 'completed' ? 'success' : 'neutral';
-  return (
-    <div className="flex items-center justify-between py-3">
-      <div className="min-w-0 flex-1 pr-3">
-        <p className="text-subhead font-semibold text-content truncate">{goal.name}</p>
-        <p className="text-footnote text-content-secondary">
-          {typeLabel} · {fmtShortDate(goal.startDate)} – {fmtShortDate(goal.targetDate)}
-        </p>
-      </div>
-      <Badge status={statusBadge}>{statusLabel}</Badge>
-    </div>
   );
 }
 

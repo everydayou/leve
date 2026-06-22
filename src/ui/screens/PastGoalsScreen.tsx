@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
@@ -38,11 +38,13 @@ function SlideHeader({ title, onBack, scrolled = false }: { title: string; onBac
   return (
     <div className={`sticky top-0 z-20 bg-surface transition-[box-shadow] duration-200${scrolled ? ' shadow-nav' : ''}`}>
       <div className="pointer-events-none absolute left-0 right-0 bg-surface" style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
-      <div className="flex items-center gap-2 px-4 pt-5 pb-4">
-        <button onClick={onBack} aria-label="Back" className="-ml-2 flex h-10 w-10 items-center justify-center text-content-muted">
+      <div className="relative flex items-center px-4 pt-5 pb-4">
+        <button onClick={onBack} aria-label="Back" className="-ml-2 flex h-10 w-10 flex-shrink-0 items-center justify-center text-content-muted">
           <Icon name="chevronLeft" size={20} strokeWidth={2.5} />
         </button>
-        <span className="text-headline font-semibold text-content truncate">{title}</span>
+        {title ? (
+          <span className="pointer-events-none absolute inset-x-0 text-center text-headline font-semibold text-content">{title}</span>
+        ) : null}
       </div>
     </div>
   );
@@ -99,69 +101,119 @@ function PastGoalChart({
   const viewedWeekEnd   = addDays(viewedWeekStart, 6);
   const weekRangeLabel  = fmtWeekRange(viewedWeekStart, viewedWeekEnd);
 
+  // Swipe handling — mirrors GoalScreen chart card
+  const cardWrapRef = useRef<HTMLDivElement>(null);
+  const swipeStart  = useRef<{ x: number; y: number } | null>(null);
+  const swipeIsH    = useRef<boolean | null>(null);
+
+  function onTouchStart(e: React.TouchEvent) {
+    swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    swipeIsH.current   = null;
+    if (cardWrapRef.current) cardWrapRef.current.style.transition = 'none';
+  }
+  function onTouchMove(e: React.TouchEvent) {
+    if (!swipeStart.current || !cardWrapRef.current) return;
+    const dx = e.touches[0].clientX - swipeStart.current.x;
+    const dy = e.touches[0].clientY - swipeStart.current.y;
+    if (swipeIsH.current === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+      swipeIsH.current = Math.abs(dx) > Math.abs(dy);
+    }
+    if (!swipeIsH.current) return;
+    const atBack = prevWeekDisabled && dx > 0;
+    const atFwd  = nextWeekDisabled && dx < 0;
+    if (atBack || atFwd) {
+      cardWrapRef.current.style.transform = `translateX(${(dx * 0.2).toFixed(1)}px)`;
+    }
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    if (!swipeStart.current) return;
+    const dx = e.changedTouches[0].clientX - swipeStart.current.x;
+    const dy = e.changedTouches[0].clientY - swipeStart.current.y;
+    swipeStart.current = null;
+    if (cardWrapRef.current) {
+      cardWrapRef.current.style.transition = 'transform 280ms cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+      cardWrapRef.current.style.transform  = 'translateX(0)';
+    }
+    if (!swipeIsH.current || Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx)) return;
+    if (dx > 0 && !prevWeekDisabled) {
+      hapticLight(); setNavDir(-1); setWeekOffset((w) => w - 1); setAnimKeys((prev) => ({ ...prev, [tab]: prev[tab] + 1 }));
+    } else if (dx < 0 && !nextWeekDisabled) {
+      hapticLight(); setNavDir(1); setWeekOffset((w) => w + 1); setAnimKeys((prev) => ({ ...prev, [tab]: prev[tab] + 1 }));
+    }
+  }
+
   return (
-    <Card padded={false}>
-      {/* Tab toggle */}
-      <div className="px-4 pt-4 pb-3">
-        <SegmentedControl<ChartTab>
-          value={tab}
-          onChange={handleTabChange}
-          options={[
-            { value: 'overview', label: 'Weight' },
-            { value: 'week',     label: 'Calories' },
-          ]}
-        />
-      </div>
-
-      {/* Week navigation */}
-      <div className="mb-1 flex items-center justify-between px-1">
-        <button
-          onClick={() => { hapticLight(); setNavDir(-1); setWeekOffset((w) => w - 1); setAnimKeys((prev) => ({ ...prev, [tab]: prev[tab] + 1 })); }}
-          aria-label="Previous week"
-          disabled={prevWeekDisabled}
-          className="flex h-11 w-11 items-center justify-center rounded-control text-content-secondary active:bg-surface-sunken disabled:opacity-40 disabled:cursor-default"
-        >
-          <Icon name="chevronLeft" size={22} strokeWidth={2.25} />
-        </button>
-        <div className="text-center">
-          <div className="text-subhead font-semibold text-content">Week {wNum}</div>
-          <div className="text-subhead text-content-secondary">{weekRangeLabel}</div>
+    <div ref={cardWrapRef} style={{ willChange: 'transform' }}>
+      <Card
+        padded={false}
+        className="pt-6 pb-6 px-4 rounded-main shadow-card-lg"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        {/* Segmented control — centered */}
+        <div className="mb-4 flex justify-center">
+          <SegmentedControl<ChartTab>
+            value={tab}
+            onChange={handleTabChange}
+            options={[
+              { value: 'overview', label: 'Weight' },
+              { value: 'week',     label: 'Calories' },
+            ]}
+          />
         </div>
-        <button
-          onClick={() => { hapticLight(); setNavDir(1); setWeekOffset((w) => w + 1); setAnimKeys((prev) => ({ ...prev, [tab]: prev[tab] + 1 })); }}
-          aria-label="Next week"
-          disabled={nextWeekDisabled}
-          className="flex h-11 w-11 items-center justify-center rounded-control text-content-secondary active:bg-surface-sunken disabled:opacity-40 disabled:cursor-default"
-        >
-          <Icon name="chevronRight" size={22} strokeWidth={2.25} />
-        </button>
-      </div>
 
-      <div className="px-4 pb-4 mt-2">
-        {tab === 'overview' ? (
-          <KgWeekChart
-            key={animKeys.overview}
-            goal={goal}
-            weights={weights}
-            weekOffset={weekOffset}
-            today={chartToday}
-            navDir={navDir}
-            units={user?.units ?? 'kg'}
-          />
-        ) : (
-          <WeekChart
-            goal={goal}
-            weights={weights}
-            user={user}
-            items={items}
-            weekOffset={weekOffset}
-            today={chartToday}
-            animTrigger={animKeys.week}
-            navDir={navDir}
-          />
-        )}
-      </div>
-    </Card>
+        {/* Week navigation */}
+        <div className="mb-1 flex items-center justify-between">
+          <button
+            onClick={() => { hapticLight(); setNavDir(-1); setWeekOffset((w) => w - 1); setAnimKeys((prev) => ({ ...prev, [tab]: prev[tab] + 1 })); }}
+            aria-label="Previous week"
+            disabled={prevWeekDisabled}
+            className="flex h-11 w-11 items-center justify-center rounded-control text-content-secondary active:bg-surface-sunken disabled:opacity-40 disabled:cursor-default"
+          >
+            <Icon name="chevronLeft" size={22} strokeWidth={2.25} />
+          </button>
+          <div className="text-center">
+            <div className="text-subhead font-semibold text-content">Week {wNum}</div>
+            <div className="text-subhead text-content-secondary">{weekRangeLabel}</div>
+          </div>
+          <button
+            onClick={() => { hapticLight(); setNavDir(1); setWeekOffset((w) => w + 1); setAnimKeys((prev) => ({ ...prev, [tab]: prev[tab] + 1 })); }}
+            aria-label="Next week"
+            disabled={nextWeekDisabled}
+            className="flex h-11 w-11 items-center justify-center rounded-control text-content-secondary active:bg-surface-sunken disabled:opacity-40 disabled:cursor-default"
+          >
+            <Icon name="chevronRight" size={22} strokeWidth={2.25} />
+          </button>
+        </div>
+
+        {/* Chart */}
+        <div className="mt-3">
+          {tab === 'overview' ? (
+            <KgWeekChart
+              key={animKeys.overview}
+              goal={goal}
+              weights={weights}
+              weekOffset={weekOffset}
+              today={chartToday}
+              navDir={navDir}
+              units={user?.units ?? 'kg'}
+            />
+          ) : (
+            <WeekChart
+              goal={goal}
+              weights={weights}
+              user={user}
+              items={items}
+              weekOffset={weekOffset}
+              today={chartToday}
+              animTrigger={animKeys.week}
+              navDir={navDir}
+            />
+          )}
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -230,7 +282,7 @@ function PastGoalDetail({
 
   return (
     <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
-      <SlideHeader title={goal.name} onBack={goBack} scrolled={scrolled} />
+      <SlideHeader title="" onBack={goBack} scrolled={scrolled} />
 
       <div className="px-6 pb-8 space-y-4">
 

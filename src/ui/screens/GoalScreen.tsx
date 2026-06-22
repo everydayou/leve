@@ -45,6 +45,7 @@ export function GoalScreen() {
   const [outcomeLocalDismissed, setOutcomeLocalDismissed] = useState(false);
   const [showEditPlan, setShowEditPlan] = useState(false);
   const [showPastGoals, setShowPastGoals] = useState(false);
+  const [showNoGoalOptions, setShowNoGoalOptions] = useState(false);
   const handleTabChange = (t: Tab) => {
     hapticLight();
     setNavDir(0);
@@ -93,8 +94,8 @@ export function GoalScreen() {
           <h1 className="text-title font-semibold text-content">Goal</h1>
           {prevGoals.length > 0 && (
             <button
-              onClick={() => setShowPastGoals(true)}
-              aria-label="Past goals"
+              onClick={() => setShowNoGoalOptions(true)}
+              aria-label="Goal options"
               className="flex h-11 w-11 items-center justify-center -mr-2.5 rounded-control text-accent-hover active:bg-surface-sunken"
             >
               <Icon name="moreHoriz" size={20} />
@@ -114,6 +115,19 @@ export function GoalScreen() {
         </div>
       </div>
 
+        {showNoGoalOptions && (
+          <Sheet title="Goal options" onClose={() => setShowNoGoalOptions(false)}>
+            <div className="pb-2">
+              <button
+                className="flex w-full items-center justify-between rounded-control px-1 py-3 text-subhead text-content active:bg-surface-sunken"
+                onClick={() => { setShowNoGoalOptions(false); setShowPastGoals(true); }}
+              >
+                Past goals
+                <Icon name="chevronRight" size={18} strokeWidth={2} />
+              </button>
+            </div>
+          </Sheet>
+        )}
         {showPastGoals && createPortal(
           <PastGoalsPortal onClose={() => setShowPastGoals(false)} />,
           document.body,

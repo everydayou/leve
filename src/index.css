@@ -55,7 +55,7 @@
                 (text fields, the search box, filter pills, sunken previews)
        strong — selected / active state */
   --color-border-subtle: #f8f8f8;                       /* hairlines (light) — cards lean on shadow */
-  --color-border-field:  #e4e4e7;                       /* flat, shadowless items — darker so they read */
+  --color-border-field:  #efeff0;                       /* flat, shadowless items — darker so they read */
   --color-border-strong: var(--color-neutral-300);      /* selected/active */
   --color-scrim:         rgba(0, 0, 0, 0.4);            /* modal/sheet backdrop */
 

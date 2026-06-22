@@ -1118,6 +1118,8 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
 
 // ── Breakdown sheet ───────────────────────────────────────────────────────────
 
+type BreakdownInfoKey = 'bmr' | 'activity' | 'digestion' | 'food' | 'goal' | 'available';
+
 function BreakdownSheet({
   mode = 'goal', bmr, consumed, actCals, digestionCalories, dailyTarget,
   gainGoal = false, gainZone = 'below', gainFloor = 0, gainCeil = 0, onClose,
@@ -1125,24 +1127,54 @@ function BreakdownSheet({
   mode?: 'goal' | 'no-goal';
   bmr: number; consumed: number; actCals: number; digestionCalories: number;
   dailyTarget: number; gainGoal?: boolean; gainZone?: 'below' | 'in' | 'above';
-  /** Surplus floor/ceiling (kcal) — for range display in burnRows. */
   gainFloor?: number; gainCeil?: number;
   onClose: () => void;
 }) {
-  const [showDigestionInfo, setShowDigestionInfo] = useState(false);
+  const [activeInfo, setActiveInfo] = useState<BreakdownInfoKey | null>(null);
   const [infoEntered, setInfoEntered] = useState(false);
 
-  function openInfo() {
-    setShowDigestionInfo(true);
+  function openInfo(key: BreakdownInfoKey) {
+    setActiveInfo(key);
     requestAnimationFrame(() => setInfoEntered(true));
   }
   function closeInfo() {
     setInfoEntered(false);
-    setTimeout(() => setShowDigestionInfo(false), 260);
+    setTimeout(() => setActiveInfo(null), 260);
   }
 
   const slide: React.CSSProperties = {
     transition: 'transform 260ms cubic-bezier(0.32,0.72,0,1)',
+  };
+
+  // ── All derived values (computed unconditionally so header can reference them) ──
+  const totalBurn       = Math.round(bmr + actCals + digestionCalories);
+  const consumedRnd     = Math.round(consumed);
+  const netBalance      = consumedRnd - totalBurn;
+  const netBalanceStr   = `${netBalance >= 0 ? '+' : '−'}${Math.abs(netBalance).toLocaleString()} kcal`;
+  const left            = totalBurn - consumedRnd - Math.round(dailyTarget);
+  const isOver          = left < 0;
+  const consumedSurplus = gainGoal ? netBalance : 0;
+  const targetMagnitude = Math.round(Math.abs(dailyTarget));
+  const goalLabel       = gainGoal ? 'Goal (surplus)' : 'Goal (deficit)';
+  const goalValue       = gainGoal
+    ? `+${gainFloor.toLocaleString()} to +${gainCeil.toLocaleString()} kcal`
+    : `−${targetMagnitude.toLocaleString()} kcal`;
+  const availableNum    = gainGoal
+    ? (gainZone === 'below' ? gainFloor - consumedSurplus
+       : gainZone === 'in'   ? gainCeil  - consumedSurplus
+                              : consumedSurplus - gainCeil)
+    : Math.abs(left);
+  const bdBadgeStatus   = (gainGoal ? gainZone === 'in' : !isOver) ? 'success' : 'default';
+  const bdBadgeText     = gainGoal
+    ? (gainZone === 'below' ? 'Under target' : gainZone === 'in' ? 'In range' : 'Over')
+    : (isOver ? 'Over' : 'On target');
+  const availableLabel  = bdBadgeText === 'Under target' ? 'To go'
+    : bdBadgeText === 'Over' ? 'Over by'
+    : 'Available';
+
+  const infoTitles: Record<BreakdownInfoKey, string> = {
+    bmr: 'BMR', activity: 'Activity', digestion: 'Estimated digestion',
+    food: 'Food', goal: 'Goal', available: availableLabel,
   };
 
   // ── Animated sticky header ───────────────────────────────────────────────
@@ -1157,19 +1189,28 @@ function BreakdownSheet({
           <span className="w-6" />
         </div>
       </div>
-      {showDigestionInfo && (
+      {activeInfo && (
         <div className="absolute inset-0 bg-surface"
           style={{ ...slide, transform: infoEntered ? 'translateX(0)' : 'translateX(100%)' }}>
           <div className="flex items-center gap-2 py-1">
             <button data-no-drag onClick={closeInfo} aria-label="Back" className="-m-1 p-1 text-content-muted">
               <Icon name="back" size={22} strokeWidth={2.25} />
             </button>
-            <h2 className="flex-1 text-center text-headline font-semibold">Estimated digestion</h2>
+            <h2 className="flex-1 text-center text-headline font-semibold">{infoTitles[activeInfo]}</h2>
             <span className="w-6" />
           </div>
         </div>
       )}
     </div>
+  );
+
+  // ── Info button helper ───────────────────────────────────────────────────
+  const infoBtn = (infoKey: BreakdownInfoKey, label: string) => (
+    <button data-no-drag onClick={() => openInfo(infoKey)}
+      className="-my-1 -mr-0.5 p-1 text-content-muted"
+      aria-label={`Learn about ${label}`}>
+      <Icon name="info" size={15} strokeWidth={1.75} />
+    </button>
   );
 
   // ── No-goal content: simple food total + activity info ───────────────────
@@ -1180,10 +1221,10 @@ function BreakdownSheet({
     ];
     return (
       <Sheet onClose={onClose} stickyHeader={animatedHeader}>
-        <div className="overflow-hidden rounded-control border border-border-subtle">
+        <div className="rounded-card border border-border-subtle bg-surface overflow-hidden">
           {noGoalRows.map(({ label, value }, idx) => (
             <div key={label}
-              className={`flex items-center justify-between bg-surface px-4 py-3 ${idx < noGoalRows.length - 1 ? 'border-b border-border-subtle' : ''}`}>
+              className={`flex items-center justify-between px-4 py-3 ${idx < noGoalRows.length - 1 ? 'border-b border-border-subtle' : ''}`}>
               <span className="text-subhead text-content">{label}</span>
               <span className="text-subhead font-semibold text-content">{value}</span>
             </div>
@@ -1199,112 +1240,147 @@ function BreakdownSheet({
     );
   }
 
-  // ── Goal mode: unified sign convention (burns −, food +, total = net) ───
-  // Burns and food always use same sign regardless of goal type.
-  const mathRows = [
-    { label: 'BMR',      value: `−${Math.round(bmr).toLocaleString()} kcal`,             isDigestion: false },
-    { label: 'Activity', value: `−${Math.round(actCals).toLocaleString()} kcal`,          isDigestion: false },
+  // ── Math rows ────────────────────────────────────────────────────────────
+  type MathRow = { label: string; value: string; infoKey: BreakdownInfoKey };
+  const mathRows: MathRow[] = [
+    { label: 'BMR',      value: `−${Math.round(bmr).toLocaleString()} kcal`,    infoKey: 'bmr' },
+    { label: 'Activity', value: `−${Math.round(actCals).toLocaleString()} kcal`, infoKey: 'activity' },
     ...(digestionCalories > 0 ? [{
       label: 'Estimated digestion',
       value: `−${digestionCalories.toLocaleString()} kcal`,
-      isDigestion: true,
+      infoKey: 'digestion' as BreakdownInfoKey,
     }] : []),
-    { label: 'Food',     value: `+${Math.round(consumed).toLocaleString()} kcal`,         isDigestion: false },
+    { label: 'Food', value: `+${Math.round(consumed).toLocaleString()} kcal`, infoKey: 'food' },
   ];
-  const totalBurn       = Math.round(bmr + actCals + digestionCalories);
-  const consumedRnd     = Math.round(consumed);
-  // Net balance: positive = surplus, negative = deficit
-  const netBalance      = consumedRnd - totalBurn;
-  const netBalanceStr   = `${netBalance >= 0 ? '+' : '−'}${Math.abs(netBalance).toLocaleString()} kcal`;
-  // left = budget remaining (lose: how many more kcal can be eaten; gain: dist from target)
-  const left            = totalBurn - consumedRnd - Math.round(dailyTarget);
-  const isOver          = left < 0;
-  const consumedSurplus = gainGoal ? netBalance : 0;
-  const targetMagnitude = Math.round(Math.abs(dailyTarget));
-  // Goal row: gain shows range, lose shows deficit target
-  const goalLabel = gainGoal ? 'Goal (surplus)' : 'Goal (deficit)';
-  const goalValue = gainGoal
-    ? `+${gainFloor.toLocaleString()} to +${gainCeil.toLocaleString()} kcal`
-    : `−${targetMagnitude.toLocaleString()} kcal`;
-  // Available number (always positive — magnitude of room or overage)
-  const availableNum = gainGoal
-    ? (gainZone === 'below' ? gainFloor - consumedSurplus
-       : gainZone === 'in'   ? gainCeil  - consumedSurplus
-                              : consumedSurplus - gainCeil)
-    : Math.abs(left);
-  // Badge
-  const bdBadgeStatus = (gainGoal ? gainZone === 'in' : !isOver) ? 'success' : 'default';
-  const bdBadgeText   = gainGoal
-    ? (gainZone === 'below' ? 'Under target' : gainZone === 'in' ? 'In range' : 'Over')
-    : (isOver ? 'Over' : 'On target');
-  // Available label mirrors the gauge centre subtext (same language, without 'kcal').
-  const availableLabel = bdBadgeText === 'Under target' ? 'To go'
-    : bdBadgeText === 'Over' ? 'Over by'
-    : 'Available';
+
+  // ── Info panel content ───────────────────────────────────────────────────
+  const infoPanels: Record<BreakdownInfoKey, React.ReactNode> = {
+    bmr: (
+      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
+        <p>Your <span className="text-content font-medium">Basal Metabolic Rate</span> is the energy your body burns at complete rest — keeping your heart beating, lungs breathing, and temperature regulated.</p>
+        <p>It's the largest component of your daily calorie burn, typically 60–70% of total expenditure. You set your BMR manually in your profile.</p>
+        <p className="text-caption text-content-muted pb-2">BMR auto-calibration based on your logged data is coming in a future update.</p>
+      </div>
+    ),
+    activity: (
+      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
+        <p>Calories burned from <span className="text-content font-medium">physical activity</span> you've logged manually — workouts, walks, or any other movement you add.</p>
+        <p>This is added to your BMR to give your total daily burn, which determines how much you can eat to stay on track.</p>
+        <p className="text-caption text-content-muted pb-2">Apple Health and device integration (Apple Watch, etc.) is coming in a future update.</p>
+      </div>
+    ),
+    digestion: (
+      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
+        <p>When you eat, your body uses energy to digest and absorb food. This is called the <span className="text-content font-medium">Thermic Effect of Food (TEF)</span>.</p>
+        <p>The estimate is calculated from your logged foods:</p>
+        <div className="rounded-card border border-border-subtle bg-surface overflow-hidden">
+          {[['Protein', '~25–30%'], ['Carbs', '~6–8%'], ['Fat', '~2–3%']].map(([macro, rate], idx, arr) => (
+            <div key={macro} className={`flex items-center justify-between px-4 py-2.5 ${idx < arr.length - 1 ? 'border-b border-border-subtle' : ''}`}>
+              <span className="text-subhead text-content-secondary">{macro}</span>
+              <span className="text-subhead font-medium text-content">{rate} of its calories</span>
+            </div>
+          ))}
+        </div>
+        <p>It's added to your burn because digestion is real energy your body expends — so your budget is slightly higher on days you eat more protein.</p>
+        <p className="text-caption text-content-muted pb-2">Actual TEF varies with food composition and individual metabolism.</p>
+      </div>
+    ),
+    food: (
+      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
+        <p>Total calories from all <span className="text-content font-medium">food entries</span> logged today.</p>
+        <p>Every meal and snack you log contributes here. Food is the only positive term in the balance — everything else is a burn.</p>
+        <p className="text-caption text-content-muted pb-2">AI meal estimation and food scan are coming to make logging faster.</p>
+      </div>
+    ),
+    goal: gainGoal ? (
+      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
+        <p>Your <span className="text-content font-medium">daily surplus target</span> — the extra calories above your total burn that you're aiming to eat to support muscle growth.</p>
+        <p>A controlled surplus, combined with training, gives your body the fuel it needs to build muscle while minimising fat gain. Your target range is <span className="text-content font-medium">+{gainFloor.toLocaleString()}–{gainCeil.toLocaleString()} kcal/day</span>.</p>
+        <p className="text-caption text-content-muted pb-2">Too large a surplus leads to more fat gain. The range keeps you in the productive zone.</p>
+      </div>
+    ) : (
+      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
+        <p>Your <span className="text-content font-medium">daily deficit target</span> — how many fewer calories you need to eat than you burn each day to reach your goal weight on time.</p>
+        <p>A deficit of {targetMagnitude.toLocaleString()} kcal/day means your body draws on stored fat to make up the shortfall, resulting in gradual weight loss.</p>
+        <p className="text-caption text-content-muted pb-2">~7,700 kcal ≈ 1 kg of fat. Your target is calculated from your start weight, goal weight, and deadline.</p>
+      </div>
+    ),
+    available: bdBadgeText === 'Under target' ? (
+      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
+        <p><span className="text-content font-medium">To go</span> is how many more calories you need to eat today to reach the floor of your surplus range.</p>
+        <p>Once you're in range, this changes to <span className="text-content font-medium">Available</span> — showing how much room you have left before going over.</p>
+      </div>
+    ) : bdBadgeText === 'Over' ? (
+      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
+        <p><span className="text-content font-medium">Over by</span> is how much you've exceeded your {gainGoal ? 'surplus ceiling' : 'calorie budget'} today.</p>
+        <p>It happens — a single day over doesn't derail your goal. What matters is the weekly average.</p>
+      </div>
+    ) : (
+      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
+        <p><span className="text-content font-medium">Available</span> is how many more calories you can eat today and still hit your daily target.</p>
+        <p>{gainGoal ? 'Once you go over the ceiling of your surplus range, this switches to "Over by".' : 'Once this reaches zero, any more food puts you over your deficit target for the day.'}</p>
+      </div>
+    ),
+  };
 
   const scrollableContent = (
-    <div className="relative" style={{ overflow: showDigestionInfo ? 'hidden' : 'visible' }}>
+    <div className="relative" style={{ overflow: activeInfo ? 'hidden' : 'visible' }}>
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
-        {/* ── Math box: all rows + Total + Goal ── */}
-        <div className="overflow-hidden rounded-control border border-border-field">
-          {mathRows.map(({ label, value, isDigestion }) => (
-            <div key={label}
-              className="flex items-center justify-between bg-surface px-4 py-3">
-              <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-4">
+
+        {/* ── One unified container ── */}
+        <div className="rounded-card border border-border-field bg-surface">
+
+          {/* Math rows */}
+          {mathRows.map(({ label, value, infoKey }) => (
+            <div key={label} className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-1 min-w-0 flex-1 pr-3">
                 <span className="text-subhead text-content-secondary">{label}</span>
-                {isDigestion && (
-                  <button data-no-drag onClick={openInfo} className="-m-1 p-1 text-content-muted"
-                    aria-label="Learn about estimated digestion">
-                    <Icon name="info" size={15} strokeWidth={1.75} />
-                  </button>
-                )}
+                {infoBtn(infoKey, label)}
               </div>
               <span className="text-subhead font-semibold text-content-secondary shrink-0">{value}</span>
             </div>
           ))}
+
           {/* Total row */}
-          <div className="flex items-center justify-between bg-surface px-4 py-3 border-t border-border-field">
-            <span className="text-subhead text-content">Total</span>
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border-field">
+            <span className="text-subhead font-semibold text-content">Total</span>
             <span className="text-subhead font-bold text-content">{netBalanceStr}</span>
           </div>
+
           {/* Goal row */}
-          <div className="flex items-center justify-between bg-surface px-4 py-3">
-            <span className="text-subhead text-content-secondary">{goalLabel}</span>
-            <span className="text-subhead font-semibold text-content-secondary">{goalValue}</span>
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-1 min-w-0 flex-1 pr-3">
+              <span className="text-subhead text-content-secondary">{goalLabel}</span>
+              {infoBtn('goal', goalLabel)}
+            </div>
+            <span className="text-subhead font-semibold text-content-secondary shrink-0">{goalValue}</span>
           </div>
-        </div>
 
-        {/* ── Status box: badge + Available ── */}
-        <div className="rounded-control shadow-card-lg mt-2">
-          <div className="px-4 pt-3 pb-0">
-            <Badge status={bdBadgeStatus}>{bdBadgeText}</Badge>
+          {/* ── Nested status card ── */}
+          <div className="px-3 pb-3 pt-1">
+            <div className="rounded-card shadow-card-lg bg-surface">
+              <div className="px-4 pt-3 pb-0">
+                <Badge status={bdBadgeStatus}>{bdBadgeText}</Badge>
+              </div>
+              <div className="flex items-center justify-between px-4 pt-2 pb-4">
+                <div className="flex items-center gap-1">
+                  <span className="text-subhead text-content-secondary">{availableLabel}</span>
+                  {infoBtn('available', availableLabel)}
+                </div>
+                <span className="text-title font-bold text-content">{availableNum.toLocaleString()} kcal</span>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center justify-between px-4 pt-2 pb-4">
-            <span className="text-subhead text-content-secondary">{availableLabel}</span>
-            <span className="text-title font-bold text-content">{availableNum.toLocaleString()} kcal</span>
-          </div>
-        </div>
 
+        </div>
         <div className="h-2" />
       </div>
 
-      {showDigestionInfo && (
+      {/* Info panel (slides in from right) */}
+      {activeInfo && (
         <div className="absolute inset-0 bg-surface"
           style={{ ...slide, transform: infoEntered ? 'translateX(0)' : 'translateX(100%)' }}>
-          <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
-            <p>When you eat, your body uses energy to digest and absorb food. This is called the <span className="text-content font-medium">Thermic Effect of Food (TEF)</span>.</p>
-            <p>The estimate is calculated from your logged foods:</p>
-            <div className="overflow-hidden rounded-control border border-border-subtle">
-              {[['Protein', '~25–30%'], ['Carbs', '~6–8%'], ['Fat', '~2–3%']].map(([macro, rate], idx, arr) => (
-                <div key={macro} className={`flex items-center justify-between bg-surface px-4 py-2.5 ${idx < arr.length - 1 ? 'border-b border-border-subtle' : ''}`}>
-                  <span className="text-subhead text-content-secondary">{macro}</span>
-                  <span className="text-subhead font-medium text-content">{rate} of its calories</span>
-                </div>
-              ))}
-            </div>
-            <p>It's added to your burn because digestion is real energy your body expends — so your budget is slightly higher on days you eat more protein.</p>
-            <p className="text-caption text-content-muted pb-2">Actual TEF varies with food composition and individual metabolism.</p>
-          </div>
+          {infoPanels[activeInfo]}
         </div>
       )}
     </div>

@@ -1331,14 +1331,14 @@ function BreakdownSheet({
     <div ref={wrapperRef} className="relative" style={{ overflow: activeInfo ? 'hidden' : 'visible' }}>
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
 
-        {/* ── One unified container ── */}
-        <div className="rounded-card border border-border-field bg-surface">
+        {/* ── One unified container — shadow-card so border-subtle hairlines read correctly ── */}
+        <div className="rounded-card shadow-card bg-surface">
 
           {/* Math rows — left side is fully tappable to open info */}
           {mathRows.map(({ label, value, infoKey }) => (
             <div key={label} className="flex items-center px-4">
               <button data-no-drag onClick={() => openInfo(infoKey)}
-                className="flex items-center gap-1 min-w-0 flex-1 pr-3 py-3 text-left"
+                className="flex items-center gap-1 min-w-0 flex-1 pr-3 py-1.5 text-left"
                 aria-label={`Learn about ${label}`}>
                 <span className="text-subhead text-content-secondary">{label}</span>
                 <Icon name="info" size={15} strokeWidth={1.75} className="text-content-muted shrink-0" />
@@ -1348,7 +1348,7 @@ function BreakdownSheet({
           ))}
 
           {/* Total row */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border-field">
+          <div className="flex items-center justify-between px-4 py-1.5 border-t border-border-subtle">
             <span className="text-subhead font-semibold text-content">Total</span>
             <span className="text-subhead font-bold text-content">{netBalanceStr}</span>
           </div>
@@ -1356,7 +1356,7 @@ function BreakdownSheet({
           {/* Goal row — left side tappable */}
           <div className="flex items-center px-4">
             <button data-no-drag onClick={() => openInfo('goal')}
-              className="flex items-center gap-1 min-w-0 flex-1 pr-3 py-3 text-left"
+              className="flex items-center gap-1 min-w-0 flex-1 pr-3 py-1.5 text-left"
               aria-label={`Learn about ${goalLabel}`}>
               <span className="text-subhead text-content-secondary">{goalLabel}</span>
               <Icon name="info" size={15} strokeWidth={1.75} className="text-content-muted shrink-0" />

@@ -7,6 +7,152 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUNDS 91–100 — PAST GOALS REDESIGN + BREAKDOWNSHEET COMPLETE POLISH (2026-06-22)
+================================================================
+Files: src/ui/screens/GoalScreen.tsx, src/ui/screens/PastGoalsScreen.tsx,
+       src/ui/screens/TodayScreen.tsx, src/data/repositories.ts,
+       src/data/dexieRepositories.ts, src/data/memoryRepositories.ts,
+       src/index.css
+
+----------------------------------------------------------------
+ROUND 91 — PAST GOALS: PORTAL SLIDE-IN + DETAIL SUMMARY CARD
+----------------------------------------------------------------
+- PastGoalsPortal (slide-in from right) now handles past goals from BOTH entry
+  points: the no-goal state ⋯ menu and the active-goal ⋯ settings sheet.
+  Replaced nested Sheet modals (SheetScreen pattern) with the unified portal.
+- PastGoalDetail Section 1 redesigned as a clean summary card: goal name,
+  target line ("Lose X kg by date"), stat tiles (Weight lost / Final weight /
+  Days), outcome badge (Achieved / Ended). No SVG checkmark, no large title.
+- Removed PreviousGoalRow component (unused after portal unification).
+- tsc: clean. lint: clean.
+
+----------------------------------------------------------------
+ROUND 92 — PAST GOALS POLISH: SHEET FIRST, CHART MATCH, HEADER CENTER
+----------------------------------------------------------------
+- No-goal ⋯ now opens "Goal options" Sheet first (showing "Past goals" row),
+  then tapping "Past goals" slides in PastGoalsPortal. Consistent with active-
+  goal ⋯ flow. showNoGoalOptions state added to GoalScreen.
+- PastGoalChart: visual parity with GoalScreen card.
+    · rounded-main (32px) radius + shadow-card-lg.
+    · SegmentedControl centered in flex justify-center div.
+    · Rubber-band swipe gesture (touch refs) matching GoalScreen chart swipe.
+- SlideHeader: title uses pointer-events-none absolute inset-x-0 text-center
+  so it doesn't shift when the back button is present. rightAction prop added.
+- PastGoalDetail nav bar: SlideHeader title="" (no title shown in detail view).
+- tsc: clean. lint: clean.
+
+----------------------------------------------------------------
+ROUND 93 — CHART CAPPING AT TARGET DATE + DELETE GOAL
+----------------------------------------------------------------
+- Chart capping: chartToday = goal.targetDate < today ? goal.targetDate : today.
+  Plan line: dots with d.date > today → null. WeekChart ramp lines: d.isFuture
+  guard applied to both surplus and deficit ramp segments.
+- GoalRepo interface: remove(id: string): Promise<void> added.
+  DexieRepositories: goals.remove = async (id) => { await db.goals.delete(id); }
+  MemoryRepositories: goals.remove = (id) => { store.goals = store.goals.filter(...) }
+- PastGoalDetail: trash icon in SlideHeader rightAction. showDeleteConfirm state.
+  Tapping trash opens confirmation Sheet (Sheet-on-Sheet). Confirming calls
+  repos.goals.remove(id) then goBack().
+- tsc: clean. lint: clean.
+
+----------------------------------------------------------------
+ROUND 94 — FOUR REMAINING CHART CAPPING GAPS
+----------------------------------------------------------------
+Initial fix only capped the plan line. Four additional uncapped code paths:
+1. Weight dots: actualPts filter changed to d.date <= today guard.
+2. Connecting line: built from actualPts (already filtered), now correct.
+3. Y-axis range: weekActual filtered with d.date <= today before min/max.
+4. WeekChart stub opacity: was `isBeforeGoal ? 0.2 : 1` — changed to
+   `isBeforeGoal ? 0.2 : 0.4` so future stubs (after goal end) are also
+   dimmed, and the isFuture guard correctly uses the capped chartToday.
+- tsc: clean. lint: clean.
+
+----------------------------------------------------------------
+ROUND 95 — BREAKDOWNSHEET: MERGED LAYOUT + INFO PANELS + TOKEN
+----------------------------------------------------------------
+- border-border-field light mode token: #e4e4e7 → #efeff0.
+- BreakdownSheet: single outer rounded-card container (no overflow-hidden so
+  shadow-card-lg on status card renders unclipped). Status card nested inside
+  with px-3/pb-3 inset margins. Total label font-semibold.
+- type BreakdownInfoKey = 'bmr'|'activity'|'digestion'|'food'|'goal'|'available'.
+  showDigestionInfo/infoEntered → activeInfo: BreakdownInfoKey|null + infoEntered.
+  openInfo(key) / closeInfo() generalized.
+- Info ⓘ icon on every row. Animated slide-in panel for each key. Header title
+  updates dynamically (infoTitles record, available key uses dynamic availableLabel).
+- Info copy for all 6 panels: BMR (BMR/rest burn), activity (manual + Apple Health
+  note), digestion (TEF table unchanged), food, goal (surplus/deficit variants),
+  available (three variants matching badge state).
+- tsc: clean. lint: clean.
+
+----------------------------------------------------------------
+ROUND 96 — TOUCH AREAS, FLUSH STATUS CARD, COPY, SPACING, SCROLL FIX
+----------------------------------------------------------------
+- Touch area: left side of every info row (label+icon) is a single <button>
+  with py-3 filling row height. Applied to all math rows, Goal row, Available
+  label in status card.
+- Status card: -mx-px -mb-px dropped inset margins; card now flush on sides
+  and bottom. Bottom corners: borderBottomLeftRadius/Right = var(--radius-card).
+- Font weights: math row values and Goal row value → regular weight. Total label
+  font-semibold, Total value font-bold, Available value text-title font-bold
+  (unchanged).
+- availableLabel: 'Over by' → 'Over'. Info copy updated to match.
+- Info copy: all primary prose text-content (was text-content-secondary).
+  Disclaimer paragraphs text-subhead (15pt, was text-caption). No en dash
+  anywhere (replaced with "to" or rephrased). "Over by" → "Over" in copy.
+- animatedHeader mb-2 → mb-5 (+12px between header and content).
+- Scroll bug: useEffect walks to nearest scrollable ancestor (overflow auto/scroll)
+  and resets scrollTop = 0 on every activeInfo change and on mount.
+- tsc: clean. lint: clean.
+
+----------------------------------------------------------------
+ROUND 97 — STATUS CARD CORNERS, BADGE PADDING, NOTE LABELS
+----------------------------------------------------------------
+- Status card: rounded-card on all 4 corners (was bottom-only inline style).
+  pt-3 → pt-4 so top spacing from card edge to badge equals bottom pb-4.
+- Disclaimer paragraphs in all 6 info panels:
+    text-content-muted → text-content-secondary
+    Prefixed with <span className="font-semibold">Note: </span>
+  Applied to: BMR, Activity, Digestion, Food, Goal (surplus), Goal (deficit).
+- tsc: clean. lint: clean.
+
+----------------------------------------------------------------
+ROUND 98 — ROW SPACING 12→6PX EACH; OUTER BORDER → SHADOW
+----------------------------------------------------------------
+- Math rows, Total, Goal row: py-3 → py-1.5 (6px each side, 12px combined).
+- Total row separator: border-border-field → border-border-subtle.
+- Outer container: border border-border-field → shadow-card (border removed).
+NOTE: border partially reverted in r99.
+- tsc: clean. lint: clean.
+
+----------------------------------------------------------------
+ROUND 99 — BORDER RESTORED, STATUS CARD OVERLAY, SPACING PASS 1
+----------------------------------------------------------------
+- Outer container: restore border border-border-field (r98 shadow-only reverted).
+  shadow-card also kept alongside border.
+- Status card: -mx-px -mb-px so bg-surface physically covers the outer container's
+  1px border on sides and bottom. Border reads cleanly on math section only.
+- Status card bottom: pb-4 (16px) → pb-2 (8px).
+- Spacing: outer container pt-1.5 (12px before BMR), Total row mt-3 (24px
+  Food→Total gap), Goal button pb-3 (12px before status card).
+- Total row separator restored to border-border-field.
+- tsc: clean. lint: clean.
+
+----------------------------------------------------------------
+ROUND 100 — FINAL SPACING PER SPEC; OUTER SHADOW REMOVED
+----------------------------------------------------------------
+Spacing spec (top to bottom):
+  16px  container top → BMR  (pt-2.5 on container + pt-1.5 on button)
+  12px  between all math rows (py-1.5 each side = 6+6)
+  12px  Food text → divider  (food pb-1.5 + Total mt-1.5 = 6+6)
+  12px  divider → Total text  (Total pt-3)
+  12px  Total → Goal  (Total pb-1.5 + Goal pt-1.5 = 6+6)
+  16px  Goal → status card top  (Goal button pb-4)
+  16px  status card top → badge  (status card pt-4, unchanged)
+   8px  status card bottom  (pb-2, unchanged)
+- Outer container: shadow-card removed. Only the status card retains shadow-card-lg.
+- tsc: clean. lint: clean.
+
+================================================================
 ROUND 90 — BREAKDOWN SHEET: BORDER FIX + SHADOW FIX (2026-06-19)
 ================================================================
 Files: src/ui/screens/TodayScreen.tsx

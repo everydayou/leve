@@ -2,8 +2,8 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-19 — Round 90 (BreakdownSheet full redesign: unified signs, two-box layout, polish)
-Full change history: see CHANGELOG.txt (rounds 1–68).
+Last updated: 2026-06-22 — Round 100 (BreakdownSheet polish: spacing, status card, info panels; Past Goals redesign complete)
+Full change history: see CHANGELOG.txt (rounds 1–90).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -168,7 +168,7 @@ User model additions (r71): weightCadence?: 'daily'|'weekly'; weeklyWeightDay?: 
 - BMR auto-calibration: parked (V1.5+).
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 90, 2026-06-19)
+7. CURRENT STATUS (as of round 100, 2026-06-22)
 ----------------------------------------------------------------
 - App name: "leve"; brand loading screen; native splash white flash eliminated. DONE.
 - "Build muscle" (gain_by_date) goal type: fully wired r61, bug-fixed r62.
@@ -179,21 +179,45 @@ User model additions (r71): weightCadence?: 'daily'|'weekly'; weeklyWeightDay?: 
   weight cadence, diary macro toggles, deficit session-touch, PastGoalsPortal,
   WheelPicker drum-roll, gauge arc budget scaling, activity multi-entry log, merged
   log, past-day gauge, macro detail sheet, carb targets for all macro styles. All shipped.
-- Rounds 85–90 (2026-06-19) — BreakdownSheet + gain gauge overhaul:
-  · r85–87: Surplus target moved into burnRows as a range; past-day gauge arc now
-    renders at real value (disabled only dims opacity); gauge no longer dims within
-    active goal period; gainDisplayNum rounding fixed (gauge and breakdown now agree).
-  · r88: BreakdownSheet full redesign. Unified sign convention (burns always −,
-    food always +, total = net balance). Two-box layout: math box (all rows + Total
-    + Goal) and status box (badge standalone + Available label + large bold number).
-    "Goal (surplus)" / "Goal (deficit)" labels. Available = gainCeil−surplus (gain)
-    or left (lose).
-  · r89: Math row values + goal value → text-content-secondary. Box 1 border →
-    border-border-field, single divider before Total. Box 2 → shadow-card-lg.
-    Available label dynamically mirrors gauge centre: "To go" / "Available" / "Over by".
-  · r90: border-border-field token fix (was border-field). shadow-card-lg. Overflow
-    clip only during digestion info animation — shadow renders unclipped at rest.
-- Code quality: tsc strict clean, lint clean (r90).
+- Rounds 85–90 (2026-06-19) — BreakdownSheet + gain gauge overhaul: unified signs,
+  two-box layout, Available label, Goal (surplus/deficit) row, shadow-card-lg,
+  border-border-field token fix, overflow clip fix. All shipped.
+- Rounds 91–94 (2026-06-22) — Past Goals redesign:
+  · r91: PastGoalsPortal slide-in replaces nested Sheet modals (both no-goal and
+    active-goal entry points). PastGoalDetail Section 1 redesigned as clean summary
+    card (goal name, target line, stat tiles, outcome badge — no SVG or big title).
+  · r92: No-goal ⋯ opens "Goal options" Sheet first, then PastGoalsPortal.
+    PastGoalChart matches GoalScreen card (rounded-main, shadow-card-lg, centered
+    SegmentedControl, rubber-band swipe). SlideHeader title absolutely centered;
+    detail nav bar has no title.
+  · r93: Charts now cap at goal.targetDate: plan line and ramp lines stop at the
+    end date. GoalRepo.remove() added to interface + both implementations. Trash
+    icon + delete confirmation Sheet in PastGoalDetail.
+  · r94: Four remaining chart capping gaps fixed: weight dots, connecting line,
+    Y-axis range, and WeekChart stub opacity all respect chartToday.
+- Rounds 95–100 (2026-06-22) — BreakdownSheet complete redesign:
+  · r95: border-border-field token → #efeff0. One outer rounded-card container
+    (no overflow-hidden so shadow is unclipped). Status box nested inside with
+    shadow-card-lg, inset margins. Total label font-semibold. Info icons on every
+    row (BMR, Activity, Digestion, Food, Goal, Available) with animated slide-in
+    explanation panels. Generalised showDigestionInfo → activeInfo: BreakdownInfoKey|null.
+  · r96: Entire left side (label+icon) is one touch-area button per row. Status
+    card flush horizontally and at bottom. Math row values → regular weight. "Over
+    by" → "Over". Info copy: text-content primary, text-subhead disclaimers, no
+    en dash. Header spacing +12px. Scroll bug fixed (useEffect resets scrollTop on
+    panel transitions and mount).
+  · r97: Status card: rounded-card all 4 corners; pt-4 top (= pb-4 bottom) for
+    equal badge spacing. Disclaimer paragraphs: text-content-secondary + "Note:"
+    prefix in font-semibold.
+  · r98: Row spacing py-3 → py-1.5 (12px total between rows).
+  · r99: Border restored on outer container; status card -mx-px -mb-px so its
+    bg-surface covers the border on sides/bottom. Status card bottom pb-2 (8px).
+    Spacing adjustments: pt-1.5 top, mt-3 before Total, pb-3 before status card.
+  · r100: Final spacing per spec: 16px top (pt-2.5 + button pt-1.5), 12px between
+    rows, 12px Food→divider (mt-1.5), 12px divider→Total (pt-3), 12px Total→Goal,
+    16px Goal→status card (pb-4), 16px status card top→badge (pt-4), 8px bottom.
+    Outer container shadow removed (only status card has shadow-card-lg).
+- Code quality: tsc strict clean, lint clean (r100).
 
 ----------------------------------------------------------------
 8. TECH / ARCHITECTURE
@@ -252,7 +276,7 @@ WITHINGS: mock scaffold only. Real data needs backend proxy + credentials.
 DEFERRED V1.5+: JSON import, HealthKit, BMR auto-calibration, full tablet
 layouts, per-piece measurement types, time-of-day food suggestions.
 
-ALREADY DONE (do NOT re-flag): r85–90 all items (BreakdownSheet redesign — unified signs, two-box layout, Available label, Goal (surplus/deficit) row, shadow-card-lg, border-border-field, overflow clip fix, past-day gauge arc fix, no goal-period dimming, gainDisplayNum rounding). r80–r84 all items (gain goal zone UI restore, gainZone 3-state badge + arc colors, food/activity sign convention, week strip + WeekChart dual ramps + 3-state badge, macro tracking defaults per macroStyle, Badge className passthrough, GoalScreen WeekChart badge text-[15px], badge · separator double-space, MacroCol 13px, macro detail sheet tap-to-expand, carb limit fallback for old lower_carb goals, BreakdownSheet BMR/digestion − for gain, effectiveCarbLimit for all macro styles). r79 all items (activity multi-entry log,
+ALREADY DONE (do NOT re-flag): r91–100 all items (PastGoalsPortal slide-in both entry points, PastGoalDetail summary card, GoalRepo.remove, chart capping at targetDate for plan/ramp/dots/Y-axis/stub-opacity, trash + delete confirm, BreakdownSheet merged one-container layout, status card nested with shadow-card-lg + border overlay via -mx-px -mb-px, info icons with animated slide-in panels for all 6 rows, activeInfo state, touch-area buttons, spacing per spec 16/12/12/12/12/16/16/8, Note: disclaimers, "Over by"→"Over", scroll reset on panel transitions). r85–90 all items (BreakdownSheet redesign — unified signs, two-box layout, Available label, Goal (surplus/deficit) row, shadow-card-lg, border-border-field, overflow clip fix, past-day gauge arc fix, no goal-period dimming, gainDisplayNum rounding). r80–r84 all items (gain goal zone UI restore, gainZone 3-state badge + arc colors, food/activity sign convention, week strip + WeekChart dual ramps + 3-state badge, macro tracking defaults per macroStyle, Badge className passthrough, GoalScreen WeekChart badge text-[15px], badge · separator double-space, MacroCol 13px, macro detail sheet tap-to-expand, carb limit fallback for old lower_carb goals, BreakdownSheet BMR/digestion − for gain, effectiveCarbLimit for all macro styles). r79 all items (activity multi-entry log,
 EditActivitySheet Save fix, WheelPicker centerAt + split-wheel empty state,
 GoalOutcome CTA loop fix, diary past-goal badge + disabled day states, Build
 Muscle ±100 surplus range, merged food+activity log, past-day gauge disabled,
@@ -286,6 +310,57 @@ through r62 (see CHANGELOG for full list).
 ----------------------------------------------------------------
 RECENT ROUNDS (for context on what was just touched)
 ----------------------------------------------------------------
+ROUNDS 91–100 — PAST GOALS REDESIGN + BREAKDOWNSHEET COMPLETE POLISH (2026-06-22)
+Files: src/ui/screens/GoalScreen.tsx, src/ui/screens/PastGoalsScreen.tsx,
+       src/ui/screens/TodayScreen.tsx, src/data/repositories.ts,
+       src/data/dexieRepositories.ts, src/data/memoryRepositories.ts,
+       src/index.css
+- r91: PastGoalsPortal slide-in replaces nested Sheet modals for past goals from
+  both no-goal and active-goal entry points. PastGoalDetail Section 1 = clean
+  summary card (goal name, target line, stat tiles, outcome badge). No SVG or title.
+- r92: No-goal ⋯ opens "Goal options" Sheet first, then PastGoalsPortal.
+  PastGoalChart matches GoalScreen card exactly: rounded-main, shadow-card-lg,
+  centered SegmentedControl, rubber-band swipe gesture between weeks.
+  SlideHeader title absolutely centered (pointer-events-none absolute inset-x-0).
+  Detail view nav bar: no title.
+- r93: Chart capping at goal.targetDate: plan line and WeekChart ramp lines stop
+  at end date. GoalRepo.remove() added to interface, DexieRepo (db.goals.delete),
+  and MemoryRepo (filter). Trash icon + delete confirmation Sheet-on-Sheet in
+  PastGoalDetail.
+- r94: Four remaining chart capping gaps: weight dots (d.date <= today guard),
+  connecting line (actualPts filter), Y-axis range (weekActual filter), WeekChart
+  stub opacity (isFuture guard applied correctly). chartToday = goal.targetDate
+  for past goals.
+- r95: border-border-field light mode token #e4e4e7 → #efeff0. BreakdownSheet:
+  one outer rounded-card container (no overflow-hidden; shadow unclipped). Status
+  card nested inside with shadow-card-lg + px-3/pb-3 inset margins. Total label
+  font-semibold. Info icons on all 6 rows (BMR, Activity, Digestion, Food, Goal,
+  Available). showDigestionInfo → activeInfo: BreakdownInfoKey|null state. Animated
+  slide-in panels for each, header title updates dynamically. Info copy written for
+  all six panels.
+- r96: Left side of every info row (label+icon together) is one touch-area button.
+  Status card flush horizontally and at bottom (-mx-px -mb-px dropped the inset).
+  Math row values → regular weight (Total value/label stays bold). "Over by" → "Over"
+  in label and info copy. Info copy: text-content primary, text-subhead disclaimers,
+  no en dash. animatedHeader mb-2 → mb-5 (+12px). useEffect resets scrollTop of
+  nearest scrollable ancestor on every activeInfo change and mount (scroll bug fix).
+- r97: Status card: rounded-card all 4 corners (was bottom only); pt-3 → pt-4 so
+  top gap matches bottom pb-4. Disclaimer paragraphs: text-content-muted →
+  text-content-secondary; each prefixed with "Note:" in font-semibold.
+- r98: Row spacing py-3 → py-1.5 (6px each side, 12px total between adjacent rows).
+  Outer container border removed in favour of shadow-card. Total separator →
+  border-border-subtle. (Partially reverted in r99.)
+- r99: Outer container: restore border border-border-field. Status card: -mx-px
+  -mb-px so bg-surface overlays the outer border on sides/bottom (border visible
+  on math section, hidden under shadow card). Status card bottom pb-4 → pb-2 (8px).
+  Spacing: pt-1.5 on container, mt-3 before Total, pb-3 on Goal button.
+- r100: Final spacing per spec. Container pt-2.5 (+pt-1.5 button = 16px top).
+  12px between rows. Total row: mt-1.5 (Food→divider 12px) + pt-3 (divider→Total
+  12px). Goal button pb-4 (16px Goal→status card). Status card pt-4 (16px to badge),
+  pb-2 (8px bottom). Outer container shadow-card removed — only status card has
+  shadow-card-lg.
+- tsc: clean. lint: clean (r100).
+
 ROUNDS 85–90 — BREAKDOWNSHEET REDESIGN + GAIN GAUGE POLISH (2026-06-19)
 Files: src/ui/kit/Progress.tsx, src/ui/screens/TodayScreen.tsx
 - r85: BreakdownSheet gain: "Surplus target" moved to burnRows as a signed
@@ -323,16 +398,4 @@ Files: src/domain/types.ts, src/ui/kit/Progress.tsx, src/ui/kit/Badge.tsx,
 - r84: effectiveCarbLimit for all macroStyles. balanced/performance carb target =
   residual ÷ 4 from live totalBurn. carbsDefault = gainDetailed.
 - tsc: clean. lint: clean (r84).
-
-ROUND 79 — ACTIVITY LOG, WHEELPEICKER EMPTY STATE, DIARY PAST GOAL, SURPLUS RANGE, LOG MERGE (2026-06-18)
-Files: src/ui/kit/WheelPicker.tsx, src/ui/components/AddEntrySheet.tsx,
-       src/ui/screens/TodayScreen.tsx, src/ui/screens/GoalScreen.tsx,
-       src/ui/screens/GoalSetupScreen.tsx, src/ui/kit/Progress.tsx,
-       src/ui/components/WeightLogSheet.tsx
-- WheelPicker centerAt for all NumberFields. ActivityForm rewritten (always add,
-  never override). Activities in day log (EditActivitySheet). GoalOutcomeView CTA
-  loop fix. Past-goal diary badge + succeed-past/fail-past week strip states.
-  Build Muscle ±100 surplus range. Merged food+activity log. Past-day gauge disabled.
-  Weight sheet no longer force-expanded.
-- tsc: clean. lint: clean.
 

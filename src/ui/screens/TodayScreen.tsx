@@ -1132,6 +1132,19 @@ function BreakdownSheet({
 }) {
   const [activeInfo, setActiveInfo] = useState<BreakdownInfoKey | null>(null);
   const [infoEntered, setInfoEntered] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Reset scroll to top on every panel transition (including initial mount)
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    let parent = el.parentElement;
+    while (parent && parent !== document.body) {
+      const ov = window.getComputedStyle(parent).overflowY;
+      if (ov === 'auto' || ov === 'scroll') { parent.scrollTop = 0; break; }
+      parent = parent.parentElement;
+    }
+  }, [activeInfo]);
 
   function openInfo(key: BreakdownInfoKey) {
     setActiveInfo(key);
@@ -1169,7 +1182,7 @@ function BreakdownSheet({
     ? (gainZone === 'below' ? 'Under target' : gainZone === 'in' ? 'In range' : 'Over')
     : (isOver ? 'Over' : 'On target');
   const availableLabel  = bdBadgeText === 'Under target' ? 'To go'
-    : bdBadgeText === 'Over' ? 'Over by'
+    : bdBadgeText === 'Over' ? 'Over'
     : 'Available';
 
   const infoTitles: Record<BreakdownInfoKey, string> = {
@@ -1177,9 +1190,9 @@ function BreakdownSheet({
     food: 'Food', goal: 'Goal', available: availableLabel,
   };
 
-  // ── Animated sticky header ───────────────────────────────────────────────
+  // ── Animated sticky header ─────────────────────────────────────────────────
   const animatedHeader = (
-    <div className="relative overflow-hidden mb-2">
+    <div className="relative overflow-hidden mb-5">
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
         <div className="flex items-center gap-2 py-1">
           <button data-no-drag onClick={onClose} aria-label="Close" className="-m-1 p-1 text-content-muted">
@@ -1204,16 +1217,7 @@ function BreakdownSheet({
     </div>
   );
 
-  // ── Info button helper ───────────────────────────────────────────────────
-  const infoBtn = (infoKey: BreakdownInfoKey, label: string) => (
-    <button data-no-drag onClick={() => openInfo(infoKey)}
-      className="-my-1 -mr-0.5 p-1 text-content-muted"
-      aria-label={`Learn about ${label}`}>
-      <Icon name="info" size={15} strokeWidth={1.75} />
-    </button>
-  );
-
-  // ── No-goal content: simple food total + activity info ───────────────────
+  // ── No-goal content ──────────────────────────────────────────────────────
   if (mode === 'no-goal') {
     const noGoalRows = [
       { label: 'Food consumed', value: `${Math.round(consumed).toLocaleString()} kcal` },
@@ -1221,17 +1225,17 @@ function BreakdownSheet({
     ];
     return (
       <Sheet onClose={onClose} stickyHeader={animatedHeader}>
-        <div className="rounded-card border border-border-subtle bg-surface overflow-hidden">
+        <div ref={wrapperRef} className="rounded-card border border-border-subtle bg-surface overflow-hidden">
           {noGoalRows.map(({ label, value }, idx) => (
             <div key={label}
               className={`flex items-center justify-between px-4 py-3 ${idx < noGoalRows.length - 1 ? 'border-b border-border-subtle' : ''}`}>
               <span className="text-subhead text-content">{label}</span>
-              <span className="text-subhead font-semibold text-content">{value}</span>
+              <span className="text-subhead text-content">{value}</span>
             </div>
           ))}
         </div>
         {actCals > 0 && (
-          <p className="mt-3 text-caption text-content-muted">
+          <p className="mt-3 text-subhead text-content-muted">
             Activity is tracked but not counted toward your total. Set a goal to see your full calorie picture.
           </p>
         )}
@@ -1256,88 +1260,90 @@ function BreakdownSheet({
   // ── Info panel content ───────────────────────────────────────────────────
   const infoPanels: Record<BreakdownInfoKey, React.ReactNode> = {
     bmr: (
-      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
-        <p>Your <span className="text-content font-medium">Basal Metabolic Rate</span> is the energy your body burns at complete rest — keeping your heart beating, lungs breathing, and temperature regulated.</p>
-        <p>It's the largest component of your daily calorie burn, typically 60–70% of total expenditure. You set your BMR manually in your profile.</p>
-        <p className="text-caption text-content-muted pb-2">BMR auto-calibration based on your logged data is coming in a future update.</p>
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content">Your <span className="font-medium">Basal Metabolic Rate</span> is the energy your body burns at complete rest, just to keep your organs running, breathing, and staying warm.</p>
+        <p className="text-subhead text-content">It's the largest part of your daily calorie burn, usually 60 to 70% of your total. You set it manually in your profile.</p>
+        <p className="text-subhead text-content-muted pb-2">Auto-calibration based on your logged data is coming in a future update.</p>
       </div>
     ),
     activity: (
-      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
-        <p>Calories burned from <span className="text-content font-medium">physical activity</span> you've logged manually — workouts, walks, or any other movement you add.</p>
-        <p>This is added to your BMR to give your total daily burn, which determines how much you can eat to stay on track.</p>
-        <p className="text-caption text-content-muted pb-2">Apple Health and device integration (Apple Watch, etc.) is coming in a future update.</p>
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content">Calories burned from <span className="font-medium">physical activity</span> you've logged manually, including workouts, walks, or any other movement you add.</p>
+        <p className="text-subhead text-content">This is added to your BMR to calculate how much you can eat to stay on track.</p>
+        <p className="text-subhead text-content-muted pb-2">Apple Health and device sync (Apple Watch, etc.) is coming in a future update.</p>
       </div>
     ),
     digestion: (
-      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
-        <p>When you eat, your body uses energy to digest and absorb food. This is called the <span className="text-content font-medium">Thermic Effect of Food (TEF)</span>.</p>
-        <p>The estimate is calculated from your logged foods:</p>
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content">When you eat, your body uses energy to break down and absorb food. This is called the <span className="font-medium">Thermic Effect of Food</span>.</p>
+        <p className="text-subhead text-content">The estimate is calculated from your logged foods:</p>
         <div className="rounded-card border border-border-subtle bg-surface overflow-hidden">
-          {[['Protein', '~25–30%'], ['Carbs', '~6–8%'], ['Fat', '~2–3%']].map(([macro, rate], idx, arr) => (
+          {[['Protein', 'around 25 to 30%'], ['Carbs', 'around 6 to 8%'], ['Fat', 'around 2 to 3%']].map(([macro, rate], idx, arr) => (
             <div key={macro} className={`flex items-center justify-between px-4 py-2.5 ${idx < arr.length - 1 ? 'border-b border-border-subtle' : ''}`}>
               <span className="text-subhead text-content-secondary">{macro}</span>
               <span className="text-subhead font-medium text-content">{rate} of its calories</span>
             </div>
           ))}
         </div>
-        <p>It's added to your burn because digestion is real energy your body expends — so your budget is slightly higher on days you eat more protein.</p>
-        <p className="text-caption text-content-muted pb-2">Actual TEF varies with food composition and individual metabolism.</p>
+        <p className="text-subhead text-content">It gets added to your burn total because it's real energy your body uses. Days with more protein give you a slightly larger budget.</p>
+        <p className="text-subhead text-content-muted pb-2">Actual values vary depending on food composition and individual metabolism.</p>
       </div>
     ),
     food: (
-      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
-        <p>Total calories from all <span className="text-content font-medium">food entries</span> logged today.</p>
-        <p>Every meal and snack you log contributes here. Food is the only positive term in the balance — everything else is a burn.</p>
-        <p className="text-caption text-content-muted pb-2">AI meal estimation and food scan are coming to make logging faster.</p>
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content">Total calories from all <span className="font-medium">food entries</span> logged today.</p>
+        <p className="text-subhead text-content">Every meal and snack you add contributes here. Food is the only positive number in the balance. Everything else is a burn.</p>
+        <p className="text-subhead text-content-muted pb-2">AI meal estimation and food scan are coming to make logging faster.</p>
       </div>
     ),
     goal: gainGoal ? (
-      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
-        <p>Your <span className="text-content font-medium">daily surplus target</span> — the extra calories above your total burn that you're aiming to eat to support muscle growth.</p>
-        <p>A controlled surplus, combined with training, gives your body the fuel it needs to build muscle while minimising fat gain. Your target range is <span className="text-content font-medium">+{gainFloor.toLocaleString()}–{gainCeil.toLocaleString()} kcal/day</span>.</p>
-        <p className="text-caption text-content-muted pb-2">Too large a surplus leads to more fat gain. The range keeps you in the productive zone.</p>
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content">Your <span className="font-medium">daily surplus target</span> is the extra calories above your total burn that you're aiming to eat to support muscle growth.</p>
+        <p className="text-subhead text-content">A controlled surplus combined with training gives your body the fuel it needs to build muscle while keeping fat gain low. Your target range is +{gainFloor.toLocaleString()} to +{gainCeil.toLocaleString()} kcal per day.</p>
+        <p className="text-subhead text-content-muted pb-2">Going well above the range tends to add more fat than muscle.</p>
       </div>
     ) : (
-      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
-        <p>Your <span className="text-content font-medium">daily deficit target</span> — how many fewer calories you need to eat than you burn each day to reach your goal weight on time.</p>
-        <p>A deficit of {targetMagnitude.toLocaleString()} kcal/day means your body draws on stored fat to make up the shortfall, resulting in gradual weight loss.</p>
-        <p className="text-caption text-content-muted pb-2">~7,700 kcal ≈ 1 kg of fat. Your target is calculated from your start weight, goal weight, and deadline.</p>
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content">Your <span className="font-medium">daily deficit target</span> is how many fewer calories you need to eat than you burn each day to reach your goal weight on time.</p>
+        <p className="text-subhead text-content">A deficit of {targetMagnitude.toLocaleString()} kcal per day means your body draws on stored fat to make up the difference. Around 7,700 kcal equals roughly 1 kg of fat.</p>
+        <p className="text-subhead text-content-muted pb-2">Your target is calculated from your start weight, goal weight, and deadline.</p>
       </div>
     ),
     available: bdBadgeText === 'Under target' ? (
-      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
-        <p><span className="text-content font-medium">To go</span> is how many more calories you need to eat today to reach the floor of your surplus range.</p>
-        <p>Once you're in range, this changes to <span className="text-content font-medium">Available</span> — showing how much room you have left before going over.</p>
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content"><span className="font-medium">To go</span> is how many more calories you need to eat today to reach the floor of your surplus range.</p>
+        <p className="text-subhead text-content">Once you're in range, this label changes to <span className="font-medium">Available</span>, showing how much room you have left before going over the ceiling.</p>
       </div>
     ) : bdBadgeText === 'Over' ? (
-      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
-        <p><span className="text-content font-medium">Over by</span> is how much you've exceeded your {gainGoal ? 'surplus ceiling' : 'calorie budget'} today.</p>
-        <p>It happens — a single day over doesn't derail your goal. What matters is the weekly average.</p>
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content"><span className="font-medium">Over</span> shows how much you've gone past your {gainGoal ? 'surplus ceiling' : 'calorie budget'} today.</p>
+        <p className="text-subhead text-content">A single day over won't derail your goal. What matters is the average over the week.</p>
       </div>
     ) : (
-      <div className="space-y-3 text-subhead text-content-secondary leading-relaxed">
-        <p><span className="text-content font-medium">Available</span> is how many more calories you can eat today and still hit your daily target.</p>
-        <p>{gainGoal ? 'Once you go over the ceiling of your surplus range, this switches to "Over by".' : 'Once this reaches zero, any more food puts you over your deficit target for the day.'}</p>
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content"><span className="font-medium">Available</span> is how many more calories you can eat today and still hit your daily target.</p>
+        <p className="text-subhead text-content">{gainGoal ? 'Once you go over the ceiling of your surplus range, this switches to "Over".' : 'Once this hits zero, any more food puts you past your deficit target for the day.'}</p>
       </div>
     ),
   };
 
   const scrollableContent = (
-    <div className="relative" style={{ overflow: activeInfo ? 'hidden' : 'visible' }}>
+    <div ref={wrapperRef} className="relative" style={{ overflow: activeInfo ? 'hidden' : 'visible' }}>
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
 
         {/* ── One unified container ── */}
         <div className="rounded-card border border-border-field bg-surface">
 
-          {/* Math rows */}
+          {/* Math rows — left side is fully tappable to open info */}
           {mathRows.map(({ label, value, infoKey }) => (
-            <div key={label} className="flex items-center justify-between px-4 py-3">
-              <div className="flex items-center gap-1 min-w-0 flex-1 pr-3">
+            <div key={label} className="flex items-center px-4">
+              <button data-no-drag onClick={() => openInfo(infoKey)}
+                className="flex items-center gap-1 min-w-0 flex-1 pr-3 py-3 text-left"
+                aria-label={`Learn about ${label}`}>
                 <span className="text-subhead text-content-secondary">{label}</span>
-                {infoBtn(infoKey, label)}
-              </div>
-              <span className="text-subhead font-semibold text-content-secondary shrink-0">{value}</span>
+                <Icon name="info" size={15} strokeWidth={1.75} className="text-content-muted shrink-0" />
+              </button>
+              <span className="text-subhead text-content-secondary shrink-0">{value}</span>
             </div>
           ))}
 
@@ -1347,28 +1353,31 @@ function BreakdownSheet({
             <span className="text-subhead font-bold text-content">{netBalanceStr}</span>
           </div>
 
-          {/* Goal row */}
-          <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-1 min-w-0 flex-1 pr-3">
+          {/* Goal row — left side tappable */}
+          <div className="flex items-center px-4">
+            <button data-no-drag onClick={() => openInfo('goal')}
+              className="flex items-center gap-1 min-w-0 flex-1 pr-3 py-3 text-left"
+              aria-label={`Learn about ${goalLabel}`}>
               <span className="text-subhead text-content-secondary">{goalLabel}</span>
-              {infoBtn('goal', goalLabel)}
-            </div>
-            <span className="text-subhead font-semibold text-content-secondary shrink-0">{goalValue}</span>
+              <Icon name="info" size={15} strokeWidth={1.75} className="text-content-muted shrink-0" />
+            </button>
+            <span className="text-subhead text-content-secondary shrink-0">{goalValue}</span>
           </div>
 
-          {/* ── Nested status card ── */}
-          <div className="px-3 pb-3 pt-1">
-            <div className="rounded-card shadow-card-lg bg-surface">
-              <div className="px-4 pt-3 pb-0">
-                <Badge status={bdBadgeStatus}>{bdBadgeText}</Badge>
-              </div>
-              <div className="flex items-center justify-between px-4 pt-2 pb-4">
-                <div className="flex items-center gap-1">
-                  <span className="text-subhead text-content-secondary">{availableLabel}</span>
-                  {infoBtn('available', availableLabel)}
-                </div>
-                <span className="text-title font-bold text-content">{availableNum.toLocaleString()} kcal</span>
-              </div>
+          {/* ── Status card — flush with outer container ── */}
+          <div className="shadow-card-lg bg-surface"
+            style={{ borderBottomLeftRadius: 'var(--radius-card)', borderBottomRightRadius: 'var(--radius-card)' }}>
+            <div className="px-4 pt-3 pb-0">
+              <Badge status={bdBadgeStatus}>{bdBadgeText}</Badge>
+            </div>
+            <div className="flex items-center justify-between px-4 pb-4">
+              <button data-no-drag onClick={() => openInfo('available')}
+                className="flex items-center gap-1 py-2 text-left"
+                aria-label={`Learn about ${availableLabel}`}>
+                <span className="text-subhead text-content-secondary">{availableLabel}</span>
+                <Icon name="info" size={15} strokeWidth={1.75} className="text-content-muted shrink-0" />
+              </button>
+              <span className="text-title font-bold text-content">{availableNum.toLocaleString()} kcal</span>
             </div>
           </div>
 

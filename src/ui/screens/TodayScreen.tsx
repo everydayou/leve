@@ -267,7 +267,7 @@ export function TodayScreen() {
                   diaryShowProtein={goal?.diaryShowProtein}
                   diaryShowCarbs={goal?.diaryShowCarbs}
                   diaryShowFat={goal?.diaryShowFat}
-                  weightCadence={user?.weightCadence ?? 'daily'}
+                  weightCadence={user?.weightCadence ?? 'weekly'}
                   weeklyWeightDay={user?.weeklyWeightDay ?? 0}
                   units={user?.units ?? 'kg'}
                   hasPastGoal={!!pastGoal}
@@ -641,7 +641,7 @@ interface DayPanelProps {
   units?: 'kg' | 'lbs';
 }
 
-function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoalG, isActive, gainGoal = false, goal = null, macroStyle, fatTargetG, carbLimitG, diaryShowProtein, diaryShowCarbs, diaryShowFat, weightCadence = 'daily', weeklyWeightDay = 0, units = 'kg', hasPastGoal = false }: DayPanelProps) {
+function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoalG, isActive, gainGoal = false, goal = null, macroStyle, fatTargetG, carbLimitG, diaryShowProtein, diaryShowCarbs, diaryShowFat, weightCadence = 'weekly', weeklyWeightDay = 0, units = 'kg', hasPastGoal = false }: DayPanelProps) {
   const nav = useNavigate();
   const ctx = useOutletContext<DayContext>();
   const [editFood,          setEditFood]          = useState<FoodEntry | null>(null);
@@ -903,7 +903,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
             <div className="px-4 pb-5 pt-6">
               <div className="flex justify-center">
                 <button
-                  onClick={() => { hapticLight(); nav('/goal'); }}
+                  onClick={() => { hapticLight(); nav('/goal-fork'); }}
                   className="rounded-full bg-surface-sunken px-4 py-1.5 text-subhead font-medium text-content-secondary active:opacity-70 transition-opacity"
                   aria-label={hasPastGoal ? 'View past goal' : 'Set a goal'}
                 >
@@ -921,7 +921,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                       {consumed > 0 ? Math.round(consumed) : '—'}
                     </span>
                     <span className="mt-0.5 text-subhead text-content-secondary whitespace-nowrap">
-                      {consumed > 0 ? 'kcal consumed' : 'kcal'}
+                      {consumed > 0 ? 'kcal logged' : 'kcal'}
                     </span>
                   </button>
                 </GaugeArc>

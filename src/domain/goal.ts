@@ -104,3 +104,49 @@ export function currentWeightKg(weights: WeightEntry[]): number | null {
 }
 
 const round = (n: number): number => Math.round(n * 100) / 100;
+
+// ── Simple-mode pace definitions ──────────────────────────────────────────────
+
+export const LOSE_PACES = [
+  { id: 'relaxed',   label: 'Relaxed',   kgPerWeek: 0.25 },
+  { id: 'steady',    label: 'Steady',    kgPerWeek: 0.5  },
+  { id: 'ambitious', label: 'Ambitious', kgPerWeek: 0.75 },
+] as const;
+export type LosePaceId = typeof LOSE_PACES[number]['id'];
+
+export const GAIN_PACES = [
+  { id: 'lean',   label: 'Lean',   surplusFloor: 50,  surplusCeiling: 200, kgPerMonth: 0.5 },
+  { id: 'steady', label: 'Steady', surplusFloor: 150, surplusCeiling: 350, kgPerMonth: 1.0 },
+  { id: 'bulk',   label: 'Bulk',   surplusFloor: 300, surplusCeiling: 600, kgPerMonth: 1.5 },
+] as const;
+export type GainPaceId = typeof GAIN_PACES[number]['id'];
+
+/** Derive target date from a lose pace. Assumes startKg > targetKg. */
+export function dateFromLosePace(
+  startKg: number, targetKg: number, kgPerWeek: number, today: string,
+): string {
+  const kgToLose = startKg - targetKg;
+  if (kgToLose <= 0 || kgPerWeek <= 0) return '';
+  const days = Math.ceil((kgToLose / kgPerWeek) * 7);
+  const d = new Date(today + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${da}`;
+}
+
+/** Derive target date from a gain pace. Assumes targetKg > startKg. */
+export function dateFromGainPace(
+  startKg: number, targetKg: number, kgPerMonth: number, today: string,
+): string {
+  const kgToGain = targetKg - startKg;
+  if (kgToGain <= 0 || kgPerMonth <= 0) return '';
+  const months = Math.ceil(kgToGain / kgPerMonth);
+  const d = new Date(today + 'T00:00:00');
+  d.setMonth(d.getMonth() + months);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${da}`;
+}

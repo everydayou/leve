@@ -367,7 +367,7 @@ function WithingsCard() {
 const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function WeightCadenceCard({ user }: { user: User }) {
-  const [cadence, setCadence] = useState<'daily' | 'weekly'>(user.weightCadence ?? 'daily');
+  const [cadence, setCadence] = useState<'daily' | 'weekly'>(user.weightCadence ?? 'weekly');
   const [day, setDay] = useState<number>(user.weeklyWeightDay ?? 0);
 
   async function saveCadence(next: 'daily' | 'weekly') {

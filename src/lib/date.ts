@@ -32,3 +32,27 @@ export function fmtDiaryDate(iso: string): string {
     : new Date(iso + 'T00:00:00').toLocaleDateString('en', { weekday: 'long' });
   return `${prefix}, ${fmtOrdinalDate(iso)}`;
 }
+
+/** Add N calendar months to an ISO date string. */
+export function addMonths(iso: string, months: number): string {
+  const d = new Date(iso + 'T00:00:00');
+  d.setMonth(d.getMonth() + months);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Format a pace-derived date: "14 March" (same year) or "14 March 2027". */
+export function fmtDerivedDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
+  const day = d.getDate();
+  const month = d.toLocaleDateString('en', { month: 'long' });
+  if (d.getFullYear() === new Date().getFullYear()) return `${day} ${month}`;
+  return `${day} ${month} ${d.getFullYear()}`;
+}
+
+/** Format as "March 2027". */
+export function fmtMonthYear(iso: string): string {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('en', { month: 'long', year: 'numeric' });
+}

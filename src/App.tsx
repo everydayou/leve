@@ -9,6 +9,7 @@ import { PastGoalsScreen, PastGoalDetailScreen } from './ui/screens/PastGoalsScr
 import { OnboardingScreen } from './ui/screens/OnboardingScreen';
 import OnboardingDailyAllowance from './ui/screens/OnboardingDailyAllowance';
 import { StyleguideScreen } from './ui/screens/StyleguideScreen';
+import { GoalForkScreen } from './ui/screens/FirstOpenFork';
 import { hasSeenOnboarding } from './lib/onboarding';
 
 /** First launch → /onboarding; returning user → /today. */
@@ -23,6 +24,7 @@ export default function App() {
       <Route path="/onboarding" element={<OnboardingScreen />} />
       <Route path="/onboarding2" element={<OnboardingDailyAllowance />} />
       <Route path="/goal-setup" element={<GoalSetupScreen />} />
+      <Route path="/goal-fork" element={<GoalForkScreen />} />
       {/* Past goals — full-screen push navigation (no tab bar) */}
       <Route path="/past-goals" element={<PastGoalsScreen />} />
       <Route path="/past-goals/:id" element={<PastGoalDetailScreen />} />

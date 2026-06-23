@@ -29,6 +29,12 @@ const TYPES: GoalTypeOpt[] = [
   { id: 'gain_by_date', title: 'Build muscle',    desc: 'Fuel muscle growth with a daily calorie surplus.',     enabled: true  },
 ];
 
+const GOAL_TYPE_LABEL: Record<string, string> = {
+  lose_by_date: 'Lose weight',
+  gain_by_date: 'Build muscle',
+  maintain:     'Maintain weight',
+};
+
 const MACRO_STYLES: { id: MacroStyle; title: string; subtitle: string }[] = [
   { id: 'balanced',    title: 'Balanced',    subtitle: 'Good everyday default'       },
   { id: 'performance', title: 'Performance', subtitle: 'More carbs around activity'  },
@@ -81,20 +87,19 @@ export function GoalSetupScreen() {
       repos.goals.getActive(), repos.weights.all(), repos.user.get(),
     ]);
     return {
-      goal:         goal ?? null,
+      goal:          goal ?? null,
       currentWeight: currentWeightKg(weights),
-      proteinGoal:  user?.proteinGoalG,
-      userBmr:      user?.bmr ?? 0,
-      userUnits:    (user?.units ?? 'kg') as Units,
-      userHeightCm: user?.heightCm ?? null,
-      userAge:      user?.age ?? null,
-      userSex:      user?.sex ?? null,
+      proteinGoal:   user?.proteinGoalG,
+      userBmr:       user?.bmr ?? 0,
+      userUnits:     (user?.units ?? 'kg') as Units,
+      userHeightCm:  user?.heightCm ?? null,
+      userAge:       user?.age ?? null,
+      userSex:       user?.sex ?? null,
     };
   }, []);
 
   if (data === undefined) return <FullScreen><p className="p-6 text-content-muted">Loading…</p></FullScreen>;
   return <GoalSetupForm
-    // first-open always creates a new goal, never edits an existing one
     activeGoal={forceNew || isFirstOpen ? null : data.goal}
     currentWeight={data.currentWeight}
     currentProteinGoal={data.proteinGoal}
@@ -128,25 +133,18 @@ export function GoalSetupForm({
   const typeParam   = searchParams.get('type') as GoalType | null;
   const isFirstOpen = searchParams.get('first-open') === 'true';
 
-  const units     = userUnits ?? 'kg';
-  const toDisplay = (kg: number) => units === 'lbs' ? parseFloat(kgToLbs(kg).toFixed(1)) : kg;
-  const toKg      = (v: number) => units === 'lbs' ? lbsToKg(v) : v;
-  const editing   = !!activeGoal;
-
-  // Navigation mode flags
-  const isModal   = !!(skipType || onClose);
-  // Came directly from a fork screen (type pre-selected, no choose step)
-  const fromFork  = !!typeParam && !editing;
+  const units   = userUnits ?? 'kg';
+  const toDisp  = (kg: number) => units === 'lbs' ? parseFloat(kgToLbs(kg).toFixed(1)) : kg;
+  const toKg    = (v: number)  => units === 'lbs' ? lbsToKg(v) : v;
+  const editing  = !!activeGoal;
+  const isModal  = !!(skipType || onClose);
+  const fromFork = !!typeParam && !editing;
 
   const prevUnitsRef = useRef<Units>(units);
 
-  // Step: skip choose when type is pre-selected or editing
   const [step,      setStep]      = useState<Step>((typeParam || skipType || editing) ? 'details' : 'choose');
-  // Whole-screen exit animation
   const [isExiting, setIsExiting] = useState(false);
-  // Internal step transition animation (choose ↔ details)
   const [stepAnim,  setStepAnim]  = useState<'slide-in-right' | 'slide-out-right' | ''>('');
-
   const [setupMode, setSetupMode] = useState<SetupMode>(
     editing ? (activeGoal?.setupMode ?? 'custom') : (typeParam ? 'simple' : 'custom'),
   );
@@ -156,22 +154,22 @@ export function GoalSetupForm({
   const [gainPace, setGainPace] = useState<GainPaceId>('steady');
 
   // ── Goal fields ───────────────────────────────────────────────────────────
-  const [type,      setType]      = useState<GoalTypeOpt['id']>(typeParam ?? activeGoal?.type ?? 'lose_by_date');
-  const [name,      setName]      = useState(activeGoal?.name ?? '');
-  const [start,     setStart]     = useState(() => {
+  const [type, setType] = useState<GoalTypeOpt['id']>(typeParam ?? activeGoal?.type ?? 'lose_by_date');
+  const [name, setName] = useState(activeGoal?.name ?? '');
+  const [start, setStart] = useState(() => {
     const kg = activeGoal ? activeGoal.startWeightKg : currentWeight;
-    return kg != null ? String(toDisplay(kg)) : '';
+    return kg != null ? String(toDisp(kg)) : '';
   });
-  const [target,    setTarget]    = useState(() => {
+  const [target, setTarget] = useState(() => {
     const kg = activeGoal ? activeGoal.targetWeightKg : null;
-    return kg != null ? String(toDisplay(kg)) : '';
+    return kg != null ? String(toDisp(kg)) : '';
   });
   const [date,      setDate]      = useState(activeGoal?.targetDate ?? '');
   const [startDate, setStartDate] = useState(activeGoal?.startDate ?? todayISO());
   const [deficitOverride, setDeficitOverride] = useState<number | null>(activeGoal?.dailyDeficitKcalOverride ?? null);
   const [sessionTouched,  setSessionTouched]  = useState(false);
   const [navScrolled,     setNavScrolled]     = useState(false);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [fieldErrors, setFieldErrors] = useState<{
     start?: string; target?: string; date?: string; startDate?: string;
   }>({});
@@ -196,7 +194,7 @@ export function GoalSetupForm({
   const [fatGState,       setFatGState]       = useState<number | null>(activeGoal?.fatTargetG ?? null);
   const [carbLimitGState, setCarbLimitGState] = useState<number | null>(activeGoal?.carbLimitG ?? null);
 
-  // ── Derived values ────────────────────────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────────────────────
   const sNum   = +start  || 0;
   const tNum   = +target || 0;
   const isGain = type === 'gain_by_date';
@@ -221,32 +219,24 @@ export function GoalSetupForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offerHeight, offerAge, offerSex, sNum, userBmr]);
 
-  const safeBmr  = localBmr > 0 ? localBmr : userBmr > 0 ? userBmr : 2000;
-  const totalCal = Math.max(500, safeBmr + (isGain ? effectiveMagnitude : -effectiveMagnitude));
-
+  const safeBmr    = localBmr > 0 ? localBmr : userBmr > 0 ? userBmr : 2000;
+  const totalCal   = Math.max(500, safeBmr + (isGain ? effectiveMagnitude : -effectiveMagnitude));
   const proteinG   = proteinGState   ?? defProtein(activeGoal ? activeGoal.startWeightKg : toKg(sNum));
   const fatG       = fatGState       ?? (macroStyle === 'performance' ? defFatPerformance(totalCal) : defFatBalanced(totalCal));
   const carbLimitG = carbLimitGState ?? defCarbLimit(totalCal);
 
-  // Simple mode derived date
   const derivedDate = useMemo<string | null>(() => {
     if (!weightValid) return null;
-    const startKg = toKg(sNum), targetKg = toKg(tNum), today = todayISO();
-    if (isGain) {
-      const pace = GAIN_PACES.find(p => p.id === gainPace)!;
-      return dateFromGainPace(startKg, targetKg, pace.kgPerMonth, today);
-    }
-    const pace = LOSE_PACES.find(p => p.id === losePace)!;
-    return dateFromLosePace(startKg, targetKg, pace.kgPerWeek, today);
+    const sk = toKg(sNum), tk = toKg(tNum), today = todayISO();
+    if (isGain) { const p = GAIN_PACES.find(p => p.id === gainPace)!; return dateFromGainPace(sk, tk, p.kgPerMonth, today); }
+    const p = LOSE_PACES.find(p => p.id === losePace)!;
+    return dateFromLosePace(sk, tk, p.kgPerWeek, today);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weightValid, sNum, tNum, losePace, gainPace, isGain, units]);
 
   const derivedDateText: string | null = (() => {
     if (!derivedDate) return null;
-    if (isGain) {
-      const pace = GAIN_PACES.find(p => p.id === gainPace)!;
-      return `≈ +${pace.surplusFloor}–${pace.surplusCeiling} kcal/day · ${fmtMonthYear(derivedDate)}`;
-    }
+    if (isGain) { const p = GAIN_PACES.find(p => p.id === gainPace)!; return `≈ +${p.surplusFloor}–${p.surplusCeiling} kcal/day · ${fmtMonthYear(derivedDate)}`; }
     return `≈ ${fmtDerivedDate(derivedDate)}`;
   })();
 
@@ -255,14 +245,14 @@ export function GoalSetupForm({
     if (activeGoal) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setType(activeGoal.type); setName(activeGoal.name);
-      setStart(String(toDisplay(activeGoal.startWeightKg)));
-      setTarget(String(toDisplay(activeGoal.targetWeightKg)));
+      setStart(String(toDisp(activeGoal.startWeightKg)));
+      setTarget(String(toDisp(activeGoal.targetWeightKg)));
       setDate(activeGoal.targetDate); setStartDate(activeGoal.startDate);
       setDeficitOverride(activeGoal.dailyDeficitKcalOverride ?? null);
       setMacroStyle(activeGoal.macroStyle ?? null);
-      if (activeGoal.fatTargetG)   setFatGState(activeGoal.fatTargetG);
-      if (activeGoal.carbLimitG)   setCarbLimitGState(activeGoal.carbLimitG);
-      if (currentProteinGoal)      setProteinGState(currentProteinGoal);
+      if (activeGoal.fatTargetG) setFatGState(activeGoal.fatTargetG);
+      if (activeGoal.carbLimitG) setCarbLimitGState(activeGoal.carbLimitG);
+      if (currentProteinGoal)    setProteinGState(currentProteinGoal);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeGoal?.id]);
@@ -270,7 +260,7 @@ export function GoalSetupForm({
   useEffect(() => {
     if (!activeGoal && currentWeight != null && start === '') {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setStart(String(toDisplay(currentWeight)));
+      setStart(String(toDisp(currentWeight)));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentWeight]);
@@ -291,7 +281,7 @@ export function GoalSetupForm({
   }, [units]);
 
   useEffect(() => {
-    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'instant' });
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNavScrolled(false);
   }, [step]);
@@ -303,22 +293,12 @@ export function GoalSetupForm({
   };
 
   function goBackFromDetails() {
-    if (fromFork) {
-      // Slide back out to the right, return to fork screen
-      dismiss(280);
-    } else if (editing || skipType || onClose) {
-      dismiss();
-    } else {
-      // Internal step: slide details out, reveal choose
-      setStepAnim('slide-out-right');
-      setTimeout(() => { setStep('choose'); setStepAnim(''); }, 280);
-    }
+    if (fromFork)               { dismiss(280); }
+    else if (editing || skipType || onClose) { dismiss(); }
+    else { setStepAnim('slide-out-right'); setTimeout(() => { setStep('choose'); setStepAnim(''); }, 280); }
   }
 
-  function navigateToDetails() {
-    setStepAnim('slide-in-right');
-    setStep('details');
-  }
+  function navigateToDetails() { setStepAnim('slide-in-right'); setStep('details'); }
 
   async function setUnitsVal(u: Units) {
     const user = await repos.user.get();
@@ -330,33 +310,33 @@ export function GoalSetupForm({
     else { dismiss(); }
   }
 
-  // ── Save: Simple mode ─────────────────────────────────────────────────────
+  // ── Save: Simple ──────────────────────────────────────────────────────────
   async function createSimple() {
     const errs: typeof fieldErrors = {};
-    if (!start || sNum <= 0) errs.start = 'Enter a weight';
-    else if (!target || tNum <= 0) errs.target = 'Enter a target weight';
+    if (!start || sNum <= 0)         errs.start  = 'Enter a weight';
+    else if (!target || tNum <= 0)   errs.target = 'Enter a target weight';
     else if (isGain  && tNum <= sNum) errs.target = 'Target must be higher than start weight';
     else if (!isGain && tNum >= sNum) errs.target = 'Target must be lower than start weight';
-    if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      setTimeout(() => scrollRef.current?.querySelector('.text-danger')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+      return;
+    }
     setFieldErrors({});
-
-    const startKg = toKg(sNum), targetKg = toKg(tNum), today = todayISO();
-    const goalType = type as GoalType;
-    let gainFloor: number | undefined, gainCeil: number | undefined;
+    const sk = toKg(sNum), tk = toKg(tNum), today = todayISO(), goalType = type as GoalType;
     let endDate: string;
-
+    let gainFloor: number | undefined, gainCeil: number | undefined;
     if (isGain) {
-      const pace = GAIN_PACES.find(p => p.id === gainPace)!;
-      gainFloor = pace.surplusFloor; gainCeil = pace.surplusCeiling;
-      endDate = dateFromGainPace(startKg, targetKg, pace.kgPerMonth, today);
+      const p = GAIN_PACES.find(p => p.id === gainPace)!;
+      gainFloor = p.surplusFloor; gainCeil = p.surplusCeiling;
+      endDate = dateFromGainPace(sk, tk, p.kgPerMonth, today);
     } else {
-      endDate = dateFromLosePace(startKg, targetKg, LOSE_PACES.find(p => p.id === losePace)!.kgPerWeek, today);
+      endDate = dateFromLosePace(sk, tk, LOSE_PACES.find(p => p.id === losePace)!.kgPerWeek, today);
     }
     if (!endDate) return;
-
     await repos.goals.put({
       id: activeGoal?.id ?? newId(), name: 'New goal', type: goalType,
-      startWeightKg: startKg, targetWeightKg: targetKg,
+      startWeightKg: sk, targetWeightKg: tk,
       startDate: today, targetDate: endDate,
       status: 'active', setupMode: 'simple',
       ...(isGain && { surplusFloor: gainFloor, surplusCeiling: gainCeil,
@@ -365,27 +345,26 @@ export function GoalSetupForm({
     const user = await repos.user.get();
     if (user) {
       const updates: Record<string, unknown> = {};
-      if (isGain) updates.proteinGoalG = Math.round(startKg * 1.8);
+      if (isGain) updates.proteinGoalG = Math.round(sk * 1.8);
       await repos.user.save({ ...user, ...updates });
     }
     finishNav();
   }
 
-  // ── Save: Custom mode ─────────────────────────────────────────────────────
+  // ── Save: Custom ──────────────────────────────────────────────────────────
   async function create() {
     if (!valid) return;
-    const startWeightKg = toKg(sNum);
+    const sk = toKg(sNum);
     const goalType = (type === 'maintain' ? 'lose_by_date' : type) as GoalType;
-
     await repos.goals.put({
       id: activeGoal?.id ?? newId(), name: name.trim() || 'New goal', type: goalType,
-      startWeightKg, targetWeightKg: toKg(tNum),
+      startWeightKg: sk, targetWeightKg: toKg(tNum),
       startDate, targetDate: date, status: 'active', setupMode: 'custom',
       dailyDeficitKcalOverride: deficitOverride ?? undefined,
       trackingMode: macroStyle ? 'detailed' : 'simple',
       macroStyle: macroStyle ?? undefined,
-      fatTargetG:  macroStyle ? fatG : undefined,
-      carbLimitG:  macroStyle === 'lower_carb' ? carbLimitG : undefined,
+      fatTargetG: macroStyle ? fatG : undefined,
+      carbLimitG: macroStyle === 'lower_carb' ? carbLimitG : undefined,
     });
     const user = await repos.user.get();
     if (user) {
@@ -401,33 +380,35 @@ export function GoalSetupForm({
 
   function handleCustomSave() {
     const errs: typeof fieldErrors = {};
-    if (!start || sNum <= 0)  errs.start = 'Enter a start weight';
-    else if (!target || tNum <= 0) errs.target = 'Enter a target weight';
-    else if (isGain  && tNum <= sNum) errs.target = 'Target must be higher than start weight';
-    else if (!isGain && tNum >= sNum) errs.target = 'Target must be lower than start weight';
+    if (!start || sNum <= 0)          errs.start     = 'Enter a start weight';
+    else if (!target || tNum <= 0)    errs.target    = 'Enter a target weight';
+    else if (isGain  && tNum <= sNum) errs.target    = 'Target must be higher than start weight';
+    else if (!isGain && tNum >= sNum) errs.target    = 'Target must be lower than start weight';
     if (!startDate) errs.startDate = 'Enter a start date';
-    if (!date) errs.date = 'Enter a target date';
+    if (!date)      errs.date      = 'Enter a target date';
     else if (startDate && date <= startDate) errs.date = 'Target date must be after start date';
-    if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      setTimeout(() => scrollRef.current?.querySelector('.text-danger')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+      return;
+    }
     setFieldErrors({});
     void create();
   }
 
-  // ── Shared weight picker bounds ───────────────────────────────────────────
+  // ── Shared picker bounds ──────────────────────────────────────────────────
   const wMin = units === 'lbs' ? 66  : 30;
   const wMax = units === 'lbs' ? 660 : 300;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <FullScreen
-      slideUp={isModal}
-      slideRight={fromFork}
-      exiting={isExiting}
-      exitRight={fromFork}
+      slideUp={isModal} slideRight={fromFork}
+      exiting={isExiting} exitRight={fromFork}
       onScroll={(e) => setNavScrolled(e.currentTarget.scrollTop > 0)}
-      scrollRef={scrollContainerRef}
+      scrollRef={scrollRef}
     >
-      {/* ── Step 1: Choose goal type ── */}
+      {/* ── Choose step ── */}
       {step === 'choose' && (
         <div>
           <FlowHeader title={editing ? 'Edit goal' : 'New goal'} onClose={() => dismiss()} />
@@ -437,8 +418,7 @@ export function GoalSetupForm({
                 <button key={t.id} disabled={!t.enabled} onClick={() => setType(t.id)}
                   className={`flex w-full items-center gap-3 rounded-card text-left shadow-card ${
                     type === t.id ? 'border-2 border-accent p-[15px]' : 'border border-border-subtle p-4'
-                  } ${!t.enabled ? 'opacity-40' : ''}`}
-                >
+                  } ${!t.enabled ? 'opacity-40' : ''}`}>
                   <GoalIcon type={t.id} size={32} />
                   <span className="flex-1">
                     <span className="block text-callout font-semibold">{t.title}</span>
@@ -457,7 +437,7 @@ export function GoalSetupForm({
         </div>
       )}
 
-      {/* ── Step 2: Your plan ── */}
+      {/* ── Details step ── */}
       {step === 'details' && (
         <div className={stepAnim || undefined}>
           {/* Sticky header */}
@@ -468,7 +448,9 @@ export function GoalSetupForm({
                 className="-ml-2 flex h-10 w-10 items-center justify-center text-content-muted">
                 <Icon name={skipType ? 'close' : 'chevronLeft'} size={skipType ? 18 : 20} strokeWidth={skipType ? 2 : 2.5} />
               </button>
-              <span className="text-headline font-semibold text-content">{editing ? 'Edit plan' : 'Your plan'}</span>
+              <span className="text-headline font-semibold text-content">
+                {GOAL_TYPE_LABEL[type] ?? 'Your plan'}
+              </span>
               <span className="w-10" />
             </div>
             <div className="flex justify-center px-4 pb-3">
@@ -481,12 +463,12 @@ export function GoalSetupForm({
           </div>
 
           <div className="px-6 pb-8">
-            {/* ════════════ SIMPLE MODE ════════════ */}
+            {/* ════ SIMPLE ════ */}
             {setupMode === 'simple' && (
               <div className="space-y-6">
                 {/* Weight */}
                 <div>
-                  <WeightSectionHeader units={units} onToggleUnits={setUnitsVal} labelSize="headline" />
+                  <SectionLabel icon="weight">Weight</SectionLabel>
                   <div className="space-y-3">
                     <div>
                       <WheelPicker label={`Current (${units})`} value={start}
@@ -504,9 +486,19 @@ export function GoalSetupForm({
                   </div>
                 </div>
 
+                {/* Unit */}
+                <div>
+                  <SectionLabel>Unit</SectionLabel>
+                  <FilterPills<Units>
+                    value={units}
+                    onChange={(u) => { if (u) void setUnitsVal(u); }}
+                    options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
+                  />
+                </div>
+
                 {/* Pace */}
                 <div>
-                  <p className="mb-2 text-headline font-semibold text-content">Pace</p>
+                  <SectionLabel icon="calendar">Pace</SectionLabel>
                   {isGain ? (
                     <FilterPills<GainPaceId> value={gainPace}
                       onChange={(v) => { if (v) setGainPace(v); }}
@@ -526,26 +518,25 @@ export function GoalSetupForm({
               </div>
             )}
 
-            {/* ════════════ CUSTOM MODE ════════════ */}
+            {/* ════ CUSTOM ════ */}
             {setupMode === 'custom' && (
               <div>
-
-                {/* ─── Section 1: Your goal ─── */}
+                {/* Section 1: Your goal */}
                 <section>
                   <p className="mb-4 text-title font-bold text-content">1. Your goal</p>
 
                   <div className="overflow-hidden border border-border-field bg-surface" style={{ borderRadius: 24 }}>
                     {/* Goal name */}
                     <div className="p-4">
-                      <span className="block mb-2 text-subhead font-semibold text-content">Goal name</span>
+                      <span className="block mb-2 text-headline font-semibold text-content">Goal name</span>
                       <LabeledInput value={name} onChange={(e) => setName(e.target.value)}
                         placeholder="e.g. Summer Cut"
                         className="!bg-surface-sunken !border-transparent focus:!border-transparent" />
                     </div>
 
                     {/* Weight */}
-                    <div className="p-4 pb-5">
-                      <WeightSectionHeader units={units} onToggleUnits={setUnitsVal} />
+                    <div className="p-4 pb-3">
+                      <CardSectionHeader icon="weight">Weight</CardSectionHeader>
                       <div className="space-y-3">
                         <div>
                           <WheelPicker label={`Start (${units})`} value={start}
@@ -565,16 +556,23 @@ export function GoalSetupForm({
                       </div>
                     </div>
 
+                    {/* Unit */}
+                    <div className="px-4 pb-4">
+                      <span className="block mb-2 text-headline font-semibold text-content">Unit</span>
+                      <FilterPills<Units>
+                        value={units}
+                        onChange={(u) => { if (u) void setUnitsVal(u); }}
+                        options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
+                      />
+                    </div>
+
                     {/* Dates */}
                     <div className="p-4 pb-5">
-                      <div className="mb-3 flex items-center gap-2">
-                        <Icon name="calendar" size={18} className="text-content" />
-                        <span className="text-subhead font-semibold text-content">Dates</span>
-                      </div>
+                      <CardSectionHeader icon="calendar">Dates</CardSectionHeader>
                       <div className="flex gap-2">
                         <div className="flex-1 min-w-0">
                           <span className="block text-subhead text-content-secondary">Start</span>
-                          <div className="mt-1 overflow-hidden rounded-field">
+                          <div className="mt-1 overflow-hidden rounded-field bg-surface-sunken">
                             <input type="date" value={startDate}
                               onChange={(e) => { setStartDate(e.target.value); setFieldErrors(p => ({ ...p, startDate: undefined })); }}
                               className="w-full bg-surface-sunken px-3 py-2.5 text-subhead text-content focus:outline-none" />
@@ -583,7 +581,7 @@ export function GoalSetupForm({
                         </div>
                         <div className="flex-1 min-w-0">
                           <span className="block text-subhead text-content-secondary">Target date</span>
-                          <div className="mt-1 overflow-hidden rounded-field">
+                          <div className="mt-1 overflow-hidden rounded-field bg-surface-sunken">
                             <input type="date" value={date} min={startDate || todayISO()}
                               onChange={(e) => { setDate(e.target.value); setFieldErrors(p => ({ ...p, date: undefined })); }}
                               className="w-full bg-surface-sunken px-3 py-2.5 text-subhead text-content focus:outline-none" />
@@ -648,10 +646,10 @@ export function GoalSetupForm({
                   </div>
                 </section>
 
-                {/* Section divider */}
-                <hr className="border-border-subtle mt-12 mb-12" />
+                {/* Divider */}
+                <hr className="border-border-field mt-12 mb-12" />
 
-                {/* ─── Section 2: Details about you ─── */}
+                {/* Section 2: Details about you */}
                 <section>
                   <p className="mb-1 text-title font-bold text-content">2. Details about you</p>
                   <p className="mb-4 text-subhead text-content-secondary">
@@ -662,8 +660,9 @@ export function GoalSetupForm({
                       <div>
                         <span className="block mb-1 text-subhead font-normal text-content-secondary">Height</span>
                         <div className="relative">
-                          <select value={offerHeight ?? ''} onChange={(e) => setOfferHeight(e.target.value === '' ? null : Number(e.target.value))}
-                            className="w-full appearance-none rounded-field border border-border-subtle bg-surface-sunken px-4 py-3 text-subhead text-content pr-10 focus:outline-none">
+                          <select value={offerHeight ?? ''}
+                            onChange={(e) => setOfferHeight(e.target.value === '' ? null : Number(e.target.value))}
+                            className="w-full appearance-none rounded-field bg-surface-sunken px-4 py-3 text-subhead text-content pr-10 focus:outline-none">
                             <option value="">—</option>
                             {HEIGHT_OPTIONS.map(n => <option key={n} value={n}>{n} cm</option>)}
                           </select>
@@ -675,8 +674,9 @@ export function GoalSetupForm({
                       <div>
                         <span className="block mb-1 text-subhead font-normal text-content-secondary">Age</span>
                         <div className="relative">
-                          <select value={offerAge ?? ''} onChange={(e) => setOfferAge(e.target.value === '' ? null : Number(e.target.value))}
-                            className="w-full appearance-none rounded-field border border-border-subtle bg-surface-sunken px-4 py-3 text-subhead text-content pr-10 focus:outline-none">
+                          <select value={offerAge ?? ''}
+                            onChange={(e) => setOfferAge(e.target.value === '' ? null : Number(e.target.value))}
+                            className="w-full appearance-none rounded-field bg-surface-sunken px-4 py-3 text-subhead text-content pr-10 focus:outline-none">
                             <option value="">—</option>
                             {AGE_OPTIONS.map(n => <option key={n} value={n}>{n} yrs</option>)}
                           </select>
@@ -694,10 +694,10 @@ export function GoalSetupForm({
                   </div>
                 </section>
 
-                {/* Section divider */}
-                <hr className="border-border-subtle mt-12 mb-12" />
+                {/* Divider */}
+                <hr className="border-border-field mt-12 mb-12" />
 
-                {/* ─── Section 3: Tracking ─── */}
+                {/* Section 3: Tracking */}
                 <section>
                   <p className="mb-1 text-title font-bold text-content">3. Tracking</p>
                   <p className="mb-4 text-subhead text-content-secondary">
@@ -773,21 +773,22 @@ export function GoalSetupForm({
   );
 }
 
-// ── WeightSectionHeader ───────────────────────────────────────────────────────
-function WeightSectionHeader({ units, onToggleUnits, labelSize = 'subhead' }: {
-  units: Units; onToggleUnits: (u: Units) => void; labelSize?: 'subhead' | 'headline';
-}) {
+// ── SectionLabel: Simple-mode section title (text-title) ──────────────────────
+function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: string }) {
   return (
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-2">
-        <Icon name="weight" size={18} className="text-content" />
-        <span className={`text-${labelSize} font-semibold text-content`}>Weight</span>
-      </div>
-      <SegmentedControl<Units>
-        value={units}
-        onChange={onToggleUnits}
-        options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
-      />
+    <div className="flex items-center gap-2 mb-2">
+      {icon && <Icon name={icon as Parameters<typeof Icon>[0]['name']} size={20} className="text-content shrink-0" />}
+      <p className="text-title font-bold text-content leading-none">{children}</p>
+    </div>
+  );
+}
+
+// ── CardSectionHeader: inside the grouped card (text-headline) ────────────────
+function CardSectionHeader({ children, icon }: { children: React.ReactNode; icon?: string }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      {icon && <Icon name={icon as Parameters<typeof Icon>[0]['name']} size={18} className="text-content shrink-0" />}
+      <span className="text-headline font-semibold text-content leading-none">{children}</span>
     </div>
   );
 }
@@ -806,7 +807,8 @@ function MacroRow({
   return (
     <div className="p-4">
       <div className="flex items-center justify-between">
-        <span className="text-subhead font-semibold text-content">{label}</span>
+        {/* label: Regular weight, content-secondary — matches WheelPicker label style */}
+        <span className="text-subhead font-normal text-content-secondary">{label}</span>
         {editable && (
           <button type="button" onClick={isEditing ? onReset : onEditToggle}
             className="text-subhead font-normal text-accent-hover active:opacity-70">
@@ -849,11 +851,8 @@ function MacroStyleCard({ style, selected, onSelect }: {
 function FullScreen({
   children, slideUp, slideRight, exiting, exitRight, onScroll, scrollRef,
 }: {
-  children: React.ReactNode;
-  slideUp?: boolean;
-  slideRight?: boolean;
-  exiting?: boolean;
-  exitRight?: boolean;
+  children: React.ReactNode; slideUp?: boolean; slideRight?: boolean;
+  exiting?: boolean; exitRight?: boolean;
   onScroll?: React.UIEventHandler<HTMLDivElement>;
   scrollRef?: React.RefObject<HTMLDivElement | null>;
 }) {

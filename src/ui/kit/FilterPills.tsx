@@ -24,7 +24,7 @@ export function FilterPills<T extends string>({
             aria-pressed={active}
             className={`rounded-pill border px-3.5 py-1.5 text-subhead font-medium transition active:scale-95
               ${active
-                ? 'border-border-field bg-surface text-content shadow-card'
+                ? 'border-border-field bg-surface text-accent-hover shadow-card'
                 : 'border-transparent bg-surface-sunken text-content'}`}
           >
             {o.label}

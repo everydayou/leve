@@ -16,7 +16,7 @@ export function SegmentedControl<T extends string>({
             key={o.value}
             onClick={() => { hapticLight(); onChange(o.value); }}
             className={`rounded-pill px-4 py-1.5 text-subhead font-medium transition whitespace-nowrap
-              ${active ? 'segmented-active text-content shadow-sm' : 'text-content-secondary'}`}
+              ${active ? 'segmented-active text-accent-hover shadow-sm' : 'text-content-secondary'}`}
           >
             {o.label}
           </button>

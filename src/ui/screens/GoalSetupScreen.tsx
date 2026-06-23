@@ -479,32 +479,33 @@ export function GoalSetupForm({
         {step === 'details' && (
           <>
             {/* Sticky header */}
-            <div className={`sticky top-0 z-20 bg-surface flex items-center justify-between px-4 pt-5 pb-4 transition-[box-shadow] duration-200${navScrolled ? ' shadow-nav' : ''}`}>
+            <div className={`sticky top-0 z-20 bg-surface transition-[box-shadow] duration-200${navScrolled ? ' shadow-nav' : ''}`}>
               <div className="pointer-events-none absolute left-0 right-0 bg-surface" style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
-              <button onClick={goBackFromDetails} aria-label={skipType ? 'Close' : 'Back'}
-                className="-ml-2 flex h-10 w-10 items-center justify-center text-content-muted">
-                <Icon name={skipType ? 'close' : 'chevronLeft'} size={skipType ? 18 : 20} strokeWidth={skipType ? 2 : 2.5} />
-              </button>
-              <span className="text-headline font-semibold text-content">{editing ? 'Edit plan' : 'Your plan'}</span>
-              <span className="w-10" />
-            </div>
-
-            <div className="px-6 pb-8">
-              {/* Simple / Custom toggle — centred */}
-              <div className="flex justify-center mb-6">
+              <div className="flex items-center justify-between px-4 pt-5 pb-3">
+                <button onClick={goBackFromDetails} aria-label={skipType ? 'Close' : 'Back'}
+                  className="-ml-2 flex h-10 w-10 items-center justify-center text-content-muted">
+                  <Icon name={skipType ? 'close' : 'chevronLeft'} size={skipType ? 18 : 20} strokeWidth={skipType ? 2 : 2.5} />
+                </button>
+                <span className="text-headline font-semibold text-content">{editing ? 'Edit plan' : 'Your plan'}</span>
+                <span className="w-10" />
+              </div>
+              <div className="flex justify-center px-4 pb-3">
                 <SegmentedControl<SetupMode>
                   value={setupMode}
                   onChange={(m) => setSetupMode(m)}
                   options={[{ value: 'simple', label: 'Simple' }, { value: 'custom', label: 'Custom' }]}
                 />
               </div>
+            </div>
+
+            <div className="px-6 pb-8">
 
               {/* ════════════ SIMPLE MODE ════════════ */}
               {setupMode === 'simple' && (
                 <div className="space-y-6">
                   {/* Weight */}
                   <div>
-                    <WeightSectionHeader units={units} onToggleUnits={setUnitsVal} />
+                    <WeightSectionHeader units={units} onToggleUnits={setUnitsVal} labelSize="headline" />
                     <div className="space-y-3">
                       <div>
                         <WheelPicker
@@ -530,7 +531,7 @@ export function GoalSetupForm({
 
                   {/* Pace */}
                   <div>
-                    <p className="mb-2 text-subhead font-semibold text-content">Pace</p>
+                    <p className="mb-2 text-headline font-semibold text-content">Pace</p>
                     {isGain ? (
                       <FilterPills<GainPaceId>
                         value={gainPace}
@@ -557,7 +558,7 @@ export function GoalSetupForm({
 
               {/* ════════════ CUSTOM MODE ════════════ */}
               {setupMode === 'custom' && (
-                <div className="space-y-8">
+                <div className="space-y-12">
 
                   {/* ─── Section 1: Your goal ─── */}
                   <section>
@@ -690,10 +691,10 @@ export function GoalSetupForm({
                   {/* ─── Section 2: Details about you ─── */}
                   <section>
                     <p className="mb-4 text-title font-bold text-content">2. Details about you</p>
+                    <p className="mb-4 text-subhead text-content-secondary">
+                      Helps estimate your BMR more accurately. Affects calorie and macro targets.
+                    </p>
                     <div className="rounded-main border border-border-subtle bg-surface p-4">
-                      <p className="mb-4 text-subhead text-content-secondary">
-                        Helps estimate your BMR more accurately — affects calorie and macro targets.
-                      </p>
                       <div className="space-y-3">
                         <div>
                           <span className="block mb-1 text-footnote text-content-secondary">Height</span>
@@ -736,7 +737,7 @@ export function GoalSetupForm({
                   {/* ─── Section 3: Tracking ─── */}
                   <section>
                     <p className="mb-4 text-title font-bold text-content">3. Tracking</p>
-                    <p className="mb-4 text-callout text-content">
+                    <p className="mb-4 text-subhead text-content-secondary">
                       Choose how carbs and fat are distributed across your day. You can adjust this later.
                     </p>
                     <div className="space-y-2">
@@ -821,12 +822,12 @@ export function GoalSetupForm({
 }
 
 // ── WeightSectionHeader ───────────────────────────────────────────────────────
-function WeightSectionHeader({ units, onToggleUnits }: { units: Units; onToggleUnits: (u: Units) => void }) {
+function WeightSectionHeader({ units, onToggleUnits, labelSize = 'subhead' }: { units: Units; onToggleUnits: (u: Units) => void; labelSize?: 'subhead' | 'headline' }) {
   return (
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center gap-2">
         <Icon name="weight" size={18} className="text-content" />
-        <span className="text-subhead font-semibold text-content">Weight</span>
+        <span className={`text-${labelSize} font-semibold text-content`}>Weight</span>
       </div>
       <SegmentedControl<Units>
         value={units}

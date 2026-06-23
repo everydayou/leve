@@ -73,8 +73,9 @@ function macroNote(style: MacroStyle, field: 'fat' | 'carb', value: number, tota
 // ── Data loader ───────────────────────────────────────────────────────────────
 export function GoalSetupScreen() {
   const [searchParams] = useSearchParams();
-  const forceNew = searchParams.get('new') === 'true';
-  const skipType = searchParams.get('skip-type') === 'true';
+  const forceNew    = searchParams.get('new') === 'true';
+  const isFirstOpen = searchParams.get('first-open') === 'true';
+  const skipType    = searchParams.get('skip-type') === 'true';
   const data = useLive(async () => {
     const [goal, weights, user] = await Promise.all([
       repos.goals.getActive(), repos.weights.all(), repos.user.get(),
@@ -93,7 +94,8 @@ export function GoalSetupScreen() {
 
   if (data === undefined) return <FullScreen><p className="p-6 text-content-muted">Loading…</p></FullScreen>;
   return <GoalSetupForm
-    activeGoal={forceNew ? null : data.goal}
+    // first-open always creates a new goal, never edits an existing one
+    activeGoal={forceNew || isFirstOpen ? null : data.goal}
     currentWeight={data.currentWeight}
     currentProteinGoal={data.proteinGoal}
     userBmr={data.userBmr}
@@ -131,12 +133,19 @@ export function GoalSetupForm({
   const toKg      = (v: number) => units === 'lbs' ? lbsToKg(v) : v;
   const editing   = !!activeGoal;
 
+  // Navigation mode flags
+  const isModal   = !!(skipType || onClose);
+  // Came directly from a fork screen (type pre-selected, no choose step)
+  const fromFork  = !!typeParam && !editing;
+
   const prevUnitsRef = useRef<Units>(units);
 
-  const [step, setStep] = useState<Step>(
-    (typeParam || skipType || editing) ? 'details' : 'choose',
-  );
-  const [exiting, setExiting] = useState(false);
+  // Step: skip choose when type is pre-selected or editing
+  const [step,      setStep]      = useState<Step>((typeParam || skipType || editing) ? 'details' : 'choose');
+  // Whole-screen exit animation
+  const [isExiting, setIsExiting] = useState(false);
+  // Internal step transition animation (choose ↔ details)
+  const [stepAnim,  setStepAnim]  = useState<'slide-in-right' | 'slide-out-right' | ''>('');
 
   const [setupMode, setSetupMode] = useState<SetupMode>(
     editing ? (activeGoal?.setupMode ?? 'custom') : (typeParam ? 'simple' : 'custom'),
@@ -147,9 +156,7 @@ export function GoalSetupForm({
   const [gainPace, setGainPace] = useState<GainPaceId>('steady');
 
   // ── Goal fields ───────────────────────────────────────────────────────────
-  const [type, setType] = useState<GoalTypeOpt['id']>(
-    typeParam ?? activeGoal?.type ?? 'lose_by_date',
-  );
+  const [type,      setType]      = useState<GoalTypeOpt['id']>(typeParam ?? activeGoal?.type ?? 'lose_by_date');
   const [name,      setName]      = useState(activeGoal?.name ?? '');
   const [start,     setStart]     = useState(() => {
     const kg = activeGoal ? activeGoal.startWeightKg : currentWeight;
@@ -161,11 +168,9 @@ export function GoalSetupForm({
   });
   const [date,      setDate]      = useState(activeGoal?.targetDate ?? '');
   const [startDate, setStartDate] = useState(activeGoal?.startDate ?? todayISO());
-  const [deficitOverride, setDeficitOverride] = useState<number | null>(
-    activeGoal?.dailyDeficitKcalOverride ?? null,
-  );
-  const [sessionTouched, setSessionTouched] = useState(false);
-  const [navScrolled,    setNavScrolled]    = useState(false);
+  const [deficitOverride, setDeficitOverride] = useState<number | null>(activeGoal?.dailyDeficitKcalOverride ?? null);
+  const [sessionTouched,  setSessionTouched]  = useState(false);
+  const [navScrolled,     setNavScrolled]     = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [fieldErrors, setFieldErrors] = useState<{
     start?: string; target?: string; date?: string; startDate?: string;
@@ -184,7 +189,7 @@ export function GoalSetupForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userHeightCm, userAge, userSex]);
 
-  // ── Macro style (tracking section) ───────────────────────────────────────
+  // ── Macro style ───────────────────────────────────────────────────────────
   const [macroStyle,      setMacroStyle]      = useState<MacroStyle | null>(activeGoal?.macroStyle ?? null);
   const [editingRow,      setEditingRow]      = useState<EditTarget>(null);
   const [proteinGState,   setProteinGState]   = useState<number | null>(currentProteinGoal ?? null);
@@ -196,20 +201,16 @@ export function GoalSetupForm({
   const tNum   = +target || 0;
   const isGain = type === 'gain_by_date';
 
-  const weightValid = isGain
-    ? sNum > 0 && tNum > 0 && tNum > sNum
-    : sNum > 0 && tNum > 0 && sNum > tNum;
-
-  const valid             = weightValid && !!startDate && !!date && startDate < date;
-  const intensity         = valid ? goalIntensity(toKg(sNum), toKg(tNum), startDate, date) : null;
-  const computedMagnitude = intensity?.kcalPerDay ?? 0;
-  const sliderMin         = Math.max(200, computedMagnitude - 500);
-  const sliderMax         = computedMagnitude + 500;
+  const weightValid        = isGain ? sNum > 0 && tNum > 0 && tNum > sNum : sNum > 0 && tNum > 0 && sNum > tNum;
+  const valid              = weightValid && !!startDate && !!date && startDate < date;
+  const intensity          = valid ? goalIntensity(toKg(sNum), toKg(tNum), startDate, date) : null;
+  const computedMagnitude  = intensity?.kcalPerDay ?? 0;
+  const sliderMin          = Math.max(200, computedMagnitude - 500);
+  const sliderMax          = computedMagnitude + 500;
   const effectiveMagnitude = deficitOverride ?? computedMagnitude;
   const goalHasStarted     = editing && !!activeGoal && activeGoal.startDate < todayISO();
   const showDeficitWarning = goalHasStarted && sessionTouched;
 
-  // Live BMR from h/a/s offer
   const localBmr = useMemo(() => {
     const weightKg = toKg(sNum);
     if (offerHeight && offerAge && offerSex &&
@@ -227,12 +228,10 @@ export function GoalSetupForm({
   const fatG       = fatGState       ?? (macroStyle === 'performance' ? defFatPerformance(totalCal) : defFatBalanced(totalCal));
   const carbLimitG = carbLimitGState ?? defCarbLimit(totalCal);
 
-  // Simple-mode derived date
+  // Simple mode derived date
   const derivedDate = useMemo<string | null>(() => {
     if (!weightValid) return null;
-    const startKg  = toKg(sNum);
-    const targetKg = toKg(tNum);
-    const today    = todayISO();
+    const startKg = toKg(sNum), targetKg = toKg(tNum), today = todayISO();
     if (isGain) {
       const pace = GAIN_PACES.find(p => p.id === gainPace)!;
       return dateFromGainPace(startKg, targetKg, pace.kgPerMonth, today);
@@ -252,23 +251,13 @@ export function GoalSetupForm({
   })();
 
   // ── Effects ───────────────────────────────────────────────────────────────
-  const stepRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const first = stepRef.current?.querySelector<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    first?.focus({ preventScroll: true });
-  }, [step]);
-
   useEffect(() => {
     if (activeGoal) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setType(activeGoal.type);
-      setName(activeGoal.name);
+      setType(activeGoal.type); setName(activeGoal.name);
       setStart(String(toDisplay(activeGoal.startWeightKg)));
       setTarget(String(toDisplay(activeGoal.targetWeightKg)));
-      setDate(activeGoal.targetDate);
-      setStartDate(activeGoal.startDate);
+      setDate(activeGoal.targetDate); setStartDate(activeGoal.startDate);
       setDeficitOverride(activeGoal.dailyDeficitKcalOverride ?? null);
       setMacroStyle(activeGoal.macroStyle ?? null);
       if (activeGoal.fatTargetG)   setFatGState(activeGoal.fatTargetG);
@@ -286,7 +275,6 @@ export function GoalSetupForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentWeight]);
 
-  // Convert weight fields when units toggle fires
   useEffect(() => {
     const prev = prevUnitsRef.current;
     if (prev === units) return;
@@ -308,21 +296,28 @@ export function GoalSetupForm({
     setNavScrolled(false);
   }, [step]);
 
-  // ── Navigation & units ────────────────────────────────────────────────────
-  const close = () => {
-    if (onClose) { setExiting(true); setTimeout(onClose, 320); }
-    else { nav(-1); }
+  // ── Navigation ────────────────────────────────────────────────────────────
+  const dismiss = (delay = 320) => {
+    setIsExiting(true);
+    setTimeout(() => onClose ? onClose() : nav(-1), delay);
   };
 
   function goBackFromDetails() {
-    if (onClose || skipType || editing) {
-      setExiting(true);
-      setTimeout(() => onClose ? onClose() : nav(-1), 320);
-    } else if (typeParam) {
-      nav(-1);
+    if (fromFork) {
+      // Slide back out to the right, return to fork screen
+      dismiss(280);
+    } else if (editing || skipType || onClose) {
+      dismiss();
     } else {
-      setStep('choose');
+      // Internal step: slide details out, reveal choose
+      setStepAnim('slide-out-right');
+      setTimeout(() => { setStep('choose'); setStepAnim(''); }, 280);
     }
+  }
+
+  function navigateToDetails() {
+    setStepAnim('slide-in-right');
+    setStep('details');
   }
 
   async function setUnitsVal(u: Units) {
@@ -332,9 +327,7 @@ export function GoalSetupForm({
 
   function finishNav() {
     if (isFirstOpen) { markOnboardingSeen(); nav('/today', { replace: true }); }
-    else if (onClose) { setExiting(true); setTimeout(onClose, 320); }
-    else if (skipType) { setExiting(true); setTimeout(() => nav(-1), 320); }
-    else { nav(-1); }
+    else { dismiss(); }
   }
 
   // ── Save: Simple mode ─────────────────────────────────────────────────────
@@ -347,37 +340,28 @@ export function GoalSetupForm({
     if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
     setFieldErrors({});
 
-    const startKg  = toKg(sNum);
-    const targetKg = toKg(tNum);
-    const today    = todayISO();
+    const startKg = toKg(sNum), targetKg = toKg(tNum), today = todayISO();
     const goalType = type as GoalType;
+    let gainFloor: number | undefined, gainCeil: number | undefined;
     let endDate: string;
-    let gainFloor: number | undefined;
-    let gainCeil: number | undefined;
 
     if (isGain) {
       const pace = GAIN_PACES.find(p => p.id === gainPace)!;
+      gainFloor = pace.surplusFloor; gainCeil = pace.surplusCeiling;
       endDate = dateFromGainPace(startKg, targetKg, pace.kgPerMonth, today);
-      gainFloor = pace.surplusFloor;
-      gainCeil  = pace.surplusCeiling;
     } else {
-      const pace = LOSE_PACES.find(p => p.id === losePace)!;
-      endDate = dateFromLosePace(startKg, targetKg, pace.kgPerWeek, today);
+      endDate = dateFromLosePace(startKg, targetKg, LOSE_PACES.find(p => p.id === losePace)!.kgPerWeek, today);
     }
     if (!endDate) return;
 
     await repos.goals.put({
-      id: activeGoal?.id ?? newId(),
-      name: 'New goal', type: goalType,
+      id: activeGoal?.id ?? newId(), name: 'New goal', type: goalType,
       startWeightKg: startKg, targetWeightKg: targetKg,
       startDate: today, targetDate: endDate,
       status: 'active', setupMode: 'simple',
-      ...(isGain && {
-        surplusFloor: gainFloor, surplusCeiling: gainCeil,
-        trackingMode: 'detailed' as const, macroStyle: 'balanced' as MacroStyle,
-      }),
+      ...(isGain && { surplusFloor: gainFloor, surplusCeiling: gainCeil,
+        trackingMode: 'detailed' as const, macroStyle: 'balanced' as MacroStyle }),
     });
-
     const user = await repos.user.get();
     if (user) {
       const updates: Record<string, unknown> = {};
@@ -394,23 +378,18 @@ export function GoalSetupForm({
     const goalType = (type === 'maintain' ? 'lose_by_date' : type) as GoalType;
 
     await repos.goals.put({
-      id: activeGoal?.id ?? newId(),
-      name: name.trim() || 'New goal', type: goalType,
+      id: activeGoal?.id ?? newId(), name: name.trim() || 'New goal', type: goalType,
       startWeightKg, targetWeightKg: toKg(tNum),
-      startDate, targetDate: date,
-      status: 'active', setupMode: 'custom',
+      startDate, targetDate: date, status: 'active', setupMode: 'custom',
       dailyDeficitKcalOverride: deficitOverride ?? undefined,
       trackingMode: macroStyle ? 'detailed' : 'simple',
-      macroStyle:   macroStyle ?? undefined,
-      fatTargetG:   macroStyle ? fatG : undefined,
-      carbLimitG:   macroStyle === 'lower_carb' ? carbLimitG : undefined,
+      macroStyle: macroStyle ?? undefined,
+      fatTargetG:  macroStyle ? fatG : undefined,
+      carbLimitG:  macroStyle === 'lower_carb' ? carbLimitG : undefined,
     });
-
     const user = await repos.user.get();
     if (user) {
-      const updates: Record<string, unknown> = {
-        proteinGoalG: macroStyle ? proteinG : undefined,
-      };
+      const updates: Record<string, unknown> = { proteinGoalG: macroStyle ? proteinG : undefined };
       if (offerHeight) updates.heightCm = offerHeight;
       if (offerAge)    updates.age       = offerAge;
       if (offerSex)    updates.sex       = offerSex;
@@ -420,7 +399,6 @@ export function GoalSetupForm({
     finishNav();
   }
 
-  // ── Custom mode: validate and save from the single-page form ─────────────
   function handleCustomSave() {
     const errs: typeof fieldErrors = {};
     if (!start || sNum <= 0)  errs.start = 'Enter a start weight';
@@ -435,394 +413,370 @@ export function GoalSetupForm({
     void create();
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Shared weight picker bounds ───────────────────────────────────────────
   const wMin = units === 'lbs' ? 66  : 30;
   const wMax = units === 'lbs' ? 660 : 300;
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <FullScreen slideUp={!!(skipType || onClose)} exiting={exiting}
+    <FullScreen
+      slideUp={isModal}
+      slideRight={fromFork}
+      exiting={isExiting}
+      exitRight={fromFork}
       onScroll={(e) => setNavScrolled(e.currentTarget.scrollTop > 0)}
-      scrollRef={scrollContainerRef}>
-      <div ref={stepRef}>
-
-        {/* ── Step 1: Choose goal type ── */}
-        {step === 'choose' && (
-          <>
-            <FlowHeader title={editing ? 'Edit goal' : 'New goal'} onClose={close} />
-            <div className="px-6 pb-6">
-              <div className="mt-5 space-y-3">
-                {TYPES.map((t) => (
-                  <button key={t.id} disabled={!t.enabled} onClick={() => setType(t.id)}
-                    className={`flex w-full items-center gap-3 rounded-card text-left shadow-card ${
-                      type === t.id ? 'border-2 border-accent p-[15px]' : 'border border-border-subtle p-4'
-                    } ${!t.enabled ? 'opacity-40' : ''}`}
-                  >
-                    <GoalIcon type={t.id} size={32} />
-                    <span className="flex-1">
-                      <span className="block text-callout font-semibold">{t.title}</span>
-                      <span className="block text-subhead text-content-secondary">{t.desc}</span>
-                    </span>
-                    {!t.enabled && (
-                      <span className="rounded-pill bg-surface-sunken px-2 py-0.5 text-micro font-medium text-content-secondary">Later</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-6">
-                <Button size="lg" onClick={() => { setSetupMode('custom'); setStep('details'); }}>Continue</Button>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* ── Step 2: Your plan ── */}
-        {step === 'details' && (
-          <>
-            {/* Sticky header */}
-            <div className={`sticky top-0 z-20 bg-surface transition-[box-shadow] duration-200${navScrolled ? ' shadow-nav' : ''}`}>
-              <div className="pointer-events-none absolute left-0 right-0 bg-surface" style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
-              <div className="flex items-center justify-between px-4 pt-5 pb-3">
-                <button onClick={goBackFromDetails} aria-label={skipType ? 'Close' : 'Back'}
-                  className="-ml-2 flex h-10 w-10 items-center justify-center text-content-muted">
-                  <Icon name={skipType ? 'close' : 'chevronLeft'} size={skipType ? 18 : 20} strokeWidth={skipType ? 2 : 2.5} />
+      scrollRef={scrollContainerRef}
+    >
+      {/* ── Step 1: Choose goal type ── */}
+      {step === 'choose' && (
+        <div>
+          <FlowHeader title={editing ? 'Edit goal' : 'New goal'} onClose={() => dismiss()} />
+          <div className="px-6 pb-6">
+            <div className="mt-5 space-y-3">
+              {TYPES.map((t) => (
+                <button key={t.id} disabled={!t.enabled} onClick={() => setType(t.id)}
+                  className={`flex w-full items-center gap-3 rounded-card text-left shadow-card ${
+                    type === t.id ? 'border-2 border-accent p-[15px]' : 'border border-border-subtle p-4'
+                  } ${!t.enabled ? 'opacity-40' : ''}`}
+                >
+                  <GoalIcon type={t.id} size={32} />
+                  <span className="flex-1">
+                    <span className="block text-callout font-semibold">{t.title}</span>
+                    <span className="block text-subhead text-content-secondary">{t.desc}</span>
+                  </span>
+                  {!t.enabled && (
+                    <span className="rounded-pill bg-surface-sunken px-2 py-0.5 text-micro font-medium text-content-secondary">Later</span>
+                  )}
                 </button>
-                <span className="text-headline font-semibold text-content">{editing ? 'Edit plan' : 'Your plan'}</span>
-                <span className="w-10" />
-              </div>
-              <div className="flex justify-center px-4 pb-3">
-                <SegmentedControl<SetupMode>
-                  value={setupMode}
-                  onChange={(m) => setSetupMode(m)}
-                  options={[{ value: 'simple', label: 'Simple' }, { value: 'custom', label: 'Custom' }]}
-                />
-              </div>
+              ))}
             </div>
+            <div className="mt-6">
+              <Button size="lg" onClick={() => { setSetupMode('custom'); navigateToDetails(); }}>Continue</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
-            <div className="px-6 pb-8">
+      {/* ── Step 2: Your plan ── */}
+      {step === 'details' && (
+        <div className={stepAnim || undefined}>
+          {/* Sticky header */}
+          <div className={`sticky top-0 z-20 bg-surface transition-[box-shadow] duration-200${navScrolled ? ' shadow-nav' : ''}`}>
+            <div className="pointer-events-none absolute left-0 right-0 bg-surface" style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
+            <div className="flex items-center justify-between px-4 pt-5 pb-3">
+              <button onClick={goBackFromDetails} aria-label={skipType ? 'Close' : 'Back'}
+                className="-ml-2 flex h-10 w-10 items-center justify-center text-content-muted">
+                <Icon name={skipType ? 'close' : 'chevronLeft'} size={skipType ? 18 : 20} strokeWidth={skipType ? 2 : 2.5} />
+              </button>
+              <span className="text-headline font-semibold text-content">{editing ? 'Edit plan' : 'Your plan'}</span>
+              <span className="w-10" />
+            </div>
+            <div className="flex justify-center px-4 pb-3">
+              <SegmentedControl<SetupMode>
+                value={setupMode}
+                onChange={(m) => setSetupMode(m)}
+                options={[{ value: 'simple', label: 'Simple' }, { value: 'custom', label: 'Custom' }]}
+              />
+            </div>
+          </div>
 
-              {/* ════════════ SIMPLE MODE ════════════ */}
-              {setupMode === 'simple' && (
-                <div className="space-y-6">
-                  {/* Weight */}
-                  <div>
-                    <WeightSectionHeader units={units} onToggleUnits={setUnitsVal} labelSize="headline" />
+          <div className="px-6 pb-8">
+            {/* ════════════ SIMPLE MODE ════════════ */}
+            {setupMode === 'simple' && (
+              <div className="space-y-6">
+                {/* Weight */}
+                <div>
+                  <WeightSectionHeader units={units} onToggleUnits={setUnitsVal} labelSize="headline" />
+                  <div className="space-y-3">
+                    <div>
+                      <WheelPicker label={`Current (${units})`} value={start}
+                        onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
+                        min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.start} />
+                      {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
+                    </div>
+                    <div>
+                      <WheelPicker label={`Target (${units})`} value={target}
+                        onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
+                        min={wMin} max={wMax} step={0.1} unit={units}
+                        invalid={!!fieldErrors.target} centerAt={+start || (units === 'lbs' ? 154 : 70)} />
+                      {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pace */}
+                <div>
+                  <p className="mb-2 text-headline font-semibold text-content">Pace</p>
+                  {isGain ? (
+                    <FilterPills<GainPaceId> value={gainPace}
+                      onChange={(v) => { if (v) setGainPace(v); }}
+                      options={GAIN_PACES.map(p => ({ value: p.id, label: p.label }))} />
+                  ) : (
+                    <FilterPills<LosePaceId> value={losePace}
+                      onChange={(v) => { if (v) setLosePace(v); }}
+                      options={LOSE_PACES.map(p => ({ value: p.id, label: p.label }))} />
+                  )}
+                </div>
+
+                {derivedDateText && (
+                  <p className="text-callout text-content-secondary" aria-live="polite">{derivedDateText}</p>
+                )}
+
+                <Button size="lg" onClick={() => void createSimple()}>Set my goal</Button>
+              </div>
+            )}
+
+            {/* ════════════ CUSTOM MODE ════════════ */}
+            {setupMode === 'custom' && (
+              <div>
+
+                {/* ─── Section 1: Your goal ─── */}
+                <section>
+                  <p className="mb-4 text-title font-bold text-content">1. Your goal</p>
+
+                  <div className="overflow-hidden border border-border-field bg-surface" style={{ borderRadius: 24 }}>
+                    {/* Goal name */}
+                    <div className="p-4">
+                      <span className="block mb-2 text-subhead font-semibold text-content">Goal name</span>
+                      <LabeledInput value={name} onChange={(e) => setName(e.target.value)}
+                        placeholder="e.g. Summer Cut"
+                        className="!bg-surface-sunken !border-transparent focus:!border-transparent" />
+                    </div>
+
+                    {/* Weight */}
+                    <div className="p-4 pb-5">
+                      <WeightSectionHeader units={units} onToggleUnits={setUnitsVal} />
+                      <div className="space-y-3">
+                        <div>
+                          <WheelPicker label={`Start (${units})`} value={start}
+                            onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
+                            min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.start}
+                            selectClassName="!bg-surface-sunken !border-transparent focus:!border-transparent" />
+                          {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
+                        </div>
+                        <div>
+                          <WheelPicker label={`Target (${units})`} value={target}
+                            onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
+                            min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.target}
+                            centerAt={+start || (units === 'lbs' ? 154 : 70)}
+                            selectClassName="!bg-surface-sunken !border-transparent focus:!border-transparent" />
+                          {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dates */}
+                    <div className="p-4 pb-5">
+                      <div className="mb-3 flex items-center gap-2">
+                        <Icon name="calendar" size={18} className="text-content" />
+                        <span className="text-subhead font-semibold text-content">Dates</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="flex-1 min-w-0">
+                          <span className="block text-subhead text-content-secondary">Start</span>
+                          <div className="mt-1 overflow-hidden rounded-field">
+                            <input type="date" value={startDate}
+                              onChange={(e) => { setStartDate(e.target.value); setFieldErrors(p => ({ ...p, startDate: undefined })); }}
+                              className="w-full bg-surface-sunken px-3 py-2.5 text-subhead text-content focus:outline-none" />
+                          </div>
+                          {fieldErrors.startDate && <p className="mt-1 text-footnote text-danger">{fieldErrors.startDate}</p>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="block text-subhead text-content-secondary">Target date</span>
+                          <div className="mt-1 overflow-hidden rounded-field">
+                            <input type="date" value={date} min={startDate || todayISO()}
+                              onChange={(e) => { setDate(e.target.value); setFieldErrors(p => ({ ...p, date: undefined })); }}
+                              className="w-full bg-surface-sunken px-3 py-2.5 text-subhead text-content focus:outline-none" />
+                          </div>
+                          {fieldErrors.date && <p className="mt-1 text-footnote text-danger">{fieldErrors.date}</p>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Review your goal */}
+                  <div className="mt-6">
+                    <p className="mb-3 text-headline font-semibold text-content">Review your goal</p>
+                    <div className={`overflow-hidden border border-border-subtle bg-surface p-5${intensity ? ' shadow-card' : ''}`} style={{ borderRadius: 24 }}>
+                      {intensity ? (
+                        <>
+                          <div className="relative">
+                            {sessionTouched && (
+                              <button type="button"
+                                onClick={() => { setDeficitOverride(null); setSessionTouched(false); }}
+                                className="absolute top-0 right-0 text-subhead font-normal text-accent-hover active:opacity-70">
+                                Reset
+                              </button>
+                            )}
+                            <p className="text-display font-bold text-center">
+                              {units === 'lbs' ? `${kgToLbs(intensity.kgToLose).toFixed(1)} lbs` : `${intensity.kgToLose.toFixed(1)} kg`}
+                            </p>
+                            <p className="text-center text-subhead text-content-secondary">
+                              {Math.round(intensity.weeks)} weeks{'  ·  '}≈ {units === 'lbs' ? `${kgToLbs(intensity.kgPerWeek).toFixed(2)} lbs/week` : `${intensity.kgPerWeek} kg/week`}
+                            </p>
+                          </div>
+                          <div className="mt-3 rounded-field bg-surface-sunken px-3 py-2.5 text-center">
+                            <p className="text-subhead text-content-secondary">
+                              {isGain ? `+${effectiveMagnitude - 100} to +${effectiveMagnitude + 100} kcal/day` : `≈ –${effectiveMagnitude} kcal/day`}
+                            </p>
+                          </div>
+                          <input type="range"
+                            aria-label={isGain ? 'Daily calorie surplus' : 'Daily calorie deficit'}
+                            min={sliderMin} max={sliderMax} step={10} value={effectiveMagnitude}
+                            onChange={(e) => { setDeficitOverride(Number(e.target.value)); setSessionTouched(true); }}
+                            className="mt-[2px] w-full accent-accent" style={{ touchAction: 'pan-x' }} />
+                          <div className="mt-5"><PaceMeter level={intensity.level} /></div>
+                          {showDeficitWarning && (
+                            <div className="mt-4 flex items-start gap-2.5 rounded-control border border-border-subtle bg-surface-sunken p-3">
+                              <Icon name="info" size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-content-secondary" />
+                              <div className="flex-1">
+                                <p className="text-subhead text-content-secondary">
+                                  Changing the daily {isGain ? 'surplus' : 'deficit'} will affect how your remaining days are budgeted. Past entries are not changed.
+                                </p>
+                                <button onClick={() => { setDeficitOverride(null); setSessionTouched(false); }}
+                                  className="mt-1.5 text-subhead font-normal text-accent-hover active:opacity-70">
+                                  Reset to calculated ({computedMagnitude} kcal)
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-subhead text-content-muted">Fill in your details to preview your goal pace.</p>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                {/* Section divider */}
+                <hr className="border-border-subtle mt-12 mb-12" />
+
+                {/* ─── Section 2: Details about you ─── */}
+                <section>
+                  <p className="mb-1 text-title font-bold text-content">2. Details about you</p>
+                  <p className="mb-4 text-subhead text-content-secondary">
+                    Helps estimate your BMR more accurately. Affects calorie and macro targets.
+                  </p>
+                  <div className="rounded-main border border-border-subtle bg-surface p-4">
                     <div className="space-y-3">
                       <div>
-                        <WheelPicker
-                          label={`Current (${units})`} value={start}
-                          onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
-                          min={wMin} max={wMax} step={0.1} unit={units}
-                          invalid={!!fieldErrors.start}
-                        />
-                        {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
+                        <span className="block mb-1 text-subhead font-normal text-content-secondary">Height</span>
+                        <div className="relative">
+                          <select value={offerHeight ?? ''} onChange={(e) => setOfferHeight(e.target.value === '' ? null : Number(e.target.value))}
+                            className="w-full appearance-none rounded-field border border-border-subtle bg-surface-sunken px-4 py-3 text-subhead text-content pr-10 focus:outline-none">
+                            <option value="">—</option>
+                            {HEIGHT_OPTIONS.map(n => <option key={n} value={n}>{n} cm</option>)}
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-content-muted">
+                            <Icon name="chevronDown" size={16} strokeWidth={2} />
+                          </div>
+                        </div>
                       </div>
                       <div>
-                        <WheelPicker
-                          label={`Target (${units})`} value={target}
-                          onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
-                          min={wMin} max={wMax} step={0.1} unit={units}
-                          invalid={!!fieldErrors.target}
-                          centerAt={+start || (units === 'lbs' ? 154 : 70)}
-                        />
-                        {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
+                        <span className="block mb-1 text-subhead font-normal text-content-secondary">Age</span>
+                        <div className="relative">
+                          <select value={offerAge ?? ''} onChange={(e) => setOfferAge(e.target.value === '' ? null : Number(e.target.value))}
+                            className="w-full appearance-none rounded-field border border-border-subtle bg-surface-sunken px-4 py-3 text-subhead text-content pr-10 focus:outline-none">
+                            <option value="">—</option>
+                            {AGE_OPTIONS.map(n => <option key={n} value={n}>{n} yrs</option>)}
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-content-muted">
+                            <Icon name="chevronDown" size={16} strokeWidth={2} />
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <span className="block mb-2 text-subhead font-normal text-content-secondary">Sex</span>
+                        <FilterPills<Sex> value={offerSex} onChange={setOfferSex}
+                          options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]} />
                       </div>
                     </div>
                   </div>
+                </section>
 
-                  {/* Pace */}
-                  <div>
-                    <p className="mb-2 text-headline font-semibold text-content">Pace</p>
-                    {isGain ? (
-                      <FilterPills<GainPaceId>
-                        value={gainPace}
-                        onChange={(v) => { if (v) setGainPace(v); }}
-                        options={GAIN_PACES.map(p => ({ value: p.id, label: p.label }))}
-                      />
-                    ) : (
-                      <FilterPills<LosePaceId>
-                        value={losePace}
-                        onChange={(v) => { if (v) setLosePace(v); }}
-                        options={LOSE_PACES.map(p => ({ value: p.id, label: p.label }))}
-                      />
-                    )}
+                {/* Section divider */}
+                <hr className="border-border-subtle mt-12 mb-12" />
+
+                {/* ─── Section 3: Tracking ─── */}
+                <section>
+                  <p className="mb-1 text-title font-bold text-content">3. Tracking</p>
+                  <p className="mb-4 text-subhead text-content-secondary">
+                    Choose how carbs and fat are distributed across your day. You can adjust this later.
+                  </p>
+                  <div className="space-y-2">
+                    {MACRO_STYLES.map((s) => (
+                      <MacroStyleCard key={s.id} style={s} selected={macroStyle === s.id}
+                        onSelect={() => { setMacroStyle(macroStyle === s.id ? null : s.id); setEditingRow(null); }} />
+                    ))}
                   </div>
 
-                  {/* Derived date */}
-                  {derivedDateText && (
-                    <p className="text-callout text-content-secondary" aria-live="polite">{derivedDateText}</p>
-                  )}
-
-                  <Button size="lg" onClick={() => void createSimple()}>Set my goal</Button>
-                </div>
-              )}
-
-              {/* ════════════ CUSTOM MODE ════════════ */}
-              {setupMode === 'custom' && (
-                <div className="space-y-12">
-
-                  {/* ─── Section 1: Your goal ─── */}
-                  <section>
-                    <p className="mb-4 text-title font-bold text-content">1. Your goal</p>
-
-                    <div className="overflow-hidden border border-border-field bg-surface" style={{ borderRadius: 24 }}>
-                      {/* Goal name */}
-                      <div className="p-4">
-                        <span className="block mb-2 text-subhead font-semibold text-content">Goal name</span>
-                        <LabeledInput
-                          value={name} onChange={(e) => setName(e.target.value)}
-                          placeholder="e.g. Summer Cut"
-                          className="!bg-surface-sunken !border-transparent focus:!border-transparent"
-                        />
-                      </div>
-
-                      {/* Weight */}
-                      <div className="p-4 pb-5">
-                        <WeightSectionHeader units={units} onToggleUnits={setUnitsVal} />
-                        <div className="space-y-3">
-                          <div>
-                            <WheelPicker
-                              label={`Start (${units})`} value={start}
-                              onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
-                              min={wMin} max={wMax} step={0.1} unit={units}
-                              invalid={!!fieldErrors.start}
-                              selectClassName="!bg-surface-sunken !border-transparent focus:!border-transparent"
-                            />
-                            {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
-                          </div>
-                          <div>
-                            <WheelPicker
-                              label={`Target (${units})`} value={target}
-                              onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
-                              min={wMin} max={wMax} step={0.1} unit={units}
-                              invalid={!!fieldErrors.target}
-                              centerAt={+start || (units === 'lbs' ? 154 : 70)}
-                              selectClassName="!bg-surface-sunken !border-transparent focus:!border-transparent"
-                            />
-                            {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Dates */}
-                      <div className="p-4 pb-5">
-                        <div className="mb-3 flex items-center gap-2">
-                          <Icon name="calendar" size={18} className="text-content" />
-                          <span className="text-subhead font-semibold text-content">Dates</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <div className="flex-1 min-w-0">
-                            <span className="block text-subhead text-content-secondary">Start</span>
-                            <div className="mt-1 overflow-hidden rounded-field">
-                              <input type="date" value={startDate}
-                                onChange={(e) => { setStartDate(e.target.value); setFieldErrors(p => ({ ...p, startDate: undefined })); }}
-                                className="w-full bg-surface-sunken px-3 py-2.5 text-subhead text-content focus:outline-none" />
-                            </div>
-                            {fieldErrors.startDate && <p className="mt-1 text-footnote text-danger">{fieldErrors.startDate}</p>}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="block text-subhead text-content-secondary">Target date</span>
-                            <div className="mt-1 overflow-hidden rounded-field">
-                              <input type="date" value={date} min={startDate || todayISO()}
-                                onChange={(e) => { setDate(e.target.value); setFieldErrors(p => ({ ...p, date: undefined })); }}
-                                className="w-full bg-surface-sunken px-3 py-2.5 text-subhead text-content focus:outline-none" />
-                            </div>
-                            {fieldErrors.date && <p className="mt-1 text-footnote text-danger">{fieldErrors.date}</p>}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Review your goal */}
-                    <div className="mt-6">
-                      <p className="mb-3 text-headline font-semibold text-content">Review your goal</p>
-                      <div className={`overflow-hidden border border-border-subtle bg-surface p-5${intensity ? ' shadow-card' : ''}`} style={{ borderRadius: 24 }}>
-                        {intensity ? (
+                  {macroStyle && (
+                    <div className="mt-5">
+                      <p className="mb-3 text-headline font-semibold text-content">Macro targets</p>
+                      <div className="overflow-hidden border border-border-field bg-surface" style={{ borderRadius: 24 }}>
+                        <MacroRow label="Protein target (g)" displayValue={`${proteinG} per day`}
+                          editable isEditing={editingRow === 'protein'} value={proteinG}
+                          min={Math.max(40, r5(sNum * 0.8))} max={r5(Math.max(sNum, 50) * 3.0)}
+                          onEditToggle={() => setEditingRow(editingRow === 'protein' ? null : 'protein')}
+                          onReset={() => { setProteinGState(null); setEditingRow(null); }}
+                          onChange={setProteinGState} note={proteinNote(proteinG, sNum)} />
+                        {macroStyle === 'balanced' && (
                           <>
-                            <div className="relative">
-                              {sessionTouched && (
-                                <button type="button"
-                                  onClick={() => { setDeficitOverride(null); setSessionTouched(false); }}
-                                  className="absolute top-0 right-0 text-subhead font-normal text-accent-hover active:opacity-70">
-                                  Reset
-                                </button>
-                              )}
-                              <p className="text-display font-bold text-center">
-                                {units === 'lbs' ? `${kgToLbs(intensity.kgToLose).toFixed(1)} lbs` : `${intensity.kgToLose.toFixed(1)} kg`}
-                              </p>
-                              <p className="text-center text-subhead text-content-secondary">
-                                {Math.round(intensity.weeks)} weeks{'  ·  '}≈ {units === 'lbs' ? `${kgToLbs(intensity.kgPerWeek).toFixed(2)} lbs/week` : `${intensity.kgPerWeek} kg/week`}
-                              </p>
-                            </div>
-                            <div className="mt-3 rounded-field bg-surface-sunken px-3 py-2.5 text-center">
-                              <p className="text-subhead text-content-secondary">
-                                {isGain ? `+${effectiveMagnitude - 100} to +${effectiveMagnitude + 100} kcal/day` : `≈ –${effectiveMagnitude} kcal/day`}
-                              </p>
-                            </div>
-                            <input type="range"
-                              aria-label={isGain ? 'Daily calorie surplus' : 'Daily calorie deficit'}
-                              min={sliderMin} max={sliderMax} step={10} value={effectiveMagnitude}
-                              onChange={(e) => { setDeficitOverride(Number(e.target.value)); setSessionTouched(true); }}
-                              className="mt-[2px] w-full accent-accent" style={{ touchAction: 'pan-x' }} />
-                            <div className="mt-5">
-                              <PaceMeter level={intensity.level} />
-                            </div>
-                            {showDeficitWarning && (
-                              <div className="mt-4 flex items-start gap-2.5 rounded-control border border-border-subtle bg-surface-sunken p-3">
-                                <Icon name="info" size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-content-secondary" />
-                                <div className="flex-1">
-                                  <p className="text-subhead text-content-secondary">
-                                    Changing the daily {isGain ? 'surplus' : 'deficit'} will affect how your remaining days are budgeted. Past entries are not changed.
-                                  </p>
-                                  <button onClick={() => { setDeficitOverride(null); setSessionTouched(false); }}
-                                    className="mt-1.5 text-subhead font-normal text-accent-hover active:opacity-70">
-                                    Reset to calculated ({computedMagnitude} kcal)
-                                  </button>
-                                </div>
-                              </div>
-                            )}
+                            <MacroRow label="Carb target (g)" displayValue="Adjusts with activity" />
+                            <MacroRow label="Fat target (g)" displayValue={`${fatG} per day`}
+                              editable isEditing={editingRow === 'fat'} value={fatG}
+                              min={10} max={r5(totalCal * 0.55 / 9)}
+                              onEditToggle={() => setEditingRow(editingRow === 'fat' ? null : 'fat')}
+                              onReset={() => { setFatGState(null); setEditingRow(null); }}
+                              onChange={setFatGState} note={macroNote('balanced', 'fat', fatG, totalCal)} />
                           </>
-                        ) : (
-                          <p className="text-subhead text-content-muted">Fill in your details to preview your goal pace.</p>
+                        )}
+                        {macroStyle === 'performance' && (() => {
+                          const carbG = Math.max(0, Math.round((totalCal - proteinG * 4 - fatG * 9) / 4));
+                          return (
+                            <>
+                              <MacroRow label="Carb target (g)" displayValue={`Base ${carbG} g · adjusts with activity`} />
+                              <MacroRow label="Fat baseline (g)" displayValue={`${fatG} per day`}
+                                editable isEditing={editingRow === 'fat'} value={fatG}
+                                min={10} max={r5(totalCal * 0.45 / 9)}
+                                onEditToggle={() => setEditingRow(editingRow === 'fat' ? null : 'fat')}
+                                onReset={() => { setFatGState(null); setEditingRow(null); }}
+                                onChange={setFatGState} note={macroNote('performance', 'fat', fatG, totalCal)} />
+                            </>
+                          );
+                        })()}
+                        {macroStyle === 'lower_carb' && (
+                          <>
+                            <MacroRow label="Carb limit (g)" displayValue={`${carbLimitG} per day`}
+                              editable isEditing={editingRow === 'carb'} value={carbLimitG}
+                              min={20} max={r5(totalCal * 0.55 / 4)}
+                              onEditToggle={() => setEditingRow(editingRow === 'carb' ? null : 'carb')}
+                              onReset={() => { setCarbLimitGState(null); setEditingRow(null); }}
+                              onChange={setCarbLimitGState} note={macroNote('lower_carb', 'carb', carbLimitG, totalCal)} />
+                            <MacroRow label="Fat target (g)" displayValue="Adjusts with activity" />
+                          </>
                         )}
                       </div>
                     </div>
-                  </section>
+                  )}
+                </section>
 
-                  {/* ─── Section 2: Details about you ─── */}
-                  <section>
-                    <p className="mb-4 text-title font-bold text-content">2. Details about you</p>
-                    <p className="mb-4 text-subhead text-content-secondary">
-                      Helps estimate your BMR more accurately. Affects calorie and macro targets.
-                    </p>
-                    <div className="rounded-main border border-border-subtle bg-surface p-4">
-                      <div className="space-y-3">
-                        <div>
-                          <span className="block mb-1 text-footnote text-content-secondary">Height</span>
-                          <div className="relative">
-                            <select value={offerHeight ?? ''} onChange={(e) => setOfferHeight(e.target.value === '' ? null : Number(e.target.value))}
-                              className="w-full appearance-none rounded-field border border-border-subtle bg-surface-sunken px-4 py-3 text-subhead text-content pr-10 focus:outline-none">
-                              <option value="">—</option>
-                              {HEIGHT_OPTIONS.map(n => <option key={n} value={n}>{n} cm</option>)}
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-content-muted">
-                              <Icon name="chevronDown" size={16} strokeWidth={2} />
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <span className="block mb-1 text-footnote text-content-secondary">Age</span>
-                          <div className="relative">
-                            <select value={offerAge ?? ''} onChange={(e) => setOfferAge(e.target.value === '' ? null : Number(e.target.value))}
-                              className="w-full appearance-none rounded-field border border-border-subtle bg-surface-sunken px-4 py-3 text-subhead text-content pr-10 focus:outline-none">
-                              <option value="">—</option>
-                              {AGE_OPTIONS.map(n => <option key={n} value={n}>{n} yrs</option>)}
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-content-muted">
-                              <Icon name="chevronDown" size={16} strokeWidth={2} />
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <span className="block mb-2 text-footnote text-content-secondary">Sex</span>
-                          <FilterPills<Sex>
-                            value={offerSex}
-                            onChange={setOfferSex}
-                            options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-
-                  {/* ─── Section 3: Tracking ─── */}
-                  <section>
-                    <p className="mb-4 text-title font-bold text-content">3. Tracking</p>
-                    <p className="mb-4 text-subhead text-content-secondary">
-                      Choose how carbs and fat are distributed across your day. You can adjust this later.
-                    </p>
-                    <div className="space-y-2">
-                      {MACRO_STYLES.map((s) => (
-                        <MacroStyleCard key={s.id} style={s} selected={macroStyle === s.id}
-                          onSelect={() => { setMacroStyle(macroStyle === s.id ? null : s.id); setEditingRow(null); }} />
-                      ))}
-                    </div>
-
-                    {macroStyle && (
-                      <div className="mt-5">
-                        <p className="mb-3 text-headline font-semibold text-content">Macro targets</p>
-                        <div className="overflow-hidden border border-border-field bg-surface" style={{ borderRadius: 24 }}>
-                          <MacroRow
-                            label="Protein target (g)" displayValue={`${proteinG} per day`}
-                            editable isEditing={editingRow === 'protein'} value={proteinG}
-                            min={Math.max(40, r5(sNum * 0.8))} max={r5(Math.max(sNum, 50) * 3.0)}
-                            onEditToggle={() => setEditingRow(editingRow === 'protein' ? null : 'protein')}
-                            onReset={() => { setProteinGState(null); setEditingRow(null); }}
-                            onChange={setProteinGState}
-                            note={proteinNote(proteinG, sNum)}
-                          />
-                          {macroStyle === 'balanced' && (
-                            <>
-                              <MacroRow label="Carb target (g)" displayValue="Adjusts with activity" />
-                              <MacroRow
-                                label="Fat target (g)" displayValue={`${fatG} per day`}
-                                editable isEditing={editingRow === 'fat'} value={fatG}
-                                min={10} max={r5(totalCal * 0.55 / 9)}
-                                onEditToggle={() => setEditingRow(editingRow === 'fat' ? null : 'fat')}
-                                onReset={() => { setFatGState(null); setEditingRow(null); }}
-                                onChange={setFatGState}
-                                note={macroNote('balanced', 'fat', fatG, totalCal)}
-                              />
-                            </>
-                          )}
-                          {macroStyle === 'performance' && (() => {
-                            const carbG = Math.max(0, Math.round((totalCal - proteinG * 4 - fatG * 9) / 4));
-                            return (
-                              <>
-                                <MacroRow label="Carb target (g)" displayValue={`Base ${carbG} g · adjusts with activity`} />
-                                <MacroRow
-                                  label="Fat baseline (g)" displayValue={`${fatG} per day`}
-                                  editable isEditing={editingRow === 'fat'} value={fatG}
-                                  min={10} max={r5(totalCal * 0.45 / 9)}
-                                  onEditToggle={() => setEditingRow(editingRow === 'fat' ? null : 'fat')}
-                                  onReset={() => { setFatGState(null); setEditingRow(null); }}
-                                  onChange={setFatGState}
-                                  note={macroNote('performance', 'fat', fatG, totalCal)}
-                                />
-                              </>
-                            );
-                          })()}
-                          {macroStyle === 'lower_carb' && (
-                            <>
-                              <MacroRow
-                                label="Carb limit (g)" displayValue={`${carbLimitG} per day`}
-                                editable isEditing={editingRow === 'carb'} value={carbLimitG}
-                                min={20} max={r5(totalCal * 0.55 / 4)}
-                                onEditToggle={() => setEditingRow(editingRow === 'carb' ? null : 'carb')}
-                                onReset={() => { setCarbLimitGState(null); setEditingRow(null); }}
-                                onChange={setCarbLimitGState}
-                                note={macroNote('lower_carb', 'carb', carbLimitG, totalCal)}
-                              />
-                              <MacroRow label="Fat target (g)" displayValue="Adjusts with activity" />
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </section>
-
+                <div className="mt-8">
                   <Button size="lg" onClick={handleCustomSave}>Set my goal</Button>
                 </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </FullScreen>
   );
 }
 
 // ── WeightSectionHeader ───────────────────────────────────────────────────────
-function WeightSectionHeader({ units, onToggleUnits, labelSize = 'subhead' }: { units: Units; onToggleUnits: (u: Units) => void; labelSize?: 'subhead' | 'headline' }) {
+function WeightSectionHeader({ units, onToggleUnits, labelSize = 'subhead' }: {
+  units: Units; onToggleUnits: (u: Units) => void; labelSize?: 'subhead' | 'headline';
+}) {
   return (
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center gap-2">
@@ -864,8 +818,7 @@ function MacroRow({
         <span className="text-subhead text-content">{displayValue}</span>
       </div>
       {isEditing && value !== undefined && onChange && (
-        <input type="range" aria-label={label}
-          min={min} max={max} step={step} value={value}
+        <input type="range" aria-label={label} min={min} max={max} step={step} value={value}
           onChange={(e) => onChange(Number(e.target.value))}
           className="mt-[2px] w-full accent-accent" style={{ touchAction: 'pan-x' }} />
       )}
@@ -893,12 +846,20 @@ function MacroStyleCard({ style, selected, onSelect }: {
   );
 }
 
-function FullScreen({ children, slideUp, exiting, onScroll, scrollRef }: {
-  children: React.ReactNode; slideUp?: boolean; exiting?: boolean;
+function FullScreen({
+  children, slideUp, slideRight, exiting, exitRight, onScroll, scrollRef,
+}: {
+  children: React.ReactNode;
+  slideUp?: boolean;
+  slideRight?: boolean;
+  exiting?: boolean;
+  exitRight?: boolean;
   onScroll?: React.UIEventHandler<HTMLDivElement>;
   scrollRef?: React.RefObject<HTMLDivElement | null>;
 }) {
-  const animClass = exiting ? 'slide-down-out' : slideUp ? 'slide-up-in' : '';
+  const enterClass = slideRight ? 'slide-in-right' : slideUp ? 'slide-up-in' : '';
+  const exitClass  = exitRight  ? 'slide-out-right' : 'slide-down-out';
+  const animClass  = exiting ? exitClass : enterClass;
   return (
     <div className={`fixed inset-0 ${slideUp ? 'z-[200]' : ''} flex justify-center overflow-hidden bg-surface-sunken sm:items-center sm:py-[max(1.5rem,2dvh)] ${animClass}`}
       style={{ touchAction: 'manipulation' }}>

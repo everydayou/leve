@@ -107,8 +107,8 @@ export function GoalScreen() {
           <path d="M60 0C93.1371 0 120 26.8629 120 60C120 93.1371 93.1371 120 60 120C26.8629 120 0 93.1371 0 60C0 26.8629 26.8629 0 60 0ZM60 28C42.3269 28 28 42.3269 28 60C28 77.6731 42.3269 92 60 92C77.6731 92 92 77.6731 92 60C92 42.3269 77.6731 28 60 28ZM60 48C66.6274 48 72 53.3726 72 60C72 66.6274 66.6274 72 60 72C53.3726 72 48 66.6274 48 60C48 53.3726 53.3726 48 60 48Z" fill="var(--color-accent)"/>
         </svg>
         <div>
-          <p className="text-title font-semibold text-content">No goal yet.</p>
-          <p className="mt-1 w-[240px] max-w-full text-callout text-content">Set one anytime — takes under a minute.</p>
+          <p className="text-title font-semibold text-content">No goal set</p>
+          <p className="mt-1 w-[240px] max-w-full text-callout text-content">Set one anytime, takes under a minute.</p>
         </div>
         <div className="w-full max-w-[16rem]">
           <Button onClick={() => nav('/goal-fork')}>Set a goal</Button>

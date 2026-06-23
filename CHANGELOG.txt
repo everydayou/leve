@@ -7,6 +7,110 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 101 — FIRST-OPEN / ONBOARDING FLOW (2026-06-23)
+================================================================
+Files: src/ui/screens/FirstOpenFork.tsx (NEW),
+       src/ui/screens/OnboardingScreen.tsx,
+       src/ui/screens/GoalSetupScreen.tsx (full rewrite),
+       src/ui/kit/FilterPills.tsx,
+       src/ui/kit/SegmentedControl.tsx,
+       src/ui/screens/TodayScreen.tsx,
+       src/ui/screens/AccountScreen.tsx,
+       src/ui/screens/GoalScreen.tsx,
+       src/domain/types.ts, src/domain/goal.ts, src/lib/date.ts,
+       src/App.tsx
+Commits: b284d04, ad81025
+
+DOMAIN ADDITIONS
+- src/domain/types.ts: Goal interface gets `setupMode?: 'simple' | 'custom'`.
+- src/lib/date.ts: addMonths(iso, n), fmtDerivedDate(iso), fmtMonthYear(iso).
+- src/domain/goal.ts: LOSE_PACES (relaxed/steady/ambitious, kgPerWeek),
+  GAIN_PACES (lean/steady/bulk, surplusFloor/surplusCeiling/kgPerMonth),
+  LosePaceId / GainPaceId types, dateFromLosePace(), dateFromGainPace().
+
+RECONCILIATION — spec (FIRST-OPEN-FLOW-CONCEPT.md) vs code (5 items resolved):
+1. 'kcal consumed' → 'kcal logged' in TodayScreen diary summary.
+2. 'kcal under' — reference note only; no code change.
+3. No field reset on back-arrow in GoalSetupScreen — kept as-is.
+4. Inline unit toggle → added as its own "Unit" section with FilterPills.
+5. GoalScreen copy: 'No goal set' / 'Set one anytime, takes under a minute.'
+
+FIRST-OPEN FORK SCREEN (src/ui/screens/FirstOpenFork.tsx, NEW)
+- FirstOpenForkScreen: 3 cards (Lose weight / Build muscle / Explore for now).
+  No logo. GoalIcon (SVG with accent circle + directional arrow) for each card.
+  Explore path: markOnboardingSeen() → nav('/today', replace).
+  Lose/Build: nav('/goal-setup?type=X&first-open=true').
+- GoalForkScreen: 2-card variant (Lose/Build, no Explore) for returning users.
+  Routed at /goal-fork; nav('/goal-setup?type=X').
+- src/ui/screens/OnboardingScreen.tsx: re-exports FirstOpenForkScreen.
+- src/App.tsx: /goal-fork route → GoalForkScreen.
+
+GOAL SETUP SCREEN — architecture
+- Data loader: activeGoal={forceNew || isFirstOpen ? null : data.goal} — 
+  prevents existing goal making first-open flow show "Edit plan".
+- Step type: 'choose' | 'details' (no separate 'tracking' step; tracking
+  collapsed into Section 3 of Custom mode).
+- FullScreen: accepts slideRight/exitRight props alongside slideUp/exiting.
+  Enter animation: fromFork → slide-in-right; modal → slide-up-in; else none.
+  Exit animation: fromFork → slide-out-right; modal/back → slide-down-out.
+- Internal choose→details step: stepAnim state ('slide-in-right' / 'slide-out-right').
+- fromFork = !!typeParam && !editing. isFirstOpen = searchParams.get('first-open') === 'true'.
+- Removed auto-focus useEffect (was triggering :focus ring on back button).
+
+GOAL SETUP SCREEN — sticky header
+- Sticky header contains BOTH the nav row (back/close + title + spacer) AND
+  the SegmentedControl row (Simple / Custom), so the toggle pins on scroll.
+- Title = GOAL_TYPE_LABEL[type] ('Lose weight' / 'Build muscle') for both
+  new and edit flows — replaces "Your plan" / "Edit plan".
+
+GOAL SETUP SCREEN — Simple mode
+- Weight section: SectionLabel at text-title font-bold (no unit toggle in header).
+- Unit section: standalone section below weight pickers with FilterPills (Kg/Lbs).
+- Pace section: SectionLabel at text-title font-bold + calendar icon.
+  FilterPills with LOSE_PACES or GAIN_PACES. Derived date text below.
+- All 3 section labels use new SectionLabel helper (text-title font-bold + optional icon).
+- "Set my goal" creates goal + writes pace-derived targetDate + saves units.
+- Scroll-to-first-error on validation failure (querySelector('.text-danger').scrollIntoView).
+
+GOAL SETUP SCREEN — Custom mode (3 sections, all on one page)
+- Section 1 "1. Your goal":
+  · Grouped card (rounded-main, border-border-field): Goal name → Weight pickers
+    → Unit (FilterPills Kg/Lbs) → Dates. All inner titles use CardSectionHeader
+    (text-headline font-semibold + optional icon, leading-none for alignment).
+  · "Review your goal" below card: big kg display, ±100 slider, PaceMeter.
+- Section 2 "2. Details about you":
+  · Title text-title font-bold, mb-1 gap to description (4px).
+  · Height/Age selects: no border (bg-surface-sunken only, consistent with Sex FilterPills).
+  · Labels: text-subhead font-normal text-content-secondary (WheelPicker label style).
+- Section 3 "3. Tracking":
+  · Title text-title font-bold, mb-1 gap to description.
+  · MacroStyle cards + Macro targets inline.
+- Section dividers: <hr className="border-border-field mt-12 mb-12" /> between sections.
+- MacroRow labels: text-subhead font-normal text-content-secondary (was font-semibold text-content).
+  Edit/Reset buttons: text-accent-hover.
+- Scroll-to-first-error on "Set my goal".
+
+KIT CHANGES
+- FilterPills.tsx: active pill text → text-accent-hover (was text-content).
+- SegmentedControl.tsx: active text → text-accent-hover; inactive text → text-content
+  (was text-content-secondary).
+
+SMALL SCREEN CHANGES
+- TodayScreen: 'kcal consumed' → 'kcal logged'; weightCadence default 'daily' → 'weekly';
+  "Your plan" button → nav('/goal-fork').
+- AccountScreen: weightCadence default 'daily' → 'weekly'.
+- GoalScreen: empty state copy 'No goal set' / 'Set one anytime, takes under a minute.'
+  (comma); CTA nav('/goal-setup') → nav('/goal-fork').
+
+DEFERRED
+- §9 Activity teaching moment: not yet built. OnboardingDailyAllowance.tsx component
+  exists and is ready; content for gain/explore paths not finalised.
+- GoalForkScreen not yet visually reviewed by user.
+
+tsc: clean. lint: clean (ad81025).
+
+
+================================================================
 ROUNDS 91–100 — PAST GOALS REDESIGN + BREAKDOWNSHEET COMPLETE POLISH (2026-06-22)
 ================================================================
 Files: src/ui/screens/GoalScreen.tsx, src/ui/screens/PastGoalsScreen.tsx,

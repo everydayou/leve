@@ -2,8 +2,8 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-24 — Round 104 (Simple mode pickers → outlined; scan FAB gate behind SCAN_ENABLED)
-Full change history: see CHANGELOG.txt (rounds 1–90).
+Last updated: 2026-06-24 — Round 104 (onboarding/goal setup polish r102–r104; scan FAB gated; .env.local recovered)
+Full change history: see CHANGELOG.txt (rounds 1–104).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -20,14 +20,11 @@ HOW TO READ THIS DOC:
 - THREE PREVIEW SURFACES, each with its OWN separate data store:
   (1) iPhone native app (Capacitor) — Marco's REAL daily-use data; IndexedDB
       in the app container; persists across rebuilds/re-signing.
-  (2) Browser dev server (`npm run dev` -> localhost) — the real app with
+  (2) Browser dev server (`npm run dev` -> localhost) — real app with
       hot-reload; IndexedDB local to that browser; SEPARATE from the phone.
-      This is the day-to-day development/preview surface.
-  (3) Double-click demo HTML (file://) — in-memory, RESETS on refresh;
-      a throwaway playground only. Not for real data.
+  (3) Double-click demo HTML (file://) — in-memory, resets on refresh.
   Data does NOT sync between surfaces.
-- V1 FEATURE STATUS: feature-complete and running on phone. 62 rounds done.
-- "Build muscle" (gain_by_date) goal type added in r61, bug-fixed in r62.
+- V1 FEATURE STATUS: feature-complete and running on phone.
 - VERIFY-ON-MAC REMINDER: after Cowork changes, run on Mac:
   `npm install` → `npm test` → `npm run build` → `npm run ios:sync`.
 
@@ -35,46 +32,26 @@ HOW TO READ THIS DOC:
 0B. DESIGN-SYSTEM CONTRACT — FIXED RULES (read BEFORE editing any UI)
 ----------------------------------------------------------------
 Non-negotiable standing rules. Any chat touching src/ui MUST follow them.
-One token edit retuning the whole app's look is the goal. (Origin: r11 audit.)
 
-1. COMPONENTS FIRST. Build UI from the kit atoms in src/ui/kit (import from
-   '../kit'): Button/IconButton, Sheet, LabeledInput, NumberField, Card/Surface,
-   StatTile, ProgressBar/GaugeArc, Badge, SegmentedControl, FilterPills, Icon,
-   etc. NEVER hand-roll a button/input/sheet/stat/etc. inline when a kit atom
-   exists. Need new shared UI? ADD an atom to the kit — don't inline it in a
-   screen.
-2. TOKENS ONLY. Colour, radius, shadow and type come from the semantic token
-   layer in src/index.css. NEVER use raw Tailwind default text sizes
-   (text-xs/sm/base/lg/xl/2xl/3xl) — use the --text-* scale (text-caption /
-   footnote / subhead / body / callout / headline / title / display / hero).
-   NEVER hardcode hex/rgb — use colour tokens (bg-surface, text-content,
-   text-content-secondary, border-border-subtle/field/strong, accent / success /
-   warn / danger and their -soft / on- variants, bg-scrim).
-3. ICONS, NOT GLYPHS. Use the <Icon> component for all affordances (chevrons,
-   close, etc.). Never type a literal ›, ‹ or × — they don't inherit stroke
-   weight/size and render differently per platform.
-4. ONE SOURCE OF TRUTH. Change the look by editing a token (src/index.css) or
-   the atom — never by styling a screen directly. If a tweak needs per-screen
-   CSS, it probably belongs in the atom/token.
-5. ENFORCEMENT. eslint.config.js BLOCKS raw text sizes and hex/rgb in
-   src/ui/** (styleguide exempt). Run `npm run lint` before shipping. Do NOT
-   disable the guardrail — fix the code. Extend the guardrail rather than weaken it.
-6. ACCESSIBILITY FIRST. Every new screen, component, and interaction MUST be
-   built with accessibility in mind from the start.
-   - FOCUS: never suppress outlines on keyboard-navigable elements.
-   - ARIA: every interactive region, dialog, tab set, and live data update
-     needs appropriate ARIA roles.
-   - MOTION: new JS-driven animations must check prefersReducedMotion().
-   - CONTRAST: body text and informational icons must meet WCAG AA minimums.
-   - TOUCH TARGETS: interactive elements must have a minimum 44×44pt hit area.
-   - FORMS: every <input> must have an associated <label> via htmlFor/id.
+1. COMPONENTS FIRST. Build UI from kit atoms in src/ui/kit: Button/IconButton,
+   Sheet, LabeledInput, NumberField, Card/Surface, StatTile, ProgressBar/
+   GaugeArc, Badge, SegmentedControl, FilterPills, Icon, etc. NEVER hand-roll
+   a button/input/sheet/stat inline when a kit atom exists.
+2. TOKENS ONLY. Colour, radius, shadow and type from src/index.css semantic
+   tokens. NEVER raw Tailwind text sizes (text-xs/sm/base/lg/xl) — use
+   text-caption/footnote/subhead/body/callout/headline/title/display/hero.
+   NEVER hardcode hex/rgb — use colour tokens.
+3. ICONS, NOT GLYPHS. Use <Icon> for all affordances. Never type ›, ‹ or ×.
+4. ONE SOURCE OF TRUTH. Change look via token or atom, never per-screen CSS.
+5. ENFORCEMENT. eslint.config.js BLOCKS raw text sizes and hex/rgb in src/ui.
+   Run `npm run lint` before shipping. Do NOT disable guardrails.
+6. ACCESSIBILITY FIRST. Focus outlines, ARIA roles, prefersReducedMotion(),
+   WCAG AA contrast, 44×44pt touch targets, labeled form inputs.
 
-Text scale: text-caption(12) / text-footnote(13) / text-subhead(15) /
-text-callout(16) / text-headline(18) / text-title(22) / text-display(30) /
-text-hero(48). NOTE: text-headline updated 17→18px in round 55.
-
-WHERE THINGS LIVE: tokens = src/index.css (@theme); atoms = src/ui/kit/
-(barrel: src/ui/kit/index.ts); live reference = /styleguide route.
+Text scale: caption(12) / footnote(13) / subhead(15) / callout(16) /
+headline(18) / title(22) / display(30) / hero(48).
+WHERE THINGS LIVE: tokens = src/index.css (@theme); atoms = src/ui/kit/;
+live reference = /styleguide route.
 
 ----------------------------------------------------------------
 1. WHAT WE'RE BUILDING
@@ -82,140 +59,82 @@ WHERE THINGS LIVE: tokens = src/index.css (@theme); atoms = src/ui/kit/
 A personal nutrition + weight-management app for Marco's own use.
 NOT a calorie tracker. Core idea: GOAL MANAGEMENT — tracking exists only
 to answer "Am I on track to hit my goal?"
-
 Mental model: Goal → Weekly progress → Daily progress → Food/Activity inputs.
 
 ----------------------------------------------------------------
-2. PLATFORM DECISION
+2. PLATFORM & STACK
 ----------------------------------------------------------------
-Stack: React + Capacitor (web code + native iOS shell). NOT native Swift.
-Withings weight data CAN be pulled via Withings cloud API (OAuth) — V1.5+.
+React + Capacitor (web code + native iOS shell). NOT native Swift.
+Stack: Vite 6, React 19, TypeScript, Tailwind CSS v4, Dexie (IndexedDB),
+Vitest. Capacitor v8. appId: com.marco.nutritiongoal, webDir: dist.
 Install path: Xcode + free Apple ID ($0). Re-sign every ~7 days.
 
 ----------------------------------------------------------------
 3. AGREED V1 SCOPE
 ----------------------------------------------------------------
-One job: run ONE active goal (lose or gain) and know if I'm on track.
-
-- Goal types: "Lose X kg by date" (lose_by_date) and "Build muscle" (gain_by_date).
-  Data model supports other types later.
-- TODAY screen: frequent foods, Add-entry sheet, calories + protein, deficit,
-  swipeable day nav. Tap item to edit/delete.
-- GOAL screen: weight trend vs. target line, 9 lifecycle states (see 4B).
-- PANTRY: create/edit food items (name, calories, protein, macros, photo).
-- Manual meal entry with "save to pantry" path (in Add-entry sheet).
-- Manual activity calories.
-- WEIGHT: 3 entry points — Add-entry sheet Weight tab, Goal screen, Today
-  screen evening reminder (after 8pm, dismissible).
+- Goal types: lose_by_date and gain_by_date.
+- TODAY: frequent foods, Add-entry sheet, calories + protein, deficit,
+  swipeable day nav.
+- GOAL: weight trend vs. target line, 9 lifecycle states.
+- PANTRY: create/edit food items.
+- Manual meal entry, manual activity calories, weight logging.
 - BMR: single user-entered number in V1.
-- Account: weight history log, profile, BMR, export (JSON).
-
-DEFER (V1.5+): BMR auto-calibration, AI meal estimation,
-History tab, HealthKit/Withings, per-piece measurement types.
+- Account: weight history, profile, BMR, export (JSON).
+DEFER (V1.5+): BMR auto-calibration, HealthKit/Withings, History tab,
+per-piece measurement types.
 
 ----------------------------------------------------------------
 4. NAVIGATION / IA
 ----------------------------------------------------------------
-- Bottom tab bar: Today / Goal / Pantry / Account. KEEP PANTRY as main tab.
+- Bottom tab bar: Today / Goal / Pantry / Account.
 - Center "+" FAB speed dial: Scan / Food / Activity / Weight.
+  Scan item only shown when VITE_FOOD_SCAN_API_URL is set (SCAN_ENABLED gate).
 - Add-entry = bottom sheet (never full-screen nav).
-- Goal Setup = full-screen flow. ?skip-type=true skips plan-type step and
-  opens with X button + slide-up animation (used by "Extend goal date").
+- Goal Setup = full-screen flow. ?skip-type=true skips plan-type step.
 - Day nav on Today: chevrons + swipe. Future dates disabled.
 
 ----------------------------------------------------------------
 4B. V1 DATA MODEL
 ----------------------------------------------------------------
 Goal status: active / completed / abandoned.
-
-GoalScreen renders 9 states (all implemented as of r55):
-  (1) no-goal: empty state, centered 120×120 mint SVG, "Set a goal" CTA
-  (2) active-normal: tiles + chart, ⋯ settings sheet
-  (3) final-day · no weight: mint banner + "Log weight" CTA + "🎯 Today" tile
-  (4) final-day · weight in (not hit): no banner, weight left, "Complete goal"
-  (5) final-day · goal hit: "🎯" weight tile, "Complete goal" CTA
-  (6) early-complete: "🎯" weight tile, "Complete goal" CTA (before deadline)
-  (7) overdue: "+N d / Overdue" tile, "End goal" + "Extend goal date" CTAs
-  (8) completed: GoalOutcomeView celebration overlay (portal, slides up)
-  (9) abandoned/ended: GoalOutcomeView overlay ("Goal ended")
-
-GoalSettingsSheet (⋯ button): Mark as complete / Edit plan / End goal /
-  Previous goals history list. Each destructive action opens its own
-  confirmation Sheet (Sheet-on-Sheet). Plan summary card removed in r55.
-
-GoalOutcomeView (states 8+9):
-- createPortal → document.body. Covers tab bar (z-[200]) on WKWebView.
-- Slide-up on mount, slide-down on dismiss. X → /goal (no-goal empty state).
-- "Start next goal" → /goal-setup?new=true.
-- Stats: Weight lost / Final weight / Total days (2-line labels).
-
-Key derived flags:
-  isEarlyComplete = !isOverdue && remaining === 0
-  hasTodayWeight  = weights.some(w => w.date === today)
-  Complete CTA:   (isEarlyComplete || (isFinalDay && hasTodayWeight)) && !isOverdue
-
-FoodItem, FoodEntry, ActivityEntry, WeightEntry — unchanged (see r44 notes).
-
-User model additions (r71): weightCadence?: 'daily'|'weekly'; weeklyWeightDay?: number (0=Mon…6=Sun).
-  (visibleMacros was designed in r68 but intentionally dropped in r70 — macroStyle on Goal drives bar visibility instead.)
+GoalScreen renders 9 states (all implemented r55):
+  (1) no-goal  (2) active-normal  (3) final-day·no-weight
+  (4) final-day·weight-in(not hit)  (5) final-day·goal-hit
+  (6) early-complete  (7) overdue  (8) completed  (9) abandoned/ended
+GoalOutcomeView: createPortal → document.body. Slide-up on mount.
+GoalSettingsSheet (⋯): Mark complete / Edit plan / End goal / Past goals.
+User model: weightCadence ('daily'|'weekly'), weeklyWeightDay.
 
 ----------------------------------------------------------------
-5. METRICS / MATH MODEL
+5. METRICS / MATH
 ----------------------------------------------------------------
-- Total Burn = BMR + Active Calories.
-- Daily Deficit = Total Burn - Calories Consumed.
-- ~7700 kcal per kg used to derive goal pace.
-- BMR auto-calibration: parked (V1.5+).
+Total Burn = BMR + Active Calories.
+Daily Deficit = Total Burn − Calories Consumed.
+~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 101, 2026-06-23)
+7. CURRENT STATUS (as of round 104, 2026-06-24)
 ----------------------------------------------------------------
-- App name: "leve"; brand loading screen; native splash white flash eliminated. DONE.
-- "Build muscle" (gain_by_date) goal type: fully wired r61, bug-fixed r62.
-- All 9 goal lifecycle states implemented (r55). GoalOutcomeView portal overlay. DONE.
-- Tracking step Simple/Detailed modes (r65). Gain gauge + GainMacroBars (r66). DONE.
-- Rounds 67–84: slider polish, gain zone UI, WeekChart dual ramps, macro bars polish,
-  per-type goal setup memory, goal history, GoalOutcomeView dismiss, kg/lbs, weekly
-  weight cadence, diary macro toggles, deficit session-touch, PastGoalsPortal,
-  WheelPicker drum-roll, gauge arc budget scaling, activity multi-entry log, merged
-  log, past-day gauge, macro detail sheet, carb targets for all macro styles. All shipped.
-- Rounds 85–90 (2026-06-19) — BreakdownSheet + gain gauge overhaul. All shipped.
-- Rounds 91–100 (2026-06-22) — Past Goals redesign + BreakdownSheet complete polish. All shipped.
-- Round 101 (2026-06-23) — First-open / onboarding flow:
-  · FirstOpenForkScreen (3 cards: Lose/Build/Explore) replaces old OnboardingScreen.
-    GoalForkScreen (2-card: Lose/Build) at /goal-fork for returning users.
-  · GoalSetupScreen full rewrite: Simple mode (Weight + Unit + Pace, all on one page,
-    FilterPills pace, pace-derived targetDate) and Custom mode (3 sections on one page:
-    "Your goal" grouped card + Review, "Details about you", "Tracking").
-  · Sticky header pins SegmentedControl (Simple/Custom) on scroll.
-  · Title = goal type name ("Lose weight" / "Build muscle"), not "Your plan"/"Edit plan".
-  · Unit as own section with FilterPills (Kg/Lbs) in both modes.
-  · Horizontal slide-in-right animation for fork→setup nav; slide-out-right on back.
-  · Domain: LOSE_PACES, GAIN_PACES, dateFromLosePace, dateFromGainPace, Goal.setupMode.
-  · Kit: FilterPills active → text-accent-hover; SegmentedControl active → text-accent-hover,
-    inactive → text-content.
-  · MacroRow labels → font-normal text-content-secondary everywhere.
-  · Scroll-to-first-error on "Set my goal" in both modes.
-  · GoalScreen: "No goal set" / "Set one anytime, takes under a minute." → /goal-fork.
-  · TodayScreen: 'kcal logged'; weightCadence default 'weekly'; → /goal-fork.
-- Code quality: tsc strict clean, lint clean (r101).
-- Rounds 102–104 (2026-06-24) — Onboarding/goal setup polish + scan FAB fix:
-  · r102: WheelPicker split-decimal empty+centerAt → two split pickers with "—" placeholder.
-    Simple mode card (border-border-field, radius 24, unit first). Custom mode unit moved
-    before weight pickers. Details about you: border-field + radius 16px. pt-6 below header.
-    FirstOpenFork: explore icon → magnifier SVG; copy dash fix. DevMenu: abandon goals on reset.
-  · r103: Unit inside Weight section (first sub-field, both modes). Simple card vertical
-    breathing room (pt-6/pt-4). Details radius 16→24px.
-  · r104: Simple mode pickers back to outlined (removed selectClassName sunken overrides).
-    FloatingTabBar: scan ACTION_ITEM gated behind SCAN_ENABLED constant.
-- Code quality: tsc strict clean, build clean (r104).
+All V1 features shipped and running on device. Recent work:
+- Rounds 85–100: BreakdownSheet redesign, gain gauge overhaul, Past Goals
+  portal redesign, chart capping, info panels. All shipped.
+- Round 101 (2026-06-23): First-open fork screen, GoalSetupScreen full
+  rewrite (Simple + Custom modes), sticky header, animations, domain additions.
+- Rounds 102–104 (2026-06-24): Onboarding/goal-setup UI polish complete:
+  · WheelPicker split-decimal empty+centerAt → two split pickers with "—".
+  · Simple mode card (border-field, radius 24); unit as first sub-field in
+    Weight section for both modes; Simple pickers → outlined (no sunken override).
+  · Details about you: border-field + radius 24px.
+  · Explore icon → magnifier SVG; DevMenu reset now abandons goals.
+  · FloatingTabBar: scan FAB gated behind SCAN_ENABLED.
+- .env.local: recovered after accidental deletion. Contains
+  VITE_FOOD_SCAN_API_URL=https://food-scan-api-delta.vercel.app.
+  This file is gitignored — must be recreated manually if lost.
+- tsc: clean. build: clean (r104).
 
 ----------------------------------------------------------------
-8. TECH / ARCHITECTURE
+8. ARCHITECTURE NOTES
 ----------------------------------------------------------------
-Stack: Vite 6 + React 19 + TypeScript, Tailwind CSS v4, Dexie (IndexedDB),
-Vitest. Capacitor v8. appId: com.marco.nutritiongoal, webDir: dist.
-
 Layer model (strict dependency direction):
   src/domain/   Pure TS — types.ts, calc.ts, goal.ts, bmr.ts.
   src/data/     Dexie + memory repos. repositories.ts = interfaces.
@@ -223,198 +142,71 @@ Layer model (strict dependency direction):
   src/ui/       AppShell + screens + components + kit/.
   src/index.css Design token layer (Tailwind v4 @theme).
 
-KEY PATTERNS (r55):
+KEY PATTERNS:
 - createPortal: GoalOutcomeView renders into document.body to escape
-  AppShell's overflow-hidden / z-index constraints on WKWebView.
-- slide-up/down: .slide-up-in / .slide-down-out in index.css. Exit pattern:
-  setExiting(true) → setTimeout(cb, 320) → navigate.
-- Sheet-on-Sheet: destructive confirms render a second Sheet alongside the
-  parent Sheet in a Fragment (both conditionally mounted).
-- openAddEntry: GoalScreen uses useOutletContext<DayContext>() to call
-  openAddEntry('weight', {hideTabs:true}) from the final-day banner.
+  AppShell overflow-hidden / z-index on WKWebView.
+- slide-up/down: .slide-up-in / .slide-down-out in index.css.
+  Exit: setExiting(true) → setTimeout(cb, 320) → navigate.
+- Sheet-on-Sheet: destructive confirms render a second Sheet alongside
+  the parent in a Fragment (both conditionally mounted).
+- SCAN_ENABLED = !!(import.meta.env.VITE_FOOD_SCAN_API_URL) — used in
+  AddEntrySheet.tsx header icon and FloatingTabBar.tsx FAB action list.
 
-ENV NOTE: Cowork Linux sandbox can't run rollup native binary. After changes,
-on the Mac: `rm -rf node_modules package-lock.json && npm install`
-→ `npm test` → `npm run build` → `npm run ios:sync`.
+ENV NOTE: Cowork Linux sandbox can't run rollup native binary. After
+changes, on the Mac: `npm install` → `npm test` → `npm run build` →
+`npm run ios:sync`.
 
 ----------------------------------------------------------------
-KNOWN GAPS (current as of round 101)
+KNOWN GAPS
 ----------------------------------------------------------------
 MED:
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
-  entries. (Goal actions DO confirm via Sheet; entry deletes are immediate.
-  Activity delete has undo toast via showToast.)
-- KEYBOARD/VIEW CONFLICT (residual): body background partially visible as a
-  thin dark strip in some keyboard+sheet combinations on WKWebView. Main
-  impact (CTA floating mid-form) fixed in r63. Full fix if still needed:
+  entries. (Goal actions confirm via Sheet; entry deletes are immediate.)
+- KEYBOARD/VIEW CONFLICT (residual): thin dark strip in some keyboard+sheet
+  combos on WKWebView. Main CTA mid-form issue fixed r63; full fix if needed:
   @capacitor/keyboard with KeyboardResize.None.
-- ACCOUNT IA: MacroDiaryCard added (r74); overall layout still growing — a
-  grouping/IA pass is worthwhile when more prefs land.
-- GoalScreen WeekChart height compensation (H=153) is approximate.
-- HAPTIC FEEDBACK: wired (r22); device enablement needs one Mac step
-  (npm install @capacitor/haptics → npx pod-install ios → ios:sync).
+- ACCOUNT IA: layout still growing — grouping pass worthwhile when more
+  prefs land.
+- .env.local is gitignored and must be recreated manually if the project
+  folder is deleted. Contains VITE_FOOD_SCAN_API_URL (Vercel scan API URL).
 
 LOW:
 - GoalOutcomeView: no haptic on appearance.
-- App.tsx still contains /past-goals and /past-goals/:id routes (now unused
-  stubs since PastGoalsPortal is portal-based). Safe to remove eventually.
-- BreakdownSheet: "Available" label and number shown even when no food has
-  been logged yet (availableNum = gainCeil or left from zero base). Acceptable
-  but could show an empty/placeholder state instead.
-
-WITHINGS: mock scaffold only. Real data needs backend proxy + credentials.
-
-LOW (new in r101):
-- ACTIVITY TEACHING MOMENT (§9 from first-open spec): not yet built. The
-  OnboardingDailyAllowance.tsx component is ready; copy for gain/explore paths
-  not finalised. Deferred.
-- GoalForkScreen (/goal-fork): built but not yet visually reviewed on device.
-
-ALREADY DONE IN r102 (do NOT re-flag): WheelPicker split-decimal fix, Simple
-mode card, Custom mode Unit ordering, content area pt-6, Details about you
-border-field+16px radius, Explore icon+copy, DevMenu reset+replay goal cleanup.
+- App.tsx still has /past-goals and /past-goals/:id stub routes (now unused;
+  PastGoalsPortal is portal-based). Safe to remove eventually.
+- ACTIVITY TEACHING MOMENT (§9 first-open spec): deferred. Component ready;
+  copy for gain/explore paths not finalised.
+- GoalForkScreen (/goal-fork): built but not device-reviewed.
 
 DEFERRED V1.5+: JSON import, HealthKit, BMR auto-calibration, full tablet
 layouts, per-piece measurement types, time-of-day food suggestions.
 
-ALREADY DONE (do NOT re-flag): r91–100 all items (PastGoalsPortal slide-in both entry points, PastGoalDetail summary card, GoalRepo.remove, chart capping at targetDate for plan/ramp/dots/Y-axis/stub-opacity, trash + delete confirm, BreakdownSheet merged one-container layout, status card nested with shadow-card-lg + border overlay via -mx-px -mb-px, info icons with animated slide-in panels for all 6 rows, activeInfo state, touch-area buttons, spacing per spec 16/12/12/12/12/16/16/8, Note: disclaimers, "Over by"→"Over", scroll reset on panel transitions). r85–90 all items (BreakdownSheet redesign — unified signs, two-box layout, Available label, Goal (surplus/deficit) row, shadow-card-lg, border-border-field, overflow clip fix, past-day gauge arc fix, no goal-period dimming, gainDisplayNum rounding). r80–r84 all items (gain goal zone UI restore, gainZone 3-state badge + arc colors, food/activity sign convention, week strip + WeekChart dual ramps + 3-state badge, macro tracking defaults per macroStyle, Badge className passthrough, GoalScreen WeekChart badge text-[15px], badge · separator double-space, MacroCol 13px, macro detail sheet tap-to-expand, carb limit fallback for old lower_carb goals, BreakdownSheet BMR/digestion − for gain, effectiveCarbLimit for all macro styles). r79 all items (activity multi-entry log,
-EditActivitySheet Save fix, WheelPicker centerAt + split-wheel empty state,
-GoalOutcome CTA loop fix, diary past-goal badge + disabled day states, Build
-Muscle ±100 surplus range, merged food+activity log, past-day gauge disabled,
-weight sheet small). r75–r78 all items (GoalSetupScreen dividers/shadow,
-scroll-nav shadow, outcome white-bg, tracking scroll reset, weight chart Y-axis,
-splash warmup, gauge arc budget scaling, pantry/sheet/input polish, WheelPicker
-native drum-roll for all pickers). r74 all items (diary macro toggles, deficit
-session-touch, PastGoalsPortal, chartUtils.ts, diary macro inline layout, loading
-animation). r73 all items (edit plan z-index, graph empty states, reset button
-strict-<, tracking step CTA/skip/save styling). r72 all items (past goals always
-in ⋯ menu, lifecycle polish). r71 all items. r70 all items. kg/lbs unit conversion
-fully wired (r71). weightCadence/weeklyWeightDay (r71). GoalOutcomeView dismissedOutcome
-state + onDismiss prop (r69), goalAchieved flag replaces isCompleted in outcome title
-(r69), complete goal sheet confirm UX swap Cancel→primary (r69), slider touchAction
-pan-x deficit+MacroRow (r69), inline Reset on deficit pill (r69), git init + GitHub
-push everydayou/leve (r69), LoseMacroBars carbs/fat for lose goals (r68), slider
-thumb scale(2)+shadow+centering (r68), per-type goal-setup state memory (r68), goal
-history in GoalSettingsSheet (r68), macro visibility toggles Account+TodayScreen (r68),
-weekly weight cadence+day picker (r68), gain zone UI+WeekChart dual ramps+zone
-colors+3-state badge (r67), slider thumb pill+touch area (r67), macro checkmark mint
-(r67), lower-carb alerts fixed (r67), GaugeArc strokePositive/strokeNegative (r67),
-Build muscle range gauge+GainMacroBars (r66), surplusFloor/surplusCeiling (r66),
-Tracking step Simple/Detailed/macroStyle (r65), carousel diagonal swipe (r64), CTA
-mid-form keyboard (r63), gain diary+week strip (r62), Sheet footer gradient+keyboard
-cover (r62), gain_by_date goal type (r61), themes (r56+r58), swipe day-nav, all 9
-goal lifecycle states, celebration screens, confirmation sheets, slide animations,
-portal overlay, AI food scan, speed dial FAB, onboarding carousel, GoalSetupScreen
-Figma redesign (r59), "leve" rebrand+loading screen (r60), and all earlier work
-through r62 (see CHANGELOG for full list).
-
 ----------------------------------------------------------------
-RECENT ROUNDS (for context on what was just touched)
+RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
 ROUND 104 — SIMPLE MODE OUTLINED PICKERS + SCAN FAB GATE (2026-06-24)
 Files: src/ui/screens/GoalSetupScreen.tsx, src/ui/kit/FloatingTabBar.tsx
-- Simple mode WheelPickers (Current + Target): removed selectClassName sunken overrides →
-  now render as outlined fields (bg-surface border-border-field). Custom mode retains filled.
-- FloatingTabBar: SCAN_ENABLED constant added; "Scan meal" ACTION_ITEM conditional on it.
-  Prevents "Food scan not configured" error when VITE_FOOD_SCAN_API_URL is unset.
-- tsc: clean. build: clean (r104).
+- Simple mode WheelPickers: removed sunken selectClassName → outlined fields.
+  Custom mode retains filled (inside white card).
+- FloatingTabBar: SCAN_ENABLED gates "Scan meal" ACTION_ITEM. Prevents
+  "Food scan not configured" error when VITE_FOOD_SCAN_API_URL is unset.
+- tsc: clean. build: clean.
 
 ROUND 103 — GOAL SETUP SPACING + DETAILS RADIUS (2026-06-24)
 Files: src/ui/screens/GoalSetupScreen.tsx
-- Unit inside Weight section as first sub-field (both Simple + Custom modes).
-- Simple card: Weight top px-4 pt-6 pb-3; Pace px-4 pt-4 pb-6.
+- Unit moved inside Weight section as first sub-field (both Simple + Custom).
+- Simple card: Weight pt-6 top, Pace pt-4 top.
 - "Details about you": borderRadius 16→24px.
-- tsc: clean. build: clean (r103).
+- tsc: clean. build: clean.
 
 ROUND 102 — ONBOARDING / GOAL SETUP UI POLISH (2026-06-24)
-Files: src/ui/kit/WheelPicker.tsx,
-       src/ui/screens/GoalSetupScreen.tsx,
-       src/ui/screens/FirstOpenFork.tsx,
-       src/ui/components/DevMenu.tsx
-
-- WheelPicker: split-decimal empty+centerAt now shows two split pickers
-  (each with "—" placeholder centred at the respective whole/decimal of centerAt)
-  instead of a unified long single picker. Fixes Target weight showing as one
-  long drum-roll in both Simple and Custom modes.
-- GoalSetupScreen Simple mode: all fields wrapped in a grouped card identical to
-  Custom's "Your goal" card (border-border-field, borderRadius 24). Inside:
-  Unit (first, text-subhead font-normal text-content-secondary label) ->
-  Weight (CardSectionHeader + split WheelPickers with sunken bg) ->
-  Pace (CardSectionHeader + FilterPills).
-- GoalSetupScreen Custom mode: Unit FilterPills moved before Weight pickers
-  (was after). Unit label now text-subhead font-normal text-content-secondary.
-- GoalSetupScreen details step content area: pt-6 added below sticky header.
-- GoalSetupScreen "Details about you": border-border-field + borderRadius 16px.
-- FirstOpenForkScreen: "Not sure yet, just exploring" copy (removed em dash).
-  Explore card icon replaced with ExploreIcon (search/magnifier SVG, currentColor).
-- DevMenu: "Reset + replay onboarding" now also abandons all goals before reload,
-  fixing the Explore path appearing to "create" a goal on replayed onboarding.
-- tsc: clean. lint: clean (r102).
-
-ROUND 101 — FIRST-OPEN / ONBOARDING FLOW (2026-06-23)
-Files: src/ui/screens/FirstOpenFork.tsx (NEW),
-       src/ui/screens/OnboardingScreen.tsx, src/ui/screens/GoalSetupScreen.tsx,
-       src/ui/kit/FilterPills.tsx, src/ui/kit/SegmentedControl.tsx,
-       src/ui/screens/TodayScreen.tsx, src/ui/screens/AccountScreen.tsx,
-       src/ui/screens/GoalScreen.tsx,
-       src/domain/types.ts, src/domain/goal.ts, src/lib/date.ts, src/App.tsx
-- Domain: Goal.setupMode ('simple'|'custom'); LOSE_PACES / GAIN_PACES constants;
-  dateFromLosePace / dateFromGainPace; addMonths / fmtDerivedDate / fmtMonthYear.
-- FirstOpenForkScreen (3 cards: Lose/Build/Explore) at /onboarding. Explore path
-  marks onboarding seen and goes straight to Today. GoalForkScreen (2-card) at
-  /goal-fork for returning users. GoalIcon SVG (body + accent circle + arrow).
-- GoalSetupScreen full rewrite:
-  · Simple mode: Weight + Unit (FilterPills Kg/Lbs) + Pace (FilterPills + calendar
-    icon) all on one page. Pace derives targetDate via LOSE/GAIN_PACES math.
-    All section labels SectionLabel at text-title font-bold.
-  · Custom mode: 3 sections on one page (no separate tracking step).
-    Section 1 "Your goal": grouped card (Goal name / Weight pickers / Unit FilterPills
-    / Dates) + "Review your goal" (big kg, slider, PaceMeter).
-    Section 2 "Details about you": height/age/sex, borderless selects, subhead labels.
-    Section 3 "Tracking": MacroStyle cards + Macro targets.
-    Section dividers: <hr className="border-border-field mt-12 mb-12" />.
-    Internal card titles: CardSectionHeader at text-headline font-semibold + leading-none.
-  · Sticky header: nav row + SegmentedControl (Simple/Custom) pinned on scroll.
-  · Title: GOAL_TYPE_LABEL[type] — "Lose weight" / "Build muscle" (not "Your/Edit plan").
-  · Horizontal slide animations: fromFork → slide-in-right enter / slide-out-right exit.
-    Internal step → stepAnim state on content div.
-  · No auto-focus useEffect (prevented green focus ring on back button).
-  · isFirstOpen=true → activeGoal=null (prevents "Edit plan" on fresh first-open).
-  · Scroll-to-first-error: setTimeout → querySelector('.text-danger').scrollIntoView.
-- Kit: FilterPills active → text-accent-hover. SegmentedControl active → text-accent-hover,
-  inactive → text-content.
-- MacroRow labels: font-normal text-content-secondary (was font-semibold text-content).
-- GoalScreen: "No goal set" / "Set one anytime, takes under a minute." → nav /goal-fork.
-- TodayScreen: 'kcal logged'; weightCadence default 'weekly'; CTA → /goal-fork.
-- AccountScreen: weightCadence default 'weekly'.
-- tsc: clean. lint: clean (ad81025).
-
-ROUNDS 91–100 — PAST GOALS REDESIGN + BREAKDOWNSHEET COMPLETE POLISH (2026-06-22)
-Files: src/ui/screens/GoalScreen.tsx, src/ui/screens/PastGoalsScreen.tsx,
-       src/ui/screens/TodayScreen.tsx, src/data/repositories.ts,
-       src/data/dexieRepositories.ts, src/data/memoryRepositories.ts,
-       src/index.css
-- r91: PastGoalsPortal slide-in replaces nested Sheet modals for past goals from
-  both no-goal and active-goal entry points. PastGoalDetail Section 1 = clean
-  summary card (goal name, target line, stat tiles, outcome badge). No SVG or title.
-- r92: No-goal ⋯ opens "Goal options" Sheet first, then PastGoalsPortal.
-  PastGoalChart matches GoalScreen card: rounded-main, shadow-card-lg, centered
-  SegmentedControl, rubber-band swipe. SlideHeader title absolutely centered.
-- r93: Chart capping at goal.targetDate. GoalRepo.remove() added to interface +
-  both implementations. Trash icon + delete confirmation Sheet in PastGoalDetail.
-- r94: Four remaining chart capping gaps: weight dots, connecting line, Y-axis
-  range, WeekChart stub opacity all respect chartToday.
-- r95–r100: BreakdownSheet complete redesign — merged container, status card
-  nested with -mx-px -mb-px border overlay, info icons + animated panels for all
-  6 rows, activeInfo state, touch-area buttons, Note: disclaimers, spacing per spec
-  (16/12/12/12/12/16/16/8px), outer shadow removed.
-- tsc: clean. lint: clean (r100).
-
-ROUNDS 85–90 — BREAKDOWNSHEET REDESIGN + GAIN GAUGE POLISH (2026-06-19)
-Files: src/ui/kit/Progress.tsx, src/ui/screens/TodayScreen.tsx
-- r85–r90: BreakdownSheet: unified sign convention (burns −, food +), two-box layout
-  (math box + status box), Available label, Goal row, shadow-card-lg, border-border-field
-  token fix (#e4e4e7 → #efeff0), overflow clip fix for shadow. Gain gauge: past-day
-  bidirectional arc, gainDisplayNum rounding, 3-state badge.
-- tsc: clean. lint: clean (r90).
+Files: src/ui/kit/WheelPicker.tsx, src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/screens/FirstOpenFork.tsx, src/ui/components/DevMenu.tsx
+- WheelPicker split-decimal empty+centerAt → two split pickers with "—".
+- Simple mode card (border-field, radius 24) wrapping Weight + Pace sections.
+- Custom mode Unit moved before weight pickers.
+- Content area pt-6 below sticky header. Details: border-field + radius 16px.
+- Explore icon → magnifier SVG; copy dash removed.
+- DevMenu reset now abandons all goals before reload.
+- tsc: clean. build: clean.

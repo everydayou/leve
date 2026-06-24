@@ -468,20 +468,21 @@ export function GoalSetupForm({
               <div className="space-y-6">
                 {/* Grouped card — mirrors Custom's "Your goal" card */}
                 <div className="overflow-hidden border border-border-field bg-surface" style={{ borderRadius: 24 }}>
-                  {/* Unit — first field */}
-                  <div className="px-4 pt-4 pb-3">
-                    <span className="block mb-2 text-subhead font-normal text-content-secondary">Unit</span>
-                    <FilterPills<Units>
-                      value={units}
-                      onChange={(u) => { if (u) void setUnitsVal(u); }}
-                      options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
-                    />
-                  </div>
-
-                  {/* Weight */}
+                  {/* Weight (Unit is first sub-field inside) */}
                   <div className="p-4 pb-3">
                     <CardSectionHeader icon="weight">Weight</CardSectionHeader>
                     <div className="space-y-3">
+                      {/* Unit — first sub-field */}
+                      <div>
+                        <span className="text-subhead font-normal text-content-secondary">Unit</span>
+                        <div className="mt-1">
+                          <FilterPills<Units>
+                            value={units}
+                            onChange={(u) => { if (u) void setUnitsVal(u); }}
+                            options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
+                          />
+                        </div>
+                      </div>
                       <div>
                         <WheelPicker label={`Current (${units})`} value={start}
                           onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
@@ -500,8 +501,8 @@ export function GoalSetupForm({
                     </div>
                   </div>
 
-                  {/* Pace */}
-                  <div className="px-4 pb-4">
+                  {/* Pace — pt-4 matches Custom sub-section gap */}
+                  <div className="p-4 pb-4">
                     <CardSectionHeader icon="calendar">Pace</CardSectionHeader>
                     {isGain ? (
                       <FilterPills<GainPaceId> value={gainPace}
@@ -539,20 +540,21 @@ export function GoalSetupForm({
                         className="!bg-surface-sunken !border-transparent focus:!border-transparent" />
                     </div>
 
-                    {/* Unit — first field in the card */}
-                    <div className="px-4 pt-4 pb-3">
-                      <span className="block mb-2 text-subhead font-normal text-content-secondary">Unit</span>
-                      <FilterPills<Units>
-                        value={units}
-                        onChange={(u) => { if (u) void setUnitsVal(u); }}
-                        options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
-                      />
-                    </div>
-
-                    {/* Weight */}
+                    {/* Weight (Unit is first sub-field inside) */}
                     <div className="p-4 pb-3">
                       <CardSectionHeader icon="weight">Weight</CardSectionHeader>
                       <div className="space-y-3">
+                        {/* Unit — first sub-field */}
+                        <div>
+                          <span className="text-subhead font-normal text-content-secondary">Unit</span>
+                          <div className="mt-1">
+                            <FilterPills<Units>
+                              value={units}
+                              onChange={(u) => { if (u) void setUnitsVal(u); }}
+                              options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
+                            />
+                          </div>
+                        </div>
                         <div>
                           <WheelPicker label={`Start (${units})`} value={start}
                             onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
@@ -660,7 +662,7 @@ export function GoalSetupForm({
                   <p className="mb-4 text-subhead text-content-secondary">
                     Helps estimate your BMR more accurately. Affects calorie and macro targets.
                   </p>
-                  <div className="border border-border-field bg-surface p-4" style={{ borderRadius: 16 }}>
+                  <div className="border border-border-field bg-surface p-4" style={{ borderRadius: 24 }}>
                     <div className="space-y-3">
                       <div>
                         <span className="block mb-1 text-subhead font-normal text-content-secondary">Height</span>

@@ -7,6 +7,79 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 102 — ONBOARDING / GOAL SETUP UI POLISH (2026-06-24)
+================================================================
+Files: src/ui/kit/WheelPicker.tsx,
+       src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/screens/FirstOpenFork.tsx,
+       src/ui/components/DevMenu.tsx
+
+── WHEELPI CKER: FIX SPLIT-DECIMAL EMPTY+CENTERÁT STATE ─────────────────────
+Problem: When a WheelPicker had step<1 (decimal/split mode), an empty value,
+AND a centerAt prop, it rendered as a single long unified <select> instead of
+the expected two split wheels. This meant "Target weight" always showed as one
+long drum-roll list on first open (the field starts empty + has centerAt set to
+the current start weight for centering the picker).
+
+Root cause: The `if (isEmpty && centerAt !== undefined)` branch in the split-
+decimal path built a single allOptions list. This was designed before split mode
+existed and was never updated.
+
+Fix (WheelPicker.tsx):
+  - Replace the unified-select empty-state with two split selects that each
+    have a "—" placeholder option centred at the respective component of centerAt:
+      whole wheel: "—" inserted before the cWhole option
+      decimal wheel: "—" inserted before the cDec option
+  - When either wheel changes from "—", onChange fires with the combined value
+    (newWhole.cDec or cWhole.newDec). Value becomes non-empty → normal split
+    mode takes over on next render.
+  - Result: Target weight field always shows as two wheels (kg | .g) matching
+    the Start weight field, in both Simple and Custom modes.
+
+── GOALSETUPSCREEN: SIMPLE MODE CARD ────────────────────────────────────────
+Simple mode now wraps its fields in a grouped card identical to Custom's
+"Your goal" card (overflow-hidden, border border-border-field, bg-surface,
+borderRadius 24px). Inside the card:
+  1. Unit  — first field; label styled text-subhead font-normal text-content-secondary
+             (matches WheelPicker field label style, not a section title).
+  2. Weight — CardSectionHeader (text-headline font-semibold) + Start + Target
+              WheelPickers with !bg-surface-sunken !border-transparent selectClassName.
+  3. Pace  — CardSectionHeader (text-headline font-semibold) + FilterPills.
+DerivedDateText and "Set my goal" CTA remain outside the card.
+
+── GOALSETUPSCREEN: CUSTOM MODE — UNIT MOVED BEFORE WEIGHT ──────────────────
+In Custom mode's grouped card the Unit FilterPills now appears as the first
+field (above Start and Target weight pickers), matching the Simple mode layout.
+Unit label: text-subhead font-normal text-content-secondary.
+
+── GOALSETUPSCREEN: CONTENT AREA SPACING ────────────────────────────────────
+Added pt-6 to the content div below the sticky header in the details step.
+This doubles the breathing room between the SegmentedControl and the first
+content card (was effectively 0px).
+
+── GOALSETUPSCREEN: "DETAILS ABOUT YOU" CONTAINER ───────────────────────────
+Section 2 grouped card:
+  border-border-subtle → border-border-field
+  rounded-main         → borderRadius: 16px (inline style)
+
+── FIRSTOPENFORKSCREEN: EXPLORE CARD ────────────────────────────────────────
+  - Copy: "Not sure yet — just exploring" → "Not sure yet, just exploring"
+  - Icon: GoalIcon type="maintain" → new ExploreIcon component (search/
+    magnifier SVG, uses currentColor). ExploreIcon defined inline in
+    FirstOpenFork.tsx.
+
+── DEVMENU: RESET + REPLAY ONBOARDING FIX ───────────────────────────────────
+"Reset + replay onboarding" button now also abandons all goals before reload.
+Previously it only cleared the onboarding-seen localStorage key. When replaying
+with a leftover active goal in the DB, the Explore path navigated to Today
+showing an active goal — making it look like Explore "created" one.
+Fix: handler is now async; calls repos.goals.getAll() and puts each with
+status: 'abandoned' before window.location.reload().
+
+tsc: clean. lint: clean (r102).
+
+
+================================================================
 ROUND 101 — FIRST-OPEN / ONBOARDING FLOW (2026-06-23)
 ================================================================
 Files: src/ui/screens/FirstOpenFork.tsx (NEW),

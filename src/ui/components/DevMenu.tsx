@@ -784,7 +784,16 @@ function ProfileSwitcher() {
             Switch to test account
           </Button>
         )}
-        <Button size="sm" variant="subtle" onClick={() => { resetOnboarding(); window.location.hash = '/onboarding'; window.location.reload(); }}>
+        <Button size="sm" variant="subtle" onClick={async () => {
+          resetOnboarding();
+          // Also abandon all goals so the replayed onboarding starts clean.
+          // Without this, a leftover active goal makes the Explore path look
+          // like it "created" a goal.
+          const allGoals = await repos.goals.getAll();
+          for (const g of allGoals) await repos.goals.put({ ...g, status: 'abandoned' as GoalStatus });
+          window.location.hash = '/onboarding';
+          window.location.reload();
+        }}>
           Reset + replay onboarding
         </Button>
       </div>

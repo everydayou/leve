@@ -155,36 +155,73 @@ export function WheelPicker({
     selectClassName,
   ].join(' ');
 
-  // ── Empty state: single unified select with "—" placeholder ──────────────
-  // When value is '' and centerAt is provided, show a single select (all decimal
-  // values in one list) with a "—" option centred at centerAt. iOS opens the drum
-  // roll there. First pick fires onChange → switches to normal split mode.
+  // ── Empty state: split pickers with "—" placeholder at centerAt ─────────
+  // When value is '' and centerAt is provided, show two split selects (whole + decimal)
+  // each with a "—" option centred at the respective component of centerAt.
+  // iOS opens each drum roll centred there. First move on either wheel fires
+  // onChange → value becomes non-empty → switches to normal split mode.
   if (isEmpty && centerAt !== undefined) {
-    const allOptions = buildRange(min, max, step);
-    const center     = clamp(snap(centerAt, step, min), min, max);
-    const insertIdx  = allOptions.findIndex(v => v >= center);
-    const idx        = insertIdx === -1 ? allOptions.length : insertIdx;
-    const unified: Array<{ v: number | null; label: string }> = [
-      ...allOptions.slice(0, idx).map(v => ({ v, label: unit ? `${v.toFixed(decPlaces)} ${unit}` : v.toFixed(decPlaces) })),
+    const safeCenter = clamp(snap(centerAt, step, min), min, max);
+    const cWhole     = Math.floor(safeCenter);
+    const cDec       = Math.round((safeCenter - cWhole) * Math.pow(10, decPlaces));
+
+    const wholeOpts  = buildRange(wholeMin, wholeMax, 1);
+    const wInsert    = wholeOpts.findIndex(v => v >= cWhole);
+    const wIdx       = wInsert === -1 ? wholeOpts.length : wInsert;
+    const wholeWithPh: Array<{ v: number | null; label: string }> = [
+      ...wholeOpts.slice(0, wIdx).map(v => ({ v: v as number | null, label: String(v) })),
       { v: null, label: '—' },
-      ...allOptions.slice(idx).map(v => ({ v, label: unit ? `${v.toFixed(decPlaces)} ${unit}` : v.toFixed(decPlaces) })),
+      ...wholeOpts.slice(wIdx).map(v => ({ v: v as number | null, label: String(v) })),
     ];
+
+    const dInsert = decOptions.findIndex(v => v >= cDec);
+    const dIdx    = dInsert === -1 ? decOptions.length : dInsert;
+    const decWithPh: Array<{ v: number | null; label: string }> = [
+      ...decOptions.slice(0, dIdx).map(v => ({ v: v as number | null, label: String(v) })),
+      { v: null, label: '—' },
+      ...decOptions.slice(dIdx).map(v => ({ v: v as number | null, label: String(v) })),
+    ];
+
     return (
       <label className={`block ${wrapClassName}`}>
         {label && <span className="text-subhead font-normal text-content-secondary">{label}</span>}
-        <div className="relative mt-1">
-          <select
-            value=""
-            onChange={e => { if (e.target.value !== '') onChange(e.target.value); }}
-            className={baseCls}
-          >
-            {unified.map((opt) =>
-              opt.v === null
-                ? <option key="__placeholder" value="">—</option>
-                : <option key={opt.v} value={opt.v.toFixed(decPlaces)}>{opt.label}</option>
-            )}
-          </select>
-          <Icon name="chevronDown" size={16} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted" />
+        <div className="mt-1 flex items-center gap-1.5">
+          <div className="relative flex-1">
+            <select
+              value=""
+              onChange={e => {
+                if (e.target.value === '') return;
+                onChange((Number(e.target.value) + cDec / Math.pow(10, decPlaces)).toFixed(decPlaces));
+              }}
+              className={`w-full ${splitSelectCls}`}
+            >
+              {wholeWithPh.map(opt =>
+                opt.v === null
+                  ? <option key="__ph_w" value="">—</option>
+                  : <option key={opt.v} value={opt.v}>{opt.label}</option>
+              )}
+            </select>
+            <Icon name="chevronDown" size={16} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted" />
+          </div>
+          <span className="text-subhead font-semibold text-content">.</span>
+          <div className="relative w-[4.5rem]">
+            <select
+              value=""
+              onChange={e => {
+                if (e.target.value === '') return;
+                onChange((cWhole + Number(e.target.value) / Math.pow(10, decPlaces)).toFixed(decPlaces));
+              }}
+              className={`w-full ${splitSelectCls}`}
+            >
+              {decWithPh.map(opt =>
+                opt.v === null
+                  ? <option key="__ph_d" value="">—</option>
+                  : <option key={opt.v} value={opt.v}>{opt.label}</option>
+              )}
+            </select>
+            <Icon name="chevronDown" size={16} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted" />
+          </div>
+          {unit && <span className="shrink-0 text-subhead font-semibold text-content-secondary">{unit}</span>}
         </div>
       </label>
     );

@@ -462,52 +462,57 @@ export function GoalSetupForm({
             </div>
           </div>
 
-          <div className="px-6 pb-8">
+          <div className="px-6 pb-8 pt-6">
             {/* ════ SIMPLE ════ */}
             {setupMode === 'simple' && (
               <div className="space-y-6">
-                {/* Weight */}
-                <div>
-                  <SectionLabel icon="weight">Weight</SectionLabel>
-                  <div className="space-y-3">
-                    <div>
-                      <WheelPicker label={`Current (${units})`} value={start}
-                        onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
-                        min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.start} />
-                      {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
-                    </div>
-                    <div>
-                      <WheelPicker label={`Target (${units})`} value={target}
-                        onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
-                        min={wMin} max={wMax} step={0.1} unit={units}
-                        invalid={!!fieldErrors.target} centerAt={+start || (units === 'lbs' ? 154 : 70)} />
-                      {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
+                {/* Grouped card — mirrors Custom's "Your goal" card */}
+                <div className="overflow-hidden border border-border-field bg-surface" style={{ borderRadius: 24 }}>
+                  {/* Unit — first field */}
+                  <div className="px-4 pt-4 pb-3">
+                    <span className="block mb-2 text-subhead font-normal text-content-secondary">Unit</span>
+                    <FilterPills<Units>
+                      value={units}
+                      onChange={(u) => { if (u) void setUnitsVal(u); }}
+                      options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
+                    />
+                  </div>
+
+                  {/* Weight */}
+                  <div className="p-4 pb-3">
+                    <CardSectionHeader icon="weight">Weight</CardSectionHeader>
+                    <div className="space-y-3">
+                      <div>
+                        <WheelPicker label={`Current (${units})`} value={start}
+                          onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
+                          min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.start}
+                          selectClassName="!bg-surface-sunken !border-transparent focus:!border-transparent" />
+                        {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
+                      </div>
+                      <div>
+                        <WheelPicker label={`Target (${units})`} value={target}
+                          onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
+                          min={wMin} max={wMax} step={0.1} unit={units}
+                          invalid={!!fieldErrors.target} centerAt={+start || (units === 'lbs' ? 154 : 70)}
+                          selectClassName="!bg-surface-sunken !border-transparent focus:!border-transparent" />
+                        {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Unit */}
-                <div>
-                  <SectionLabel>Unit</SectionLabel>
-                  <FilterPills<Units>
-                    value={units}
-                    onChange={(u) => { if (u) void setUnitsVal(u); }}
-                    options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
-                  />
-                </div>
-
-                {/* Pace */}
-                <div>
-                  <SectionLabel icon="calendar">Pace</SectionLabel>
-                  {isGain ? (
-                    <FilterPills<GainPaceId> value={gainPace}
-                      onChange={(v) => { if (v) setGainPace(v); }}
-                      options={GAIN_PACES.map(p => ({ value: p.id, label: p.label }))} />
-                  ) : (
-                    <FilterPills<LosePaceId> value={losePace}
-                      onChange={(v) => { if (v) setLosePace(v); }}
-                      options={LOSE_PACES.map(p => ({ value: p.id, label: p.label }))} />
-                  )}
+                  {/* Pace */}
+                  <div className="px-4 pb-4">
+                    <CardSectionHeader icon="calendar">Pace</CardSectionHeader>
+                    {isGain ? (
+                      <FilterPills<GainPaceId> value={gainPace}
+                        onChange={(v) => { if (v) setGainPace(v); }}
+                        options={GAIN_PACES.map(p => ({ value: p.id, label: p.label }))} />
+                    ) : (
+                      <FilterPills<LosePaceId> value={losePace}
+                        onChange={(v) => { if (v) setLosePace(v); }}
+                        options={LOSE_PACES.map(p => ({ value: p.id, label: p.label }))} />
+                    )}
+                  </div>
                 </div>
 
                 {derivedDateText && (
@@ -534,6 +539,16 @@ export function GoalSetupForm({
                         className="!bg-surface-sunken !border-transparent focus:!border-transparent" />
                     </div>
 
+                    {/* Unit — first field in the card */}
+                    <div className="px-4 pt-4 pb-3">
+                      <span className="block mb-2 text-subhead font-normal text-content-secondary">Unit</span>
+                      <FilterPills<Units>
+                        value={units}
+                        onChange={(u) => { if (u) void setUnitsVal(u); }}
+                        options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
+                      />
+                    </div>
+
                     {/* Weight */}
                     <div className="p-4 pb-3">
                       <CardSectionHeader icon="weight">Weight</CardSectionHeader>
@@ -554,16 +569,6 @@ export function GoalSetupForm({
                           {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
                         </div>
                       </div>
-                    </div>
-
-                    {/* Unit */}
-                    <div className="px-4 pb-4">
-                      <span className="block mb-2 text-headline font-semibold text-content">Unit</span>
-                      <FilterPills<Units>
-                        value={units}
-                        onChange={(u) => { if (u) void setUnitsVal(u); }}
-                        options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
-                      />
                     </div>
 
                     {/* Dates */}
@@ -655,7 +660,7 @@ export function GoalSetupForm({
                   <p className="mb-4 text-subhead text-content-secondary">
                     Helps estimate your BMR more accurately. Affects calorie and macro targets.
                   </p>
-                  <div className="rounded-main border border-border-subtle bg-surface p-4">
+                  <div className="border border-border-field bg-surface p-4" style={{ borderRadius: 16 }}>
                     <div className="space-y-3">
                       <div>
                         <span className="block mb-1 text-subhead font-normal text-content-secondary">Height</span>

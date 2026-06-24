@@ -260,6 +260,10 @@ LOW (new in r101):
   not finalised. Deferred.
 - GoalForkScreen (/goal-fork): built but not yet visually reviewed on device.
 
+ALREADY DONE IN r102 (do NOT re-flag): WheelPicker split-decimal fix, Simple
+mode card, Custom mode Unit ordering, content area pt-6, Details about you
+border-field+16px radius, Explore icon+copy, DevMenu reset+replay goal cleanup.
+
 DEFERRED V1.5+: JSON import, HealthKit, BMR auto-calibration, full tablet
 layouts, per-piece measurement types, time-of-day food suggestions.
 
@@ -297,6 +301,32 @@ through r62 (see CHANGELOG for full list).
 ----------------------------------------------------------------
 RECENT ROUNDS (for context on what was just touched)
 ----------------------------------------------------------------
+
+ROUND 102 — ONBOARDING / GOAL SETUP UI POLISH (2026-06-24)
+Files: src/ui/kit/WheelPicker.tsx,
+       src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/screens/FirstOpenFork.tsx,
+       src/ui/components/DevMenu.tsx
+
+- WheelPicker: split-decimal empty+centerAt now shows two split pickers
+  (each with "—" placeholder centred at the respective whole/decimal of centerAt)
+  instead of a unified long single picker. Fixes Target weight showing as one
+  long drum-roll in both Simple and Custom modes.
+- GoalSetupScreen Simple mode: all fields wrapped in a grouped card identical to
+  Custom's "Your goal" card (border-border-field, borderRadius 24). Inside:
+  Unit (first, text-subhead font-normal text-content-secondary label) ->
+  Weight (CardSectionHeader + split WheelPickers with sunken bg) ->
+  Pace (CardSectionHeader + FilterPills).
+- GoalSetupScreen Custom mode: Unit FilterPills moved before Weight pickers
+  (was after). Unit label now text-subhead font-normal text-content-secondary.
+- GoalSetupScreen details step content area: pt-6 added below sticky header.
+- GoalSetupScreen "Details about you": border-border-field + borderRadius 16px.
+- FirstOpenForkScreen: "Not sure yet, just exploring" copy (removed em dash).
+  Explore card icon replaced with ExploreIcon (search/magnifier SVG, currentColor).
+- DevMenu: "Reset + replay onboarding" now also abandons all goals before reload,
+  fixing the Explore path appearing to "create" a goal on replayed onboarding.
+- tsc: clean. lint: clean (r102).
+
 ROUND 101 — FIRST-OPEN / ONBOARDING FLOW (2026-06-23)
 Files: src/ui/screens/FirstOpenFork.tsx (NEW),
        src/ui/screens/OnboardingScreen.tsx, src/ui/screens/GoalSetupScreen.tsx,

@@ -16,8 +16,10 @@ type ActionItem = {
   tier: 'inner' | 'outer';
 };
 
+const SCAN_ENABLED = !!(import.meta.env.VITE_FOOD_SCAN_API_URL as string | undefined);
+
 const ACTION_ITEMS: ActionItem[] = [
-  { type: 'scan',     icon: 'scanFood',    label: 'Scan meal',  tier: 'outer' },
+  ...(SCAN_ENABLED ? [{ type: 'scan' as ActionType, icon: 'scanFood' as IconName, label: 'Scan meal', tier: 'outer' as const }] : []),
   { type: 'food',     icon: 'foodIcon',    label: 'Food',       tier: 'inner' },
   { type: 'activity', icon: 'activityIcon',label: 'Activity',   tier: 'inner' },
   { type: 'weight',   icon: 'weight',      label: 'Weight',     tier: 'outer' },

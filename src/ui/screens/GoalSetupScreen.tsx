@@ -486,16 +486,14 @@ export function GoalSetupForm({
                       <div>
                         <WheelPicker label={`Current (${units})`} value={start}
                           onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
-                          min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.start}
-                          selectClassName="!bg-surface-sunken !border-transparent focus:!border-transparent" />
+                          min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.start} />
                         {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
                       </div>
                       <div>
                         <WheelPicker label={`Target (${units})`} value={target}
                           onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
                           min={wMin} max={wMax} step={0.1} unit={units}
-                          invalid={!!fieldErrors.target} centerAt={+start || (units === 'lbs' ? 154 : 70)}
-                          selectClassName="!bg-surface-sunken !border-transparent focus:!border-transparent" />
+                          invalid={!!fieldErrors.target} centerAt={+start || (units === 'lbs' ? 154 : 70)} />
                         {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
                       </div>
                     </div>

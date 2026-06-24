@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-23 — Round 101 (First-open/onboarding flow: FirstOpenForkScreen, GoalForkScreen, GoalSetupScreen Simple/Custom redesign)
+Last updated: 2026-06-24 — Round 104 (Simple mode pickers → outlined; scan FAB gate behind SCAN_ENABLED)
 Full change history: see CHANGELOG.txt (rounds 1–90).
 
 HOW TO READ THIS DOC:
@@ -199,6 +199,16 @@ User model additions (r71): weightCadence?: 'daily'|'weekly'; weeklyWeightDay?: 
   · GoalScreen: "No goal set" / "Set one anytime, takes under a minute." → /goal-fork.
   · TodayScreen: 'kcal logged'; weightCadence default 'weekly'; → /goal-fork.
 - Code quality: tsc strict clean, lint clean (r101).
+- Rounds 102–104 (2026-06-24) — Onboarding/goal setup polish + scan FAB fix:
+  · r102: WheelPicker split-decimal empty+centerAt → two split pickers with "—" placeholder.
+    Simple mode card (border-border-field, radius 24, unit first). Custom mode unit moved
+    before weight pickers. Details about you: border-field + radius 16px. pt-6 below header.
+    FirstOpenFork: explore icon → magnifier SVG; copy dash fix. DevMenu: abandon goals on reset.
+  · r103: Unit inside Weight section (first sub-field, both modes). Simple card vertical
+    breathing room (pt-6/pt-4). Details radius 16→24px.
+  · r104: Simple mode pickers back to outlined (removed selectClassName sunken overrides).
+    FloatingTabBar: scan ACTION_ITEM gated behind SCAN_ENABLED constant.
+- Code quality: tsc strict clean, build clean (r104).
 
 ----------------------------------------------------------------
 8. TECH / ARCHITECTURE
@@ -301,6 +311,21 @@ through r62 (see CHANGELOG for full list).
 ----------------------------------------------------------------
 RECENT ROUNDS (for context on what was just touched)
 ----------------------------------------------------------------
+
+ROUND 104 — SIMPLE MODE OUTLINED PICKERS + SCAN FAB GATE (2026-06-24)
+Files: src/ui/screens/GoalSetupScreen.tsx, src/ui/kit/FloatingTabBar.tsx
+- Simple mode WheelPickers (Current + Target): removed selectClassName sunken overrides →
+  now render as outlined fields (bg-surface border-border-field). Custom mode retains filled.
+- FloatingTabBar: SCAN_ENABLED constant added; "Scan meal" ACTION_ITEM conditional on it.
+  Prevents "Food scan not configured" error when VITE_FOOD_SCAN_API_URL is unset.
+- tsc: clean. build: clean (r104).
+
+ROUND 103 — GOAL SETUP SPACING + DETAILS RADIUS (2026-06-24)
+Files: src/ui/screens/GoalSetupScreen.tsx
+- Unit inside Weight section as first sub-field (both Simple + Custom modes).
+- Simple card: Weight top px-4 pt-6 pb-3; Pace px-4 pt-4 pb-6.
+- "Details about you": borderRadius 16→24px.
+- tsc: clean. build: clean (r103).
 
 ROUND 102 — ONBOARDING / GOAL SETUP UI POLISH (2026-06-24)
 Files: src/ui/kit/WheelPicker.tsx,

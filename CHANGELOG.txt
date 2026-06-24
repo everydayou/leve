@@ -7,6 +7,55 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 104 — SIMPLE MODE OUTLINED PICKERS + SCAN FAB GATE (2026-06-24)
+================================================================
+Files: src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/kit/FloatingTabBar.tsx
+
+── GOALSETUPSCREEN: SIMPLE MODE PICKERS → OUTLINED ──────────────────────────
+Removed selectClassName overrides from the two WheelPickers (Current + Target)
+in Simple mode. They were rendering as filled fields (!bg-surface-sunken
+!border-transparent) due to an override added in r102 that was correct inside
+Custom mode's white card but visually inconsistent in Simple mode.
+Simple mode pickers now render as standard outlined fields (default
+bg-surface border-border-field), consistent with the rest of the app's
+standalone input fields.
+Custom mode pickers retain the filled override (they are inside a white card).
+
+── FLOATINGTABBAR: GATE SCAN FAB BEHIND SCAN_ENABLED ─────────────────────────
+Added SCAN_ENABLED constant (mirrors AddEntrySheet pattern):
+  const SCAN_ENABLED = !!(import.meta.env.VITE_FOOD_SCAN_API_URL)
+ACTION_ITEMS now conditionally includes the scan entry only when SCAN_ENABLED
+is true. Previously the "Scan meal" FAB option was always present and when
+tapped triggered a "Food scan not configured" error if VITE_FOOD_SCAN_API_URL
+was not set in .env.local.
+
+tsc: clean. build: clean (r104).
+
+
+================================================================
+ROUND 103 — GOAL SETUP CARD SPACING + DETAILS RADIUS (2026-06-24)
+================================================================
+Files: src/ui/screens/GoalSetupScreen.tsx
+
+── UNIT MOVED INSIDE WEIGHT SECTION (BOTH MODES) ────────────────────────────
+Unit FilterPills moved from a standalone section above the Weight card into
+the Weight section as the first sub-field in both Simple and Custom modes.
+Order: Unit → Current/Start → Target. Unit label: text-subhead font-normal
+text-content-secondary (matches picker label style).
+
+── SIMPLE MODE CARD VERTICAL BREATHING ROOM ─────────────────────────────────
+Weight section top padding: px-4 pb-3 → px-4 pt-6 pb-3 (+24px, matching
+Custom mode inner section padding).
+Pace section top padding: px-4 pb-6 → px-4 pt-4 pb-6 (+16px).
+
+── DETAILS ABOUT YOU RADIUS ──────────────────────────────────────────────────
+borderRadius: 16 → 24px, matching the Weight/Pace goal card.
+
+tsc: clean. build: clean (r103).
+
+
+================================================================
 ROUND 102 — ONBOARDING / GOAL SETUP UI POLISH (2026-06-24)
 ================================================================
 Files: src/ui/kit/WheelPicker.tsx,

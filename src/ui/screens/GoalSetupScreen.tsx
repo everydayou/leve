@@ -469,7 +469,7 @@ export function GoalSetupForm({
                 {/* Grouped card — mirrors Custom's "Your goal" card */}
                 <div className="overflow-hidden border border-border-field bg-surface" style={{ borderRadius: 24 }}>
                   {/* Weight (Unit is first sub-field inside) */}
-                  <div className="p-4 pb-3">
+                  <div className="px-4 pt-6 pb-3">
                     <CardSectionHeader icon="weight">Weight</CardSectionHeader>
                     <div className="space-y-3">
                       {/* Unit — first sub-field */}
@@ -502,7 +502,7 @@ export function GoalSetupForm({
                   </div>
 
                   {/* Pace — pt-4 matches Custom sub-section gap */}
-                  <div className="p-4 pb-4">
+                  <div className="px-4 pt-4 pb-6">
                     <CardSectionHeader icon="calendar">Pace</CardSectionHeader>
                     {isGain ? (
                       <FilterPills<GainPaceId> value={gainPace}

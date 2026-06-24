@@ -778,16 +778,6 @@ export function GoalSetupForm({
   );
 }
 
-// ── SectionLabel: Simple-mode section title (text-title) ──────────────────────
-function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: string }) {
-  return (
-    <div className="flex items-center gap-2 mb-2">
-      {icon && <Icon name={icon as Parameters<typeof Icon>[0]['name']} size={20} className="text-content shrink-0" />}
-      <p className="text-title font-bold text-content leading-none">{children}</p>
-    </div>
-  );
-}
-
 // ── CardSectionHeader: inside the grouped card (text-headline) ────────────────
 function CardSectionHeader({ children, icon }: { children: React.ReactNode; icon?: string }) {
   return (

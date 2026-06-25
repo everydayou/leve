@@ -9,18 +9,19 @@ import { todayISO, addDays, newId } from '../../data/ids';
 import { getMondayOfWeek, fmtDiaryDate } from '../../lib/date';
 import { nutritionFor, effectiveNutrition, calcDigestionCalories } from '../../domain/calc';
 import { requiredDailyDeficit, isGainGoal } from '../../domain/goal';
+import { mifflinStJeorBMR } from '../../domain/bmr';
 import { onDecimalChange } from '../../lib/num';
 import { kgToLbs } from '../../domain/units';
 import { prefersReducedMotion } from '../../lib/motion';
 import {
   Card, QuickLogCard, Badge, Button, LabeledInput, NumberField, WheelPicker,
-  Icon, GaugeArc, Sheet, Skeleton, ProgressBar, ServingStepper,
+  Icon, GaugeArc, Sheet, Skeleton, ProgressBar, ServingStepper, FilterPills,
 } from '../kit';
 import { WeightLogSheet } from '../components/WeightLogSheet';
 import type { ShowToast } from '../components/Toaster';
 import type { NutritionSnapshot } from '../../domain/types';
 import { Thumb } from '../components/PhotoPicker';
-import type { FoodEntry, FoodItem, WeightEntry, ActivityEntry, Goal } from '../../domain/types';
+import type { FoodEntry, FoodItem, WeightEntry, ActivityEntry, Goal, Sex, User } from '../../domain/types';
 import { ScanResults } from '../components/AddEntrySheet';
 import type { ResultItem } from '../components/AddEntrySheet';
 
@@ -271,6 +272,7 @@ export function TodayScreen() {
                   weeklyWeightDay={user?.weeklyWeightDay ?? 0}
                   units={user?.units ?? 'kg'}
                   hasPastGoal={!!pastGoal}
+                  profileUser={user}
                 />
               </div>
             ))}
@@ -639,9 +641,10 @@ interface DayPanelProps {
   weightCadence?: 'daily' | 'weekly';
   weeklyWeightDay?: number;
   units?: 'kg' | 'lbs';
+  profileUser?: User | null;
 }
 
-function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoalG, isActive, gainGoal = false, goal = null, macroStyle, fatTargetG, carbLimitG, diaryShowProtein, diaryShowCarbs, diaryShowFat, weightCadence = 'weekly', weeklyWeightDay = 0, units = 'kg', hasPastGoal = false }: DayPanelProps) {
+function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoalG, isActive, gainGoal = false, goal = null, macroStyle, fatTargetG, carbLimitG, diaryShowProtein, diaryShowCarbs, diaryShowFat, weightCadence = 'weekly', weeklyWeightDay = 0, units = 'kg', hasPastGoal = false, profileUser = null }: DayPanelProps) {
   const nav = useNavigate();
   const ctx = useOutletContext<DayContext>();
   const [editFood,          setEditFood]          = useState<FoodEntry | null>(null);
@@ -649,6 +652,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const [editActivity,      setEditActivity]      = useState<ActivityEntry | null>(null);
   const [showWeightSheet,   setShowWeightSheet]   = useState(false);
   const [showBreakdown,     setShowBreakdown]     = useState(false);
+  const [showProfileSetup,  setShowProfileSetup]  = useState(false);
   const [showMacroDetail,   setShowMacroDetail]   = useState(false);
   const [reminderDismissed, setReminderDismissed] = useState(
     () => localStorage.getItem(reminderKey(todayISO())) === '1',
@@ -680,7 +684,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const { consumed = 0, totalBurn = 0, protein = 0 } = day?.summary ?? {};
   const carbs = day ? Math.round(day.foods.reduce((s, f) => s + effectiveNutrition(f, day.itemsById).carbs, 0)) : 0;
   const fat   = day ? Math.round(day.foods.reduce((s, f) => s + effectiveNutrition(f, day.itemsById).fat,   0)) : 0;
-  const noBmr      = (day?.bmr ?? 0) <= 0;
+  const bmrIsEstimated = day?.bmrIsEstimated ?? false;
   const actCals    = day?.activities.reduce((s, a) => s + a.activeCalories, 0) ?? 0;
   const hasGoal    = dailyTarget !== 0; // active goal exists (regardless of BMR)
   const hasTarget  = hasGoal && totalBurn > 0; // has enough info for full numbers
@@ -818,10 +822,10 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
 
   return (
     <div className="pb-6">
-      {noBmr && hasTarget && (
-        <button onClick={() => { hapticLight(); nav('/account'); }} className="mx-4 mt-4 flex w-[calc(100%-2rem)] items-center justify-between rounded-card border border-border-strong bg-surface-sunken px-4 py-3 text-left">
-          <span className="text-subhead font-medium text-content">Set your BMR to see real numbers</span>
-          <Icon name="chevronRight" size={18} strokeWidth={2.25} className="text-content-muted" />
+      {bmrIsEstimated && hasGoal && (
+        <button onClick={() => { hapticLight(); setShowBreakdown(true); }} className="mx-4 mt-4 flex w-[calc(100%-2rem)] items-center gap-2 rounded-card border border-border-subtle bg-surface-sunken px-4 py-3 text-left">
+          <Icon name="info" size={16} strokeWidth={1.75} className="shrink-0 text-content-muted" />
+          <span className="text-subhead text-content-secondary">Numbers estimated — tap breakdown to add your profile</span>
         </button>
       )}
 
@@ -997,8 +1001,10 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
         </div>
       )}
 
-      {showBreakdown && hasTarget && (
+      {showBreakdown && hasGoal && (
         <BreakdownSheet
+          bmrIsEstimated={bmrIsEstimated}
+          onSetupProfile={() => { setShowBreakdown(false); setShowProfileSetup(true); }}
           mode="goal"
           bmr={day.bmr}
           consumed={consumed}
@@ -1012,7 +1018,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
           onClose={() => setShowBreakdown(false)}
         />
       )}
-      {showBreakdown && !hasTarget && (
+      {showBreakdown && !hasGoal && (
         <BreakdownSheet
           mode="no-goal"
           bmr={day.bmr}
@@ -1149,6 +1155,15 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
       {editFood && <EditFoodSheet entry={editFood} items={items} onClose={() => setEditFood(null)} showToast={ctx.showToast} />}
       {editMeal && <MealEditSheet entry={editMeal} pantryItems={items} onClose={() => setEditMeal(null)} showToast={ctx.showToast} />}
       {editActivity && <EditActivitySheet entry={editActivity} onClose={() => setEditActivity(null)} showToast={ctx.showToast} />}
+      {showProfileSetup && (
+        <ProfileSetupSheet
+          currentWeightKg={weights.length > 0 ? [...weights].sort((a, b) => b.date.localeCompare(a.date))[0].weightKg : null}
+          initialHeight={profileUser?.heightCm && profileUser.heightCm > 0 ? profileUser.heightCm : null}
+          initialAge={profileUser?.age ?? null}
+          initialSex={profileUser?.sex ?? null}
+          onClose={() => setShowProfileSetup(false)}
+        />
+      )}
       {showWeightSheet && <WeightLogSheet date={todayISO()} onClose={() => setShowWeightSheet(false)} />}
     </div>
   );
@@ -1160,12 +1175,14 @@ type BreakdownInfoKey = 'bmr' | 'activity' | 'digestion' | 'food' | 'goal' | 'av
 
 function BreakdownSheet({
   mode = 'goal', bmr, consumed, actCals, digestionCalories, dailyTarget,
-  gainGoal = false, gainZone = 'below', gainFloor = 0, gainCeil = 0, onClose,
+  gainGoal = false, gainZone = 'below', gainFloor = 0, gainCeil = 0,
+  bmrIsEstimated = false, onSetupProfile, onClose,
 }: {
   mode?: 'goal' | 'no-goal';
   bmr: number; consumed: number; actCals: number; digestionCalories: number;
   dailyTarget: number; gainGoal?: boolean; gainZone?: 'below' | 'in' | 'above';
   gainFloor?: number; gainCeil?: number;
+  bmrIsEstimated?: boolean; onSetupProfile?: () => void;
   onClose: () => void;
 }) {
   const [activeInfo, setActiveInfo] = useState<BreakdownInfoKey | null>(null);
@@ -1297,7 +1314,13 @@ function BreakdownSheet({
 
   // ── Info panel content ───────────────────────────────────────────────────
   const infoPanels: Record<BreakdownInfoKey, React.ReactNode> = {
-    bmr: (
+    bmr: bmrIsEstimated ? (
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content">Your <span className="font-medium">Basal Metabolic Rate</span> is the energy your body burns at complete rest — just to keep your organs running, breathing, and staying warm.</p>
+        <p className="text-subhead text-content">Right now this is an <span className="font-medium">estimate</span> based on your weight only, using population-average height (170 cm), age (35), and a neutral sex factor.</p>
+        <p className="text-subhead text-content">For an accurate BMR, add your height, age, and sex to your profile. The numbers will update automatically.</p>
+      </div>
+    ) : (
       <div className="space-y-3 leading-relaxed">
         <p className="text-subhead text-content">Your <span className="font-medium">Basal Metabolic Rate</span> is the energy your body burns at complete rest, just to keep your organs running, breathing, and staying warm.</p>
         <p className="text-subhead text-content">It's the largest part of your daily calorie burn, usually 60 to 70% of your total. You set it manually in your profile.</p>
@@ -1368,6 +1391,22 @@ function BreakdownSheet({
   const scrollableContent = (
     <div ref={wrapperRef} className="relative" style={{ overflow: activeInfo ? 'hidden' : 'visible' }}>
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
+
+        {/* ── Estimated BMR disclaimer ── */}
+        {bmrIsEstimated && (
+          <button
+            data-no-drag
+            onClick={onSetupProfile}
+            className="mb-3 flex w-full items-start gap-3 rounded-card border border-border-subtle bg-surface-sunken px-4 py-3 text-left"
+          >
+            <Icon name="info" size={17} strokeWidth={1.75} className="mt-0.5 shrink-0 text-content-muted" />
+            <div className="min-w-0">
+              <p className="text-subhead font-medium text-content">Numbers are estimated</p>
+              <p className="mt-0.5 text-footnote text-content-secondary">BMR is calculated from your weight only. Add your height, age, and sex for an accurate result.</p>
+              <p className="mt-1.5 text-footnote font-semibold text-accent">Complete your profile →</p>
+            </div>
+          </button>
+        )}
 
         {/* ── One unified container ── */}
         <div className="rounded-card border border-border-card-no-shadow bg-surface pt-2.5">
@@ -1709,4 +1748,118 @@ async function quickLog(it: FoodItem, date: string): Promise<string> {
 
 function labelFor(items: { id: string; name: string }[], id?: string) {
   return items.find((i) => i.id === id)?.name ?? 'Food';
+}
+
+// ── Profile setup sheet ───────────────────────────────────────────────────────
+
+const HEIGHT_CM_OPTIONS: number[] = Array.from({ length: 81 }, (_, i) => 140 + i);
+const AGE_PROFILE_OPTIONS: number[] = Array.from({ length: 81 }, (_, i) => 10 + i);
+
+function ProfileSetupSheet({
+  currentWeightKg,
+  initialHeight,
+  initialAge,
+  initialSex,
+  onClose,
+}: {
+  currentWeightKg: number | null;
+  initialHeight: number | null;
+  initialAge: number | null;
+  initialSex: Sex | null;
+  onClose: () => void;
+}) {
+  const [height, setHeight] = useState<number | null>(initialHeight && initialHeight > 0 ? initialHeight : null);
+  const [age,    setAge]    = useState<number | null>(initialAge ?? null);
+  const [sex,    setSex]    = useState<Sex | null>(initialSex ?? null);
+  const [saving, setSaving] = useState(false);
+
+  const canSave = height != null && age != null && sex != null;
+
+  async function handleSave() {
+    if (!canSave) return;
+    setSaving(true);
+    try {
+      const user = await repos.user.get();
+      const wKg  = currentWeightKg ?? 70;
+      const bmrValue = mifflinStJeorBMR({ weightKg: wKg, heightCm: height!, age: age!, sex: sex! });
+      const base = user ?? { id: 'default', heightCm: 0, units: 'kg' as const, bmr: 0 };
+      await repos.user.save({ ...base, heightCm: height!, age: age!, sex: sex!, bmr: bmrValue });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Sheet onClose={onClose}>
+      <div className="flex items-center justify-between mb-5">
+        <button data-no-drag onClick={onClose} aria-label="Close" className="-m-1 p-1 text-content-muted">
+          <Icon name="close" size={22} strokeWidth={2.25} />
+        </button>
+        <h2 className="flex-1 text-center text-headline font-semibold">Your profile</h2>
+        <span className="w-6" />
+      </div>
+
+      <p className="text-subhead text-content-secondary mb-4">
+        Used to calculate your BMR accurately using the Mifflin–St Jeor equation.
+      </p>
+
+      {/* Sex */}
+      <div className="mb-4">
+        <p className="text-footnote text-content-muted mb-2">Sex</p>
+        <FilterPills<Sex>
+          options={[
+            { value: 'male',   label: 'Male'   },
+            { value: 'female', label: 'Female' },
+          ]}
+          value={sex}
+          onChange={setSex}
+        />
+      </div>
+
+      {/* Height */}
+      <div className="mb-4">
+        <p className="text-footnote text-content-muted mb-2">Height</p>
+        <div className="relative rounded-card border border-border-field bg-surface-field">
+          <select
+            value={height ?? ''}
+            onChange={e => setHeight(e.target.value ? Number(e.target.value) : null)}
+            className="w-full appearance-none bg-transparent px-4 py-3 pr-10 text-subhead text-content"
+          >
+            <option value="">Select height</option>
+            {HEIGHT_CM_OPTIONS.map(n => <option key={n} value={n}>{n} cm</option>)}
+          </select>
+          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-content-muted">
+            <Icon name="chevronDown" size={16} strokeWidth={2} />
+          </div>
+        </div>
+      </div>
+
+      {/* Age */}
+      <div className="mb-6">
+        <p className="text-footnote text-content-muted mb-2">Age</p>
+        <div className="relative rounded-card border border-border-field bg-surface-field">
+          <select
+            value={age ?? ''}
+            onChange={e => setAge(e.target.value ? Number(e.target.value) : null)}
+            className="w-full appearance-none bg-transparent px-4 py-3 pr-10 text-subhead text-content"
+          >
+            <option value="">Select age</option>
+            {AGE_PROFILE_OPTIONS.map(n => <option key={n} value={n}>{n} yrs</option>)}
+          </select>
+          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-content-muted">
+            <Icon name="chevronDown" size={16} strokeWidth={2} />
+          </div>
+        </div>
+      </div>
+
+      <Button
+        label={saving ? 'Saving…' : 'Save'}
+        variant="primary"
+        disabled={!canSave || saving}
+        onClick={handleSave}
+        className="w-full"
+      />
+    </Sheet>
+  );
 }

@@ -1,7 +1,7 @@
 import { useLive } from './live';
 import { repos } from './repos';
 import { summarizeDay, itemsByIdMap, type DaySummary } from '../domain/calc';
-import { bmrForDate } from '../domain/bmr';
+import { bmrForDate, estimateBmrFromWeight } from '../domain/bmr';
 import type { FoodEntry, ActivityEntry, FoodItem } from '../domain/types';
 
 export interface DayData {
@@ -9,6 +9,9 @@ export interface DayData {
   activities: ActivityEntry[];
   summary: DaySummary;
   bmr: number;
+  /** True when bmr was estimated from weight only (no height/age/sex on profile).
+   *  Triggers a disclaimer in the calorie breakdown sheet. */
+  bmrIsEstimated: boolean;
   /** Current pantry items keyed by id — pantry-backed entries are valued live
    *  from these, so editing a pantry food updates this day's totals. */
   itemsById: Map<string, FoodItem>;
@@ -30,8 +33,16 @@ export function useDay(date: string): DayData | undefined {
     const foods = [...rawFoods].sort((a, b) =>
       (a.createdAt ?? '').localeCompare(b.createdAt ?? ''),
     );
-    const bmr = user ? bmrForDate(date, weights, user) : 0;
+    const bmrActual = user ? bmrForDate(date, weights, user) : 0;
+    // When the user hasn't set up their profile (no height/age/sex), fall back
+    // to a weight-only estimate so the gauge still shows meaningful numbers.
+    const sortedWeights = [...weights].sort((a, b) => b.date.localeCompare(a.date));
+    const latestWeight  = sortedWeights[0] ?? null;
+    const bmrIsEstimated = bmrActual === 0 && latestWeight != null;
+    const bmr = bmrActual > 0 ? bmrActual
+      : latestWeight ? estimateBmrFromWeight(latestWeight.weightKg)
+      : 0;
     const itemsById = itemsByIdMap(items);
-    return { foods, activities, bmr, itemsById, summary: summarizeDay(bmr, foods, activities, itemsById) };
+    return { foods, activities, bmr, bmrIsEstimated, itemsById, summary: summarizeDay(bmr, foods, activities, itemsById) };
   }, [date]);
 }

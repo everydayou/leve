@@ -71,3 +71,14 @@ export function canComputeBmr(input: {
     (input.sex === 'male' || input.sex === 'female')
   );
 }
+
+/** Rough BMR estimate using weight alone (population-average height 170 cm,
+ *  age 35, neutral sex). Equivalent to Mifflin–St Jeor at those defaults.
+ *  Used as a fallback when the user's profile is incomplete — numbers are
+ *  shown with an "estimated" disclaimer so the user knows to complete their
+ *  profile for accuracy. */
+export function estimateBmrFromWeight(weightKg: number): number {
+  // 10·w + 6.25·170 - 5·35 + avg(male+5, female-161)/2
+  // = 10·w + 1062.5 - 175 - 78 ≈ 10·w + 810
+  return Math.round(10 * weightKg + 810);
+}

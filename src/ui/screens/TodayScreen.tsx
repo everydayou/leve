@@ -1854,12 +1854,13 @@ function ProfileSetupSheet({
       </div>
 
       <Button
-        label={saving ? 'Saving…' : 'Save'}
         variant="solid"
         disabled={!canSave || saving}
         onClick={handleSave}
         className="w-full"
-      />
+      >
+        {saving ? 'Saving…' : 'Save'}
+      </Button>
     </Sheet>
   );
 }

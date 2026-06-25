@@ -1855,7 +1855,7 @@ function ProfileSetupSheet({
 
       <Button
         label={saving ? 'Saving…' : 'Save'}
-        variant="primary"
+        variant="solid"
         disabled={!canSave || saving}
         onClick={handleSave}
         className="w-full"

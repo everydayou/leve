@@ -1369,7 +1369,7 @@ function BreakdownSheet({
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
 
         {/* ── One unified container ── */}
-        <div className="rounded-card border border-card-no-shadow bg-surface pt-2.5">
+        <div className="rounded-card border border-border-card-no-shadow bg-surface pt-2.5">
 
           {/* Math rows — left side is fully tappable to open info */}
           {mathRows.map(({ label, value, infoKey }) => (

@@ -253,7 +253,7 @@ export function DailyAllowanceVisual() {
 
       {/* ── Log list — prepended so most recent entry is on top ──────── */}
       {log.length > 0 && (
-        <div className="shrink-0 w-full rounded-card border border-card-no-shadow overflow-hidden">
+        <div className="shrink-0 w-full rounded-card border border-border-card-no-shadow overflow-hidden">
           {log.map((entry, i) => (
             <div
               key={entry.id}

@@ -211,6 +211,7 @@ const COLOR_GROUPS: { group: string; tokens: { name: string; label: string }[] }
       { name: '--color-border-subtle', label: 'Border subtle' },
       { name: '--color-border-field',  label: 'Border field' },
       { name: '--color-border-strong', label: 'Border strong' },
+      { name: '--color-border-card-no-shadow', label: 'Border card' },
       { name: '--color-scrim',         label: 'Scrim' },
     ],
   },

@@ -480,7 +480,7 @@ export function GoalSetupForm({
             {setupMode === 'simple' && (
               <div className="space-y-6">
                 {/* Grouped card — mirrors Custom's "Your goal" card */}
-                <div className="overflow-hidden rounded-card border border-card-no-shadow bg-surface">
+                <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface">
                   {/* Weight sub-section */}
                   <div className="px-4 pt-6 pb-3">
                     <CardSectionHeader icon="weight">Weight</CardSectionHeader>
@@ -530,11 +530,11 @@ export function GoalSetupForm({
                         const p = GAIN_PACES.find(p => p.id === gainPace)!;
                         return (
                           <div className="mt-3 rounded-card bg-surface-sunken p-4" aria-live="polite">
-                            <p className="text-subhead font-semibold text-content">
+                            <p className="text-callout font-semibold text-content">
                               Estimated finish: {fmtMonthYear(derivedDate)}
                             </p>
-                            <p className="mt-0.5 text-footnote text-content-secondary">
-                              +{p.kgPerMonth} kg/month · +{p.surplusFloor} to +{p.surplusCeiling} kcal/day
+                            <p className="mt-0.5 text-callout font-normal text-content">
+                              +{p.kgPerMonth} kg/month · Surplus of +{p.surplusFloor} to +{p.surplusCeiling} kcal/day
                             </p>
                           </div>
                         );
@@ -543,13 +543,13 @@ export function GoalSetupForm({
                       const kcal = Math.round((p.kgPerWeek * 7700) / 7);
                       return (
                         <div className="mt-3 rounded-card bg-surface-sunken p-4" aria-live="polite">
-                          <p className="text-subhead font-semibold text-content">
+                          <p className="text-callout font-semibold text-content">
                             Estimated finish: {fmtDerivedDate(derivedDate)}
                           </p>
-                          <p className="mt-0.5 text-footnote text-content-secondary">
+                          <p className="mt-0.5 text-callout font-normal text-content">
                             {units === 'lbs'
-                              ? `${kgToLbs(p.kgPerWeek).toFixed(2)} lbs/week · –${kcal} kcal/day`
-                              : `${p.kgPerWeek} kg/week · –${kcal} kcal/day`}
+                              ? `${kgToLbs(p.kgPerWeek).toFixed(2)} lbs/week · Deficit of –${kcal} kcal/day`
+                              : `${p.kgPerWeek} kg/week · Deficit of –${kcal} kcal/day`}
                           </p>
                         </div>
                       );
@@ -568,7 +568,7 @@ export function GoalSetupForm({
                 <section>
                   <p className="mb-4 text-title font-bold text-content">1. Your goal</p>
 
-                  <div className="overflow-hidden rounded-card border border-card-no-shadow bg-surface">
+                  <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface">
                     {/* Goal name */}
                     <div className="p-4">
                       <span className="block mb-2 text-headline font-semibold text-content">Goal name</span>
@@ -618,7 +618,6 @@ export function GoalSetupForm({
                         </div>
                         {weighCadence === 'weekly' && (
                           <div>
-                            <span className="block mb-1 text-subhead font-normal text-content-secondary">Weigh-in day</span>
                             <FilterPills<string>
                               value={String(weighDay)}
                               onChange={(v) => { if (v !== undefined) setWeighDay(Number(v)); }}
@@ -677,10 +676,10 @@ export function GoalSetupForm({
                             </p>
                           </div>
                           <div className="mt-3 rounded-field bg-surface-sunken px-3 py-2.5 text-center">
-                            <p className="text-footnote font-semibold text-content">
+                            <p className="text-callout font-normal text-content">
                               {isGain ? 'Daily surplus' : 'Daily deficit'}
                             </p>
-                            <p className="text-subhead font-semibold text-content">
+                            <p className="text-callout font-semibold text-content">
                               {isGain
                                 ? `+${effectiveMagnitude - 100} to +${effectiveMagnitude + 100} kcal`
                                 : `–${effectiveMagnitude} kcal`}
@@ -723,7 +722,7 @@ export function GoalSetupForm({
                   <p className="mb-4 text-subhead text-content-secondary">
                     Helps estimate your BMR more accurately. Affects calorie and macro targets.
                   </p>
-                  <div className="border border-border-field bg-surface p-4" style={{ borderRadius: 24 }}>
+                  <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface p-4">
                     <div className="space-y-3">
                       <div>
                         <span className="block mb-1 text-subhead font-normal text-content-secondary">Height</span>
@@ -780,9 +779,11 @@ export function GoalSetupForm({
 
                   {macroStyle && (
                     <div className="mt-5">
-                      <p className="mb-3 text-headline font-semibold text-content">Macro targets</p>
-                      <div className="overflow-hidden rounded-card border border-card-no-shadow bg-surface">
-                        <MacroRow label="Protein target (g)" displayValue={`${proteinG} per day`}
+                      <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface">
+                        <div className="px-4 pt-4 pb-1">
+                          <p className="text-headline font-semibold text-content">Macro targets</p>
+                        </div>
+                        <MacroRow compact label="Protein target (g)" displayValue={`${proteinG} per day`}
                           editable isEditing={editingRow === 'protein'} value={proteinG}
                           min={Math.max(40, r5(sNum * 0.8))} max={r5(Math.max(sNum, 50) * 3.0)}
                           onEditToggle={() => setEditingRow(editingRow === 'protein' ? null : 'protein')}
@@ -790,8 +791,8 @@ export function GoalSetupForm({
                           onChange={setProteinGState} note={proteinNote(proteinG, sNum)} />
                         {macroStyle === 'balanced' && (
                           <>
-                            <MacroRow label="Carb target (g)" displayValue="Adjusts with activity" />
-                            <MacroRow label="Fat target (g)" displayValue={`${fatG} per day`}
+                            <MacroRow compact label="Carb target (g)" displayValue="Adjusts with activity" />
+                            <MacroRow compact label="Fat target (g)" displayValue={`${fatG} per day`}
                               editable isEditing={editingRow === 'fat'} value={fatG}
                               min={10} max={r5(totalCal * 0.55 / 9)}
                               onEditToggle={() => setEditingRow(editingRow === 'fat' ? null : 'fat')}
@@ -803,8 +804,8 @@ export function GoalSetupForm({
                           const carbG = Math.max(0, Math.round((totalCal - proteinG * 4 - fatG * 9) / 4));
                           return (
                             <>
-                              <MacroRow label="Carb target (g)" displayValue={`Base ${carbG} g · adjusts with activity`} />
-                              <MacroRow label="Fat baseline (g)" displayValue={`${fatG} per day`}
+                              <MacroRow compact label="Carb target (g)" displayValue={`Base ${carbG} g · adjusts with activity`} />
+                              <MacroRow compact label="Fat baseline (g)" displayValue={`${fatG} per day`}
                                 editable isEditing={editingRow === 'fat'} value={fatG}
                                 min={10} max={r5(totalCal * 0.45 / 9)}
                                 onEditToggle={() => setEditingRow(editingRow === 'fat' ? null : 'fat')}
@@ -815,13 +816,13 @@ export function GoalSetupForm({
                         })()}
                         {macroStyle === 'lower_carb' && (
                           <>
-                            <MacroRow label="Carb limit (g)" displayValue={`${carbLimitG} per day`}
+                            <MacroRow compact label="Carb limit (g)" displayValue={`${carbLimitG} per day`}
                               editable isEditing={editingRow === 'carb'} value={carbLimitG}
                               min={20} max={r5(totalCal * 0.55 / 4)}
                               onEditToggle={() => setEditingRow(editingRow === 'carb' ? null : 'carb')}
                               onReset={() => { setCarbLimitGState(null); setEditingRow(null); }}
                               onChange={setCarbLimitGState} note={macroNote('lower_carb', 'carb', carbLimitG, totalCal)} />
-                            <MacroRow label="Fat target (g)" displayValue="Adjusts with activity" />
+                            <MacroRow compact label="Fat target (g)" displayValue="Adjusts with activity" />
                           </>
                         )}
                       </div>
@@ -855,15 +856,15 @@ function CardSectionHeader({ children, icon }: { children: React.ReactNode; icon
 
 function MacroRow({
   label, displayValue, editable = false, isEditing = false, value,
-  min = 10, max = 300, step = 5, onEditToggle, onReset, onChange, note,
+  min = 10, max = 300, step = 5, onEditToggle, onReset, onChange, note, compact = false,
 }: {
   label: string; displayValue: string; editable?: boolean; isEditing?: boolean;
   value?: number; min?: number; max?: number; step?: number;
   onEditToggle?: () => void; onReset?: () => void; onChange?: (v: number) => void;
-  note?: string | null;
+  note?: string | null; compact?: boolean;
 }) {
   return (
-    <div className="p-4">
+    <div className={compact ? "px-4 py-2.5 border-t border-border-subtle first:border-t-0" : "p-4"}>
       <div className="flex items-center justify-between">
         {/* label: Regular weight, content-secondary — matches WheelPicker label style */}
         <span className="text-subhead font-normal text-content-secondary">{label}</span>

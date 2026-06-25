@@ -348,6 +348,10 @@ export function GoalSetupForm({
       diaryShowProtein: false, diaryShowCarbs: false, diaryShowFat: false,
       ...(isGain && { surplusFloor: gainFloor, surplusCeiling: gainCeil }),
     });
+    // Log the starting weight for the start date (new goals only)
+    if (!activeGoal) {
+      await repos.weights.upsertForDate({ id: newId(), date: today, weightKg: sk, source: 'manual' });
+    }
     const user = await repos.user.get();
     if (user) {
       await repos.user.save({
@@ -375,6 +379,10 @@ export function GoalSetupForm({
       fatTargetG: macroStyle ? fatG : undefined,
       carbLimitG: macroStyle === 'lower_carb' ? carbLimitG : undefined,
     });
+    // Log the starting weight for the start date (new goals only)
+    if (!activeGoal) {
+      await repos.weights.upsertForDate({ id: newId(), date: startDate, weightKg: sk, source: 'manual' });
+    }
     const user = await repos.user.get();
     if (user) {
       const updates: Record<string, unknown> = { proteinGoalG: macroStyle ? proteinG : undefined };

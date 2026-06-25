@@ -161,7 +161,8 @@ export function GoalSetupForm({
   const [name, setName] = useState(activeGoal?.name ?? '');
   const [start, setStart] = useState(() => {
     const kg = activeGoal ? activeGoal.startWeightKg : currentWeight;
-    return kg != null ? String(toDisp(kg)) : '';
+    if (kg != null) return String(toDisp(kg));
+    return units === 'lbs' ? '132' : '60'; // default centerAt when no weight history
   });
   const [target, setTarget] = useState(() => {
     const kg = activeGoal ? activeGoal.targetWeightKg : null;

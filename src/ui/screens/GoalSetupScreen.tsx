@@ -619,10 +619,10 @@ export function GoalSetupForm({
                         {weighCadence === 'weekly' && (
                           <div>
                             <span className="block mb-1 text-subhead font-normal text-content-secondary">Weigh-in day</span>
-                            <FilterPills<number>
-                              value={weighDay}
-                              onChange={(v) => { if (v !== undefined) setWeighDay(v); }}
-                              options={['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((label, i) => ({ value: i, label }))}
+                            <FilterPills<string>
+                              value={String(weighDay)}
+                              onChange={(v) => { if (v !== undefined) setWeighDay(Number(v)); }}
+                              options={['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((label, i) => ({ value: String(i), label }))}
                             />
                           </div>
                         )}

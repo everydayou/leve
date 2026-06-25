@@ -616,8 +616,8 @@ export function GoalSetupForm({
                         <div>
                           <span className="block mb-1 text-subhead font-normal text-content-secondary">Weigh-in frequency <span className="text-footnote text-content-muted">(optional)</span></span>
                           <FilterPills<'daily' | 'weekly'>
-                            value={weighCadence ?? undefined}
-                            onChange={(v) => { setWeighCadence(v ?? null); }}
+                            value={weighCadence}
+                            onChange={(v) => { setWeighCadence(v); }}
                             options={[{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }]}
                           />
                         </div>

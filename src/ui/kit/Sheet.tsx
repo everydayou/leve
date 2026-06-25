@@ -417,7 +417,7 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
         />
         {/* Header wrapper — shadow appears once the scroll area has been scrolled,
             mirroring the same pattern used on fixed nav bars in full-screen views. */}
-        <div className={`shrink-0 bg-surface transition-[box-shadow] duration-200${scrolled ? ' shadow-nav' : ''}`}>
+        <div className={`shrink-0 transition-[box-shadow] duration-200${scrolled ? ' shadow-nav' : ''}`}>
           <div
             className="cursor-grab touch-none px-5 pt-3 active:cursor-grabbing"
             onPointerDown={onPointerDown}

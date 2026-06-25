@@ -51,6 +51,24 @@ const OPEN_MS  = 420;        // slide-up / expand duration
 const CLOSE_MS = 300;        // slide-down / dismiss duration
 const DRAG_DISMISS_PX = 110; // drag at least this far down to dismiss
 
+// ── Keyboard-aware scroll helper ─────────────────────────────────────────────
+// With KeyboardResize.None the keyboard overlays the bottom of the viewport
+// without shrinking it, so scrollIntoView() can't see the obstruction.
+// We compute the overlap between the focused element and the keyboard top
+// directly from getBoundingClientRect() (viewport coordinates) and
+// call scrollBy() with the exact amount needed + a 24 px breathing room.
+function scrollFocusedAboveKeyboard(
+  scrollEl: HTMLDivElement,
+  el: HTMLElement,
+  keyboardInset: number,
+): void {
+  const inputRect  = el.getBoundingClientRect();
+  const keyboardTop = window.innerHeight - keyboardInset;
+  if (inputRect.bottom > keyboardTop - 16) {
+    scrollEl.scrollBy({ top: inputRect.bottom - keyboardTop + 24, behavior: 'smooth' });
+  }
+}
+
 /** Native-feeling bottom sheet: slides up on open, follows your finger when
  *  you drag the grab-handle/header down, and dismisses past a threshold
  *  (otherwise springs back). The scrim fades in/out with the panel. Renders
@@ -101,6 +119,10 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
   const panelRef = useRef<HTMLDivElement>(null);
   // Ref to the scroll area — used to scroll a focused input into view when keyboard opens.
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  // Ref mirror of keyboardInset so the stable focusin listener can read it without
+  // being recreated every time the inset changes.
+  const keyboardInsetRef = useRef(0);
+  keyboardInsetRef.current = keyboardInset; // eslint-disable-line react-hooks/refs -- intentional: mirror state into ref so the stable focusin listener always reads the latest value without being recreated
   // Remember which element had focus before the sheet opened so we can restore it.
   const triggerRef = useRef<Element | null>(null);
   // Tracks whether the last drag ended as a cancel (no dismiss/expand) so
@@ -214,18 +236,37 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
     };
   }, []);
 
-  // ── Scroll focused input into view when keyboard opens ───────────────────────
-  // With KeyboardResize.None the WKWebView doesn't shrink, so the browser can't
-  // auto-scroll the focused element into view within our custom scroll container.
-  // We do it manually: whenever keyboardInset increases (keyboard just opened or
-  // grew), nudge the active element into view inside the sheet's scroll area.
+  // ── Scroll focused input into view ───────────────────────────────────────────
+  //
+  // Case 1 — keyboard just opened (keyboardInset went 0 → N):
+  // Fire once after the keyboard animation settles and scroll the current
+  // focused input above the keyboard using viewport-coordinate maths.
   useEffect(() => {
     if (keyboardInset <= 0) return;
     const scrollEl = scrollAreaRef.current;
     const focused = document.activeElement as HTMLElement | null;
     if (!scrollEl || !focused || !scrollEl.contains(focused)) return;
-    setTimeout(() => focused.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
+    // 100 ms lets the keyboard slide-up animation finish before we measure.
+    setTimeout(() => scrollFocusedAboveKeyboard(scrollEl, focused, keyboardInset), 100);
   }, [keyboardInset]);
+
+  // Case 2 — keyboard already open, user taps a different field:
+  // keyboardInset doesn't change so the effect above won't re-fire.
+  // A focusin listener on the scroll area catches this and scrolls the
+  // newly focused element above the keyboard.
+  useEffect(() => {
+    const scrollEl = scrollAreaRef.current;
+    if (!scrollEl) return;
+    const onFocusin = (e: FocusEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el || !scrollEl.contains(el)) return;
+      const inset = keyboardInsetRef.current;
+      if (inset <= 0) return;
+      setTimeout(() => scrollFocusedAboveKeyboard(scrollEl, el, inset), 100);
+    };
+    scrollEl.addEventListener('focusin', onFocusin);
+    return () => scrollEl.removeEventListener('focusin', onFocusin);
+  }, []); // stable — reads inset via ref, no deps needed
 
   // ── Focus management ─────────────────────────────────────────────────────────
   // 1. Save the element that triggered the sheet so we can restore focus on close.

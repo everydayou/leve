@@ -705,6 +705,18 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
     return Math.max(0, Math.round((targetKcal - proteinGoalG * 4 - (fatTargetG ?? 0) * 9) / 4));
   })();
 
+  // ── Macro section visibility ────────────────────────────────────────────────
+  // Mirror the MacroBarsRow visibility logic so the container only renders
+  // when at least one bar will actually show. Respects diary toggle flags;
+  // simple-mode goals default those flags to false until user turns them on.
+  const showMacroSection = (() => {
+    const wantProtein = proteinGoalG > 0 && diaryShowProtein !== false;
+    const gainDetailed = !!macroStyle;
+    const wantCarbs = gainDetailed && (diaryShowCarbs ?? gainDetailed);
+    const wantFat   = gainDetailed && (diaryShowFat   ?? (macroStyle === 'balanced' || macroStyle === 'performance'));
+    return wantProtein || wantCarbs || wantFat;
+  })();
+
   // ── Gain goal zone computation ─────────────────────────────────────────────
   // Floor/ceiling surplus range. Falls back to |dailyTarget| ± 100 for old goals.
   const gainFloorEff    = gainGoal ? (goal?.surplusFloor  != null ? goal.surplusFloor  : Math.max(50, Math.abs(dailyTarget) - 100)) : 0;
@@ -731,8 +743,33 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const gainGaugeValue  = gainMidBudget > 0 ? Math.max(-1, Math.min(1, (gainMidBudget - consumed) / gainMidBudget)) : gaugeValue;
   const effectiveGaugeValue = gainGoal ? gainGaugeValue : gaugeValue;
 
-  // Day-specific weight entry (shown in the Weight stat tile)
-  const dayWeightKg = weights.find((w) => w.date === date)?.weightKg ?? null;
+  // Day-specific weight entry (shown in the Weight stat tile).
+  // Daily cadence → exact date match only.
+  // Weekly cadence → most recent entry from the start of the current weigh-in
+  //   period (the most recent occurrence of weeklyWeightDay ≤ this date) up to
+  //   and including this date. If nothing in that window → null ("—").
+  const dayWeightKg = (() => {
+    if (weightCadence === 'daily') {
+      return weights.find((w) => w.date === date)?.weightKg ?? null;
+    }
+    // Find the start of the weigh-in period: most recent weeklyWeightDay ≤ date.
+    const d = new Date(date + 'T00:00:00');
+    // weeklyWeightDay: 0=Mon…6=Sun → convert to JS getDay() 0=Sun…6=Sat
+    const targetJsDay = weeklyWeightDay === 6 ? 0 : weeklyWeightDay + 1;
+    const periodStart = new Date(d);
+    let daysBack = 0;
+    while (daysBack < 7) {
+      if (periodStart.getDay() === targetJsDay) break;
+      periodStart.setDate(periodStart.getDate() - 1);
+      daysBack++;
+    }
+    const periodStartISO = periodStart.toISOString().slice(0, 10);
+    // Find most recent entry in [periodStart, date]
+    const inWindow = weights
+      .filter((w) => w.date >= periodStartISO && w.date <= date)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    return inWindow[0]?.weightKg ?? null;
+  })();
 
   // Trigger: panel activates + data ready → animate 0 → value
   useEffect(() => {
@@ -805,7 +842,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
       {hasTarget ? (
         /* Outer container = the grey background shape. White gauge card overlays
            the top of it; protein bar reveals the grey area at the bottom. */
-        <div className={`mx-6 mt-1 w-[calc(100%-3rem)] rounded-main ${(proteinGoalG > 0 || !!macroStyle) ? 'bg-surface-sunken' : ''}`}>
+        <div className={`mx-6 mt-1 w-[calc(100%-3rem)] rounded-main ${showMacroSection ? 'bg-surface-sunken' : ''}`}>
           {/* White gauge card — floats on top of the grey container */}
           <div className="rounded-main bg-surface border border-border-subtle shadow-card-lg">
             <div className="px-4 pb-5 pt-6">
@@ -881,7 +918,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
             </div>
           </div>
           {/* Macro bars — grey area below the white card, inside the container */}
-          {(proteinGoalG > 0 || !!macroStyle) && (
+          {showMacroSection && (
             <MacroBarsRow
               protein={protein} proteinGoal={proteinGoalG}
               carbs={carbs} fat={fat}
@@ -898,7 +935,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
         </div>
       ) : (
         /* Same layout for no-goal variant */
-        <div className={`mx-6 mt-1 w-[calc(100%-3rem)] rounded-main ${(proteinGoalG > 0 || !!macroStyle) ? 'bg-surface-sunken' : ''}`}>
+        <div className={`mx-6 mt-1 w-[calc(100%-3rem)] rounded-main ${showMacroSection ? 'bg-surface-sunken' : ''}`}>
           <div className="rounded-main bg-surface border border-border-subtle shadow-card-lg">
             <div className="px-4 pb-5 pt-6">
               <div className="flex justify-center">
@@ -942,7 +979,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
               </div>
             </div>
           </div>
-          {(proteinGoalG > 0 || !!macroStyle) && (
+          {showMacroSection && (
             <MacroBarsRow
               protein={protein} proteinGoal={proteinGoalG}
               carbs={carbs} fat={fat}
@@ -1332,7 +1369,7 @@ function BreakdownSheet({
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
 
         {/* ── One unified container ── */}
-        <div className="rounded-card border border-border-field bg-surface pt-2.5">
+        <div className="rounded-card border border-card-no-shadow bg-surface pt-2.5">
 
           {/* Math rows — left side is fully tappable to open info */}
           {mathRows.map(({ label, value, infoKey }) => (
@@ -1562,7 +1599,7 @@ function MealEditSheet({ entry, pantryItems, onClose, showToast }: {
           <select
             value=""
             onChange={(e) => { if (e.target.value) addPantryItem(e.target.value); }}
-            className="w-full appearance-none rounded-field border border-border-field bg-surface pl-3 pr-10 py-3 text-body font-medium text-content"
+            className="w-full appearance-none rounded-field border border-transparent bg-surface-sunken pl-3 pr-10 py-3 text-body font-medium text-content"
           >
             <option value="">Pick an item</option>
             {pantryItems

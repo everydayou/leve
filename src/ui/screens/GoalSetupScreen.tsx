@@ -92,9 +92,11 @@ export function GoalSetupScreen() {
       proteinGoal:   user?.proteinGoalG,
       userBmr:       user?.bmr ?? 0,
       userUnits:     (user?.units ?? 'kg') as Units,
-      userHeightCm:  user?.heightCm ?? null,
-      userAge:       user?.age ?? null,
-      userSex:       user?.sex ?? null,
+      userHeightCm:        user?.heightCm ?? null,
+      userAge:             user?.age ?? null,
+      userSex:             user?.sex ?? null,
+      userWeightCadence:   (user?.weightCadence ?? 'weekly') as 'daily' | 'weekly',
+      userWeeklyWeightDay: user?.weeklyWeightDay ?? 0,
     };
   }, []);
 
@@ -109,13 +111,15 @@ export function GoalSetupScreen() {
     userHeightCm={data.userHeightCm}
     userAge={data.userAge}
     userSex={data.userSex}
+    userWeightCadence={data.userWeightCadence}
+    userWeeklyWeightDay={data.userWeeklyWeightDay}
   />;
 }
 
 // ── Main form ─────────────────────────────────────────────────────────────────
 export function GoalSetupForm({
   activeGoal, currentWeight, currentProteinGoal, userBmr,
-  skipType = false, userUnits, userHeightCm, userAge, userSex, onClose,
+  skipType = false, userUnits, userHeightCm, userAge, userSex, userWeightCadence, userWeeklyWeightDay, onClose,
 }: {
   activeGoal: Goal | null;
   currentWeight: number | null;
@@ -126,6 +130,8 @@ export function GoalSetupForm({
   userHeightCm?: number | null;
   userAge?: number | null;
   userSex?: Sex | null;
+  userWeightCadence?: 'daily' | 'weekly';
+  userWeeklyWeightDay?: number;
   onClose?: () => void;
 }) {
   const nav = useNavigate();
@@ -187,6 +193,10 @@ export function GoalSetupForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userHeightCm, userAge, userSex]);
 
+  // ── Weigh-in cadence ─────────────────────────────────────────────────────
+  const [weighCadence, setWeighCadence] = useState<'daily' | 'weekly'>(userWeightCadence ?? 'weekly');
+  const [weighDay,     setWeighDay]     = useState<number>(userWeeklyWeightDay ?? 0);
+
   // ── Macro style ───────────────────────────────────────────────────────────
   const [macroStyle,      setMacroStyle]      = useState<MacroStyle | null>(activeGoal?.macroStyle ?? null);
   const [editingRow,      setEditingRow]      = useState<EditTarget>(null);
@@ -233,12 +243,6 @@ export function GoalSetupForm({
     return dateFromLosePace(sk, tk, p.kgPerWeek, today);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weightValid, sNum, tNum, losePace, gainPace, isGain, units]);
-
-  const derivedDateText: string | null = (() => {
-    if (!derivedDate) return null;
-    if (isGain) { const p = GAIN_PACES.find(p => p.id === gainPace)!; return `≈ +${p.surplusFloor}–${p.surplusCeiling} kcal/day · ${fmtMonthYear(derivedDate)}`; }
-    return `≈ ${fmtDerivedDate(derivedDate)}`;
-  })();
 
   // ── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -334,19 +338,26 @@ export function GoalSetupForm({
       endDate = dateFromLosePace(sk, tk, LOSE_PACES.find(p => p.id === losePace)!.kgPerWeek, today);
     }
     if (!endDate) return;
+    const simpleProteinG = Math.round(sk * 1.8);
     await repos.goals.put({
       id: activeGoal?.id ?? newId(), name: 'New goal', type: goalType,
       startWeightKg: sk, targetWeightKg: tk,
       startDate: today, targetDate: endDate,
       status: 'active', setupMode: 'simple',
-      ...(isGain && { surplusFloor: gainFloor, surplusCeiling: gainCeil,
-        trackingMode: 'detailed' as const, macroStyle: 'balanced' as MacroStyle }),
+      macroStyle: 'balanced' as MacroStyle,
+      trackingMode: 'detailed' as const,
+      // Macros are calculated but hidden by default in simple mode
+      diaryShowProtein: false, diaryShowCarbs: false, diaryShowFat: false,
+      ...(isGain && { surplusFloor: gainFloor, surplusCeiling: gainCeil }),
     });
     const user = await repos.user.get();
     if (user) {
-      const updates: Record<string, unknown> = {};
-      if (isGain) updates.proteinGoalG = Math.round(sk * 1.8);
-      await repos.user.save({ ...user, ...updates });
+      await repos.user.save({
+        ...user,
+        proteinGoalG: simpleProteinG,
+        weightCadence: weighCadence,
+        weeklyWeightDay: weighCadence === 'weekly' ? weighDay : user.weeklyWeightDay,
+      });
     }
     finishNav();
   }
@@ -373,6 +384,8 @@ export function GoalSetupForm({
       if (offerAge)    updates.age       = offerAge;
       if (offerSex)    updates.sex       = offerSex;
       if (localBmr > 0 && localBmr !== userBmr) updates.bmr = localBmr;
+      updates.weightCadence   = weighCadence;
+      updates.weeklyWeightDay = weighCadence === 'weekly' ? weighDay : user.weeklyWeightDay;
       await repos.user.save({ ...user, ...updates });
     }
     finishNav();
@@ -467,14 +480,14 @@ export function GoalSetupForm({
             {setupMode === 'simple' && (
               <div className="space-y-6">
                 {/* Grouped card — mirrors Custom's "Your goal" card */}
-                <div className="overflow-hidden border border-border-field bg-surface" style={{ borderRadius: 24 }}>
-                  {/* Weight (Unit is first sub-field inside) */}
+                <div className="overflow-hidden rounded-card border border-card-no-shadow bg-surface">
+                  {/* Weight sub-section */}
                   <div className="px-4 pt-6 pb-3">
                     <CardSectionHeader icon="weight">Weight</CardSectionHeader>
                     <div className="space-y-3">
-                      {/* Unit — first sub-field */}
+                      {/* Units — first sub-field */}
                       <div>
-                        <span className="text-subhead font-normal text-content-secondary">Unit</span>
+                        <span className="text-subhead font-normal text-content-secondary">Units</span>
                         <div className="mt-1">
                           <FilterPills<Units>
                             value={units}
@@ -486,7 +499,8 @@ export function GoalSetupForm({
                       <div>
                         <WheelPicker label={`Current (${units})`} value={start}
                           onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
-                          min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.start} />
+                          min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.start}
+                          centerAt={units === 'lbs' ? 132 : 60} />
                         {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
                       </div>
                       <div>
@@ -499,7 +513,7 @@ export function GoalSetupForm({
                     </div>
                   </div>
 
-                  {/* Pace — pt-4 matches Custom sub-section gap */}
+                  {/* Pace sub-section */}
                   <div className="px-4 pt-4 pb-6">
                     <CardSectionHeader icon="calendar">Pace</CardSectionHeader>
                     {isGain ? (
@@ -511,12 +525,37 @@ export function GoalSetupForm({
                         onChange={(v) => { if (v) setLosePace(v); }}
                         options={LOSE_PACES.map(p => ({ value: p.id, label: p.label }))} />
                     )}
+                    {derivedDate && (() => {
+                      if (isGain) {
+                        const p = GAIN_PACES.find(p => p.id === gainPace)!;
+                        return (
+                          <div className="mt-3 rounded-card bg-surface-sunken p-4" aria-live="polite">
+                            <p className="text-subhead font-semibold text-content">
+                              Estimated finish: {fmtMonthYear(derivedDate)}
+                            </p>
+                            <p className="mt-0.5 text-footnote text-content-secondary">
+                              +{p.kgPerMonth} kg/month · +{p.surplusFloor} to +{p.surplusCeiling} kcal/day
+                            </p>
+                          </div>
+                        );
+                      }
+                      const p = LOSE_PACES.find(p => p.id === losePace)!;
+                      const kcal = Math.round((p.kgPerWeek * 7700) / 7);
+                      return (
+                        <div className="mt-3 rounded-card bg-surface-sunken p-4" aria-live="polite">
+                          <p className="text-subhead font-semibold text-content">
+                            Estimated finish: {fmtDerivedDate(derivedDate)}
+                          </p>
+                          <p className="mt-0.5 text-footnote text-content-secondary">
+                            {units === 'lbs'
+                              ? `${kgToLbs(p.kgPerWeek).toFixed(2)} lbs/week · –${kcal} kcal/day`
+                              : `${p.kgPerWeek} kg/week · –${kcal} kcal/day`}
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
-
-                {derivedDateText && (
-                  <p className="text-callout text-content-secondary" aria-live="polite">{derivedDateText}</p>
-                )}
 
                 <Button size="lg" onClick={() => void createSimple()}>Set my goal</Button>
               </div>
@@ -529,13 +568,13 @@ export function GoalSetupForm({
                 <section>
                   <p className="mb-4 text-title font-bold text-content">1. Your goal</p>
 
-                  <div className="overflow-hidden border border-border-field bg-surface" style={{ borderRadius: 24 }}>
+                  <div className="overflow-hidden rounded-card border border-card-no-shadow bg-surface">
                     {/* Goal name */}
                     <div className="p-4">
                       <span className="block mb-2 text-headline font-semibold text-content">Goal name</span>
                       <LabeledInput value={name} onChange={(e) => setName(e.target.value)}
                         placeholder="e.g. Summer Cut"
-                        className="!bg-surface-sunken !border-transparent focus:!border-transparent" />
+                        />
                     </div>
 
                     {/* Weight (Unit is first sub-field inside) */}
@@ -557,7 +596,7 @@ export function GoalSetupForm({
                           <WheelPicker label={`Start (${units})`} value={start}
                             onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
                             min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.start}
-                            selectClassName="!bg-surface-sunken !border-transparent focus:!border-transparent" />
+                            centerAt={units === 'lbs' ? 132 : 60} />
                           {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
                         </div>
                         <div>
@@ -565,9 +604,28 @@ export function GoalSetupForm({
                             onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
                             min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.target}
                             centerAt={+start || (units === 'lbs' ? 154 : 70)}
-                            selectClassName="!bg-surface-sunken !border-transparent focus:!border-transparent" />
+                            />
                           {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
                         </div>
+
+                        <div>
+                          <span className="block mb-1 text-subhead font-normal text-content-secondary">Weigh-in frequency</span>
+                          <FilterPills<'daily' | 'weekly'>
+                            value={weighCadence}
+                            onChange={(v) => { if (v) setWeighCadence(v); }}
+                            options={[{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }]}
+                          />
+                        </div>
+                        {weighCadence === 'weekly' && (
+                          <div>
+                            <span className="block mb-1 text-subhead font-normal text-content-secondary">Weigh-in day</span>
+                            <FilterPills<number>
+                              value={weighDay}
+                              onChange={(v) => { if (v !== undefined) setWeighDay(v); }}
+                              options={['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((label, i) => ({ value: i, label }))}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -619,8 +677,13 @@ export function GoalSetupForm({
                             </p>
                           </div>
                           <div className="mt-3 rounded-field bg-surface-sunken px-3 py-2.5 text-center">
-                            <p className="text-subhead text-content-secondary">
-                              {isGain ? `+${effectiveMagnitude - 100} to +${effectiveMagnitude + 100} kcal/day` : `≈ –${effectiveMagnitude} kcal/day`}
+                            <p className="text-footnote font-semibold text-content">
+                              {isGain ? 'Daily surplus' : 'Daily deficit'}
+                            </p>
+                            <p className="text-subhead font-semibold text-content">
+                              {isGain
+                                ? `+${effectiveMagnitude - 100} to +${effectiveMagnitude + 100} kcal`
+                                : `–${effectiveMagnitude} kcal`}
                             </p>
                           </div>
                           <input type="range"
@@ -628,7 +691,7 @@ export function GoalSetupForm({
                             min={sliderMin} max={sliderMax} step={10} value={effectiveMagnitude}
                             onChange={(e) => { setDeficitOverride(Number(e.target.value)); setSessionTouched(true); }}
                             className="mt-[2px] w-full accent-accent" style={{ touchAction: 'pan-x' }} />
-                          <div className="mt-5"><PaceMeter level={intensity.level} /></div>
+                          <div className="mt-5"><PaceMeter level={intensity.level} kcalPerDay={effectiveMagnitude} /></div>
                           {showDeficitWarning && (
                             <div className="mt-4 flex items-start gap-2.5 rounded-control border border-border-subtle bg-surface-sunken p-3">
                               <Icon name="info" size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-content-secondary" />
@@ -718,7 +781,7 @@ export function GoalSetupForm({
                   {macroStyle && (
                     <div className="mt-5">
                       <p className="mb-3 text-headline font-semibold text-content">Macro targets</p>
-                      <div className="overflow-hidden border border-border-field bg-surface" style={{ borderRadius: 24 }}>
+                      <div className="overflow-hidden rounded-card border border-card-no-shadow bg-surface">
                         <MacroRow label="Protein target (g)" displayValue={`${proteinG} per day`}
                           editable isEditing={editingRow === 'protein'} value={proteinG}
                           min={Math.max(40, r5(sNum * 0.8))} max={r5(Math.max(sNum, 50) * 3.0)}
@@ -885,12 +948,18 @@ function FlowHeader({ title, onClose, onBack }: { title: string; onClose?: () =>
   );
 }
 
-function PaceMeter({ level }: { level: 'gentle' | 'moderate' | 'aggressive' }) {
-  const pos = level === 'gentle' ? '16%' : level === 'moderate' ? '50%' : '84%';
+function PaceMeter({ level, kcalPerDay = 0 }: { level: 'gentle' | 'moderate' | 'aggressive'; kcalPerDay?: number }) {
+  // Continuous scale: 0 kcal/day = 0%, 1200 kcal/day = 100% (capped).
+  // Zone boundaries: gentle <350 kcal ≈ <0.35 kg/week, moderate 350–750, aggressive >750.
+  const MAX_KCAL = 1200;
+  const pct = Math.min(100, Math.round((kcalPerDay / MAX_KCAL) * 100));
   return (
     <div>
       <div className="relative h-2 rounded-pill bg-surface-sunken">
-        <div className="absolute top-1/2 h-4 w-1 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-accent" style={{ left: pos }} />
+        <div
+          className="absolute top-1/2 h-4 w-1 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-accent"
+          style={{ left: `${pct}%` }}
+        />
       </div>
       <div className="mt-1.5 grid grid-cols-3 text-footnote">
         <span className={`text-left  ${level === 'gentle'     ? 'font-semibold text-content' : 'text-content-muted'}`}>Gentle</span>

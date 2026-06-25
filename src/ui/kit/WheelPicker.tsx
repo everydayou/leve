@@ -37,10 +37,10 @@ export function WheelPicker({
 
   // Shared select base class — mirrors LabeledInput styling.
   const baseCls = [
-    'w-full appearance-none rounded-field border bg-surface',
+    'w-full appearance-none rounded-field border bg-surface-sunken',
     'px-3 py-2.5 pr-7 text-subhead font-semibold text-content',
     'outline-none transition',
-    invalid ? 'border-danger' : 'border-border-field focus:border-accent',
+    invalid ? 'border-danger' : 'border-transparent focus:border-accent',
     selectClassName,
   ].join(' ');
 
@@ -148,10 +148,10 @@ export function WheelPicker({
   }, []);
 
   const splitSelectCls = [
-    'appearance-none rounded-field border bg-surface',
+    'appearance-none rounded-field border bg-surface-sunken',
     'px-3 py-2.5 pr-7 text-subhead font-semibold text-content',
     'outline-none transition',
-    invalid ? 'border-danger' : 'border-border-field focus:border-accent',
+    invalid ? 'border-danger' : 'border-transparent focus:border-accent',
     selectClassName,
   ].join(' ');
 

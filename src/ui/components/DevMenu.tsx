@@ -785,12 +785,16 @@ function ProfileSwitcher() {
           </Button>
         )}
         <Button size="sm" variant="subtle" onClick={async () => {
+          if (isTest) {
+            // Test profile: wipe everything — complete fresh start.
+            const { Dexie } = await import('dexie');
+            await Dexie.delete(DB_NAMES[TEST_PROFILE]);
+          } else {
+            // Real profile: abandon goals so replayed onboarding starts clean.
+            const allGoals = await repos.goals.getAll();
+            for (const g of allGoals) await repos.goals.put({ ...g, status: 'abandoned' as GoalStatus });
+          }
           resetOnboarding();
-          // Also abandon all goals so the replayed onboarding starts clean.
-          // Without this, a leftover active goal makes the Explore path look
-          // like it "created" a goal.
-          const allGoals = await repos.goals.getAll();
-          for (const g of allGoals) await repos.goals.put({ ...g, status: 'abandoned' as GoalStatus });
           window.location.hash = '/onboarding';
           window.location.reload();
         }}>

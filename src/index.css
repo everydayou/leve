@@ -56,6 +56,7 @@
        strong — selected / active state */
   --color-border-subtle: #f8f8f8;                       /* hairlines (light) — cards lean on shadow */
   --color-border-field:  #efeff0;                       /* flat, shadowless items — darker so they read */
+  --color-border-card-no-shadow: #efeff0;               /* flat card containers with no shadow */
   --color-border-strong: var(--color-neutral-300);      /* selected/active */
   --color-scrim:         rgba(0, 0, 0, 0.4);            /* modal/sheet backdrop */
 
@@ -220,6 +221,7 @@ button, a, [role="button"] {
   /* Border overrides. */
   --color-border-subtle: #1a1a1a;
   --color-border-field:  #212121;
+  --color-border-card-no-shadow: #212121;
   --color-border-strong: #48484a;
   /* Shadows (user-tuned). */
   --shadow-card:    0px 1px 5px 5px rgba(0, 0, 0, 0.02), 0px 8px 8px -6px rgba(0, 0, 0, 0.02), 0px 4px 4px 0px rgba(0, 0, 0, 0.04);
@@ -257,6 +259,14 @@ button, a, [role="button"] {
 .shadow-card-lg { --tw-shadow: var(--shadow-card-lg); }
 /* Navbar scroll-depth shadow — appears when content scrolls under a sticky header */
 .shadow-nav     { box-shadow: 0 2px 8px -2px rgba(17, 24, 28, 0.08); }
+
+/* ── Flat card — borderless shadow, consistent 16px padding + radius ──────────
+   Use for any card/container that has no shadow (leans on its border to read). */
+.card-flat {
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border-card-no-shadow);
+  padding: 1rem; /* 16px all sides */
+}
 
 /* ── Glass utilities ───────────────────────────────────────────────────────
    .glass        — standard frosted surface (tab bar, top bar, sheet header)

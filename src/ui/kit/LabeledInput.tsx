@@ -36,10 +36,10 @@ export function LabeledInput({
           {...input}
           ref={ref}
           id={inputId}
-          className={`w-full rounded-field border bg-surface px-3 py-2.5 text-subhead font-semibold
+          className={`w-full rounded-field border bg-surface-sunken px-3 py-2.5 text-subhead font-semibold
             text-content outline-none transition placeholder:text-content-muted
             ${hasValue ? 'pr-8' : ''}
-            ${invalid ? 'border-danger' : 'border-border-field focus:border-accent'} ${className}`}
+            ${invalid ? 'border-danger' : 'border-transparent focus:border-accent'} ${className}`}
         />
         {hasValue && (
           <button

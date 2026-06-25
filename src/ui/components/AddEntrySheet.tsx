@@ -865,7 +865,7 @@ function PantryPick({ date, items, onDone, showToast }: {
           <select
             value=""
             onChange={(e) => { if (e.target.value) addItem(e.target.value); }}
-            className="w-full appearance-none rounded-field border border-border-field bg-surface pl-3 pr-10 py-3 text-body font-medium text-content"
+            className="w-full appearance-none rounded-field border border-transparent bg-surface-sunken pl-3 pr-10 py-3 text-body font-medium text-content"
           >
             <option value="">Pick an item</option>
             {items

@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { markOnboardingSeen } from '../../lib/onboarding';
 import { GoalIcon } from './GoalSetupScreen';
 import { Icon } from '../kit';
@@ -10,7 +10,7 @@ type GoalPath = 'lose_by_date' | 'gain_by_date';
 function PathCard({
   title, description, iconEl, onClick,
 }: {
-  title: string; description?: string; iconEl: React.ReactNode; onClick: () => void;
+  title: string; description?: React.ReactNode; iconEl: React.ReactNode; onClick: () => void;
 }) {
   return (
     <button onClick={onClick}
@@ -76,7 +76,7 @@ export function FirstOpenForkScreen() {
       <div className="px-6 space-y-3">
         <PathCard
           title="Lose weight"
-          description="Target a weight and date. Track your deficit daily."
+          description={<>Track your <strong className="font-semibold text-content">calorie deficit</strong> daily.</>}
           iconEl={<GoalIcon type="lose_by_date" size={24} />}
           onClick={() => pickGoal('lose_by_date')}
         />
@@ -99,6 +99,8 @@ export function FirstOpenForkScreen() {
 // ── Explorer-to-goal fork — 2 options ────────────────────────────────────────
 export function GoalForkScreen() {
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromToday = searchParams.get('from') === 'today';
 
   function pickGoal(type: GoalPath) {
     hapticLight();
@@ -108,9 +110,13 @@ export function GoalForkScreen() {
   return (
     <ForkShell>
       <div className="flex items-center px-4 pt-5 pb-2">
-        <button onClick={() => { hapticLight(); nav(-1); }} aria-label="Back"
+        <button
+          onClick={() => { hapticLight(); if (fromToday) { nav('/today'); } else { nav(-1 as never); } }}
+          aria-label={fromToday ? 'Close' : 'Back'}
           className="-ml-2 flex h-10 w-10 items-center justify-center rounded-control text-content-muted active:bg-surface-sunken transition-colors">
-          <Icon name="chevronLeft" size={20} strokeWidth={2.5} />
+          {fromToday
+            ? <Icon name="close" size={20} strokeWidth={2.25} />
+            : <Icon name="chevronLeft" size={20} strokeWidth={2.5} />}
         </button>
       </div>
       <div className="px-6 pt-4 pb-8">
@@ -121,7 +127,7 @@ export function GoalForkScreen() {
       <div className="px-6 space-y-3">
         <PathCard
           title="Lose weight"
-          description="Target a weight and date. Track your deficit daily."
+          description={<>Track your <strong className="font-semibold text-content">calorie deficit</strong> daily.</>}
           iconEl={<GoalIcon type="lose_by_date" size={24} />}
           onClick={() => pickGoal('lose_by_date')}
         />

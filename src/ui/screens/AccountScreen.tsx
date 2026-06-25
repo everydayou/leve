@@ -10,6 +10,8 @@ import { getThemePref, setThemePref, type ThemePref } from '../../lib/theme';
 import { hapticLight, getHapticsPref, setHapticsPref } from '../../lib/haptics';
 import { getWithingsService, type WithingsStatus } from '../../data/withings';
 import { DevMenu } from '../components/DevMenu';
+import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
+import { currentWeightKg } from '../../domain/goal';
 import type { User, Sex, Units, Goal } from '../../domain/types'; // Goal used in sub-components
 
 
@@ -20,10 +22,10 @@ export function AccountScreen() {
   const [showBmrInfo, setShowBmrInfo] = useState(false);
   const [editingProtein, setEditingProtein] = useState(false);
   const data = useLive(async () => {
-    const [user, goal] = await Promise.all([
-      repos.user.get(), repos.goals.getActive(),
+    const [user, goal, weights] = await Promise.all([
+      repos.user.get(), repos.goals.getActive(), repos.weights.all(),
     ]);
-    return { user, goal };
+    return { user, goal, weightKg: currentWeightKg(weights) };
   }, []);
 
   if (!data?.user) return (
@@ -34,7 +36,7 @@ export function AccountScreen() {
       <Skeleton className="h-24 w-full" />
     </div>
   );
-  const { user, goal } = data;
+  const { user, goal, weightKg } = data;
 
   return (
     <div className="px-6 pb-6">
@@ -134,7 +136,7 @@ export function AccountScreen() {
 
       <p className="mt-8 text-center text-micro text-content-muted">v0.1.0</p>
 
-      {editingProfile && <ProfileSheet user={user} onClose={() => setEditingProfile(false)} />}
+      {editingProfile && <ProfileSheet user={user} currentWeightKg={weightKg} onClose={() => setEditingProfile(false)} />}
       {managingGoal && goal && <GoalManageSheet goal={goal} onClose={() => setManagingGoal(false)} onNavigate={(path) => { setManagingGoal(false); nav(path); }} />}
       {showBmrInfo && <BmrInfoSheet onClose={() => setShowBmrInfo(false)} />}
       {editingProtein && <ProteinGoalSheet current={user.proteinGoalG} onClose={() => setEditingProtein(false)} />}
@@ -142,18 +144,26 @@ export function AccountScreen() {
   );
 }
 
-function ProfileSheet({ user, onClose }: { user: User; onClose: () => void }) {
+function ProfileSheet({ user, currentWeightKg: weightKg, onClose }: { user: User; currentWeightKg: number | null; onClose: () => void }) {
   const [height, setHeight] = useState(String(user.heightCm));
   const [age, setAge] = useState(user.age != null ? String(user.age) : '');
   const [sex, setSex] = useState<Sex | undefined>(user.sex);
   const [units, setUnits] = useState<Units>(user.units ?? 'kg');
   async function save() {
+    const heightCm = Number(height) || user.heightCm;
+    const ageNum   = age ? Number(age) : undefined;
+    const newBmr   = (heightCm > 0 && ageNum && sex && weightKg)
+      ? (canComputeBmr({ weightKg, heightCm, age: ageNum, sex })
+          ? mifflinStJeorBMR({ weightKg, heightCm, age: ageNum, sex })
+          : user.bmr)
+      : user.bmr;
     await repos.user.save({
       ...user,
-      heightCm: Number(height) || user.heightCm,
-      age: age ? Number(age) : undefined,
+      heightCm,
+      age: ageNum,
       sex,
       units,
+      bmr: newBmr,
     });
     onClose();
   }
@@ -163,7 +173,7 @@ function ProfileSheet({ user, onClose }: { user: User; onClose: () => void }) {
         <WheelPicker label="Height (cm)" value={height} onChange={setHeight} min={100} max={250} step={1} unit="cm" centerAt={170} />
         <WheelPicker label="Age" value={age} onChange={setAge} min={10} max={100} step={1} centerAt={30} />
         <div>
-          <span className="text-micro uppercase text-content-secondary">Sex</span>
+          <span className="text-subhead font-normal text-content-secondary">Sex</span>
           <div className="mt-1">
             <SegmentedControl<Sex>
               value={(sex ?? '') as Sex}
@@ -173,7 +183,7 @@ function ProfileSheet({ user, onClose }: { user: User; onClose: () => void }) {
           </div>
         </div>
         <div>
-          <span className="text-micro uppercase text-content-secondary">Units</span>
+          <span className="text-subhead font-normal text-content-secondary">Units</span>
           <div className="mt-1">
             <SegmentedControl<Units>
               value={units}

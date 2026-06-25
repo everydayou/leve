@@ -340,14 +340,107 @@ function MacroDetailSheet({
   macroStyle?: string; fatTarget?: number; carbLimit?: number;
   onClose: () => void;
 }) {
-  const carbTarget = carbLimit; // pre-computed per mode in DayPanel
+  const carbTarget   = carbLimit;
   const fatTargetEff = (macroStyle === 'balanced' || macroStyle === 'performance') ? fatTarget : 0;
+
+  const [activeInfo, setActiveInfo] = useState<'protein' | 'carbs' | 'fat' | null>(null);
+  const [infoEntered, setInfoEntered] = useState(false);
+
+  function openInfo(key: 'protein' | 'carbs' | 'fat') {
+    setActiveInfo(key);
+    requestAnimationFrame(() => setInfoEntered(true));
+  }
+  function closeInfo() {
+    setInfoEntered(false);
+    setTimeout(() => setActiveInfo(null), 260);
+  }
+
+  const slide: React.CSSProperties = { transition: 'transform 260ms cubic-bezier(0.32,0.72,0,1)' };
+  const infoTitles = { protein: 'Protein', carbs: 'Carbs', fat: 'Fat' };
+
+  const infoPanels: Record<'protein' | 'carbs' | 'fat', React.ReactNode> = {
+    protein: (
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content"><span className="font-medium">Protein</span> is the building block of muscle, organs, and enzymes. It keeps you full and supports recovery after training.</p>
+        <p className="text-subhead text-content">It also has the highest thermic effect — your body burns more calories just digesting it compared to carbs or fat.</p>
+        <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Target: </span>{proteinGoal > 0 ? `${proteinGoal} g per day` : 'Not set — add a goal to get a protein target.'}</p>
+      </div>
+    ),
+    carbs: (
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content"><span className="font-medium">Carbohydrates</span> are your body's preferred energy source, especially for the brain and during high-intensity activity.</p>
+        <p className="text-subhead text-content">On active days, your carb budget increases automatically to fuel your output. On rest days, it adjusts back down.</p>
+        <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Target: </span>{carbTarget > 0 ? `${carbTarget} g per day` : 'Adjusts with your activity.'}</p>
+      </div>
+    ),
+    fat: (
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content"><span className="font-medium">Fat</span> supports hormone production, brain function, and absorption of fat-soluble vitamins (A, D, E, K).</p>
+        <p className="text-subhead text-content">It's the most calorie-dense macro at 9 kcal per gram, so it has a big impact on your daily total even in small amounts.</p>
+        <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Target: </span>{fatTargetEff > 0 ? `${fatTargetEff} g per day` : 'No specific target for your current plan.'}</p>
+      </div>
+    ),
+  };
+
+  const stickyHeader = (
+    <div className="relative overflow-hidden mb-5">
+      <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
+        <div className="flex items-center gap-2 py-1">
+          <button data-no-drag onClick={onClose} aria-label="Close" className="-m-1 p-1 text-content-muted">
+            <Icon name="close" size={22} strokeWidth={2.25} />
+          </button>
+          <h2 className="flex-1 text-center text-headline font-semibold">Macros</h2>
+          <span className="w-6" />
+        </div>
+      </div>
+      {activeInfo && (
+        <div className="absolute inset-0 bg-surface"
+          style={{ ...slide, transform: infoEntered ? 'translateX(0)' : 'translateX(100%)' }}>
+          <div className="flex items-center gap-2 py-1">
+            <button data-no-drag onClick={closeInfo} aria-label="Back" className="-m-1 p-1 text-content-muted">
+              <Icon name="back" size={22} strokeWidth={2.25} />
+            </button>
+            <h2 className="flex-1 text-center text-headline font-semibold">{infoTitles[activeInfo]}</h2>
+            <span className="w-6" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <Sheet title="Macros" onClose={onClose}>
-      <div className="px-4 pb-6 space-y-5">
-        <MacroDetailRow label="Protein" consumed={protein} targetG={proteinGoal} />
-        <MacroDetailRow label="Carbs"   consumed={carbs}   targetG={carbTarget} />
-        <MacroDetailRow label="Fat"     consumed={fat}     targetG={fatTargetEff} />
+    <Sheet onClose={onClose} stickyHeader={stickyHeader} forceExpanded>
+      <div className="relative overflow-hidden">
+        <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
+          <p className="mb-5 text-subhead text-content-secondary">
+            Macros are the three main nutrients that make up your calories. Tracking them alongside your total helps you eat in a way that supports your goal.
+          </p>
+          <div className="space-y-5">
+            {(['protein', 'carbs', 'fat'] as const).map((key) => (
+              <div key={key} className="relative">
+                <MacroDetailRow
+                  label={key.charAt(0).toUpperCase() + key.slice(1)}
+                  consumed={key === 'protein' ? protein : key === 'carbs' ? carbs : fat}
+                  targetG={key === 'protein' ? proteinGoal : key === 'carbs' ? carbTarget : fatTargetEff}
+                />
+                <button
+                  data-no-drag
+                  onClick={() => openInfo(key)}
+                  aria-label={`Learn about ${key}`}
+                  className="absolute top-0 right-0 p-1 text-content-muted active:opacity-70"
+                >
+                  <Icon name="info" size={16} strokeWidth={1.75} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+        {activeInfo && (
+          <div className="absolute inset-0 bg-surface"
+            style={{ ...slide, transform: infoEntered ? 'translateX(0)' : 'translateX(100%)' }}>
+            {infoPanels[activeInfo]}
+          </div>
+        )}
       </div>
     </Sheet>
   );
@@ -822,13 +915,6 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
 
   return (
     <div className="pb-6">
-      {bmrIsEstimated && hasGoal && (
-        <button onClick={() => { hapticLight(); setShowBreakdown(true); }} className="mx-4 mt-4 flex w-[calc(100%-2rem)] items-center gap-2 rounded-card border border-border-subtle bg-surface-sunken px-4 py-3 text-left">
-          <Icon name="info" size={16} strokeWidth={1.75} className="shrink-0 text-content-muted" />
-          <span className="text-subhead text-content-secondary">Numbers estimated — tap breakdown to add your profile</span>
-        </button>
-      )}
-
       {/* Screen-reader live region: announces the updated calories remaining
           whenever the user logs food or activity. Visually hidden. */}
       <div
@@ -945,7 +1031,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
             <div className="px-4 pb-5 pt-6">
               <div className="flex justify-center">
                 <button
-                  onClick={() => { hapticLight(); nav('/goal-fork'); }}
+                  onClick={() => { hapticLight(); nav('/goal-fork?from=today'); }}
                   className="rounded-full bg-surface-sunken px-4 py-1.5 text-subhead font-medium text-content-secondary active:opacity-70 transition-opacity"
                   aria-label={hasPastGoal ? 'View past goal' : 'Set a goal'}
                 >
@@ -1003,6 +1089,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
 
       {showBreakdown && hasGoal && (
         <BreakdownSheet
+          forceExpanded
           bmrIsEstimated={bmrIsEstimated}
           onSetupProfile={() => { setShowBreakdown(false); setShowProfileSetup(true); }}
           mode="goal"
@@ -1021,6 +1108,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
       {showBreakdown && !hasGoal && (
         <BreakdownSheet
           mode="no-goal"
+          forceExpanded
           bmr={day.bmr}
           consumed={consumed}
           actCals={actCals}
@@ -1129,11 +1217,17 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                   }
                 })}
                 {logItems.length === 0 && (
-                  <li className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-                    <Icon name="foodIcon" size={24} className="text-content-muted" />
-                    <span className="text-subhead text-content-muted">
-                      Add food by tapping<br />on the + button
-                    </span>
+                  <li>
+                    <button
+                      onClick={() => { hapticLight(); ctx.openAddEntry('food', { hideTabs: true }); }}
+                      className="flex w-full flex-col items-center gap-2 px-4 py-8 text-center active:bg-surface-sunken transition-colors"
+                      aria-label="Add food"
+                    >
+                      <Icon name="foodIcon" size={24} className="text-content-muted" />
+                      <span className="text-subhead text-content-muted">
+                        Tap to add your first food entry
+                      </span>
+                    </button>
                   </li>
                 )}
               </ul>
@@ -1176,13 +1270,13 @@ type BreakdownInfoKey = 'bmr' | 'activity' | 'digestion' | 'food' | 'goal' | 'av
 function BreakdownSheet({
   mode = 'goal', bmr, consumed, actCals, digestionCalories, dailyTarget,
   gainGoal = false, gainZone = 'below', gainFloor = 0, gainCeil = 0,
-  bmrIsEstimated = false, onSetupProfile, onClose,
+  bmrIsEstimated = false, forceExpanded = false, onSetupProfile, onClose,
 }: {
   mode?: 'goal' | 'no-goal';
   bmr: number; consumed: number; actCals: number; digestionCalories: number;
   dailyTarget: number; gainGoal?: boolean; gainZone?: 'below' | 'in' | 'above';
   gainFloor?: number; gainCeil?: number;
-  bmrIsEstimated?: boolean; onSetupProfile?: () => void;
+  bmrIsEstimated?: boolean; forceExpanded?: boolean; onSetupProfile?: () => void;
   onClose: () => void;
 }) {
   const [activeInfo, setActiveInfo] = useState<BreakdownInfoKey | null>(null);
@@ -1279,7 +1373,22 @@ function BreakdownSheet({
       ...(actCals > 0 ? [{ label: 'Activity', value: `${Math.round(actCals).toLocaleString()} kcal` }] : []),
     ];
     return (
-      <Sheet onClose={onClose} stickyHeader={animatedHeader}>
+      <Sheet onClose={onClose} stickyHeader={animatedHeader} forceExpanded={forceExpanded}>
+        <div className="mb-5 rounded-card border border-border-subtle bg-surface overflow-hidden">
+          {[
+            { icon: 'flame' as const, title: 'A daily calorie target', body: "Know exactly how much to eat each day to hit your goal." },
+            { icon: 'goal' as const, title: 'Progress you can see', body: "Charts and streaks that show whether you're on track week by week." },
+            { icon: 'dumbbell' as const, title: 'Smarter macro targets', body: "Protein, carbs, and fat — set to support your specific goal." },
+          ].map(({ icon, title, body }, idx, arr) => (
+            <div key={title} className={`flex items-start gap-3 px-4 py-3 ${idx < arr.length - 1 ? 'border-b border-border-subtle' : ''}`}>
+              <Icon name={icon} size={18} className="mt-0.5 shrink-0 text-accent" />
+              <div>
+                <p className="text-subhead font-semibold text-content">{title}</p>
+                <p className="text-subhead text-content-secondary">{body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
         <div ref={wrapperRef} className="rounded-card border border-border-subtle bg-surface overflow-hidden">
           {noGoalRows.map(({ label, value }, idx) => (
             <div key={label}
@@ -1471,8 +1580,16 @@ function BreakdownSheet({
     </div>
   );
 
+  const breakdownIntro = (
+    <p className="mb-4 text-subhead text-content-secondary">
+      Food adds energy. Your body burns it through your base rate, activity, and digestion.
+      Based on your goal, we find a daily {gainGoal ? 'surplus' : 'deficit'} that hits the sweet spot.
+    </p>
+  );
+
   return (
-    <Sheet onClose={onClose} stickyHeader={animatedHeader}>
+    <Sheet onClose={onClose} stickyHeader={animatedHeader} forceExpanded={forceExpanded}>
+      {breakdownIntro}
       {scrollableContent}
     </Sheet>
   );

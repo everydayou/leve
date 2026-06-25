@@ -11,7 +11,6 @@ import {
 } from '../../domain/goal';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { kgToLbs, lbsToKg } from '../../domain/units';
-import { fmtDerivedDate, fmtMonthYear } from '../../lib/date';
 import { markOnboardingSeen } from '../../lib/onboarding';
 import { useKeyboardInset, scrollFocusedAboveKeyboard } from '../../lib/useKeyboardInset';
 import { Button, LabeledInput, WheelPicker, Icon, SegmentedControl, FilterPills } from '../kit';
@@ -42,8 +41,6 @@ const MACRO_STYLES: { id: MacroStyle; title: string; subtitle: string }[] = [
   { id: 'lower_carb',  title: 'Lower carb',  subtitle: 'Lower carb, higher fat'      },
 ];
 
-const HEIGHT_OPTIONS: number[] = Array.from({ length: 81 }, (_, i) => 140 + i);
-const AGE_OPTIONS:    number[] = Array.from({ length: 81 }, (_, i) => 10  + i);
 
 // ── Macro helpers ─────────────────────────────────────────────────────────────
 function r5(n: number): number { return Math.round(n / 5) * 5; }
@@ -154,8 +151,8 @@ export function GoalSetupForm({
   );
 
   // ── Pace ──────────────────────────────────────────────────────────────────
-  const [losePace, setLosePace] = useState<LosePaceId>('steady');
-  const [gainPace, setGainPace] = useState<GainPaceId>('steady');
+  const [losePace, setLosePace] = useState<LosePaceId>('relaxed');
+  const [gainPace, setGainPace] = useState<GainPaceId>('lean');
 
   // ── Goal fields ───────────────────────────────────────────────────────────
   const [type, setType] = useState<GoalTypeOpt['id']>(typeParam ?? activeGoal?.type ?? 'lose_by_date');
@@ -329,6 +326,7 @@ export function GoalSetupForm({
 
   function finishNav() {
     if (isFirstOpen) { markOnboardingSeen(); nav('/today', { replace: true }); }
+    else if (fromFork) { nav('/today', { replace: true }); }
     else { dismiss(); }
   }
 
@@ -374,12 +372,16 @@ export function GoalSetupForm({
     }
     const user = await repos.user.get();
     if (user) {
-      await repos.user.save({
-        ...user,
+      const simpleUpdates: Record<string, unknown> = {
         proteinGoalG: simpleProteinG,
         ...(weighCadence && { weightCadence: weighCadence }),
         weeklyWeightDay: weighCadence === 'weekly' ? weighDay : user.weeklyWeightDay,
-      });
+      };
+      if (offerHeight) simpleUpdates.heightCm = offerHeight;
+      if (offerAge)    simpleUpdates.age       = offerAge;
+      if (offerSex)    simpleUpdates.sex       = offerSex;
+      if (localBmr > 0 && localBmr !== userBmr) simpleUpdates.bmr = localBmr;
+      await repos.user.save({ ...user, ...simpleUpdates });
     }
     finishNav();
   }
@@ -417,7 +419,19 @@ export function GoalSetupForm({
     finishNav();
   }
 
-  function handleCustomSave() {
+  async function handleCustomSave() {
+    // Save profile fields immediately so they're never lost even if goal validation fails
+    const profileUser = await repos.user.get();
+    if (profileUser) {
+      const profileUpdates: Record<string, unknown> = {};
+      if (offerHeight) profileUpdates.heightCm = offerHeight;
+      if (offerAge)    profileUpdates.age       = offerAge;
+      if (offerSex)    profileUpdates.sex       = offerSex;
+      if (localBmr > 0 && localBmr !== userBmr) profileUpdates.bmr = localBmr;
+      if (Object.keys(profileUpdates).length > 0) {
+        await repos.user.save({ ...profileUser, ...profileUpdates });
+      }
+    }
     const errs: typeof fieldErrors = {};
     if (!start || sNum <= 0)          errs.start     = 'Enter a start weight';
     else if (!target || tNum <= 0)    errs.target    = 'Enter a target weight';
@@ -552,46 +566,56 @@ export function GoalSetupForm({
                         options={LOSE_PACES.map(p => ({ value: p.id, label: p.label }))} />
                     )}
                     {derivedDate && (() => {
+                      const today = todayISO();
+                      const totalDays = Math.round((Date.parse(derivedDate + 'T00:00:00') - Date.parse(today + 'T00:00:00')) / 86400_000);
+                      if (totalDays <= 0) return null;
+                      const endDateStr = new Date(derivedDate + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+                      const durationStr = totalDays < 14 ? `${totalDays} days` : totalDays < 84 ? `${Math.round(totalDays / 7)} weeks` : `${Math.round(totalDays / 30)} months`;
                       if (isGain) {
                         const p = GAIN_PACES.find(p => p.id === gainPace)!;
+                        const weeklyKg = Math.round((p.kgPerMonth / 4.33) * 100) / 100;
+                        const weeklyDisp = units === 'lbs' ? `+${(weeklyKg * 2.20462).toFixed(2)} lbs` : `+${weeklyKg.toFixed(2)} kg`;
+                        const rows = [
+                          { label: 'Duration',        value: durationStr },
+                          { label: 'End date',         value: endDateStr },
+                          { label: 'Weekly target',    value: weeklyDisp },
+                          { label: 'Daily surplus',    value: `+${p.surplusFloor} to +${p.surplusCeiling} kcal` },
+                        ];
                         return (
-                          <div className="mt-3 rounded-card bg-surface-sunken p-4" aria-live="polite">
-                            <p className="text-callout font-semibold text-content">
-                              Estimated finish: {fmtMonthYear(derivedDate)}
-                            </p>
-                            <p className="mt-1 text-callout font-normal text-content">
-                              {units === 'lbs'
-                                ? `${(p.kgPerMonth * 2.2046).toFixed(1)} lbs per month`
-                                : `${p.kgPerMonth} kg per month`}
-                            </p>
-                            <p className="mt-0.5 text-callout font-normal text-content">
-                              Surplus of +{p.surplusFloor} to +{p.surplusCeiling} kcal per day
-                            </p>
+                          <div className="mt-3 rounded-card border border-border-subtle bg-surface-sunken p-4 space-y-2" aria-live="polite">
+                            {rows.map(({ label, value }) => (
+                              <div key={label} className="flex items-center justify-between">
+                                <span className="text-subhead text-content-secondary">{label}</span>
+                                <span className="text-subhead font-semibold text-content">{value}</span>
+                              </div>
+                            ))}
                           </div>
                         );
                       }
                       const p = LOSE_PACES.find(p => p.id === losePace)!;
                       const kcal = Math.round((p.kgPerWeek * 7700) / 7);
+                      const weeklyDisp = units === 'lbs' ? `${kgToLbs(p.kgPerWeek).toFixed(2)} lbs` : `${p.kgPerWeek} kg`;
+                      const rows = [
+                        { label: 'Duration',       value: durationStr },
+                        { label: 'End date',        value: endDateStr },
+                        { label: 'Weekly target',   value: weeklyDisp },
+                        { label: 'Daily deficit',   value: `−${kcal} kcal` },
+                      ];
                       return (
-                        <div className="mt-3 rounded-card bg-surface-sunken p-4" aria-live="polite">
-                          <p className="text-callout font-semibold text-content">
-                            Estimated finish: {fmtDerivedDate(derivedDate)}
-                          </p>
-                          <p className="mt-1 text-callout font-normal text-content">
-                            {units === 'lbs'
-                              ? `${kgToLbs(p.kgPerWeek).toFixed(2)} lbs per week`
-                              : `${p.kgPerWeek} kg per week`}
-                          </p>
-                          <p className="mt-0.5 text-callout font-normal text-content">
-                            Deficit of –{kcal} kcal per day
-                          </p>
+                        <div className="mt-3 rounded-card border border-border-subtle bg-surface-sunken p-4 space-y-2" aria-live="polite">
+                          {rows.map(({ label, value }) => (
+                            <div key={label} className="flex items-center justify-between">
+                              <span className="text-subhead text-content-secondary">{label}</span>
+                              <span className="text-subhead font-semibold text-content">{value}</span>
+                            </div>
+                          ))}
                         </div>
                       );
                     })()}
                   </div>
                 </div>
 
-                <Button size="lg" onClick={() => void createSimple()}>Set my goal</Button>
+                <Button size="lg" onClick={() => void createSimple()}>{editing ? 'Save changes' : 'Set my goal'}</Button>
               </div>
             )}
 
@@ -758,34 +782,20 @@ export function GoalSetupForm({
                   </p>
                   <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface p-4">
                     <div className="space-y-3">
-                      <div>
-                        <span className="block mb-1 text-subhead font-normal text-content-secondary">Height</span>
-                        <div className="relative">
-                          <select value={offerHeight ?? ''}
-                            onChange={(e) => setOfferHeight(e.target.value === '' ? null : Number(e.target.value))}
-                            className="w-full appearance-none rounded-field bg-surface-sunken px-4 py-3 text-subhead text-content pr-10 focus:outline-none">
-                            <option value="">—</option>
-                            {HEIGHT_OPTIONS.map(n => <option key={n} value={n}>{n} cm</option>)}
-                          </select>
-                          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-content-muted">
-                            <Icon name="chevronDown" size={16} strokeWidth={2} />
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <span className="block mb-1 text-subhead font-normal text-content-secondary">Age</span>
-                        <div className="relative">
-                          <select value={offerAge ?? ''}
-                            onChange={(e) => setOfferAge(e.target.value === '' ? null : Number(e.target.value))}
-                            className="w-full appearance-none rounded-field bg-surface-sunken px-4 py-3 text-subhead text-content pr-10 focus:outline-none">
-                            <option value="">—</option>
-                            {AGE_OPTIONS.map(n => <option key={n} value={n}>{n} yrs</option>)}
-                          </select>
-                          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-content-muted">
-                            <Icon name="chevronDown" size={16} strokeWidth={2} />
-                          </div>
-                        </div>
-                      </div>
+                      <WheelPicker
+                        label="Height"
+                        value={offerHeight !== null ? String(offerHeight) : ''}
+                        onChange={(v) => setOfferHeight(v ? Number(v) : null)}
+                        min={140} max={220} step={1} unit="cm"
+                        centerAt={offerHeight ?? 170}
+                      />
+                      <WheelPicker
+                        label="Age"
+                        value={offerAge !== null ? String(offerAge) : ''}
+                        onChange={(v) => setOfferAge(v ? Number(v) : null)}
+                        min={10} max={90} step={1} unit="yrs"
+                        centerAt={offerAge ?? 30}
+                      />
                       <div>
                         <span className="block mb-2 text-subhead font-normal text-content-secondary">Sex</span>
                         <FilterPills<Sex> value={offerSex} onChange={setOfferSex}
@@ -865,7 +875,7 @@ export function GoalSetupForm({
                 </section>
 
                 <div className="mt-8">
-                  <Button size="lg" onClick={handleCustomSave}>Set my goal</Button>
+                  <Button size="lg" onClick={() => void handleCustomSave()}>{editing ? 'Save changes' : 'Set my goal'}</Button>
                 </div>
               </div>
             )}

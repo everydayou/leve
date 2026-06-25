@@ -13,6 +13,7 @@ import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { kgToLbs, lbsToKg } from '../../domain/units';
 import { fmtDerivedDate, fmtMonthYear } from '../../lib/date';
 import { markOnboardingSeen } from '../../lib/onboarding';
+import { useKeyboardInset, scrollFocusedAboveKeyboard } from '../../lib/useKeyboardInset';
 import { Button, LabeledInput, WheelPicker, Icon, SegmentedControl, FilterPills } from '../kit';
 import type { Goal, GoalType, MacroStyle, Units, Sex } from '../../domain/types';
 
@@ -289,34 +290,23 @@ export function GoalSetupForm({
   }, [step]);
 
   // ── Keyboard scroll handling ─────────────────────────────────────────────
-  // With KeyboardResize.None the WKWebView doesn't shrink when the keyboard
-  // appears — the keyboard overlays the bottom of the screen. We track the
-  // visual viewport to add padding-bottom to the scroll container so all
-  // fields remain scrollable above the keyboard, and we nudge the focused
-  // element into view whenever the inset changes.
+  // useKeyboardInset() uses Capacitor Keyboard plugin events on device
+  // (visualViewport doesn't change with KeyboardResize.None) and falls back
+  // to visualViewport in the browser. When the keyboard appears we add
+  // padding-bottom so all fields stay scrollable, and we nudge the focused
+  // field into view above the keyboard.
+  const keyboardInset = useKeyboardInset();
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
     const scrollEl = scrollRef.current;
-    const update = () => {
-      if (!scrollEl) return;
-      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      scrollEl.style.paddingBottom = inset > 0 ? `${inset}px` : '';
-      if (inset > 0) {
-        const focused = document.activeElement as HTMLElement | null;
-        if (focused && scrollEl.contains(focused)) {
-          setTimeout(() => focused.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
-        }
+    if (!scrollEl) return;
+    scrollEl.style.paddingBottom = keyboardInset > 0 ? `${keyboardInset}px` : '';
+    if (keyboardInset > 0) {
+      const focused = document.activeElement as HTMLElement | null;
+      if (focused && scrollEl.contains(focused)) {
+        setTimeout(() => scrollFocusedAboveKeyboard(scrollEl, focused, keyboardInset), 100);
       }
-    };
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
-    return () => {
-      vv.removeEventListener('resize', update);
-      vv.removeEventListener('scroll', update);
-      if (scrollEl) scrollEl.style.paddingBottom = '';
-    };
-  }, []);
+    }
+  }, [keyboardInset]);
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const dismiss = (delay = 320) => {

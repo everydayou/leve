@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { Icon } from './Icon';
 import { prefersReducedMotion } from '../../lib/motion';
+import { useKeyboardInset, scrollFocusedAboveKeyboard } from '../../lib/useKeyboardInset';
 
 /** Provides the current keyboard inset (px) to Sheet's children.
  *  Use `useSheetKeyboardInset()` in any child rendered inside a Sheet to
@@ -51,23 +52,6 @@ const OPEN_MS  = 420;        // slide-up / expand duration
 const CLOSE_MS = 300;        // slide-down / dismiss duration
 const DRAG_DISMISS_PX = 110; // drag at least this far down to dismiss
 
-// ── Keyboard-aware scroll helper ─────────────────────────────────────────────
-// With KeyboardResize.None the keyboard overlays the bottom of the viewport
-// without shrinking it, so scrollIntoView() can't see the obstruction.
-// We compute the overlap between the focused element and the keyboard top
-// directly from getBoundingClientRect() (viewport coordinates) and
-// call scrollBy() with the exact amount needed + a 24 px breathing room.
-function scrollFocusedAboveKeyboard(
-  scrollEl: HTMLDivElement,
-  el: HTMLElement,
-  keyboardInset: number,
-): void {
-  const inputRect  = el.getBoundingClientRect();
-  const keyboardTop = window.innerHeight - keyboardInset;
-  if (inputRect.bottom > keyboardTop - 16) {
-    scrollEl.scrollBy({ top: inputRect.bottom - keyboardTop + 24, behavior: 'smooth' });
-  }
-}
 
 /** Native-feeling bottom sheet: slides up on open, follows your finger when
  *  you drag the grab-handle/header down, and dismisses past a threshold
@@ -106,9 +90,11 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
   const [dragY, setDragY] = useState(0);
   const [closing, setClosing] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  // Tracks how much the visual viewport has been compressed by the keyboard
-  // so we can pad the scrollable content area to keep inputs reachable.
-  const [keyboardInset, setKeyboardInset] = useState(0);
+  // Keyboard height in CSS px — drives padding-bottom on the scroll area and
+  // the scroll-into-view nudge.  Sourced from the Capacitor Keyboard plugin
+  // on device (visualViewport doesn't update with KeyboardResize.None) and
+  // from window.visualViewport in the browser / preview build.
+  const keyboardInset = useKeyboardInset();
   // Footer node registered by a child form via useSheetSetFooter(). Takes effect
   // when no explicit `footer` prop is passed. Stable setter avoids re-renders.
   const [childFooter, setChildFooter] = useState<ReactNode>(null);
@@ -213,26 +199,6 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
         mainEl.style.height = '';
         mainEl.scrollTop = mainTop;
       }
-    };
-  }, []);
-
-  // ── Keyboard height tracking ─────────────────────────────────────────────────
-  // On iOS/WKWebView the visual viewport shrinks when the keyboard opens.
-  // window.visualViewport.height tracks this change; the delta is the keyboard
-  // height. We apply it as extra padding-bottom on the scroll area so the user
-  // can scroll any focused input above the keyboard.
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const update = () => {
-      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      setKeyboardInset(inset);
-    };
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
-    return () => {
-      vv.removeEventListener('resize', update);
-      vv.removeEventListener('scroll', update);
     };
   }, []);
 
@@ -407,12 +373,20 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
   // overflow-hidden which, in WebKit/Safari, traps fixed+absolute children).
   // Portal = root stacking context = always above everything.
   return createPortal(
-    // touch-action:none + stopPropagation blocks ALL touch gestures (scroll,
-    // horizontal swipe-navigation, etc.) from reaching content behind the sheet.
+    // pan-y: allows the sheet's scroll area to scroll vertically via touch
+    // while still blocking horizontal swipe navigation. The body is position:fixed
+    // so there is nothing behind the sheet to scroll accidentally.
+    // Touches on the scrim or grab-handle still get e.preventDefault() to
+    // prevent any browser default (grab-handle has its own touch-none class).
     <div
       className="fixed inset-0 z-[200] flex flex-col justify-end"
-      style={{ touchAction: 'none' }}
-      onTouchMove={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      style={{ touchAction: 'pan-y' }}
+      onTouchMove={(e) => {
+        // Let scroll-area touches flow to the native pan-y handler.
+        if (scrollAreaRef.current?.contains(e.target as Node)) return;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       onTouchStart={(e) => e.stopPropagation()}
     >
       <button

@@ -273,15 +273,15 @@ export function GoalScreen() {
           </p>
           {/* Stat tiles: white bg + shadow */}
           <div className="grid grid-cols-3 gap-2 items-stretch">
-            <button onClick={() => { hapticLight(); setShowSettings(true); }} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
+            <button onClick={() => { hapticLight(); setShowSettings(true); }} aria-label="Current weight — open goal settings" className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
               <span className="text-callout font-semibold text-content">{displayWeight(now, user?.units ?? 'kg')}</span>
               <span className="-mt-0.5 text-center text-subhead text-content-secondary">Current</span>
             </button>
-            <button onClick={() => { hapticLight(); setShowSettings(true); }} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
+            <button onClick={() => { hapticLight(); setShowSettings(true); }} aria-label={`${isGainGoal(goal) ? 'Weight to gain' : 'Weight left'} — open goal settings`} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
               <span className="text-callout font-semibold text-content">{isEarlyComplete ? '🎯' : displayWeight(remaining, user?.units ?? 'kg')}</span>
               <span className="-mt-0.5 text-center text-subhead text-content-secondary">{isGainGoal(goal) ? 'To gain' : 'Weight left'}</span>
             </button>
-            <button onClick={() => { hapticLight(); setShowSettings(true); }} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
+            <button onClick={() => { hapticLight(); setShowSettings(true); }} aria-label={`${isOverdue ? 'Goal overdue' : daysLeft > 0 ? 'Time left' : 'Final day'} — open goal settings`} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
               <span className="text-callout font-semibold text-content">
                 {isOverdue ? `+${daysPast} d` : daysLeft > 0 ? `${daysLeft} d` : '🎯'}
               </span>

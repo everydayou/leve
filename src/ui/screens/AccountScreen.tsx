@@ -503,7 +503,7 @@ function MacroDiaryCard({ goal }: { goal: Goal }) {
             className="flex w-full items-center justify-between px-4 py-3 active:bg-surface-sunken"
           >
             <span className="text-subhead font-medium text-content">{label}</span>
-            <div className={`relative h-[28px] w-[48px] rounded-full transition-colors ${enabled ? 'bg-accent' : 'bg-neutral-300'}`}>
+            <div className={`relative h-[28px] w-[48px] rounded-full transition-colors ${enabled ? 'bg-accent' : 'bg-border-strong'}`}>
               <div className={`absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-sm transition-transform ${enabled ? 'translate-x-[23px]' : 'translate-x-[3px]'}`} />
             </div>
           </button>

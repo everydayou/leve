@@ -78,7 +78,7 @@ async function bootstrap() {
   await Promise.all([
     PREVIEW
       ? Promise.resolve()
-      : seedIfEmpty().then(() => importStarterPantry()).then(() => warmUp()),
+      : seedIfEmpty().then(() => importStarterPantry(repos.foodItems)).then(() => warmUp()),
     new Promise<void>(r => setTimeout(r, MIN_SPLASH_MS)),
   ]);
 

@@ -1,6 +1,6 @@
-import { repos } from '../state/repos';
 import { newId } from './ids';
 import type { FoodItem } from '../domain/types';
+import type { FoodItemRepo } from './repositories';
 
 /** A starter-pantry row. Macros are PER SERVING (the sheet's unit column was 1
  *  for every food); any amount is encoded in the name, e.g. "rice 100g". */
@@ -74,15 +74,15 @@ const FLAG = 'starterPantryImported.v1';
  *  - Guarded by a localStorage flag so it runs once and a food you later delete
  *    doesn't reappear on the next launch.
  *  Stored per-serving (unit = 1), matching the sheet. */
-export async function importStarterPantry(): Promise<void> {
+export async function importStarterPantry(foodItems: FoodItemRepo): Promise<void> {
   try { if (localStorage.getItem(FLAG)) return; } catch { /* storage may be unavailable */ }
 
-  const existing = await repos.foodItems.all(true);
+  const existing = await foodItems.all(true);
   const have = new Set(existing.map((i) => i.name.trim().toLowerCase()));
 
   for (const f of STARTER_PANTRY) {
     if (have.has(f.name.trim().toLowerCase())) continue;
-    await repos.foodItems.put({
+    await foodItems.put({
       id: newId(),
       name: f.name,
       measurementType: 'per_serving',

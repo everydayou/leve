@@ -2,8 +2,8 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-25 — Round 105 (estimated BMR from weight; breakdown disclaimer; inline profile setup modal)
-Full change history: see CHANGELOG.txt (rounds 1–105).
+Last updated: 2026-06-25 — Round 106 (audit fixes; picker→input migration; keyboard overlay; sheet polish)
+Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -113,36 +113,40 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 105, 2026-06-25)
+7. CURRENT STATUS (as of round 106, 2026-06-25)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. Recent work:
 - Rounds 85–100: BreakdownSheet redesign, gain gauge overhaul, Past Goals
   portal redesign, chart capping, info panels. All shipped.
 - Round 101 (2026-06-23): First-open fork screen, GoalSetupScreen full
   rewrite (Simple + Custom modes), sticky header, animations, domain additions.
-- Rounds 102–104 (2026-06-24): Onboarding/goal-setup UI polish complete:
-  · WheelPicker split-decimal empty+centerAt → two split pickers with "—".
-  · Simple mode card (border-field, radius 24); unit as first sub-field in
-    Weight section for both modes; Simple pickers → outlined (no sunken override).
-  · Details about you: border-field + radius 24px.
-  · Explore icon → magnifier SVG; DevMenu reset now abandons goals.
-  · FloatingTabBar: scan FAB gated behind SCAN_ENABLED.
-- .env.local: recovered after accidental deletion. Contains
-  VITE_FOOD_SCAN_API_URL=https://food-scan-api-delta.vercel.app.
-  This file is gitignored — must be recreated manually if lost.
-- Round 105 (2026-06-25): Estimated BMR when profile is incomplete:
-  · bmr.ts: estimateBmrFromWeight(kg) = 10·w + 810 (pop-avg 170 cm / 35 yr /
-    neutral sex via Mifflin–St Jeor). Gauge shows real-looking numbers instead
-    of 0 when height/age/sex are missing.
-  · useDay.ts: bmrIsEstimated flag on DayData; falls back to estimate when
-    bmrActual=0 but a weight entry exists.
-  · TodayScreen: "Numbers estimated" info banner (opens breakdown on tap);
-    BreakdownSheet: tappable disclaimer card above math rows + onSetupProfile
-    callback; BMR info panel text switches to explain the estimate.
-  · ProfileSetupSheet: new bottom sheet (sex FilterPills / height select /
-    age select) that saves Mifflin–St Jeor BMR to user record; accessible
-    without navigating to Account screen.
-- tsc: clean. build: clean (r105).
+- Rounds 102–104 (2026-06-24): Onboarding/goal-setup UI polish complete.
+- Round 105 (2026-06-25): Estimated BMR from weight; breakdown disclaimer;
+  inline profile setup modal.
+- Round 106 (2026-06-25): Codebase audit + fixes; WheelPicker→plain-input
+  migration; keyboard overlay overhaul; sheet polish.
+  · Audit: token violation (bg-neutral-300→bg-border-strong in AccountScreen),
+    layer boundary (pantrySeed.ts decoupled from state/repos), 3 missing
+    aria-labels on GoalScreen stat tiles. All fixed.
+  · Input migration: NumberField rewritten to LabeledInput wrapper
+    (type="number" inputMode="decimal"). All macro/nutrition/servings/
+    quantity(g) fields across AddEntrySheet, TodayScreen, PantryScreen now
+    plain text inputs. ServingStepper (+/-) kept as-is.
+    Activity calories WheelPicker → LabeledInput in AddEntrySheet + TodayScreen.
+  · Keyboard overlay: @capacitor/keyboard added; capacitor.config.ts sets
+    resize:'none' so keyboard overlays without shifting the WebView.
+    src/lib/useKeyboardInset.ts: new hook using Capacitor keyboardWillShow/
+    keyboardWillHide events (visualViewport fallback for browser).
+    Sheet.tsx: useKeyboardInset(), scrollFocusedAboveKeyboard() (BoundingRect
+    maths, not scrollIntoView), focusin listener for mid-keyboard field jumps,
+    touchAction:pan-y to allow manual scroll.
+    GoalSetupScreen.tsx: same keyboard padding pattern.
+  · Sheet polish: header shadow-nav on scroll (matching fixed nav pattern);
+    activity Estimate fields: label text-subhead, selects bg-surface-sunken;
+    rounded-t-sheet corners restored (bg-surface removed from header wrapper).
+- .env.local: gitignored, must be recreated if folder is deleted.
+  VITE_FOOD_SCAN_API_URL=https://food-scan-api-delta.vercel.app
+- tsc: clean. build: clean (r106).
 
 ----------------------------------------------------------------
 8. ARCHITECTURE NOTES
@@ -174,9 +178,6 @@ KNOWN GAPS
 MED:
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
   entries. (Goal actions confirm via Sheet; entry deletes are immediate.)
-- KEYBOARD/VIEW CONFLICT (residual): thin dark strip in some keyboard+sheet
-  combos on WKWebView. Main CTA mid-form issue fixed r63; full fix if needed:
-  @capacitor/keyboard with KeyboardResize.None.
 - ACCOUNT IA: layout still growing — grouping pass worthwhile when more
   prefs land.
 - .env.local is gitignored and must be recreated manually if the project
@@ -195,12 +196,47 @@ LOW:
   Very tall/short or young/old users may see a notably off estimate until
   they complete their profile.
 
+DONE (r106):
+- ✓ KEYBOARD/VIEW CONFLICT: content jumping + black void when keyboard opened
+  in sheets. Fixed via @capacitor/keyboard resize:'none' + Capacitor
+  keyboardWillShow/Hide events + scrollFocusedAboveKeyboard() +
+  touchAction:pan-y on sheet outer container.
+
 DEFERRED V1.5+: JSON import, HealthKit, BMR auto-calibration, full tablet
 layouts, per-piece measurement types, time-of-day food suggestions.
 
 ----------------------------------------------------------------
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
+
+ROUND 106 — AUDIT FIXES + PICKER→INPUT MIGRATION + KEYBOARD OVERLAY + SHEET POLISH (2026-06-25)
+Files: src/lib/useKeyboardInset.ts (new), src/ui/kit/Sheet.tsx,
+       src/ui/screens/GoalSetupScreen.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/screens/AccountScreen.tsx, src/ui/screens/GoalScreen.tsx,
+       src/domain/pantrySeed.ts, src/main.tsx, package.json, capacitor.config.ts
+- Audit fixes:
+  · AccountScreen: bg-neutral-300 → bg-border-strong (token violation).
+  · pantrySeed.ts: removed direct state/repos import; now accepts FoodItemRepo
+    as parameter. main.tsx passes repos.foodItems at call site.
+  · GoalScreen stat tiles: added aria-label to 3 icon-only button tiles.
+- NumberField rewritten: WheelPicker removed; wraps LabeledInput with
+  type="number" inputMode="decimal". All macro/nutrition/servings/quantity(g)
+  fields use plain text input. ServingStepper +/− kept.
+  Activity calories WheelPicker → LabeledInput in AddEntrySheet + TodayScreen.
+- Keyboard overlay (KeyboardResize.None):
+  · package.json: @capacitor/keyboard ^8.0.0.
+  · capacitor.config.ts: Keyboard plugin { resize: 'none', style: 'default' }.
+  · src/lib/useKeyboardInset.ts: Capacitor keyboardWillShow/Hide events (native);
+    visualViewport fallback (browser). scrollFocusedAboveKeyboard() uses
+    getBoundingClientRect() vs keyboard top (not scrollIntoView).
+  · Sheet.tsx: useKeyboardInset(); stable focusin listener; touchAction:pan-y
+    (was 'none' — was suppressing manual scroll); paddingBottom = keyboardInset.
+  · GoalSetupScreen.tsx: same keyboard padding + scroll-into-view pattern.
+- Sheet polish:
+  · Header shadow-nav on scroll (scrolled state + onScroll on scroll area).
+  · Activity Estimate tab: labels text-subhead, selects bg-surface-sunken.
+  · Rounded-t-sheet corners restored: removed bg-surface from header wrapper.
+- tsc: clean. lint: clean.
 
 ROUND 105 — ESTIMATED BMR + BREAKDOWN DISCLAIMER + PROFILE MODAL (2026-06-25)
 Files: src/domain/bmr.ts, src/state/useDay.ts, src/ui/screens/TodayScreen.tsx
@@ -227,11 +263,4 @@ Files: src/ui/screens/GoalSetupScreen.tsx, src/ui/kit/FloatingTabBar.tsx
   Custom mode retains filled (inside white card).
 - FloatingTabBar: SCAN_ENABLED gates "Scan meal" ACTION_ITEM. Prevents
   "Food scan not configured" error when VITE_FOOD_SCAN_API_URL is unset.
-- tsc: clean. build: clean.
-
-ROUND 103 — GOAL SETUP SPACING + DETAILS RADIUS (2026-06-24)
-Files: src/ui/screens/GoalSetupScreen.tsx
-- Unit moved inside Weight section as first sub-field (both Simple + Custom).
-- Simple card: Weight pt-6 top, Pace pt-4 top.
-- "Details about you": borderRadius 16→24px.
 - tsc: clean. build: clean.

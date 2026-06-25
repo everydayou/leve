@@ -7,6 +7,158 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 106 — AUDIT FIXES + PICKER→INPUT MIGRATION + KEYBOARD OVERLAY + SHEET POLISH (2026-06-25)
+================================================================
+Files: src/lib/useKeyboardInset.ts (new),
+       src/ui/kit/Sheet.tsx,
+       src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/components/AddEntrySheet.tsx,
+       src/ui/screens/AccountScreen.tsx,
+       src/ui/screens/GoalScreen.tsx,
+       src/domain/pantrySeed.ts,
+       src/main.tsx,
+       package.json,
+       capacitor.config.ts
+
+── AUDIT — TOKEN VIOLATION ───────────────────────────────────────────────────
+AccountScreen.tsx: `bg-neutral-300` used as a separator. Replaced with
+`bg-border-strong` (semantic token). Raw Tailwind neutral primitives are
+blocked by eslint for src/ui but this one slipped in pre-enforcement.
+
+── AUDIT — LAYER BOUNDARY (pantrySeed.ts) ────────────────────────────────────
+pantrySeed.ts imported directly from `../state/repos` (state layer) even
+though it lives in `src/domain/`. Domain must not import from state.
+Fix: pantrySeed now accepts `FoodItemRepo` as a parameter. Call site in
+main.tsx passes `repos.foodItems`. Layer dependency direction restored.
+
+── AUDIT — ACCESSIBILITY ─────────────────────────────────────────────────────
+GoalScreen: three StatTile-style icon-only buttons had no accessible label.
+Added `aria-label` to the weight-trend tile, BMR tile, and pace tile.
+
+── NUMBERFIELD REWRITE ───────────────────────────────────────────────────────
+The WheelPicker drum-scroll UX for numeric nutrition inputs (calories, fat,
+carbs, protein, serving size, quantity in grams) was unintuitive and slow.
+NumberField completely rewritten to wrap LabeledInput with:
+  type="number" inputMode="decimal" min="0"
+Benefits: native keyboard with numeric layout; standard text editing; clear
+button; focus border; identical visual style as all other form fields.
+WheelPicker import and usage removed from NumberField entirely.
+
+Activity calories in AddEntrySheet.tsx (Manual tab) and TodayScreen.tsx
+(inline activity edit) also migrated from WheelPicker to LabeledInput.
+ServingStepper +/− quantity buttons kept unchanged (UX: stepper ≠ freeform).
+
+── KEYBOARD OVERLAY — ROOT CAUSE ANALYSIS ───────────────────────────────────
+With Capacitor + KeyboardResize.None the WKWebView frame does NOT change size
+when the keyboard appears. Therefore:
+  - window.innerHeight stays the same
+  - window.visualViewport.height stays the same
+  - window.visualViewport.offsetTop stays 0
+  → computed inset = innerHeight - vv.height - vv.offsetTop = 0 always.
+
+All prior keyboard-overlay code (from r63) that relied on visualViewport was
+silently broken on device. In the browser dev server it worked because the
+browser does shrink the viewport. This made the bug invisible in dev.
+
+── KEYBOARD OVERLAY — package.json ──────────────────────────────────────────
+Added: "@capacitor/keyboard": "^8.0.0"
+
+── KEYBOARD OVERLAY — capacitor.config.ts ───────────────────────────────────
+Added Keyboard plugin config:
+  plugins: { Keyboard: { resize: 'none', style: 'default' } }
+KeyboardResize.None: keyboard overlays the WKWebView without resizing it.
+The app takes full responsibility for padding / scrolling fields into view.
+
+── src/lib/useKeyboardInset.ts (NEW FILE) ────────────────────────────────────
+Central hook for keyboard height detection. Two paths:
+
+Native (Capacitor.isNativePlatform()):
+  Capacitor.addListener('keyboardWillShow', info => setInset(info.keyboardHeight))
+  Capacitor.addListener('keyboardWillHide', () => setInset(0))
+  addListener is async; `mounted` flag prevents setState after unmount in the
+  race where unmount happens before the promise resolves.
+
+Browser / VITE_PREVIEW:
+  window.visualViewport 'resize' + 'scroll' → delta = innerHeight − vv.height − vv.offsetTop
+
+Also exports:
+  scrollFocusedAboveKeyboard(scrollEl, el, keyboardInset):
+    Uses el.getBoundingClientRect() to compare inputRect.bottom vs
+    (window.innerHeight - keyboardInset). Scrolls by (overlap + 24px).
+    Unlike scrollIntoView({block:'nearest'}), this function knows about the
+    keyboard overlay (scrollIntoView sees the full layout height and considers
+    a field "in view" even when it's physically behind the keyboard).
+
+── SHEET.TSX — KEYBOARD OVERLAY ─────────────────────────────────────────────
+Removed: old visualViewport useEffect and setKeyboardInset state.
+Added: const keyboardInset = useKeyboardInset()
+       const keyboardInsetRef = useRef(0)  // mirror for stable focusin callback
+       keyboardInsetRef.current = keyboardInset  // eslint-disable-line react-hooks/refs
+
+Two scroll-into-view effects:
+  1. [keyboardInset] dep: fires when keyboard just opened → scrollFocusedAboveKeyboard.
+  2. Stable [] effect: registers 'focusin' on scrollAreaRef using keyboardInsetRef
+     (stable ref means no listener churn). Handles tapping a new field while
+     the keyboard is already open.
+
+touchAction fix: outer div was `touch-action: none` → suppressed ALL touch-based
+pan on descendants including the overflow-y:auto scroll area — manual scroll
+was impossible. Changed to `touch-action: pan-y`. onTouchMove now skips
+preventDefault() for scroll area touches:
+  if (scrollAreaRef.current?.contains(e.target)) return; // let scroll work
+  e.preventDefault(); e.stopPropagation();              // block outside areas
+
+paddingBottom on scroll area: `${keyboardInset}px` so content behind keyboard
+can be scrolled into view.
+
+── SHEET.TSX — SCROLL-TRIGGERED HEADER SHADOW ───────────────────────────────
+Pattern: same shadow-nav-on-scroll used on fixed full-screen nav bars.
+  const [scrolled, setScrolled] = useState(false)
+  <div className={`shrink-0 transition-[box-shadow] duration-200${scrolled ? ' shadow-nav' : ''}`}>
+  <div ... onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)} ...>
+
+── SHEET.TSX — ROUNDED-T-SHEET CORNERS FIX ──────────────────────────────────
+Adding a header wrapper div with `bg-surface` caused square top corners.
+Root cause: CSS border-radius on a parent without overflow:hidden only clips
+the parent's own background. Child elements with explicit background-color
+fill the transparent corner areas, overwriting the visual rounding.
+Fix: removed bg-surface from the header wrapper div. The wrapper is now
+transparent, so the panel's `rounded-t-sheet` clipped background shows through.
+box-shadow still renders correctly — it uses border edge, not background.
+
+── ADDENRYSHEET.TSX — ACTIVITY ESTIMATE FIELDS ──────────────────────────────
+Intensity label + Duration label: text-caption text-content-secondary
+  → text-subhead font-normal text-content-secondary
+Intensity select + Duration select: rounded-control border border-border-subtle
+  bg-surface px-4 py-3 text-subhead text-content
+  → rounded-field border border-transparent bg-surface-sunken px-3 py-2.5
+     text-subhead font-semibold text-content
+Wrapper divs: added mt-1 (matches LabeledInput label-to-input spacing).
+
+── GOALSETUPSCREEN.TSX — KEYBOARD OVERLAY ───────────────────────────────────
+Replaced old visualViewport useEffect in GoalSetupForm with:
+  const keyboardInset = useKeyboardInset()
+  useEffect(() => {
+    scrollEl.style.paddingBottom = keyboardInset > 0 ? `${keyboardInset}px` : ''
+    if (keyboardInset > 0 && focused && scrollEl.contains(focused))
+      setTimeout(() => scrollFocusedAboveKeyboard(scrollEl, focused, keyboardInset), 100)
+  }, [keyboardInset])
+
+── DECISIONS / RATIONALE ────────────────────────────────────────────────────
+- WheelPicker completely removed from number fields (not just hidden). The
+  native numeric keyboard on iOS is faster and more familiar for entering
+  nutrition values. WheelPicker is still used for plan pickers (date, weight
+  target) where discrete scrollable options are a better UX than free text.
+- `getBoundingClientRect()` over `scrollIntoView`: scrollIntoView has no
+  knowledge of the keyboard overlay height; it can report a field as "visible"
+  when it is physically hidden. BoundingClientRect uses viewport coordinates
+  directly, making the overlap calculation exact.
+- `mounted` flag pattern: Capacitor.addListener is async. Without the flag,
+  if the component unmounts before the Promise resolves, the listener handle
+  is never stored and can never be cleaned up. The flag lets cleanup run
+  correctly regardless of timing.
+
+================================================================
 ROUND 105 — ESTIMATED BMR + BREAKDOWN DISCLAIMER + PROFILE MODAL (2026-06-25)
 ================================================================
 Files: src/domain/bmr.ts,

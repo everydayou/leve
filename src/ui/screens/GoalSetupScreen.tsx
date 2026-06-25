@@ -95,7 +95,6 @@ export function GoalSetupScreen() {
       userHeightCm:        user?.heightCm ?? null,
       userAge:             user?.age ?? null,
       userSex:             user?.sex ?? null,
-      userWeightCadence:   (user?.weightCadence ?? 'weekly') as 'daily' | 'weekly',
       userWeeklyWeightDay: user?.weeklyWeightDay ?? 0,
     };
   }, []);
@@ -111,7 +110,6 @@ export function GoalSetupScreen() {
     userHeightCm={data.userHeightCm}
     userAge={data.userAge}
     userSex={data.userSex}
-    userWeightCadence={data.userWeightCadence}
     userWeeklyWeightDay={data.userWeeklyWeightDay}
   />;
 }
@@ -119,7 +117,7 @@ export function GoalSetupScreen() {
 // ── Main form ─────────────────────────────────────────────────────────────────
 export function GoalSetupForm({
   activeGoal, currentWeight, currentProteinGoal, userBmr,
-  skipType = false, userUnits, userHeightCm, userAge, userSex, userWeightCadence, userWeeklyWeightDay, onClose,
+  skipType = false, userUnits, userHeightCm, userAge, userSex, userWeeklyWeightDay, onClose,
 }: {
   activeGoal: Goal | null;
   currentWeight: number | null;
@@ -130,7 +128,6 @@ export function GoalSetupForm({
   userHeightCm?: number | null;
   userAge?: number | null;
   userSex?: Sex | null;
-  userWeightCadence?: 'daily' | 'weekly';
   userWeeklyWeightDay?: number;
   onClose?: () => void;
 }) {
@@ -194,7 +191,7 @@ export function GoalSetupForm({
   }, [userHeightCm, userAge, userSex]);
 
   // ── Weigh-in cadence ─────────────────────────────────────────────────────
-  const [weighCadence, setWeighCadence] = useState<'daily' | 'weekly'>(userWeightCadence ?? 'weekly');
+  const [weighCadence, setWeighCadence] = useState<'daily' | 'weekly' | null>(null);
   const [weighDay,     setWeighDay]     = useState<number>(userWeeklyWeightDay ?? 0);
 
   // ── Macro style ───────────────────────────────────────────────────────────
@@ -355,7 +352,7 @@ export function GoalSetupForm({
       await repos.user.save({
         ...user,
         proteinGoalG: simpleProteinG,
-        weightCadence: weighCadence,
+        ...(weighCadence && { weightCadence: weighCadence }),
         weeklyWeightDay: weighCadence === 'weekly' ? weighDay : user.weeklyWeightDay,
       });
     }
@@ -384,7 +381,7 @@ export function GoalSetupForm({
       if (offerAge)    updates.age       = offerAge;
       if (offerSex)    updates.sex       = offerSex;
       if (localBmr > 0 && localBmr !== userBmr) updates.bmr = localBmr;
-      updates.weightCadence   = weighCadence;
+      if (weighCadence) updates.weightCadence = weighCadence;
       updates.weeklyWeightDay = weighCadence === 'weekly' ? weighDay : user.weeklyWeightDay;
       await repos.user.save({ ...user, ...updates });
     }
@@ -533,8 +530,13 @@ export function GoalSetupForm({
                             <p className="text-callout font-semibold text-content">
                               Estimated finish: {fmtMonthYear(derivedDate)}
                             </p>
+                            <p className="mt-1 text-callout font-normal text-content">
+                              {units === 'lbs'
+                                ? `${(p.kgPerMonth * 2.2046).toFixed(1)} lbs per month`
+                                : `${p.kgPerMonth} kg per month`}
+                            </p>
                             <p className="mt-0.5 text-callout font-normal text-content">
-                              +{p.kgPerMonth} kg/month · Surplus of +{p.surplusFloor} to +{p.surplusCeiling} kcal/day
+                              Surplus of +{p.surplusFloor} to +{p.surplusCeiling} kcal per day
                             </p>
                           </div>
                         );
@@ -546,10 +548,13 @@ export function GoalSetupForm({
                           <p className="text-callout font-semibold text-content">
                             Estimated finish: {fmtDerivedDate(derivedDate)}
                           </p>
-                          <p className="mt-0.5 text-callout font-normal text-content">
+                          <p className="mt-1 text-callout font-normal text-content">
                             {units === 'lbs'
-                              ? `${kgToLbs(p.kgPerWeek).toFixed(2)} lbs/week · Deficit of –${kcal} kcal/day`
-                              : `${p.kgPerWeek} kg/week · Deficit of –${kcal} kcal/day`}
+                              ? `${kgToLbs(p.kgPerWeek).toFixed(2)} lbs per week`
+                              : `${p.kgPerWeek} kg per week`}
+                          </p>
+                          <p className="mt-0.5 text-callout font-normal text-content">
+                            Deficit of –{kcal} kcal per day
                           </p>
                         </div>
                       );
@@ -571,7 +576,7 @@ export function GoalSetupForm({
                   <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface">
                     {/* Goal name */}
                     <div className="p-4">
-                      <span className="block mb-2 text-headline font-semibold text-content">Goal name</span>
+                      <div className="flex items-baseline gap-2 mb-2"><span className="text-headline font-semibold text-content">Goal name</span><span className="text-footnote text-content-muted">(optional)</span></div>
                       <LabeledInput value={name} onChange={(e) => setName(e.target.value)}
                         placeholder="e.g. Summer Cut"
                         />
@@ -583,7 +588,7 @@ export function GoalSetupForm({
                       <div className="space-y-3">
                         {/* Unit — first sub-field */}
                         <div>
-                          <span className="text-subhead font-normal text-content-secondary">Unit</span>
+                          <span className="text-subhead font-normal text-content-secondary">Units</span>
                           <div className="mt-1">
                             <FilterPills<Units>
                               value={units}
@@ -609,10 +614,10 @@ export function GoalSetupForm({
                         </div>
 
                         <div>
-                          <span className="block mb-1 text-subhead font-normal text-content-secondary">Weigh-in frequency</span>
+                          <span className="block mb-1 text-subhead font-normal text-content-secondary">Weigh-in frequency <span className="text-footnote text-content-muted">(optional)</span></span>
                           <FilterPills<'daily' | 'weekly'>
-                            value={weighCadence}
-                            onChange={(v) => { if (v) setWeighCadence(v); }}
+                            value={weighCadence ?? undefined}
+                            onChange={(v) => { setWeighCadence(v ?? null); }}
                             options={[{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }]}
                           />
                         </div>
@@ -718,7 +723,7 @@ export function GoalSetupForm({
 
                 {/* Section 2: Details about you */}
                 <section>
-                  <p className="mb-1 text-title font-bold text-content">2. Details about you</p>
+                  <div className="flex items-baseline gap-2 mb-1"><p className="text-title font-bold text-content">2. Details about you</p><span className="text-footnote text-content-muted">(optional)</span></div>
                   <p className="mb-4 text-subhead text-content-secondary">
                     Helps estimate your BMR more accurately. Affects calorie and macro targets.
                   </p>
@@ -766,7 +771,7 @@ export function GoalSetupForm({
 
                 {/* Section 3: Tracking */}
                 <section>
-                  <p className="mb-1 text-title font-bold text-content">3. Tracking</p>
+                  <div className="flex items-baseline gap-2 mb-1"><p className="text-title font-bold text-content">3. Tracking</p><span className="text-footnote text-content-muted">(optional)</span></div>
                   <p className="mb-4 text-subhead text-content-secondary">
                     Choose how carbs and fat are distributed across your day. You can adjust this later.
                   </p>
@@ -779,8 +784,8 @@ export function GoalSetupForm({
 
                   {macroStyle && (
                     <div className="mt-5">
-                      <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface">
-                        <div className="px-4 pt-4 pb-1">
+                      <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface pb-2">
+                        <div className="px-4 pt-4 pb-3">
                           <p className="text-headline font-semibold text-content">Macro targets</p>
                         </div>
                         <MacroRow compact label="Protein target (g)" displayValue={`${proteinG} per day`}
@@ -864,7 +869,7 @@ function MacroRow({
   note?: string | null; compact?: boolean;
 }) {
   return (
-    <div className={compact ? "px-4 py-2.5 border-t border-border-subtle first:border-t-0" : "p-4"}>
+    <div className={compact ? "px-4 py-2.5" : "p-4"}>
       <div className="flex items-center justify-between">
         {/* label: Regular weight, content-secondary — matches WheelPicker label style */}
         <span className="text-subhead font-normal text-content-secondary">{label}</span>

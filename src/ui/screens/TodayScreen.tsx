@@ -682,7 +682,8 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const fat   = day ? Math.round(day.foods.reduce((s, f) => s + effectiveNutrition(f, day.itemsById).fat,   0)) : 0;
   const noBmr      = (day?.bmr ?? 0) <= 0;
   const actCals    = day?.activities.reduce((s, a) => s + a.activeCalories, 0) ?? 0;
-  const hasTarget  = dailyTarget !== 0 && totalBurn > 0; // !== 0 covers gain (negative)
+  const hasGoal    = dailyTarget !== 0; // active goal exists (regardless of BMR)
+  const hasTarget  = hasGoal && totalBurn > 0; // has enough info for full numbers
   const budget     = Math.max(0, totalBurn - dailyTarget);
   const left       = Math.round(budget - consumed);
   const gaugeRange = budget > 0 ? budget : GAUGE_RANGE;
@@ -839,7 +840,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
           : ''}
       </div>
 
-      {hasTarget ? (
+      {hasGoal ? (
         /* Outer container = the grey background shape. White gauge card overlays
            the top of it; protein bar reveals the grey area at the bottom. */
         <div className={`mx-6 mt-1 w-[calc(100%-3rem)] rounded-main ${showMacroSection ? 'bg-surface-sunken' : ''}`}>

@@ -1072,15 +1072,16 @@ function ActivityForm({ date, onDone, showToast }: {
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Morning run"
           />
-          <WheelPicker
-            label="Calories"
+          <LabeledInput
+            label="Calories (kcal)"
             value={kcal}
-            onChange={setKcal}
+            onChange={(e) => setKcal(e.target.value)}
+            type="number"
+            inputMode="decimal"
             min={0}
             max={3000}
             step={5}
-            unit="kcal"
-            centerAt={300}
+            placeholder="e.g. 300"
           />
         </div>
       ) : (

@@ -14,7 +14,7 @@ import { onDecimalChange } from '../../lib/num';
 import { kgToLbs } from '../../domain/units';
 import { prefersReducedMotion } from '../../lib/motion';
 import {
-  Card, QuickLogCard, Badge, Button, LabeledInput, NumberField, WheelPicker,
+  Card, QuickLogCard, Badge, Button, LabeledInput, NumberField,
   Icon, GaugeArc, Sheet, Skeleton, ProgressBar, ServingStepper, FilterPills,
 } from '../kit';
 import { WeightLogSheet } from '../components/WeightLogSheet';
@@ -1719,15 +1719,16 @@ function EditActivitySheet({ entry, onClose, showToast }: {
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Morning run"
         />
-        <WheelPicker
-          label="Calories"
+        <LabeledInput
+          label="Calories (kcal)"
           value={kcal}
-          onChange={setKcal}
+          onChange={(e) => setKcal(e.target.value)}
+          type="number"
+          inputMode="decimal"
           min={0}
           max={3000}
           step={5}
-          unit="kcal"
-          centerAt={300}
+          placeholder="e.g. 300"
         />
       </div>
     </Sheet>

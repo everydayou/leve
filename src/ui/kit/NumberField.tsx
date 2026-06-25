@@ -1,26 +1,27 @@
-import { WheelPicker } from './WheelPicker';
+import { LabeledInput } from './LabeledInput';
 
-/* Drop-in replacement for numeric text inputs — renders a native drum-roll
-   picker. Caller can override min/max/step/unit/centerAt; defaults suit macro
-   fields (0–9999, integer steps). */
+/* Numeric input field — plain decimal keyboard (type=number inputMode=decimal).
+   Drop-in for macro / qty fields. min/max/step become native input attrs.
+   centerAt is accepted but ignored (was only needed by the old WheelPicker). */
 export function NumberField({
-  label, value, set, min = 0, max = 9999, step = 1, unit, centerAt,
+  label, value, set, min = 0, max = 9999, step = 1, unit,
 }: {
   label?: string; value: string; set: (s: string) => void;
   min?: number; max?: number; step?: number; unit?: string;
-  /** Position the wheel here when value is '' (without pre-filling). */
+  /** Accepted for backwards compatibility; no longer used. */
   centerAt?: number;
 }) {
+  const displayLabel = unit ? `${label ?? ''} (${unit})`.trim() : label;
   return (
-    <WheelPicker
-      label={label}
+    <LabeledInput
+      label={displayLabel}
       value={value}
-      onChange={set}
+      onChange={(e) => set(e.target.value)}
+      type="number"
+      inputMode="decimal"
       min={min}
       max={max}
       step={step}
-      unit={unit}
-      centerAt={centerAt}
     />
   );
 }

@@ -1089,12 +1089,12 @@ function ActivityForm({ date, onDone, showToast }: {
         <div className="space-y-3">
           {/* Intensity picker */}
           <div className="flex flex-col gap-1">
-            <span className="text-caption text-content-secondary">Intensity</span>
-            <div className="relative">
+            <span className="text-subhead font-normal text-content-secondary">Intensity</span>
+            <div className="relative mt-1">
               <select
                 value={intensity ?? ''}
                 onChange={(e) => handleIntensity(e.target.value || null)}
-                className="w-full appearance-none rounded-control border border-border-subtle bg-surface px-4 py-3 text-subhead text-content pr-10 focus:outline-none"
+                className="w-full appearance-none rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content pr-10 focus:outline-none"
               >
                 <option value="">Select intensity</option>
                 {INTENSITY_OPTIONS.map((o) => (
@@ -1109,12 +1109,12 @@ function ActivityForm({ date, onDone, showToast }: {
 
           {/* Duration picker */}
           <div className="flex flex-col gap-1">
-            <span className="text-caption text-content-secondary">Duration</span>
-            <div className="relative">
+            <span className="text-subhead font-normal text-content-secondary">Duration</span>
+            <div className="relative mt-1">
               <select
                 value={duration ?? ''}
                 onChange={(e) => handleDuration(e.target.value || null)}
-                className="w-full appearance-none rounded-control border border-border-subtle bg-surface px-4 py-3 text-subhead text-content pr-10 focus:outline-none"
+                className="w-full appearance-none rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content pr-10 focus:outline-none"
               >
                 <option value="">Select duration</option>
                 {DURATION_OPTIONS.map((o) => (

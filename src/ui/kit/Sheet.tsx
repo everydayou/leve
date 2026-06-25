@@ -95,6 +95,8 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
   // on device (visualViewport doesn't update with KeyboardResize.None) and
   // from window.visualViewport in the browser / preview build.
   const keyboardInset = useKeyboardInset();
+  // True once the user has scrolled the scroll area — triggers the header shadow.
+  const [scrolled, setScrolled] = useState(false);
   // Footer node registered by a child form via useSheetSetFooter(). Takes effect
   // when no explicit `footer` prop is passed. Stable setter avoids re-renders.
   const [childFooter, setChildFooter] = useState<ReactNode>(null);
@@ -413,47 +415,52 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
           style={{ top: '100%', height: '50vh' }}
           aria-hidden="true"
         />
-        <div
-          className="shrink-0 cursor-grab touch-none px-5 pt-3 active:cursor-grabbing"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-        >
-          <div className="mx-auto mb-3 h-1.5 w-11 rounded-pill bg-border-strong" />
-          {/* Title row — only rendered when a title is provided. Sheets that
-              manage their own header (e.g. navigating sub-pages) omit title. */}
-          {title !== undefined && (
-            <div className="mb-4 flex items-center gap-2">
-              <button data-no-drag onClick={close} aria-label="Close" className="-m-3 p-3 text-content-secondary">
-                <Icon name="close" size={22} strokeWidth={2.25} />
-              </button>
-              <div className="flex-1 flex flex-col items-center">
-                <h2 className="text-center text-headline font-semibold">
-                  {titleIcon ? (
-                    <span className="inline-flex items-center justify-center gap-1.5">
-                      {titleIcon}
-                      {title}
-                    </span>
-                  ) : title}
-                </h2>
-                {subtitle && (
-                  <div className="flex items-center justify-center gap-1.5">
-                    {subtitle}
-                  </div>
-                )}
+        {/* Header wrapper — shadow appears once the scroll area has been scrolled,
+            mirroring the same pattern used on fixed nav bars in full-screen views. */}
+        <div className={`shrink-0 bg-surface transition-[box-shadow] duration-200${scrolled ? ' shadow-nav' : ''}`}>
+          <div
+            className="cursor-grab touch-none px-5 pt-3 active:cursor-grabbing"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+          >
+            <div className="mx-auto mb-3 h-1.5 w-11 rounded-pill bg-border-strong" />
+            {/* Title row — only rendered when a title is provided. Sheets that
+                manage their own header (e.g. navigating sub-pages) omit title. */}
+            {title !== undefined && (
+              <div className="mb-4 flex items-center gap-2">
+                <button data-no-drag onClick={close} aria-label="Close" className="-m-3 p-3 text-content-secondary">
+                  <Icon name="close" size={22} strokeWidth={2.25} />
+                </button>
+                <div className="flex-1 flex flex-col items-center">
+                  <h2 className="text-center text-headline font-semibold">
+                    {titleIcon ? (
+                      <span className="inline-flex items-center justify-center gap-1.5">
+                        {titleIcon}
+                        {title}
+                      </span>
+                    ) : title}
+                  </h2>
+                  {subtitle && (
+                    <div className="flex items-center justify-center gap-1.5">
+                      {subtitle}
+                    </div>
+                  )}
+                </div>
+                {rightAction ?? <span className="w-6" />}
               </div>
-              {rightAction ?? <span className="w-6" />}
-            </div>
+            )}
+          </div>
+          {stickyHeader && (
+            <div className="px-5">{stickyHeader}</div>
           )}
         </div>
-        {stickyHeader && (
-          <div className="shrink-0 px-5">{stickyHeader}</div>
-        )}
         <SheetFooterSetContext.Provider value={setChildFooterCb}>
           <SheetKeyboardContext.Provider value={keyboardInset}>
             <div
               ref={scrollAreaRef}
               className="flex-1 overflow-y-auto px-5"
+              onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
               style={{
                 paddingBottom: keyboardInset > 0
                   ? `${keyboardInset}px`

@@ -10,8 +10,6 @@ import { getThemePref, setThemePref, type ThemePref } from '../../lib/theme';
 import { hapticLight, getHapticsPref, setHapticsPref } from '../../lib/haptics';
 import { getWithingsService, type WithingsStatus } from '../../data/withings';
 import { DevMenu } from '../components/DevMenu';
-import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
-import { currentWeightKg } from '../../domain/goal';
 import type { User, Sex, Units, Goal } from '../../domain/types'; // Goal used in sub-components
 
 
@@ -22,10 +20,10 @@ export function AccountScreen() {
   const [showBmrInfo, setShowBmrInfo] = useState(false);
   const [editingProtein, setEditingProtein] = useState(false);
   const data = useLive(async () => {
-    const [user, goal, weights] = await Promise.all([
-      repos.user.get(), repos.goals.getActive(), repos.weights.all(),
+    const [user, goal] = await Promise.all([
+      repos.user.get(), repos.goals.getActive(),
     ]);
-    return { user, goal, weightKg: currentWeightKg(weights) };
+    return { user, goal };
   }, []);
 
   if (!data?.user) return (
@@ -36,7 +34,7 @@ export function AccountScreen() {
       <Skeleton className="h-24 w-full" />
     </div>
   );
-  const { user, goal, weightKg } = data;
+  const { user, goal } = data;
 
   return (
     <div className="px-6 pb-6">
@@ -136,7 +134,7 @@ export function AccountScreen() {
 
       <p className="mt-8 text-center text-micro text-content-muted">v0.1.0</p>
 
-      {editingProfile && <ProfileSheet user={user} currentWeightKg={weightKg} onClose={() => setEditingProfile(false)} />}
+      {editingProfile && <ProfileSheet user={user} onClose={() => setEditingProfile(false)} />}
       {managingGoal && goal && <GoalManageSheet goal={goal} onClose={() => setManagingGoal(false)} onNavigate={(path) => { setManagingGoal(false); nav(path); }} />}
       {showBmrInfo && <BmrInfoSheet onClose={() => setShowBmrInfo(false)} />}
       {editingProtein && <ProteinGoalSheet current={user.proteinGoalG} onClose={() => setEditingProtein(false)} />}
@@ -144,28 +142,18 @@ export function AccountScreen() {
   );
 }
 
-function ProfileSheet({ user, currentWeightKg: weightKg, onClose }: { user: User; currentWeightKg: number | null; onClose: () => void }) {
+function ProfileSheet({ user, onClose }: { user: User; onClose: () => void }) {
   const [height, setHeight] = useState(String(user.heightCm));
   const [age, setAge] = useState(user.age != null ? String(user.age) : '');
   const [sex, setSex] = useState<Sex | undefined>(user.sex);
   const [units, setUnits] = useState<Units>(user.units ?? 'kg');
   async function save() {
-    const heightCm = Number(height) || user.heightCm;
-    const ageNum   = age ? Number(age) : undefined;
-    const wKg      = weightKg ?? (user.heightCm > 0 ? user.bmr : 0); // use current weight if available
-    const newBmr   = (heightCm > 0 && ageNum && sex && weightKg)
-      ? (canComputeBmr({ weightKg, heightCm, age: ageNum, sex })
-          ? mifflinStJeorBMR({ weightKg, heightCm, age: ageNum, sex })
-          : user.bmr)
-      : user.bmr;
-    void wKg; // suppress unused warning when weightKg is null
     await repos.user.save({
       ...user,
-      heightCm,
-      age: ageNum,
+      heightCm: Number(height) || user.heightCm,
+      age: age ? Number(age) : undefined,
       sex,
       units,
-      bmr: newBmr,
     });
     onClose();
   }
@@ -175,7 +163,7 @@ function ProfileSheet({ user, currentWeightKg: weightKg, onClose }: { user: User
         <WheelPicker label="Height (cm)" value={height} onChange={setHeight} min={100} max={250} step={1} unit="cm" centerAt={170} />
         <WheelPicker label="Age" value={age} onChange={setAge} min={10} max={100} step={1} centerAt={30} />
         <div>
-          <span className="text-subhead font-normal text-content-secondary">Sex</span>
+          <span className="text-micro uppercase text-content-secondary">Sex</span>
           <div className="mt-1">
             <SegmentedControl<Sex>
               value={(sex ?? '') as Sex}
@@ -185,7 +173,7 @@ function ProfileSheet({ user, currentWeightKg: weightKg, onClose }: { user: User
           </div>
         </div>
         <div>
-          <span className="text-subhead font-normal text-content-secondary">Units</span>
+          <span className="text-micro uppercase text-content-secondary">Units</span>
           <div className="mt-1">
             <SegmentedControl<Units>
               value={units}
@@ -515,7 +503,7 @@ function MacroDiaryCard({ goal }: { goal: Goal }) {
             className="flex w-full items-center justify-between px-4 py-3 active:bg-surface-sunken"
           >
             <span className="text-subhead font-medium text-content">{label}</span>
-            <div className={`relative h-[28px] w-[48px] rounded-full transition-colors ${enabled ? 'bg-accent' : 'bg-neutral-300'}`}>
+            <div className={`relative h-[28px] w-[48px] rounded-full transition-colors ${enabled ? 'bg-accent' : 'bg-border-strong'}`}>
               <div className={`absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-sm transition-transform ${enabled ? 'translate-x-[23px]' : 'translate-x-[3px]'}`} />
             </div>
           </button>

@@ -273,15 +273,15 @@ export function GoalScreen() {
           </p>
           {/* Stat tiles: white bg + shadow */}
           <div className="grid grid-cols-3 gap-2 items-stretch">
-            <button onClick={() => { hapticLight(); setShowSettings(true); }} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
+            <button onClick={() => { hapticLight(); setShowSettings(true); }} aria-label="Current weight — open goal settings" className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
               <span className="text-callout font-semibold text-content">{displayWeight(now, user?.units ?? 'kg')}</span>
               <span className="-mt-0.5 text-center text-subhead text-content-secondary">Current</span>
             </button>
-            <button onClick={() => { hapticLight(); setShowSettings(true); }} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
+            <button onClick={() => { hapticLight(); setShowSettings(true); }} aria-label={`${isGainGoal(goal) ? 'Weight to gain' : 'Weight left'} — open goal settings`} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
               <span className="text-callout font-semibold text-content">{isEarlyComplete ? '🎯' : displayWeight(remaining, user?.units ?? 'kg')}</span>
               <span className="-mt-0.5 text-center text-subhead text-content-secondary">{isGainGoal(goal) ? 'To gain' : 'Weight left'}</span>
             </button>
-            <button onClick={() => { hapticLight(); setShowSettings(true); }} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
+            <button onClick={() => { hapticLight(); setShowSettings(true); }} aria-label={`${isOverdue ? 'Goal overdue' : daysLeft > 0 ? 'Time left' : 'Final day'} — open goal settings`} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
               <span className="text-callout font-semibold text-content">
                 {isOverdue ? `+${daysPast} d` : daysLeft > 0 ? `${daysLeft} d` : '🎯'}
               </span>
@@ -712,9 +712,9 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
   const xFor  = (i: number) => padLeft + i * slotW + slotW / 2;
   const yFor  = (kg: number) => padTop + ((yMax - kg) / (yMax - yMin)) * chartH;
 
-  // Planned line: from goal start date to goal.targetDate for active goals
+  // Planned line: only from goal start date up to today (caps at goal.targetDate for past goals)
   const planLine = daySeries
-    .map((d, i) => (d.isBeforeGoal || d.date > goal.targetDate) ? null : `${xFor(i).toFixed(1)},${yFor(d.planned).toFixed(1)}`)
+    .map((d, i) => (d.isBeforeGoal || d.date > today) ? null : `${xFor(i).toFixed(1)},${yFor(d.planned).toFixed(1)}`)
     .filter((p): p is string => p !== null)
     .join(' ');
 
@@ -1066,14 +1066,14 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
   // For gain: two dashed ramps (floor + ceiling band); for lose: single ramp.
   // Cap at today so ramps don't extend into future/post-goal days.
   const rampPoints = cumulData
-    .map((d, i) => (d.isFuture && d.date > goal.targetDate) ? null : `${midX(i).toFixed(1)},${toY(d.cumBudget).toFixed(1)}`)
+    .map((d, i) => d.isFuture ? null : `${midX(i).toFixed(1)},${toY(d.cumBudget).toFixed(1)}`)
     .filter((p): p is string => p !== null)
     .join(' ');
   const floorRampPoints = gainChart
-    ? cumulData.map((d, i) => (d.isFuture && d.date > goal.targetDate) ? null : `${midX(i).toFixed(1)},${toY(d.cumFloor).toFixed(1)}`).filter((p): p is string => p !== null).join(' ')
+    ? cumulData.map((d, i) => d.isFuture ? null : `${midX(i).toFixed(1)},${toY(d.cumFloor).toFixed(1)}`).filter((p): p is string => p !== null).join(' ')
     : '';
   const ceilRampPoints = gainChart
-    ? cumulData.map((d, i) => (d.isFuture && d.date > goal.targetDate) ? null : `${midX(i).toFixed(1)},${toY(d.cumCeil).toFixed(1)}`).filter((p): p is string => p !== null).join(' ')
+    ? cumulData.map((d, i) => d.isFuture ? null : `${midX(i).toFixed(1)},${toY(d.cumCeil).toFixed(1)}`).filter((p): p is string => p !== null).join(' ')
     : '';
 
   // Summary: last past day with data

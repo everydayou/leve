@@ -7,6 +7,96 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 105 — ESTIMATED BMR + BREAKDOWN DISCLAIMER + PROFILE MODAL (2026-06-25)
+================================================================
+Files: src/domain/bmr.ts,
+       src/state/useDay.ts,
+       src/ui/screens/TodayScreen.tsx
+
+── PROBLEM ───────────────────────────────────────────────────────────────────
+When a user creates a goal but has not filled in height, age, or sex on their
+profile, bmrForDate() returned user.bmr which defaults to 0. With bmr=0 the
+gauge was completely empty and totalBurn=0, making the calorie breakdown
+meaningless even though a goal existed and a starting weight was recorded.
+
+── BMR.TS — estimateBmrFromWeight ────────────────────────────────────────────
+Added:
+  export function estimateBmrFromWeight(weightKg: number): number
+  → Math.round(10 * weightKg + 810)
+
+Derivation: Mifflin–St Jeor (10·w + 6.25·h - 5·a + sex) evaluated at
+population-average values (h=170 cm, a=35 yr, sex-neutral midpoint).
+  Male:   10w + 1062.5 - 175 + 5   = 10w + 892.5
+  Female: 10w + 1062.5 - 175 - 161 = 10w + 726.5
+  Avg:    10w + 809.5 ≈ 10w + 810
+Result is a reasonable rough estimate (±10–15% for typical adults).
+
+── USEDAY.TS — bmrIsEstimated flag ───────────────────────────────────────────
+DayData interface: added bmrIsEstimated: boolean.
+Logic:
+  const bmrActual = user ? bmrForDate(date, weights, user) : 0;
+  const latestWeight = [...weights sorted desc][0] ?? null;
+  const bmrIsEstimated = bmrActual === 0 && latestWeight != null;
+  const bmr = bmrActual > 0 ? bmrActual
+    : latestWeight ? estimateBmrFromWeight(latestWeight.weightKg)
+    : 0;
+summarizeDay(bmr, ...) now receives the estimated BMR so totalBurn is
+non-zero and the gauge renders meaningful numbers.
+
+── TODAYSCREEN.TSX — DayPanel ────────────────────────────────────────────────
+State: added showProfileSetup (useState(false)).
+Props: added profileUser?: User | null to DayPanelProps; passed from parent
+  as profileUser={user}. Used to pre-populate ProfileSetupSheet.
+noBmr banner: replaced the old "Set your BMR" chevron row (navigated to
+  Account) with a softer info row:
+    Icon(info) + "Numbers estimated — tap breakdown to add your profile"
+  onClick: setShowBreakdown(true).
+  Shown when: bmrIsEstimated && hasGoal.
+ProfileSetupSheet rendered alongside WeightLogSheet when showProfileSetup.
+
+── TODAYSCREEN.TSX — BreakdownSheet ──────────────────────────────────────────
+New props: bmrIsEstimated?: boolean, onSetupProfile?: () => void.
+Disclaimer banner (shown when bmrIsEstimated):
+  <button className="... bg-surface-sunken border-border-subtle ...">
+    Icon(info) + "Numbers are estimated" heading
+    + "BMR is calculated from your weight only..." body
+    + "Complete your profile →" CTA in text-accent
+  onClick: onSetupProfile() — closes breakdown, opens ProfileSetupSheet.
+BMR info panel (infoPanels.bmr): ternary on bmrIsEstimated.
+  Estimated path explains the weight-only estimate and invites profile
+  completion. Exact path keeps original BMR explanation text.
+Both BreakdownSheet call sites updated:
+  hasTarget condition → hasGoal (show sheet even when BMR is estimated).
+  New props passed through.
+
+── TODAYSCREEN.TSX — ProfileSetupSheet ───────────────────────────────────────
+New component at bottom of file.
+Constants: HEIGHT_CM_OPTIONS (140–220), AGE_PROFILE_OPTIONS (10–90).
+Props: currentWeightKg, initialHeight, initialAge, initialSex, onClose.
+State: height (number|null), age (number|null), sex (Sex|null), saving.
+UI:
+  Sex — FilterPills<Sex> (Male / Female).
+  Height — <select> 140–220 cm with chevronDown icon.
+  Age — <select> 10–90 yrs with chevronDown icon.
+  Save button (solid, disabled until all 3 filled).
+Save logic:
+  const user = await repos.user.get();
+  const bmrValue = mifflinStJeorBMR({ weightKg: currentWeightKg ?? 70,
+    heightCm: height, age, sex });
+  const base = user ?? { id: 'default', heightCm: 0, units: 'kg', bmr: 0 };
+  await repos.user.save({ ...base, heightCm, age, sex, bmr: bmrValue });
+  onClose();
+After save, useDay re-runs (user changed) → bmrActual > 0 → bmrIsEstimated
+false → gauge shows accurate number, disclaimer disappears.
+
+── TYPE/IMPORT ADDITIONS ─────────────────────────────────────────────────────
+TodayScreen imports: mifflinStJeorBMR (domain/bmr), FilterPills (kit),
+  User + Sex (domain/types).
+useDay imports: estimateBmrFromWeight (domain/bmr).
+
+tsc: clean. lint: clean (r105).
+
+================================================================
 ROUND 104 — SIMPLE MODE OUTLINED PICKERS + SCAN FAB GATE (2026-06-24)
 ================================================================
 Files: src/ui/screens/GoalSetupScreen.tsx,

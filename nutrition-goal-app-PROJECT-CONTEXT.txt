@@ -2,8 +2,8 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-24 — Round 104 (onboarding/goal setup polish r102–r104; scan FAB gated; .env.local recovered)
-Full change history: see CHANGELOG.txt (rounds 1–104).
+Last updated: 2026-06-25 — Round 105 (estimated BMR from weight; breakdown disclaimer; inline profile setup modal)
+Full change history: see CHANGELOG.txt (rounds 1–105).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -113,7 +113,7 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 104, 2026-06-24)
+7. CURRENT STATUS (as of round 105, 2026-06-25)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. Recent work:
 - Rounds 85–100: BreakdownSheet redesign, gain gauge overhaul, Past Goals
@@ -130,7 +130,19 @@ All V1 features shipped and running on device. Recent work:
 - .env.local: recovered after accidental deletion. Contains
   VITE_FOOD_SCAN_API_URL=https://food-scan-api-delta.vercel.app.
   This file is gitignored — must be recreated manually if lost.
-- tsc: clean. build: clean (r104).
+- Round 105 (2026-06-25): Estimated BMR when profile is incomplete:
+  · bmr.ts: estimateBmrFromWeight(kg) = 10·w + 810 (pop-avg 170 cm / 35 yr /
+    neutral sex via Mifflin–St Jeor). Gauge shows real-looking numbers instead
+    of 0 when height/age/sex are missing.
+  · useDay.ts: bmrIsEstimated flag on DayData; falls back to estimate when
+    bmrActual=0 but a weight entry exists.
+  · TodayScreen: "Numbers estimated" info banner (opens breakdown on tap);
+    BreakdownSheet: tappable disclaimer card above math rows + onSetupProfile
+    callback; BMR info panel text switches to explain the estimate.
+  · ProfileSetupSheet: new bottom sheet (sex FilterPills / height select /
+    age select) that saves Mifflin–St Jeor BMR to user record; accessible
+    without navigating to Account screen.
+- tsc: clean. build: clean (r105).
 
 ----------------------------------------------------------------
 8. ARCHITECTURE NOTES
@@ -177,6 +189,11 @@ LOW:
 - ACTIVITY TEACHING MOMENT (§9 first-open spec): deferred. Component ready;
   copy for gain/explore paths not finalised.
 - GoalForkScreen (/goal-fork): built but not device-reviewed.
+- ProfileSetupSheet height select always shows cm. Users set to lbs see no
+  ft/in option. Low priority until imperial height preference is added.
+- Estimated BMR (weight-only) assumes pop-avg 170 cm / 35 yr / neutral sex.
+  Very tall/short or young/old users may see a notably off estimate until
+  they complete their profile.
 
 DEFERRED V1.5+: JSON import, HealthKit, BMR auto-calibration, full tablet
 layouts, per-piece measurement types, time-of-day food suggestions.
@@ -184,6 +201,25 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 ----------------------------------------------------------------
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
+
+ROUND 105 — ESTIMATED BMR + BREAKDOWN DISCLAIMER + PROFILE MODAL (2026-06-25)
+Files: src/domain/bmr.ts, src/state/useDay.ts, src/ui/screens/TodayScreen.tsx
+- bmr.ts: added estimateBmrFromWeight(kg) = round(10·kg + 810). Equivalent to
+  Mifflin–St Jeor at pop-avg 170 cm / 35 yr / neutral sex.
+- useDay.ts: DayData gains bmrIsEstimated flag. When bmrActual=0 but a weight
+  entry exists, falls back to estimate so gauge shows non-zero numbers.
+  summarizeDay() uses the estimated BMR so totalBurn is meaningful.
+- TodayScreen:
+  · noBmr banner replaced by softer "Numbers estimated" info row that opens
+    the breakdown sheet on tap.
+  · DayPanel: showProfileSetup state + profileUser prop for initial values.
+  · BreakdownSheet: new bmrIsEstimated + onSetupProfile props; disclaimer
+    banner (bg-surface-sunken) above math rows when estimate is active; BMR
+    info panel text switches to explain the estimate vs exact calculation.
+  · ProfileSetupSheet: new bottom sheet — sex (FilterPills), height (select,
+    140–220 cm), age (select, 10–90 yrs); saves Mifflin–St Jeor BMR to user
+    record on submit; useDay reacts immediately.
+- tsc: clean. lint: clean.
 
 ROUND 104 — SIMPLE MODE OUTLINED PICKERS + SCAN FAB GATE (2026-06-24)
 Files: src/ui/screens/GoalSetupScreen.tsx, src/ui/kit/FloatingTabBar.tsx
@@ -198,15 +234,4 @@ Files: src/ui/screens/GoalSetupScreen.tsx
 - Unit moved inside Weight section as first sub-field (both Simple + Custom).
 - Simple card: Weight pt-6 top, Pace pt-4 top.
 - "Details about you": borderRadius 16→24px.
-- tsc: clean. build: clean.
-
-ROUND 102 — ONBOARDING / GOAL SETUP UI POLISH (2026-06-24)
-Files: src/ui/kit/WheelPicker.tsx, src/ui/screens/GoalSetupScreen.tsx,
-       src/ui/screens/FirstOpenFork.tsx, src/ui/components/DevMenu.tsx
-- WheelPicker split-decimal empty+centerAt → two split pickers with "—".
-- Simple mode card (border-field, radius 24) wrapping Weight + Pace sections.
-- Custom mode Unit moved before weight pickers.
-- Content area pt-6 below sticky header. Details: border-field + radius 16px.
-- Explore icon → magnifier SVG; copy dash removed.
-- DevMenu reset now abandons all goals before reload.
 - tsc: clean. build: clean.

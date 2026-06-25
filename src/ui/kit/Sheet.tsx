@@ -99,6 +99,8 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
   const effectiveFooter = footer ?? childFooter;
   // Ref to the panel element — used by the focus trap.
   const panelRef = useRef<HTMLDivElement>(null);
+  // Ref to the scroll area — used to scroll a focused input into view when keyboard opens.
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   // Remember which element had focus before the sheet opened so we can restore it.
   const triggerRef = useRef<Element | null>(null);
   // Tracks whether the last drag ended as a cancel (no dismiss/expand) so
@@ -211,6 +213,19 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
       vv.removeEventListener('scroll', update);
     };
   }, []);
+
+  // ── Scroll focused input into view when keyboard opens ───────────────────────
+  // With KeyboardResize.None the WKWebView doesn't shrink, so the browser can't
+  // auto-scroll the focused element into view within our custom scroll container.
+  // We do it manually: whenever keyboardInset increases (keyboard just opened or
+  // grew), nudge the active element into view inside the sheet's scroll area.
+  useEffect(() => {
+    if (keyboardInset <= 0) return;
+    const scrollEl = scrollAreaRef.current;
+    const focused = document.activeElement as HTMLElement | null;
+    if (!scrollEl || !focused || !scrollEl.contains(focused)) return;
+    setTimeout(() => focused.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
+  }, [keyboardInset]);
 
   // ── Focus management ─────────────────────────────────────────────────────────
   // 1. Save the element that triggered the sheet so we can restore focus on close.
@@ -422,6 +437,7 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
         <SheetFooterSetContext.Provider value={setChildFooterCb}>
           <SheetKeyboardContext.Provider value={keyboardInset}>
             <div
+              ref={scrollAreaRef}
               className="flex-1 overflow-y-auto px-5"
               style={{
                 paddingBottom: keyboardInset > 0

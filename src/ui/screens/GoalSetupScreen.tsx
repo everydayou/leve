@@ -288,6 +288,36 @@ export function GoalSetupForm({
     setNavScrolled(false);
   }, [step]);
 
+  // ── Keyboard scroll handling ─────────────────────────────────────────────
+  // With KeyboardResize.None the WKWebView doesn't shrink when the keyboard
+  // appears — the keyboard overlays the bottom of the screen. We track the
+  // visual viewport to add padding-bottom to the scroll container so all
+  // fields remain scrollable above the keyboard, and we nudge the focused
+  // element into view whenever the inset changes.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const scrollEl = scrollRef.current;
+    const update = () => {
+      if (!scrollEl) return;
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      scrollEl.style.paddingBottom = inset > 0 ? `${inset}px` : '';
+      if (inset > 0) {
+        const focused = document.activeElement as HTMLElement | null;
+        if (focused && scrollEl.contains(focused)) {
+          setTimeout(() => focused.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
+        }
+      }
+    };
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+      if (scrollEl) scrollEl.style.paddingBottom = '';
+    };
+  }, []);
+
   // ── Navigation ────────────────────────────────────────────────────────────
   const dismiss = (delay = 320) => {
     setIsExiting(true);

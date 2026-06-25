@@ -12,6 +12,15 @@ const config: CapacitorConfig = {
   // Prevents the white flash on cold launch while the JS bundle loads.
   backgroundColor: '#161618',
   plugins: {
+    Keyboard: {
+      // Do not resize the WKWebView when the keyboard appears.
+      // The keyboard overlays the web content instead of shrinking the viewport.
+      // Our JS (Sheet.tsx visualViewport tracking + GoalSetupScreen useKeyboardScroll)
+      // handles padding and scroll-into-view, eliminating the black-void / content-jump.
+      resize: 'none',
+      // Keep the accessory bar (Done / next / prev) above the keyboard.
+      style: 'default',
+    },
     SplashScreen: {
       // Show the native splash for 0 ms then auto-dismiss — the JS LeveLoadingScreen
       // takes over immediately so there is no visible native splash at all.

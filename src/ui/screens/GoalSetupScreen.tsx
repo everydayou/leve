@@ -182,11 +182,12 @@ export function GoalSetupForm({
   const [offerSex,    setOfferSex]    = useState<Sex | null>(userSex ?? null);
 
   useEffect(() => {
+    // Use functional updater so we read current state, not stale closure.
+    // Only back-fill from DB if the user hasn't set the field yet in this session.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (userHeightCm && !offerHeight) setOfferHeight(userHeightCm);
-    if (userAge    && !offerAge)    setOfferAge(userAge);
-    if (userSex    && !offerSex)    setOfferSex(userSex);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (userHeightCm) setOfferHeight(prev => prev !== null ? prev : userHeightCm);
+    if (userAge)      setOfferAge(prev => prev !== null ? prev : userAge);
+    if (userSex)      setOfferSex(prev => prev !== null ? prev : userSex);
   }, [userHeightCm, userAge, userSex]);
 
   // ── Weigh-in cadence ─────────────────────────────────────────────────────
@@ -783,6 +784,7 @@ export function GoalSetupForm({
                   <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface p-4">
                     <div className="space-y-3">
                       <WheelPicker
+                        key={offerHeight !== null ? `h-${offerHeight}` : 'h-empty'}
                         label="Height"
                         value={offerHeight !== null ? String(offerHeight) : ''}
                         onChange={(v) => setOfferHeight(v ? Number(v) : null)}
@@ -790,6 +792,7 @@ export function GoalSetupForm({
                         centerAt={offerHeight ?? 170}
                       />
                       <WheelPicker
+                        key={offerAge !== null ? `a-${offerAge}` : 'a-empty'}
                         label="Age"
                         value={offerAge !== null ? String(offerAge) : ''}
                         onChange={(v) => setOfferAge(v ? Number(v) : null)}

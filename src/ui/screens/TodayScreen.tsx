@@ -317,7 +317,7 @@ function MacroDetailRow({ label, consumed, targetG = 0, onInfo }: {
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <button data-no-drag onClick={onInfo} className="flex items-center gap-1.5 text-left -ml-0.5" aria-label={`Learn about ${label}`}>
+        <button data-no-drag onClick={onInfo} className="flex items-center gap-1.5 text-left" aria-label={`Learn about ${label}`}>
           <Icon name="info" size={16} strokeWidth={1.75} className="shrink-0 text-content-muted" />
           <span className="text-subhead text-content-secondary">{label}</span>
         </button>
@@ -363,32 +363,32 @@ function MacroDetailSheet({
 
   const infoPanels: Record<'protein' | 'carbs' | 'fat', React.ReactNode> = {
     protein: (
-      <div className="space-y-3 leading-relaxed">
-        <p className="text-subhead text-content"><span className="font-medium">Protein</span> is the building block of muscle, organs, and enzymes. It keeps you full and supports recovery after training.</p>
-        <p className="text-subhead text-content">It has the highest thermic effect of any macro. Your body burns more calories digesting protein than carbs or fat.</p>
+      <div className="space-y-3 leading-relaxed pb-2">
+        <p className="text-subhead text-content-secondary"><span className="font-medium">Protein</span> is the building block of muscle, organs, and enzymes. It keeps you full and supports recovery after training.</p>
+        <p className="text-subhead text-content-secondary">It has the highest thermic effect of any macro. Your body burns more calories digesting protein than carbs or fat.</p>
         <div className="rounded-field bg-surface-sunken px-3 py-2.5">
-          <p className="text-footnote text-content-muted mb-0.5">Daily target</p>
-          <p className="text-subhead font-semibold text-content">{proteinGoal > 0 ? `${proteinGoal} g` : 'Not set'}</p>
+          <p className="text-subhead text-content-secondary mb-0.5">Daily target</p>
+          <p className="text-subhead font-semibold text-content-secondary">{proteinGoal > 0 ? `${proteinGoal} g` : 'Not set'}</p>
         </div>
       </div>
     ),
     carbs: (
-      <div className="space-y-3 leading-relaxed">
-        <p className="text-subhead text-content"><span className="font-medium">Carbohydrates</span> are your body's preferred energy source, especially for the brain and during high-intensity activity.</p>
-        <p className="text-subhead text-content">On active days, your carb budget increases automatically to fuel your output. On rest days, it adjusts back down.</p>
+      <div className="space-y-3 leading-relaxed pb-2">
+        <p className="text-subhead text-content-secondary"><span className="font-medium">Carbohydrates</span> are your body's preferred energy source, especially for the brain and during high-intensity activity.</p>
+        <p className="text-subhead text-content-secondary">On active days, your carb budget increases automatically to fuel your output. On rest days, it adjusts back down.</p>
         <div className="rounded-field bg-surface-sunken px-3 py-2.5">
-          <p className="text-footnote text-content-muted mb-0.5">Daily target</p>
-          <p className="text-subhead font-semibold text-content">{carbTarget > 0 ? `${carbTarget} g` : 'Adjusts with activity'}</p>
+          <p className="text-subhead text-content-secondary mb-0.5">Daily target</p>
+          <p className="text-subhead font-semibold text-content-secondary">{carbTarget > 0 ? `${carbTarget} g` : 'Adjusts with activity'}</p>
         </div>
       </div>
     ),
     fat: (
-      <div className="space-y-3 leading-relaxed">
-        <p className="text-subhead text-content"><span className="font-medium">Fat</span> supports hormone production, brain function, and absorption of fat-soluble vitamins (A, D, E, K).</p>
-        <p className="text-subhead text-content">It's the most calorie-dense macro at 9 kcal per gram, so it has a big impact on your daily total even in small amounts.</p>
+      <div className="space-y-3 leading-relaxed pb-2">
+        <p className="text-subhead text-content-secondary"><span className="font-medium">Fat</span> supports hormone production, brain function, and absorption of fat-soluble vitamins (A, D, E, K).</p>
+        <p className="text-subhead text-content-secondary">It's the most calorie-dense macro at 9 kcal per gram, so it has a big impact on your daily total even in small amounts.</p>
         <div className="rounded-field bg-surface-sunken px-3 py-2.5">
-          <p className="text-footnote text-content-muted mb-0.5">Daily target</p>
-          <p className="text-subhead font-semibold text-content">{fatTargetEff > 0 ? `${fatTargetEff} g` : 'No target for this plan'}</p>
+          <p className="text-subhead text-content-secondary mb-0.5">Daily target</p>
+          <p className="text-subhead font-semibold text-content-secondary">{fatTargetEff > 0 ? `${fatTargetEff} g` : 'No target for this plan'}</p>
         </div>
       </div>
     ),
@@ -1397,7 +1397,7 @@ function BreakdownSheet({
           <button
             data-no-drag
             onClick={() => { hapticLight(); onSetGoal?.(); }}
-            className="mt-3 rounded-field bg-accent px-4 py-2 text-subhead font-semibold text-white active:opacity-80 transition-opacity"
+            className="mt-3 rounded-field bg-accent px-4 py-2 text-subhead font-semibold text-content active:opacity-80 transition-opacity"
           >
             Set a goal
           </button>
@@ -1559,7 +1559,7 @@ function BreakdownSheet({
             <Icon name="info" size={17} strokeWidth={1.75} className="mt-0.5 shrink-0 text-content-muted" />
             <div className="min-w-0">
               <p className="text-subhead font-medium text-content">Numbers are estimated</p>
-              <p className="mt-0.5 text-footnote text-content-secondary">For an accurate BMR we need your height, age, and sex. All three together are required for the calculation.</p>
+              <p className="mt-0.5 text-subhead text-content-secondary">For an accurate BMR we need your height, age, and sex. All three together are required for the calculation.</p>
               <p className="mt-1.5 text-callout text-accent-hover">Complete your profile</p>
             </div>
           </button>

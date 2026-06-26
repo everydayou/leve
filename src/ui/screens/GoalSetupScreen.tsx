@@ -181,14 +181,20 @@ export function GoalSetupForm({
   const [offerAge,    setOfferAge]    = useState<number | null>(userAge ?? null);
   const [offerSex,    setOfferSex]    = useState<Sex | null>(userSex ?? null);
 
+  // Direct profile query — GoalSetupForm reads the user record itself so
+  // Section 2 always pre-fills regardless of any prop-passing timing issue.
+  const profileUser = useLive(() => repos.user.get(), []);
   useEffect(() => {
-    // Use functional updater so we read current state, not stale closure.
-    // Only back-fill from DB if the user hasn't set the field yet in this session.
+    if (!profileUser) return;
+    const h = profileUser.heightCm || null;
+    const a = profileUser.age ?? null;
+    const s = profileUser.sex ?? null;
+    // Functional updater: only back-fill if the field hasn't been touched yet.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (userHeightCm) setOfferHeight(prev => prev !== null ? prev : userHeightCm);
-    if (userAge)      setOfferAge(prev => prev !== null ? prev : userAge);
-    if (userSex)      setOfferSex(prev => prev !== null ? prev : userSex);
-  }, [userHeightCm, userAge, userSex]);
+    if (h) setOfferHeight(prev => prev !== null ? prev : h);
+    if (a) setOfferAge(prev => prev !== null ? prev : a);
+    if (s) setOfferSex(prev => prev !== null ? prev : s);
+  }, [profileUser]);
 
   // ── Weigh-in cadence ─────────────────────────────────────────────────────
   const [weighCadence, setWeighCadence] = useState<'daily' | 'weekly' | null>(null);
@@ -783,21 +789,21 @@ export function GoalSetupForm({
                   </p>
                   <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface p-4">
                     <div className="space-y-3">
-                      <WheelPicker
-                        key={offerHeight !== null ? `h-${offerHeight}` : 'h-empty'}
-                        label="Height"
+                      <LabeledInput
+                        label="Height (cm)"
                         value={offerHeight !== null ? String(offerHeight) : ''}
-                        onChange={(v) => setOfferHeight(v ? Number(v) : null)}
-                        min={140} max={220} step={1} unit="cm"
-                        centerAt={offerHeight ?? 170}
+                        onChange={(e) => { const v = e.target.value; setOfferHeight(v ? Number(v) : null); }}
+                        type="number"
+                        inputMode="numeric"
+                        placeholder="e.g. 175"
                       />
-                      <WheelPicker
-                        key={offerAge !== null ? `a-${offerAge}` : 'a-empty'}
+                      <LabeledInput
                         label="Age"
                         value={offerAge !== null ? String(offerAge) : ''}
-                        onChange={(v) => setOfferAge(v ? Number(v) : null)}
-                        min={10} max={90} step={1} unit="yrs"
-                        centerAt={offerAge ?? 30}
+                        onChange={(e) => { const v = e.target.value; setOfferAge(v ? Number(v) : null); }}
+                        type="number"
+                        inputMode="numeric"
+                        placeholder="e.g. 30"
                       />
                       <div>
                         <span className="block mb-2 text-subhead font-normal text-content-secondary">Sex</span>

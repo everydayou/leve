@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-25 — Round 106 (audit fixes; picker→input migration; keyboard overlay; sheet polish)
+Last updated: 2026-06-26 — Round 107 (macro sheet clipping; breakdown intro fix; goal pre-fill; gauge polish; custom info icon)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -113,7 +113,7 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 106, 2026-06-25)
+7. CURRENT STATUS (as of round 107, 2026-06-26)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. Recent work:
 - Rounds 85–100: BreakdownSheet redesign, gain gauge overhaul, Past Goals
@@ -125,28 +125,26 @@ All V1 features shipped and running on device. Recent work:
   inline profile setup modal.
 - Round 106 (2026-06-25): Codebase audit + fixes; WheelPicker→plain-input
   migration; keyboard overlay overhaul; sheet polish.
-  · Audit: token violation (bg-neutral-300→bg-border-strong in AccountScreen),
-    layer boundary (pantrySeed.ts decoupled from state/repos), 3 missing
-    aria-labels on GoalScreen stat tiles. All fixed.
-  · Input migration: NumberField rewritten to LabeledInput wrapper
-    (type="number" inputMode="decimal"). All macro/nutrition/servings/
-    quantity(g) fields across AddEntrySheet, TodayScreen, PantryScreen now
-    plain text inputs. ServingStepper (+/-) kept as-is.
-    Activity calories WheelPicker → LabeledInput in AddEntrySheet + TodayScreen.
-  · Keyboard overlay: @capacitor/keyboard added; capacitor.config.ts sets
-    resize:'none' so keyboard overlays without shifting the WebView.
-    src/lib/useKeyboardInset.ts: new hook using Capacitor keyboardWillShow/
-    keyboardWillHide events (visualViewport fallback for browser).
-    Sheet.tsx: useKeyboardInset(), scrollFocusedAboveKeyboard() (BoundingRect
-    maths, not scrollIntoView), focusin listener for mid-keyboard field jumps,
-    touchAction:pan-y to allow manual scroll.
-    GoalSetupScreen.tsx: same keyboard padding pattern.
-  · Sheet polish: header shadow-nav on scroll (matching fixed nav pattern);
-    activity Estimate fields: label text-subhead, selects bg-surface-sunken;
-    rounded-t-sheet corners restored (bg-surface removed from header wrapper).
+- Round 107 (2026-06-26): TodayScreen/GoalSetupScreen UX polish + custom
+  info icon.
+  · MacroDetailSheet: overflow-hidden → overflowX:'clip' (clips slide
+    animation horizontally without blocking vertical scroll).
+  · BreakdownSheet intro paragraph moved inside sliding div so it hides
+    correctly during info panel slide-in.
+  · GoalSetupForm: direct useLive(() => repos.user.get()) query so Section 2
+    always pre-fills height/age/sex from saved profile (bypasses prop timing).
+  · Gauge center number: removed +/− prefix (plain number, matching breakdown).
+  · Gauge sub-labels: Food = plain positive, Activity = always −N.
+  · MacroDetailRow: reverted to label → icon order.
+  · Daily target container: center-aligned + text-content color.
+  · Gauge badge: info icon added inside badge to signal tap affordance.
+  · Icon.tsx: custom filled info icon (20×20 SVG) replaces stroke version
+    everywhere. Added to FILL_ICONS + CUSTOM_VIEWBOX.
+  · Info icon color: inline icons paired with secondary text now use
+    text-content-secondary (not text-content-muted).
 - .env.local: gitignored, must be recreated if folder is deleted.
   VITE_FOOD_SCAN_API_URL=https://food-scan-api-delta.vercel.app
-- tsc: clean. build: clean (r106).
+- tsc: clean. lint: clean (r107).
 
 ----------------------------------------------------------------
 8. ARCHITECTURE NOTES
@@ -196,6 +194,13 @@ LOW:
   Very tall/short or young/old users may see a notably off estimate until
   they complete their profile.
 
+DONE (r107):
+- ✓ MacroDetailSheet horizontal clip without blocking vertical scroll.
+- ✓ BreakdownSheet intro text now hides when info panel slides in.
+- ✓ GoalSetupScreen Section 2 pre-fills from saved profile on every open.
+- ✓ Gauge center number sign removed; sub-labels consistent (food +, activity −).
+- ✓ Custom filled info icon deployed everywhere; color matches adjacent text.
+
 DONE (r106):
 - ✓ KEYBOARD/VIEW CONFLICT: content jumping + black void when keyboard opened
   in sheets. Fixed via @capacitor/keyboard resize:'none' + Capacitor
@@ -208,6 +213,40 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 ----------------------------------------------------------------
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
+
+ROUND 107 — UX POLISH: MACRO SHEET CLIP, BREAKDOWN INTRO, GOAL PRE-FILL, GAUGE + INFO ICON OVERHAUL (2026-06-26)
+Files: src/ui/screens/TodayScreen.tsx, src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/kit/Icon.tsx
+- MacroDetailSheet: container changed from overflow-hidden to overflowX:'clip'
+  (inline style). Clips horizontal slide animation without creating a block
+  formatting context that cuts off vertically-overflowing content.
+- BreakdownSheet: "Food adds energy…" intro paragraph was a direct Sheet child
+  (sibling of scrollable area), so it stayed fixed during info panel slide-in.
+  Moved inside the first sliding div — now hides with the main panel.
+- GoalSetupForm: added direct useLive(() => repos.user.get(), []) query. Section 2
+  (height/age/sex) pre-fills from saved profile on every open. Functional
+  updater `prev !== null ? prev : value` prevents overwriting user edits.
+  ESLint react-hooks/set-state-in-effect suppressed on first setState only.
+- Gauge center number: removed +/− prefix. Now shows plain absolute number
+  matching the style used in the calorie breakdown.
+- Gauge sub-labels: Food = plain positive number, Activity = always −N. Removed
+  stray + that was appearing on Food.
+- MacroDetailRow: reverted icon order → label text, then small info icon (was
+  icon-first after a prior round accidentally flipped it).
+- Daily target container (all 3 panels): added text-center; label and value
+  both changed to text-content (was text-content-secondary).
+- Gauge badge: info Icon (size 12) added as child of Badge component, after
+  label text, to signal tappability → opens MacroDetailSheet.
+- Icon.tsx: custom filled info icon replaces stroke version everywhere.
+  · Path sourced from Icon_info.svg (20×20 viewBox, filled circles).
+  · 'info' added to FILL_ICONS set and CUSTOM_VIEWBOX map (viewBox '0 0 20 20').
+- Info icon color: instances paired inline with secondary-text labels changed
+  from text-content-muted → text-content-secondary.
+  · MacroDetailRow shrink-0 icon.
+  · All three breakdown math-row icons (replace_all).
+  · Standalone decorative icons (BMR card, "Numbers estimated" banner) left
+    as text-content-muted.
+- tsc: clean. lint: clean.
 
 ROUND 106 — AUDIT FIXES + PICKER→INPUT MIGRATION + KEYBOARD OVERLAY + SHEET POLISH (2026-06-25)
 Files: src/lib/useKeyboardInset.ts (new), src/ui/kit/Sheet.tsx,

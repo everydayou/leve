@@ -7,6 +7,99 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 107 — UX POLISH: MACRO SHEET CLIP, BREAKDOWN INTRO, GOAL PRE-FILL, GAUGE + INFO ICON OVERHAUL (2026-06-26)
+================================================================
+Files: src/ui/screens/TodayScreen.tsx,
+       src/ui/screens/GoalSetupScreen.tsx,
+       src/ui/kit/Icon.tsx
+
+── MacroDetailSheet OVERFLOW CLIP ────────────────────────────────────────────
+The sliding info-panel inside MacroDetailSheet was being clipped vertically.
+Root cause: `overflow-hidden` clips BOTH axes and creates a block formatting
+context, cutting off content that overflows vertically.
+Fix: `overflowX: 'clip'` (inline style). Clips only the horizontal axis;
+no BFC created; vertical overflow breathes freely. The `clip` value (not
+`hidden`) also avoids creating a scroll container.
+
+── BreakdownSheet INTRO PARAGRAPH ────────────────────────────────────────────
+"Food adds energy…" intro paragraph was rendered as a direct Sheet child
+(sibling of the scrollable content area), outside the sliding div. So when
+the info panel slid in from the right, the intro text stayed fixed on screen
+and was visible behind the sliding panel.
+Fix: moved the paragraph inside the first sliding div (the main breakdown view)
+so it translates out with the rest of the content on slide-in.
+Also removed the `breakdownIntro` const — content is now inline in the JSX.
+
+── GoalSetupScreen SECTION 2 PRE-FILL ────────────────────────────────────────
+GoalSetupScreen Section 2 (height / age / sex) fields appeared empty every time
+the user opened the goal setup flow, even though the values had been saved to
+their profile.
+Root cause: GoalSetupForm received the user record as props from its parent.
+Prop-passing timing meant the form mounted before the reactive query resolved,
+so the useEffect that back-filled from props ran with undefined values and
+didn't re-run when they arrived (React effect dep tracking didn't catch it).
+Fix: GoalSetupForm now runs its own `useLive(() => repos.user.get(), [])` query
+directly. This is reactive and will always resolve to the saved profile.
+Pattern: functional updater `prev !== null ? prev : value` prevents overwriting
+values the user has already edited in-session.
+ESLint `react-hooks/set-state-in-effect` suppressed on first setState only
+(the hook flags all setState calls inside useEffect; the pattern is intentional
+here — we only back-fill if the field is still at its default null).
+
+── GAUGE CENTER NUMBER SIGN ──────────────────────────────────────────────────
+The large center number in the TodayScreen gauge was showing −N for deficit
+days. Removed the sign prefix; now shows plain absolute number, matching the
+style used in the calorie breakdown (where the − appears in the sub-label row,
+not the hero number).
+
+── GAUGE SUB-LABELS ──────────────────────────────────────────────────────────
+Corrected sign display in sub-labels:
+- Food: plain positive number (energy IN — no sign needed).
+- Activity: always −N (energy OUT — negative by nature).
+Previously Food was showing + prefix in some states; removed.
+
+── MacroDetailRow ICON ORDER ─────────────────────────────────────────────────
+Reverted to original label-first order: `<span>label</span> <Icon name="info" />`.
+A prior session had accidentally flipped to icon-first.
+
+── DAILY TARGET CONTAINER ────────────────────────────────────────────────────
+All three DayPanel instances (no-goal, with-goal, past-day):
+- Added `text-center` to the container div.
+- Label and value both changed from `text-content-secondary` → `text-content`.
+
+── GAUGE BADGE INFO ICON ─────────────────────────────────────────────────────
+Added `<Icon name="info" size={12} />` as a child of the Badge component
+inside the gauge card header ("On target", "Over", "Under target", "In range").
+Icon renders after the label text. Badge already uses `inline-flex items-center
+gap-1` so the icon slots in without extra layout work.
+Purpose: signals to users that the badge is tappable and opens MacroDetailSheet.
+
+── CUSTOM INFO ICON (Icon.tsx) ───────────────────────────────────────────────
+Replaced the stroke-based `info` icon (Material Design, 0 -960 960 960 viewBox)
+with a custom filled SVG sourced from Icon_info.svg (20×20 viewBox).
+Implementation:
+- 'info' removed from MATERIAL_ICONS, added to FILL_ICONS.
+- 'info' added to CUSTOM_VIEWBOX map: `info: '0 0 20 20'`.
+- ICONS.info path replaced with the four-path filled circle design.
+The custom icon is a filled circle with filled dot (upper) and filled bar
+(lower), matching Figma design language. Uses `currentColor` fill via Tailwind
+`text-*` class on the parent or the Icon component's className prop.
+
+── INFO ICON COLOR CONSISTENCY ───────────────────────────────────────────────
+The info icon was using `text-content-muted` in places where the adjacent text
+label used `text-content-secondary`. These are different CSS variables:
+  text-content-secondary: #767676 (slightly darker)
+  text-content-muted:     #7c7c81 (slightly lighter / blue-tinted)
+The visual difference was subtle but inconsistent.
+Fix — changed to `text-content-secondary` where paired inline with secondary text:
+  · MacroDetailRow: `shrink-0` icon next to `text-content-secondary` label.
+  · BreakdownSheet math rows: all three row icons (food/activity/digestion).
+Left unchanged (standalone decorative, not paired inline with secondary text):
+  · AccountScreen BMR info button wrapper (text-content-muted intentional).
+  · "Numbers are estimated" banner icon (text-content-muted intentional).
+- tsc: clean. lint: clean.
+
+================================================================
 ROUND 106 — AUDIT FIXES + PICKER→INPUT MIGRATION + KEYBOARD OVERLAY + SHEET POLISH (2026-06-25)
 ================================================================
 Files: src/lib/useKeyboardInset.ts (new),

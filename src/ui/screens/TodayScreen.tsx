@@ -318,8 +318,8 @@ function MacroDetailRow({ label, consumed, targetG = 0, onInfo }: {
     <div>
       <div className="flex items-center justify-between mb-1.5">
         <button data-no-drag onClick={onInfo} className="flex items-center gap-1.5 text-left" aria-label={`Learn about ${label}`}>
-          <Icon name="info" size={16} strokeWidth={1.75} className="shrink-0 text-content-muted" />
           <span className="text-subhead text-content-secondary">{label}</span>
+          <Icon name="info" size={16} strokeWidth={1.75} className="shrink-0 text-content-secondary" />
         </button>
         <span className="flex items-center gap-1 text-subhead text-content">
           {achieved && <Icon name="daySucceed" size={14} className="text-success" />}
@@ -366,9 +366,9 @@ function MacroDetailSheet({
       <div className="space-y-3 leading-relaxed pb-2">
         <p className="text-subhead text-content-secondary"><span className="font-medium">Protein</span> is the building block of muscle, organs, and enzymes. It keeps you full and supports recovery after training.</p>
         <p className="text-subhead text-content-secondary">It has the highest thermic effect of any macro. Your body burns more calories digesting protein than carbs or fat.</p>
-        <div className="rounded-field bg-surface-sunken px-3 py-2.5">
-          <p className="text-subhead text-content-secondary mb-0.5">Daily target</p>
-          <p className="text-subhead font-semibold text-content-secondary">{proteinGoal > 0 ? `${proteinGoal} g` : 'Not set'}</p>
+        <div className="rounded-field bg-surface-sunken px-3 py-2.5 text-center">
+          <p className="text-subhead text-content mb-0.5">Daily target</p>
+          <p className="text-subhead font-semibold text-content">{proteinGoal > 0 ? `${proteinGoal} g` : 'Not set'}</p>
         </div>
       </div>
     ),
@@ -376,9 +376,9 @@ function MacroDetailSheet({
       <div className="space-y-3 leading-relaxed pb-2">
         <p className="text-subhead text-content-secondary"><span className="font-medium">Carbohydrates</span> are your body's preferred energy source, especially for the brain and during high-intensity activity.</p>
         <p className="text-subhead text-content-secondary">On active days, your carb budget increases automatically to fuel your output. On rest days, it adjusts back down.</p>
-        <div className="rounded-field bg-surface-sunken px-3 py-2.5">
-          <p className="text-subhead text-content-secondary mb-0.5">Daily target</p>
-          <p className="text-subhead font-semibold text-content-secondary">{carbTarget > 0 ? `${carbTarget} g` : 'Adjusts with activity'}</p>
+        <div className="rounded-field bg-surface-sunken px-3 py-2.5 text-center">
+          <p className="text-subhead text-content mb-0.5">Daily target</p>
+          <p className="text-subhead font-semibold text-content">{carbTarget > 0 ? `${carbTarget} g` : 'Adjusts with activity'}</p>
         </div>
       </div>
     ),
@@ -386,9 +386,9 @@ function MacroDetailSheet({
       <div className="space-y-3 leading-relaxed pb-2">
         <p className="text-subhead text-content-secondary"><span className="font-medium">Fat</span> supports hormone production, brain function, and absorption of fat-soluble vitamins (A, D, E, K).</p>
         <p className="text-subhead text-content-secondary">It's the most calorie-dense macro at 9 kcal per gram, so it has a big impact on your daily total even in small amounts.</p>
-        <div className="rounded-field bg-surface-sunken px-3 py-2.5">
-          <p className="text-subhead text-content-secondary mb-0.5">Daily target</p>
-          <p className="text-subhead font-semibold text-content-secondary">{fatTargetEff > 0 ? `${fatTargetEff} g` : 'No target for this plan'}</p>
+        <div className="rounded-field bg-surface-sunken px-3 py-2.5 text-center">
+          <p className="text-subhead text-content mb-0.5">Daily target</p>
+          <p className="text-subhead font-semibold text-content">{fatTargetEff > 0 ? `${fatTargetEff} g` : 'No target for this plan'}</p>
         </div>
       </div>
     ),
@@ -422,7 +422,7 @@ function MacroDetailSheet({
 
   return (
     <Sheet onClose={onClose} stickyHeader={stickyHeader} forceExpanded>
-      <div className="relative overflow-hidden">
+      <div className="relative" style={{ overflowX: 'clip' }}>
         <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
           <p className="mb-5 text-subhead text-content-secondary">
             Macros are the three main nutrients that make up your calories. Tracking them alongside your total helps you eat in a way that supports your goal.
@@ -953,10 +953,12 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                       // Gain: 3-state by zone
                       <Badge status={gainZone === 'in' ? 'success' : 'default'}>
                         {gainZone === 'below' ? (isPastDay ? 'Under target' : 'Under target') : gainZone === 'in' ? 'In range' : 'Over'}
+                        <Icon name="info" size={12} strokeWidth={1.75} className="shrink-0" />
                       </Badge>
                     ) : (
                       <Badge status={left >= 0 ? 'success' : 'default'}>
                         {left >= 0 ? 'On target' : 'Over'}
+                        <Icon name="info" size={12} strokeWidth={1.75} className="shrink-0" />
                       </Badge>
                     )}
                   </button>
@@ -974,13 +976,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
                       className="flex flex-col items-center rounded-xl px-6 py-2 active:bg-surface-sunken transition-colors"
                       aria-label="View calorie breakdown"
                     >
-                      <div
-                        className="flex items-center gap-1"
-                        style={left < 0 && !gainGoal ? { transform: 'translateX(-4px)' } : undefined}
-                      >
-                        {left < 0 && !gainGoal && (
-                          <span className="text-title font-semibold leading-none text-content">−</span>
-                        )}
+                      <div className="flex items-center gap-1">
                         <span className="text-hero font-semibold leading-none tracking-tight text-content">
                           {gainGoal ? gainDisplayNum : Math.abs(left)}
                         </span>
@@ -998,11 +994,11 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
               </div>
               <div className="grid grid-cols-3 pb-2" style={{ marginTop: 0 }}>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('food', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
-                  <span className={`text-callout font-semibold ${day.foods.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.foods.length === 0 ? '—' : gainGoal ? `${Math.round(consumed)}` : `−${Math.round(consumed)}`}</span>
+                  <span className={`text-callout font-semibold ${day.foods.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.foods.length === 0 ? '—' : `${Math.round(consumed)}`}</span>
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary"><Icon name="foodIcon" size={12} />Food</span>
                 </button>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('activity', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
-                  <span className={`text-callout font-semibold ${day.activities.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.activities.length === 0 ? '—' : gainGoal ? `−${Math.round(actCals)}` : Math.round(actCals)}</span>
+                  <span className={`text-callout font-semibold ${day.activities.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.activities.length === 0 ? '—' : `−${Math.round(actCals)}`}</span>
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary" style={{ transform: 'translateX(-2px)' }}><Icon name="activityIcon" size={12} />Activity</span>
                 </button>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('weight', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
@@ -1060,11 +1056,11 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
               </div>
               <div className="grid grid-cols-3 pb-2" style={{ marginTop: 0 }}>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('food', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
-                  <span className={`text-callout font-semibold ${day.foods.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.foods.length === 0 ? '—' : gainGoal ? `${Math.round(consumed)}` : `−${Math.round(consumed)}`}</span>
+                  <span className={`text-callout font-semibold ${day.foods.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.foods.length === 0 ? '—' : `${Math.round(consumed)}`}</span>
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary"><Icon name="foodIcon" size={12} />Food</span>
                 </button>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('activity', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
-                  <span className={`text-callout font-semibold ${day.activities.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.activities.length === 0 ? '—' : gainGoal ? `−${Math.round(actCals)}` : Math.round(actCals)}</span>
+                  <span className={`text-callout font-semibold ${day.activities.length === 0 ? 'text-content-muted' : 'text-content'}`}>{day.activities.length === 0 ? '—' : `−${Math.round(actCals)}`}</span>
                   <span className="-mt-0.5 flex items-center gap-1 text-subhead text-content-secondary" style={{ transform: 'translateX(-2px)' }}><Icon name="activityIcon" size={12} />Activity</span>
                 </button>
                 <button onClick={() => { hapticLight(); ctx.openAddEntry('weight', { hideTabs: true }); }} className="flex flex-col items-center rounded-xl px-2 py-1 active:bg-surface-sunken transition-colors">
@@ -1500,6 +1496,11 @@ function BreakdownSheet({
     <div ref={wrapperRef} className="relative" style={{ overflow: activeInfo ? 'hidden' : 'visible' }}>
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
 
+        <p className="mb-4 text-subhead text-content-secondary">
+          Food adds energy. Your body burns it through your base rate, activity, and digestion.
+          Based on your goal, we find a daily {gainGoal ? 'surplus' : 'deficit'} that hits the sweet spot.
+        </p>
+
         {/* ── One unified container ── */}
         <div className="rounded-card border border-border-card-no-shadow bg-surface pt-2.5">
 
@@ -1510,7 +1511,7 @@ function BreakdownSheet({
                 className="flex items-center gap-1 min-w-0 flex-1 pr-3 py-1.5 text-left"
                 aria-label={`Learn about ${label}`}>
                 <span className="text-subhead text-content-secondary">{label}</span>
-                <Icon name="info" size={15} strokeWidth={1.75} className="text-content-muted shrink-0" />
+                <Icon name="info" size={15} strokeWidth={1.75} className="text-content-secondary shrink-0" />
               </button>
               <span className="text-subhead text-content-secondary shrink-0">{value}</span>
             </div>
@@ -1543,7 +1544,7 @@ function BreakdownSheet({
                 className="flex items-center gap-1 py-2 text-left"
                 aria-label={`Learn about ${availableLabel}`}>
                 <span className="text-subhead text-content-secondary">{availableLabel}</span>
-                <Icon name="info" size={15} strokeWidth={1.75} className="text-content-muted shrink-0" />
+                <Icon name="info" size={15} strokeWidth={1.75} className="text-content-secondary shrink-0" />
               </button>
               <span className="text-title font-bold text-content">{availableNum.toLocaleString()} kcal</span>
             </div>
@@ -1577,16 +1578,8 @@ function BreakdownSheet({
     </div>
   );
 
-  const breakdownIntro = (
-    <p className="mb-4 text-subhead text-content-secondary">
-      Food adds energy. Your body burns it through your base rate, activity, and digestion.
-      Based on your goal, we find a daily {gainGoal ? 'surplus' : 'deficit'} that hits the sweet spot.
-    </p>
-  );
-
   return (
     <Sheet onClose={onClose} stickyHeader={animatedHeader} forceExpanded={forceExpanded}>
-      {breakdownIntro}
       {scrollableContent}
     </Sheet>
   );

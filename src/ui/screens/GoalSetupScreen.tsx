@@ -90,8 +90,8 @@ export function GoalSetupScreen() {
       proteinGoal:   user?.proteinGoalG,
       userBmr:       user?.bmr ?? 0,
       userUnits:     (user?.units ?? 'kg') as Units,
-      userHeightCm:        user?.heightCm ?? null,
-      userAge:             user?.age ?? null,
+      userHeightCm:        user?.heightCm || null,
+      userAge:             user?.age || null,
       userSex:             user?.sex ?? null,
       userWeeklyWeightDay: user?.weeklyWeightDay ?? 0,
     };

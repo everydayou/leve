@@ -257,6 +257,17 @@ Files: src/domain/bmr.ts, src/state/useDay.ts, src/ui/screens/TodayScreen.tsx
     record on submit; useDay reacts immediately.
 - tsc: clean. lint: clean.
 
+================================================================
+TODO / FUTURE WORK
+================================================================
+- KEYBOARD TOOLBAR (accessory bar): Add a prev/next field navigation bar +
+  dismiss button above the keyboard when number/text inputs are focused inside
+  sheets. Capacitor InputAccessoryView plugin or a custom UIToolbar injected
+  via WKWebView bridge. Improves UX for multi-field forms (GoalSetupScreen
+  Section 2, ProfileSetupSheet, EditFoodSheet).
+
+================================================================
+
 ROUND 104 — SIMPLE MODE OUTLINED PICKERS + SCAN FAB GATE (2026-06-24)
 Files: src/ui/screens/GoalSetupScreen.tsx, src/ui/kit/FloatingTabBar.tsx
 - Simple mode WheelPickers: removed sunken selectClassName → outlined fields.

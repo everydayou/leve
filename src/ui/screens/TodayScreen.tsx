@@ -15,7 +15,7 @@ import { kgToLbs } from '../../domain/units';
 import { prefersReducedMotion } from '../../lib/motion';
 import {
   Card, QuickLogCard, Badge, Button, LabeledInput, NumberField,
-  Icon, GaugeArc, Sheet, Skeleton, ProgressBar, ServingStepper, FilterPills,
+  Icon, GaugeArc, Sheet, Skeleton, ProgressBar, ServingStepper, FilterPills, WheelPicker,
 } from '../kit';
 import { WeightLogSheet } from '../components/WeightLogSheet';
 import type { ShowToast } from '../components/Toaster';
@@ -309,15 +309,18 @@ function MacroCol({
 }
 
 /** Vertically-stacked macro row for the detail sheet. */
-function MacroDetailRow({ label, consumed, targetG = 0 }: {
-  label: string; consumed: number; targetG?: number;
+function MacroDetailRow({ label, consumed, targetG = 0, onInfo }: {
+  label: string; consumed: number; targetG?: number; onInfo?: () => void;
 }) {
   const hasTarget = targetG > 0;
   const achieved  = hasTarget && consumed >= targetG;
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-subhead text-content-secondary">{label}</span>
+        <button data-no-drag onClick={onInfo} className="flex items-center gap-1.5 text-left -ml-0.5" aria-label={`Learn about ${label}`}>
+          <Icon name="info" size={16} strokeWidth={1.75} className="shrink-0 text-content-muted" />
+          <span className="text-subhead text-content-secondary">{label}</span>
+        </button>
         <span className="flex items-center gap-1 text-subhead text-content">
           {achieved && <Icon name="daySucceed" size={14} className="text-success" />}
           <span className="font-semibold">{consumed} g</span>
@@ -362,22 +365,31 @@ function MacroDetailSheet({
     protein: (
       <div className="space-y-3 leading-relaxed">
         <p className="text-subhead text-content"><span className="font-medium">Protein</span> is the building block of muscle, organs, and enzymes. It keeps you full and supports recovery after training.</p>
-        <p className="text-subhead text-content">It also has the highest thermic effect — your body burns more calories just digesting it compared to carbs or fat.</p>
-        <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Target: </span>{proteinGoal > 0 ? `${proteinGoal} g per day` : 'Not set — add a goal to get a protein target.'}</p>
+        <p className="text-subhead text-content">It has the highest thermic effect of any macro. Your body burns more calories digesting protein than carbs or fat.</p>
+        <div className="rounded-field bg-surface-sunken px-3 py-2.5">
+          <p className="text-footnote text-content-muted mb-0.5">Daily target</p>
+          <p className="text-subhead font-semibold text-content">{proteinGoal > 0 ? `${proteinGoal} g` : 'Not set'}</p>
+        </div>
       </div>
     ),
     carbs: (
       <div className="space-y-3 leading-relaxed">
         <p className="text-subhead text-content"><span className="font-medium">Carbohydrates</span> are your body's preferred energy source, especially for the brain and during high-intensity activity.</p>
         <p className="text-subhead text-content">On active days, your carb budget increases automatically to fuel your output. On rest days, it adjusts back down.</p>
-        <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Target: </span>{carbTarget > 0 ? `${carbTarget} g per day` : 'Adjusts with your activity.'}</p>
+        <div className="rounded-field bg-surface-sunken px-3 py-2.5">
+          <p className="text-footnote text-content-muted mb-0.5">Daily target</p>
+          <p className="text-subhead font-semibold text-content">{carbTarget > 0 ? `${carbTarget} g` : 'Adjusts with activity'}</p>
+        </div>
       </div>
     ),
     fat: (
       <div className="space-y-3 leading-relaxed">
         <p className="text-subhead text-content"><span className="font-medium">Fat</span> supports hormone production, brain function, and absorption of fat-soluble vitamins (A, D, E, K).</p>
         <p className="text-subhead text-content">It's the most calorie-dense macro at 9 kcal per gram, so it has a big impact on your daily total even in small amounts.</p>
-        <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Target: </span>{fatTargetEff > 0 ? `${fatTargetEff} g per day` : 'No specific target for your current plan.'}</p>
+        <div className="rounded-field bg-surface-sunken px-3 py-2.5">
+          <p className="text-footnote text-content-muted mb-0.5">Daily target</p>
+          <p className="text-subhead font-semibold text-content">{fatTargetEff > 0 ? `${fatTargetEff} g` : 'No target for this plan'}</p>
+        </div>
       </div>
     ),
   };
@@ -417,21 +429,13 @@ function MacroDetailSheet({
           </p>
           <div className="space-y-5">
             {(['protein', 'carbs', 'fat'] as const).map((key) => (
-              <div key={key} className="relative">
-                <MacroDetailRow
-                  label={key.charAt(0).toUpperCase() + key.slice(1)}
-                  consumed={key === 'protein' ? protein : key === 'carbs' ? carbs : fat}
-                  targetG={key === 'protein' ? proteinGoal : key === 'carbs' ? carbTarget : fatTargetEff}
-                />
-                <button
-                  data-no-drag
-                  onClick={() => openInfo(key)}
-                  aria-label={`Learn about ${key}`}
-                  className="absolute top-0 right-0 p-1 text-content-muted active:opacity-70"
-                >
-                  <Icon name="info" size={16} strokeWidth={1.75} />
-                </button>
-              </div>
+              <MacroDetailRow
+                key={key}
+                label={key.charAt(0).toUpperCase() + key.slice(1)}
+                consumed={key === 'protein' ? protein : key === 'carbs' ? carbs : fat}
+                targetG={key === 'protein' ? proteinGoal : key === 'carbs' ? carbTarget : fatTargetEff}
+                onInfo={() => openInfo(key)}
+              />
             ))}
           </div>
         </div>
@@ -781,7 +785,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const actCals    = day?.activities.reduce((s, a) => s + a.activeCalories, 0) ?? 0;
   const hasGoal    = dailyTarget !== 0; // active goal exists (regardless of BMR)
   const hasTarget  = hasGoal && totalBurn > 0; // has enough info for full numbers
-  const budget     = Math.max(0, totalBurn - dailyTarget);
+  const budget     = totalBurn - dailyTarget;
   const left       = Math.round(budget - consumed);
   const gaugeRange = budget > 0 ? budget : GAUGE_RANGE;
   const gaugeValue = Math.max(-1, Math.min(1, left / gaugeRange));
@@ -1114,6 +1118,7 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
           actCals={actCals}
           digestionCalories={0}
           dailyTarget={0}
+          onSetGoal={() => { setShowBreakdown(false); nav('/goal-fork?from=today'); }}
           onClose={() => setShowBreakdown(false)}
         />
       )}
@@ -1270,14 +1275,14 @@ type BreakdownInfoKey = 'bmr' | 'activity' | 'digestion' | 'food' | 'goal' | 'av
 function BreakdownSheet({
   mode = 'goal', bmr, consumed, actCals, digestionCalories, dailyTarget,
   gainGoal = false, gainZone = 'below', gainFloor = 0, gainCeil = 0,
-  bmrIsEstimated = false, forceExpanded = false, onSetupProfile, onClose,
+  bmrIsEstimated = false, forceExpanded = false, onSetupProfile, onSetGoal, onClose,
 }: {
   mode?: 'goal' | 'no-goal';
   bmr: number; consumed: number; actCals: number; digestionCalories: number;
   dailyTarget: number; gainGoal?: boolean; gainZone?: 'below' | 'in' | 'above';
   gainFloor?: number; gainCeil?: number;
   bmrIsEstimated?: boolean; forceExpanded?: boolean; onSetupProfile?: () => void;
-  onClose: () => void;
+  onSetGoal?: () => void; onClose: () => void;
 }) {
   const [activeInfo, setActiveInfo] = useState<BreakdownInfoKey | null>(null);
   const [infoEntered, setInfoEntered] = useState(false);
@@ -1374,21 +1379,9 @@ function BreakdownSheet({
     ];
     return (
       <Sheet onClose={onClose} stickyHeader={animatedHeader} forceExpanded={forceExpanded}>
-        <div className="mb-5 rounded-card border border-border-subtle bg-surface overflow-hidden">
-          {[
-            { icon: 'flame' as const, title: 'A daily calorie target', body: "Know exactly how much to eat each day to hit your goal." },
-            { icon: 'goal' as const, title: 'Progress you can see', body: "Charts and streaks that show whether you're on track week by week." },
-            { icon: 'dumbbell' as const, title: 'Smarter macro targets', body: "Protein, carbs, and fat — set to support your specific goal." },
-          ].map(({ icon, title, body }, idx, arr) => (
-            <div key={title} className={`flex items-start gap-3 px-4 py-3 ${idx < arr.length - 1 ? 'border-b border-border-subtle' : ''}`}>
-              <Icon name={icon} size={18} className="mt-0.5 shrink-0 text-accent" />
-              <div>
-                <p className="text-subhead font-semibold text-content">{title}</p>
-                <p className="text-subhead text-content-secondary">{body}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+        <p className="mb-5 text-subhead text-content-secondary">
+          Here's a snapshot of your day. Food consumed and any activity you've logged are shown below.
+        </p>
         <div ref={wrapperRef} className="rounded-card border border-border-subtle bg-surface overflow-hidden">
           {noGoalRows.map(({ label, value }, idx) => (
             <div key={label}
@@ -1398,11 +1391,17 @@ function BreakdownSheet({
             </div>
           ))}
         </div>
-        {actCals > 0 && (
-          <p className="mt-3 text-subhead text-content-muted">
-            Activity is tracked but not counted toward your total. Set a goal to see your full calorie picture.
-          </p>
-        )}
+        <div className="mt-4 rounded-card border border-border-subtle bg-surface-sunken px-4 py-4">
+          <p className="text-subhead font-semibold text-content">Set a goal to see the full picture</p>
+          <p className="mt-0.5 text-subhead text-content-secondary">Get a daily calorie target, macro tracking, and weekly progress.</p>
+          <button
+            data-no-drag
+            onClick={() => { hapticLight(); onSetGoal?.(); }}
+            className="mt-3 rounded-field bg-accent px-4 py-2 text-subhead font-semibold text-white active:opacity-80 transition-opacity"
+          >
+            Set a goal
+          </button>
+        </div>
         <div className="h-2" />
       </Sheet>
     );
@@ -1501,22 +1500,6 @@ function BreakdownSheet({
     <div ref={wrapperRef} className="relative" style={{ overflow: activeInfo ? 'hidden' : 'visible' }}>
       <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
 
-        {/* ── Estimated BMR disclaimer ── */}
-        {bmrIsEstimated && (
-          <button
-            data-no-drag
-            onClick={onSetupProfile}
-            className="mb-3 flex w-full items-start gap-3 rounded-card border border-border-subtle bg-surface-sunken px-4 py-3 text-left"
-          >
-            <Icon name="info" size={17} strokeWidth={1.75} className="mt-0.5 shrink-0 text-content-muted" />
-            <div className="min-w-0">
-              <p className="text-subhead font-medium text-content">Numbers are estimated</p>
-              <p className="mt-0.5 text-footnote text-content-secondary">BMR is calculated from your weight only. Add your height, age, and sex for an accurate result.</p>
-              <p className="mt-1.5 text-footnote font-semibold text-accent">Complete your profile →</p>
-            </div>
-          </button>
-        )}
-
         {/* ── One unified container ── */}
         <div className="rounded-card border border-border-card-no-shadow bg-surface pt-2.5">
 
@@ -1567,6 +1550,20 @@ function BreakdownSheet({
           </div>
 
         </div>
+        {bmrIsEstimated && (
+          <button
+            data-no-drag
+            onClick={onSetupProfile}
+            className="mt-3 flex w-full items-start gap-3 rounded-card border border-border-subtle bg-surface-sunken px-4 py-3 text-left"
+          >
+            <Icon name="info" size={17} strokeWidth={1.75} className="mt-0.5 shrink-0 text-content-muted" />
+            <div className="min-w-0">
+              <p className="text-subhead font-medium text-content">Numbers are estimated</p>
+              <p className="mt-0.5 text-footnote text-content-secondary">For an accurate BMR we need your height, age, and sex. All three together are required for the calculation.</p>
+              <p className="mt-1.5 text-callout text-accent-hover">Complete your profile</p>
+            </div>
+          </button>
+        )}
         <div className="h-2" />
       </div>
 
@@ -1870,8 +1867,6 @@ function labelFor(items: { id: string; name: string }[], id?: string) {
 
 // ── Profile setup sheet ───────────────────────────────────────────────────────
 
-const HEIGHT_CM_OPTIONS: number[] = Array.from({ length: 81 }, (_, i) => 140 + i);
-const AGE_PROFILE_OPTIONS: number[] = Array.from({ length: 81 }, (_, i) => 10 + i);
 
 function ProfileSetupSheet({
   currentWeightKg,
@@ -1924,7 +1919,7 @@ function ProfileSetupSheet({
 
       {/* Sex */}
       <div className="mb-4">
-        <p className="text-footnote text-content-muted mb-2">Sex</p>
+        <span className="block text-subhead font-normal text-content-secondary mb-1">Sex</span>
         <FilterPills<Sex>
           options={[
             { value: 'male',   label: 'Male'   },
@@ -1937,38 +1932,24 @@ function ProfileSetupSheet({
 
       {/* Height */}
       <div className="mb-4">
-        <p className="text-footnote text-content-muted mb-2">Height</p>
-        <div className="relative rounded-card border border-border-field bg-surface-field">
-          <select
-            value={height ?? ''}
-            onChange={e => setHeight(e.target.value ? Number(e.target.value) : null)}
-            className="w-full appearance-none bg-transparent px-4 py-3 pr-10 text-subhead text-content"
-          >
-            <option value="">Select height</option>
-            {HEIGHT_CM_OPTIONS.map(n => <option key={n} value={n}>{n} cm</option>)}
-          </select>
-          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-content-muted">
-            <Icon name="chevronDown" size={16} strokeWidth={2} />
-          </div>
-        </div>
+        <WheelPicker
+          label="Height"
+          value={height !== null ? String(height) : ''}
+          onChange={v => setHeight(v ? Number(v) : null)}
+          min={140} max={220} step={1} unit="cm"
+          centerAt={170}
+        />
       </div>
 
       {/* Age */}
       <div className="mb-6">
-        <p className="text-footnote text-content-muted mb-2">Age</p>
-        <div className="relative rounded-card border border-border-field bg-surface-field">
-          <select
-            value={age ?? ''}
-            onChange={e => setAge(e.target.value ? Number(e.target.value) : null)}
-            className="w-full appearance-none bg-transparent px-4 py-3 pr-10 text-subhead text-content"
-          >
-            <option value="">Select age</option>
-            {AGE_PROFILE_OPTIONS.map(n => <option key={n} value={n}>{n} yrs</option>)}
-          </select>
-          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-content-muted">
-            <Icon name="chevronDown" size={16} strokeWidth={2} />
-          </div>
-        </div>
+        <WheelPicker
+          label="Age"
+          value={age !== null ? String(age) : ''}
+          onChange={v => setAge(v ? Number(v) : null)}
+          min={10} max={90} step={1} unit="yrs"
+          centerAt={30}
+        />
       </div>
 
       <Button

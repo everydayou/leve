@@ -29,9 +29,9 @@ function PathCard({
   );
 }
 
-function ForkShell({ children }: { children: React.ReactNode }) {
+function ForkShell({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className="fixed inset-0 flex justify-center overflow-hidden bg-surface-sunken sm:items-center sm:py-[max(1.5rem,2dvh)]">
+    <div className={`fixed inset-0 flex justify-center overflow-hidden bg-surface-sunken sm:items-center sm:py-[max(1.5rem,2dvh)] ${className}`}>
       <div className="safe-top safe-bottom flex h-[100dvh] w-full max-w-[26.25rem] flex-col overflow-y-auto bg-surface sm:h-[min(880px,94dvh)] sm:rounded-[2rem] sm:border sm:border-border-subtle sm:shadow-xl">
         {children}
       </div>
@@ -76,7 +76,7 @@ export function FirstOpenForkScreen() {
       <div className="px-6 space-y-3">
         <PathCard
           title="Lose weight"
-          description={<>Track your <strong className="font-semibold text-content">calorie deficit</strong> daily.</>}
+          description="Track your calorie deficit daily."
           iconEl={<GoalIcon type="lose_by_date" size={24} />}
           onClick={() => pickGoal('lose_by_date')}
         />
@@ -108,7 +108,7 @@ export function GoalForkScreen() {
   }
 
   return (
-    <ForkShell>
+    <ForkShell className={fromToday ? 'slide-up-in' : ''}>
       <div className="flex items-center px-4 pt-5 pb-2">
         <button
           onClick={() => { hapticLight(); if (fromToday) { nav('/today'); } else { nav(-1 as never); } }}
@@ -127,7 +127,7 @@ export function GoalForkScreen() {
       <div className="px-6 space-y-3">
         <PathCard
           title="Lose weight"
-          description={<>Track your <strong className="font-semibold text-content">calorie deficit</strong> daily.</>}
+          description="Track your calorie deficit daily."
           iconEl={<GoalIcon type="lose_by_date" size={24} />}
           onClick={() => pickGoal('lose_by_date')}
         />

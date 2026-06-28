@@ -7,6 +7,108 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 108 — ADD-ENTRY FLOW DESIGN SPRINT: SPEC DOC + INTERACTIVE PROTOTYPE (2026-06-28)
+================================================================
+Files: leve-add-entry-design-spec.docx (new), add-entry-prototype.html (new),
+       leve/PNGs/ (5 Figma frame PNG exports — 3x scale, 1302×2736)
+
+No source code changes — design sprint only.
+
+── INTERACTIVE PROTOTYPE ─────────────────────────────────────────────────────
+add-entry-prototype.html: standalone wireframe-quality behavioural prototype.
+Covers the full Add-Entry sheet including:
+- Basket-first food pane (empty state, 1–3 items, image hero/collage)
+- All 5 input method overlays: Camera, Photo, Describe, Label, Manual
+- Edit item overlay (per-100g and per-serving branches)
+- Analysis overlay with spinner + results
+- Serving modal (per 100g vs per serving choice after label scan)
+- Edit mode (tray hidden, Done button, delete/edit affordances)
+- Activity and Weight panes
+- Day's Log Edit Meal flow (not fully prototyped)
+
+UX decisions captured in prototype:
+- Edit mode: add-another tray hidden entirely (not just collapsed) —
+  simplifies the UI when user is managing existing items, not adding new ones.
+- Save-to-pantry: checkbox unchecked by default. (Prototype had a bug where
+  checked attribute was present — fixed in this round.)
+- Meal header: "Meal" label always visible; "Edit" button hidden when basket
+  is empty (nothing to edit). Meal name input only appears at 2+ items.
+
+── DESIGN SPEC (leve-add-entry-design-spec.docx v1.1) ───────────────────────
+15-section Word document, 733 paragraphs, 5.4 MB.
+Sections:
+  1.  Overview & Principles (basket-first, meal-centric, camera-primary)
+  2.  Design Tokens (colours, radii, spacing, typography from index.css)
+  3.  Add Sheet (props, header, CTA, tabs, motion specs, z-index stack)
+  4.  Food Pane (layout, 5 embedded Figma screenshots, empty/item states)
+  5.  Camera Overlay
+  6.  Photo Overlay
+  7.  Describe Overlay
+  8.  Label Overlay (+ Serving Modal)
+  9.  Manual Entry Overlay
+  10. Image Hero / Collage
+  11. Edit Item Overlay
+  12. Analysis Overlay
+  13. Component Inventory (maps to actual AddEntrySheet.tsx)
+  14. Open Items & V2 Considerations
+  15. Codebase Reference (spec-to-type mapping, kit components, infra)
+  App. Figma frame hyperlinks + prototype reference
+
+Key spec details:
+- Data model: basket item = { item: FoodItem, qty: number, unit?: 'srv' }
+  macros(item, qty, unit): scale = unit==='srv' ? qty : qty/100
+- FoodItem.measurementType: 'per_100g' | 'per_serving'
+- FoodItem.referenceAmount = 100 (per_100g) | serving size in g (per_serving)
+- Basket default: qty=100, unit undefined (per_100g) or qty=1, unit='srv'
+- mealData: { name: string; photo?: string; items: MealItem[] } on FoodEntry
+- Motion: overlay slide 280ms cubic-bezier(0.4,0,0.2,1); analysis fade 160ms
+- Z-index: panes=1, edit/manual=40, method overlays=42, analysis=50, modal=52
+- Image hero: single rounded rect (1 photo); 3-layer card fan collage (2–3)
+
+── FIGMA REFERENCES ─────────────────────────────────────────────────────────
+File key: lTohbizQubix8C1mwRDx7J
+Frames:
+  Empty state     node-id=321-3505
+  1 item + image  node-id=321-3923
+  1 item edit     node-id=322-1355
+  2 items         node-id=321-4128
+  3 items         node-id=321-4380
+
+── DESIGN DECISIONS ─────────────────────────────────────────────────────────
+- Meal header always visible: "Meal" is a permanent section label, not
+  conditional on basket contents. Figma and spec now agree.
+- Edit button hidden when empty: confirmed by Marco (r108). Nothing to edit.
+- Save-to-pantry unchecked: the Figma showed it checked in the 2-item frame
+  only because that was an example state, not the default.
+- Tray hidden in edit mode: Marco requested as UX improvement. Prevents
+  accidental item adds while reviewing/editing the basket.
+
+tsc: clean. lint: clean (no code changes).
+
+================================================================
+ROUND 105 — ESTIMATED BMR + BREAKDOWN DISCLAIMER + PROFILE MODAL (2026-06-25)
+================================================================
+Files: src/domain/bmr.ts, src/state/useDay.ts, src/ui/screens/TodayScreen.tsx
+
+- bmr.ts: added estimateBmrFromWeight(kg) = round(10·kg + 810). Equivalent to
+  Mifflin–St Jeor at pop-avg 170 cm / 35 yr / neutral sex.
+- useDay.ts: DayData gains bmrIsEstimated flag. When bmrActual=0 but a weight
+  entry exists, falls back to estimate so gauge shows non-zero numbers.
+  summarizeDay() uses the estimated BMR so totalBurn is meaningful.
+- TodayScreen:
+  · noBmr banner replaced by softer "Numbers estimated" info row that opens
+    the breakdown sheet on tap.
+  · DayPanel: showProfileSetup state + profileUser prop for initial values.
+  · BreakdownSheet: new bmrIsEstimated + onSetupProfile props; disclaimer
+    banner (bg-surface-sunken) above math rows when estimate is active; BMR
+    info panel text switches to explain the estimate vs exact calculation.
+  · ProfileSetupSheet: new bottom sheet — sex (FilterPills), height (select,
+    140–220 cm), age (select, 10–90 yrs); saves Mifflin–St Jeor BMR to user
+    record on submit; useDay reacts immediately.
+- tsc: clean. lint: clean.
+
+
+================================================================
 ROUND 107 — UX POLISH: MACRO SHEET CLIP, BREAKDOWN INTRO, GOAL PRE-FILL, GAUGE + INFO ICON OVERHAUL (2026-06-26)
 ================================================================
 Files: src/ui/screens/TodayScreen.tsx,

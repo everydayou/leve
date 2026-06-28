@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Add Entry — Prototype v2</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; background: #e5e5ea; font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif; -webkit-font-smoothing: antialiased; }
+
+:root {
+  --accent:         #00e0aa;
+  --accent-hover:   #00c795;
+  --on-accent:      #00352a;
+  --surface:        #ffffff;
+  --surface-sunken: #F3F3F3;
+  --surface-muted:  #fafafa;
+  --content:        #1c1c1e;
+  --content-sec:    #767676;
+  --content-muted:  #b8b8b8;
+  --border-field:   #efefef;
+  --scrim:          rgba(0,0,0,0.35);
+  --r-pill: 9999px; --r-sheet: 1.5rem; --r-card: 1rem; --r-field: 0.75rem;
+  --shadow-card: 0 1px 2px rgba(17,24,28,0.04), 0 4px 12px -2px rgba(17,24,28,0.08);
+  --spring: cubic-bezier(0.34,1.20,0.64,1);
+}
+
+/* ── Phone frame ── */
+.phone { width: 100%; max-width: 390px; height: 100dvh; margin: 0 auto; position: relative; overflow: hidden; background: var(--surface-muted); }
+
+/* ── Today screen ── */
+.today { padding: 0 0 100px; overflow-y: auto; height: 100%; }
+.today-nav { display: flex; align-items: center; justify-content: space-between; padding: 56px 20px 12px; }
+.today-nav h1 { font-size: 22px; font-weight: 700; color: var(--content); }
+.today-nav span { font-size: 13px; color: var(--content-sec); }
+.week-strip { display: flex; gap: 4px; padding: 0 20px 16px; }
+.week-day { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+.week-day .dl { font-size: 10px; color: var(--content-muted); font-weight: 500; }
+.wd { width: 32px; height: 32px; border-radius: var(--r-pill); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+.wd.miss  { background: var(--content); color: #fff; }
+.wd.done  { background: var(--accent); color: var(--on-accent); }
+.wd.today { border: 2px solid var(--content); color: var(--content); }
+.wd.fut   { color: var(--content-muted); }
+.gauge-card { margin: 0 16px 12px; background: var(--surface); border-radius: 20px; box-shadow: var(--shadow-card); padding: 18px 20px 16px; }
+.gauge-badge { display: inline-flex; align-items: center; background: var(--accent); color: var(--on-accent); border-radius: var(--r-pill); padding: 3px 12px; font-size: 12px; font-weight: 700; margin-bottom: 14px; }
+.gauge-number { font-size: 52px; font-weight: 700; color: var(--content); line-height: 1; text-align: center; }
+.gauge-sub { font-size: 13px; color: var(--content-sec); text-align: center; margin-top: 2px; }
+.gauge-stats { display: flex; justify-content: space-between; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-field); }
+.gstat { text-align: center; font-size: 13px; color: var(--content-sec); }
+.gstat strong { display: block; font-size: 16px; font-weight: 600; color: var(--content); margin-bottom: 2px; }
+.day-log { margin: 0 16px; }
+.day-log h3 { font-size: 17px; font-weight: 600; color: var(--content); margin-bottom: 10px; }
+.log-row { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border-radius: var(--r-card); padding: 13px 16px; margin-bottom: 8px; box-shadow: var(--shadow-card); font-size: 15px; color: var(--content); }
+.log-row span { font-size: 13px; color: var(--content-sec); }
+
+/* ── Bottom bar ── */
+.bottom-bar { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: center; padding: 0 16px max(12px, env(safe-area-inset-bottom)); }
+.tab-pill { display: flex; align-items: center; width: 100%; background: rgba(255,255,255,0.82); backdrop-filter: blur(20px) saturate(180%); border-radius: var(--r-pill); padding: 6px 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(255,255,255,0.55); }
+.tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: none; cursor: pointer; padding: 4px 0; font-size: 10px; color: var(--content-muted); font-family: inherit; }
+.tab-btn.active { color: var(--content); }
+.fab-slot { width: 60px; display: flex; justify-content: center; }
+.fab { width: 48px; height: 48px; border-radius: var(--r-pill); background: var(--accent); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(0,224,170,0.38); font-size: 28px; color: var(--on-accent); font-weight: 300; transition: transform 160ms var(--spring), background 150ms; line-height: 1; }
+.fab:active { transform: scale(0.92); background: var(--accent-hover); }
+
+/* ── Scrim ── */
+.scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity 300ms ease; z-index: 10; }
+.scrim.open { opacity: 1; pointer-events: auto; }
+
+/* ── Sheet ── */
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 92dvh; background: var(--surface); border-radius: var(--r-sheet) var(--r-sheet) 0 0; box-shadow: 0 -2px 40px rgba(0,0,0,0.14); transform: translateY(100%); transition: transform 360ms var(--spring); z-index: 20; display: flex; flex-direction: column; overflow: hidden; }
+.sheet.open { transform: translateY(0); }
+
+.drag-handle { display: flex; justify-content: center; padding: 10px 0 4px; flex-shrink: 0; }
+.drag-handle span { width: 36px; height: 4px; background: var(--border-field); border-radius: var(--r-pill); }
+
+.sheet-hd { display: flex; align-items: center; justify-content: center; position: relative; padding: 2px 20px 10px; flex-shrink: 0; }
+.close-btn { position: absolute; left: 16px; width: 30px; height: 30px; border-radius: var(--r-pill); background: var(--surface-sunken); border: none; cursor: pointer; font-size: 15px; color: var(--content); display: flex; align-items: center; justify-content: center; }
+.sheet-title { font-size: 17px; font-weight: 600; color: var(--content); }
+
+/* top segmented: Food / Activity / Weight */
+.top-seg-wrap { padding: 0 16px 14px; flex-shrink: 0; display: flex; justify-content: center; }
+.top-seg { display: inline-flex; background: var(--surface-sunken); border-radius: var(--r-pill); padding: 3px; }
+.top-seg-btn { width: 90px; padding: 8px 4px; border: none; border-radius: var(--r-pill); background: none; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--content-sec); font-family: inherit; transition: all 180ms ease; }
+.top-seg-btn.active { background: var(--surface); color: var(--content); box-shadow: var(--shadow-card); }
+
+/* ── Sheet body ── */
+.sheet-body { flex: 1; overflow: hidden; position: relative; }
+
+/* Each top-level tab pane */
+.pane { display: none; flex-direction: column; height: 100%; }
+.pane.active { display: flex; }
+
+/* ── Method content area (scrollable) ── */
+.method-content { flex: 1; overflow-y: auto; padding: 0 16px 120px; }
+
+/* ── Image hero / collage (above Meal header) ── */
+.image-hero { margin-bottom: 16px; }
+.image-hero-single {
+  width: 100%; aspect-ratio: 4/3; border-radius: var(--r-card); overflow: hidden;
+}
+.image-hero-single-inner { width: 100%; height: 100%; }
+.image-collage { position: relative; height: 190px; margin-bottom: 16px; }
+.collage-photo {
+  position: absolute; width: 62%; aspect-ratio: 4/3; border-radius: 12px;
+  box-shadow: 0 3px 14px rgba(0,0,0,0.20); overflow: hidden;
+}
+.collage-photo:nth-child(1) { top: 0;    left: 0;   transform: rotate(-2.5deg); z-index: 1; }
+.collage-photo:nth-child(2) { bottom: 0; right: 0;  transform: rotate(3deg);    z-index: 2; }
+.collage-photo:nth-child(3) { top: 20px; left: 28%; transform: rotate(0.5deg);  z-index: 3; }
+.collage-photo-inner { width: 100%; height: 100%; }
+
+/* ── Method cards (inside add-another tray) ── */
+.method-cards-row {
+  display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+  margin-top: 12px; padding: 2px 0 4px;
+}
+.method-cards-row::-webkit-scrollbar { display: none; }
+.method-card {
+  flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 10px 8px; min-width: 68px; background: var(--surface);
+  border: 1.5px solid var(--border-field); border-radius: var(--r-card);
+  cursor: pointer; font-size: 12px; font-weight: 500; color: var(--content-sec);
+  font-family: inherit; box-shadow: var(--shadow-card); transition: border-color 150ms;
+}
+.method-card:active { border-color: var(--accent); background: rgba(0,224,170,0.04); }
+.method-card svg { color: var(--content-muted); }
+
+/* ── Method overlays (camera / photo / describe / label) ── */
+.method-overlay {
+  position: absolute; inset: 0; background: var(--surface); border-radius: inherit;
+  transform: translateX(100%); transition: transform 280ms cubic-bezier(0.4,0,0.2,1);
+  z-index: 42; display: flex; flex-direction: column; overflow: hidden;
+}
+.method-overlay.open { transform: translateX(0); }
+.method-overlay-body { flex: 1; overflow-y: auto; padding: 0 16px 32px; }
+
+/* ── Describe analyse button ── */
+.describe-analyse-btn {
+  width: 100%; margin-top: 12px; padding: 14px; border-radius: var(--r-pill);
+  border: 2px solid var(--accent); background: none; color: var(--accent);
+  font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit;
+  transition: background 150ms;
+}
+.describe-analyse-btn:active { background: rgba(0,224,170,0.08); }
+
+/* ── Pantry pane ── */
+
+/* Meal section header */
+.meal-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 12px; flex-shrink: 0; }
+.meal-title-label { font-size: 17px; font-weight: 700; color: var(--content); }
+.meal-edit-btn { font-size: 15px; font-weight: 600; color: var(--accent); background: none; border: none; cursor: pointer; font-family: inherit; padding: 0; }
+
+/* Meal name + save-to-pantry block (2+ items, above cards) */
+.meal-meta-block { margin-bottom: 12px; }
+.meal-name-input {
+  width: 100%; background: var(--surface-sunken); border: none; border-radius: var(--r-field);
+  padding: 12px 14px; font-size: 15px; font-weight: 500; color: var(--content);
+  font-family: inherit; outline: none; margin-bottom: 8px; display: block;
+}
+.meal-name-input::placeholder { color: var(--content-muted); }
+.save-pantry-row { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--content-sec); cursor: pointer; padding: 4px 0; }
+.save-pantry-row input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+
+/* Added items */
+.added-items { margin-bottom: 12px; }
+
+/* Swipe wrapper */
+.item-swipe-wrapper { position: relative; margin-bottom: 8px; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-card); }
+.item-card {
+  background: var(--surface); border-radius: 16px;
+  padding: 12px 14px; position: relative; will-change: transform;
+  transition: transform 200ms ease; cursor: pointer; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.item-card:active { opacity: 0.85; }
+/* Edit mode: card content + action column side by side */
+.item-card.edit-mode { display: flex; align-items: stretch; gap: 12px; cursor: default; }
+.item-card.edit-mode:active { opacity: 1; }
+.item-card-main { flex: 1; min-width: 0; }
+
+/* Swipe-reveal action area (behind the card) */
+.item-swipe-actions {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 90px;
+  display: flex; flex-direction: column;
+}
+.swipe-action {
+  flex: 1; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  background: var(--surface-sunken); color: var(--content-sec);
+}
+.swipe-action:first-child { border-radius: 0 16px 0 0; border-bottom: 1px solid var(--border-field); }
+.swipe-action:last-child { border-radius: 0 0 16px 0; }
+.swipe-action:active { background: var(--border-field); }
+
+/* Inline edit-mode action buttons */
+.card-actions-col { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; margin-left: 8px; }
+.card-action-icon {
+  width: 32px; height: 32px; border-radius: var(--r-field); border: 1px solid var(--border-field);
+  background: var(--surface-sunken); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--content-sec); flex-shrink: 0;
+}
+.card-action-icon:active { background: var(--border-field); }
+
+.added-item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.added-item-name {
+  flex: 1; font-size: 15px; font-weight: 600; color: var(--content);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.item-cal { font-size: 13px; color: var(--content-sec); white-space: nowrap; flex-shrink: 0; }
+.added-item-qty { display: flex; align-items: center; }
+.qty-ctrl { display: flex; align-items: center; background: var(--surface-sunken); border-radius: var(--r-pill); overflow: hidden; }
+.qty-btn { width: 32px; height: 32px; background: none; border: none; cursor: pointer; font-size: 17px; color: var(--content); display: flex; align-items: center; justify-content: center; }
+.qty-val {
+  min-width: 52px; text-align: center; font-size: 14px; font-weight: 600; color: var(--content);
+  cursor: pointer; padding: 4px 0;
+}
+.qty-input {
+  width: 60px; text-align: center; font-size: 14px; font-weight: 600; color: var(--content);
+  background: none; border: none; border-bottom: 1.5px solid var(--accent); outline: none;
+  padding: 2px 0; font-family: inherit;
+}
+
+/* Divider between added and search */
+.section-divider { height: 1px; background: var(--border-field); margin-bottom: 14px; }
+
+/* Add another — collapsed button */
+.add-another-btn { width: 100%; padding: 13px; background: var(--surface-sunken); border: none; border-radius: var(--r-field); font-size: 15px; font-weight: 600; color: var(--content); cursor: pointer; font-family: inherit; margin-bottom: 12px; transition: background 120ms; }
+.add-another-btn:active { background: var(--border-field); }
+
+/* Add another — expanded container (the component) */
+.add-another-expanded { background: var(--surface-sunken); border-radius: var(--r-card); padding: 12px; margin-bottom: 12px; }
+
+/* Search */
+.search-wrap { position: relative; margin-bottom: 10px; }
+.search-ico { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--content-muted); pointer-events: none; }
+.search-input { width: 100%; padding: 12px 14px 12px 40px; background: var(--surface); border: 1.5px solid transparent; border-radius: var(--r-pill); font-size: 15px; color: var(--content); font-family: inherit; outline: none; transition: border-color 150ms; }
+.search-input:focus { border-color: var(--accent); }
+
+/* Pantry list — updated with thumbnail */
+.pantry-list { border-radius: var(--r-field); overflow: hidden; background: var(--surface); }
+.pantry-row { display: flex; align-items: center; padding: 11px 12px 11px 14px; border-bottom: 1px solid var(--border-field); cursor: default; transition: background 100ms; gap: 10px; }
+.pantry-row:last-child { border-bottom: none; }
+.pantry-row:active { background: var(--surface-sunken); }
+.pantry-row-thumb { width: 48px; height: 48px; border-radius: 10px; flex-shrink: 0; background: var(--surface-sunken); overflow: hidden; }
+.pantry-row-thumb-inner { width: 100%; height: 100%; }
+.pantry-row-info { flex: 1; min-width: 0; }
+.pantry-row-name { font-size: 15px; font-weight: 600; color: var(--content); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pantry-row-meta { font-size: 13px; color: var(--content-sec); }
+.pantry-row-right { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; margin-right: 8px; }
+.pantry-row-kcal { font-size: 13px; font-weight: 600; color: var(--content); white-space: nowrap; }
+.pantry-row-pro  { font-size: 12px; color: var(--content-sec); white-space: nowrap; }
+.pantry-add { width: 32px; height: 32px; border-radius: var(--r-pill); background: var(--accent); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--on-accent); font-size: 20px; line-height: 1; flex-shrink: 0; transition: background 140ms; }
+.pantry-add:active { background: var(--accent-hover); }
+
+
+/* ── Placeholder (scan/label/describe inline) ── */
+.inline-placeholder { display: flex; flex-direction: column; align-items: center; padding: 40px 20px; text-align: center; gap: 10px; }
+.inline-placeholder .pi { font-size: 44px; opacity: 0.35; }
+.inline-placeholder h3 { font-size: 17px; font-weight: 600; color: var(--content); }
+.inline-placeholder p { font-size: 14px; color: var(--content-sec); line-height: 1.5; }
+
+/* ── Manual add form ── */
+.manual-form { padding-top: 4px; }
+.f-label { font-size: 12px; font-weight: 600; color: var(--content-sec); margin-bottom: 5px; display: block; text-transform: uppercase; letter-spacing: 0.3px; }
+.f-input { width: 100%; padding: 12px; background: var(--surface-sunken); border: 1.5px solid transparent; border-radius: var(--r-field); font-size: 15px; color: var(--content); font-family: inherit; outline: none; margin-bottom: 10px; transition: border-color 150ms; }
+.f-input:focus { border-color: var(--accent); }
+.f-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.save-pantry-row { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--content-sec); cursor: pointer; padding: 4px 0; }
+.save-pantry-row input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+/* ── Activity pane ── */
+.act-seg { display: flex; background: var(--surface-sunken); border-radius: var(--r-pill); padding: 3px; margin-bottom: 16px; }
+.act-seg-btn { flex: 1; padding: 8px; border: none; border-radius: var(--r-pill); background: none; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--content-sec); font-family: inherit; transition: all 180ms; }
+.act-seg-btn.active { background: var(--surface); color: var(--content); box-shadow: var(--shadow-card); }
+.pill-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; margin-bottom: 14px; }
+.pill { padding: 8px 16px; border-radius: var(--r-pill); border: 1.5px solid var(--border-field); background: var(--surface); font-size: 14px; color: var(--content-sec); cursor: pointer; font-family: inherit; transition: all 140ms; }
+.pill.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.est-result { text-align: center; padding: 20px 0 8px; font-size: 15px; color: var(--content-sec); }
+.est-result strong { font-size: 26px; font-weight: 700; color: var(--content); }
+
+/* ── Weight pane ── */
+.weight-input { width: 100%; padding: 24px; text-align: center; font-size: 52px; font-weight: 700; color: var(--content); background: var(--surface-sunken); border: 1.5px solid transparent; border-radius: var(--r-card); font-family: inherit; outline: none; transition: border-color 150ms; margin-bottom: 14px; }
+.weight-input:focus { border-color: var(--accent); }
+.unit-row { display: flex; gap: 8px; justify-content: center; }
+
+/* ── Manual add — full-sheet overlay ── */
+.manual-overlay {
+  position: absolute; inset: 0; background: var(--surface);
+  border-radius: inherit;
+  transform: translateX(100%); transition: transform 280ms cubic-bezier(0.4,0,0.2,1);
+  z-index: 40; display: flex; flex-direction: column; overflow: hidden;
+}
+.manual-overlay.open { transform: translateX(0); }
+.manual-overlay-body { flex: 1; overflow-y: auto; padding: 0 16px 120px; }
+
+/* ── Source / Edit overlay (full-sheet) ── */
+.source-overlay {
+  position: absolute; inset: 0; background: var(--surface);
+  border-radius: inherit;
+  transform: translateX(100%); transition: transform 280ms cubic-bezier(0.4,0,0.2,1);
+  z-index: 41; display: flex; flex-direction: column; overflow: hidden;
+}
+.source-overlay.open { transform: translateX(0); }
+.source-overlay-body { flex: 1; overflow-y: auto; padding: 0 16px 32px; }
+.source-hd { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
+.back-btn { width: 30px; height: 30px; border-radius: var(--r-pill); background: var(--surface-sunken); border: none; cursor: pointer; font-size: 16px; color: var(--content); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+.source-item-name { font-size: 17px; font-weight: 600; color: var(--content); }
+.source-item-sub  { font-size: 13px; color: var(--content-sec); margin-top: 2px; }
+.src-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.src-field { margin-bottom: 0; }
+
+/* ── Sticky CTA ── */
+.sheet-cta { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 16px max(16px, env(safe-area-inset-bottom)); background: linear-gradient(to bottom, transparent, var(--surface) 1.5rem); pointer-events: none; z-index: 3; }
+.cta-btn { width: 100%; padding: 16px; border-radius: var(--r-pill); background: var(--accent); border: none; cursor: pointer; font-size: 17px; font-weight: 600; color: var(--on-accent); font-family: inherit; pointer-events: auto; transition: transform 120ms, background 140ms; }
+.cta-btn:active { transform: scale(0.97); background: var(--accent-hover); }
+.cta-btn:disabled { background: var(--surface-sunken); color: var(--content-muted); cursor: default; transform: none; }
+/* Secondary CTA (Analyse etc.) */
+.cta-secondary-btn { display: none; width: 100%; padding: 14px; border-radius: var(--r-pill); border: 2px solid var(--accent); background: none; color: var(--accent); font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit; margin-bottom: 10px; pointer-events: auto; transition: background 150ms; }
+.cta-secondary-btn.visible { display: block; }
+.cta-secondary-btn:active { background: rgba(0,224,170,0.08); }
+
+/* ── Camera / Photo pane ── */
+.camera-view { display: flex; flex-direction: column; align-items: center; }
+.camera-viewfinder {
+  width: 100%; aspect-ratio: 4/3; background: #111; border-radius: var(--r-card);
+  position: relative; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; overflow: hidden; margin-bottom: 20px;
+}
+.cam-guide { width: 58%; height: 58%; border: 2px solid rgba(255,255,255,0.55); border-radius: 14px; }
+.cam-guide.label-mode { width: 80%; height: 35%; border-color: var(--accent); border-radius: 8px; }
+.cam-hint { position: absolute; bottom: 14px; font-size: 13px; color: rgba(255,255,255,0.6); }
+.cam-retake { font-size: 14px; color: var(--content-sec); background: none; border: none; cursor: pointer; font-family: inherit; margin-bottom: 16px; }
+.cam-shutter {
+  width: 68px; height: 68px; border-radius: 50%; border: 4px solid var(--border-field);
+  background: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 14px;
+}
+.cam-shutter-inner { width: 52px; height: 52px; border-radius: 50%; background: white; }
+.cam-scan-btn { background: var(--accent); color: var(--on-accent); border: none; border-radius: var(--r-pill); padding: 14px 32px; font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit; margin-bottom: 14px; }
+.cam-alt { font-size: 14px; color: var(--accent); background: none; border: none; cursor: pointer; font-family: inherit; font-weight: 500; }
+
+/* Photo grid */
+.photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; border-radius: var(--r-card); overflow: hidden; margin-bottom: 16px; }
+.photo-tile { aspect-ratio: 1; cursor: pointer; transition: opacity 120ms; }
+.photo-tile:active { opacity: 0.7; }
+
+/* Describe pane */
+.describe-input {
+  width: 100%; min-height: 130px; background: var(--surface-sunken); border: 1.5px solid transparent;
+  border-radius: var(--r-card); padding: 14px; font-size: 16px; color: var(--content);
+  font-family: inherit; resize: none; outline: none; transition: border-color 150ms; line-height: 1.55;
+}
+.describe-input:focus { border-color: var(--accent); }
+.describe-input::placeholder { color: var(--content-muted); }
+
+/* Analysing overlay (covers whole sheet) */
+.analysing-overlay {
+  position: absolute; inset: 0; background: rgba(255,255,255,0.96);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; z-index: 35; opacity: 0; pointer-events: none; transition: opacity 220ms;
+  border-radius: inherit;
+}
+.analysing-overlay.show { opacity: 1; pointer-events: auto; }
+.analysing-spinner {
+  width: 40px; height: 40px; border: 3px solid var(--border-field);
+  border-top-color: var(--accent); border-radius: 50%; animation: spin 750ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.analysing-label { font-size: 15px; font-weight: 500; color: var(--content-sec); }
+.analysing-cancel { font-size: 14px; color: var(--content-muted); background: none; border: none; cursor: pointer; font-family: inherit; margin-top: 4px; }
+
+/* Serving size modal */
+.serving-scrim {
+  position: absolute; inset: 0; background: var(--scrim); z-index: 50;
+  display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity 220ms;
+}
+.serving-scrim.show { opacity: 1; pointer-events: auto; }
+.serving-modal { background: var(--surface); border-radius: var(--r-sheet) var(--r-sheet) 0 0; padding: 24px 20px max(24px, env(safe-area-inset-bottom)); width: 100%; }
+.serving-modal-title { font-size: 17px; font-weight: 700; color: var(--content); margin-bottom: 6px; }
+.serving-modal-sub { font-size: 14px; color: var(--content-sec); margin-bottom: 20px; line-height: 1.4; }
+.serving-opt { width: 100%; padding: 15px; border-radius: var(--r-pill); border: 1.5px solid var(--border-field); background: var(--surface-sunken); font-size: 15px; font-weight: 600; color: var(--content); cursor: pointer; font-family: inherit; margin-bottom: 10px; transition: border-color 150ms; }
+.serving-opt:last-child { margin-bottom: 0; }
+.serving-opt:active { border-color: var(--accent); }
+
+/* Re-identify section in Edit overlay */
+.reidentify-section { margin-bottom: 4px; }
+.reidentify-label { font-size: 11px; font-weight: 700; color: var(--content-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+.reid-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.reid-tab { flex: 1; padding: 8px 4px; border: 1.5px solid var(--border-field); border-radius: var(--r-pill); background: none; font-size: 13px; font-weight: 600; color: var(--content-sec); cursor: pointer; font-family: inherit; transition: all 150ms; }
+.reid-tab.active { border-color: var(--accent); color: var(--accent); }
+.reid-search { width: 100%; padding: 11px 14px; background: var(--surface-sunken); border: 1.5px solid transparent; border-radius: var(--r-field); font-size: 15px; color: var(--content); font-family: inherit; outline: none; transition: border-color 150ms; }
+.reid-search:focus { border-color: var(--accent); }
+.reid-describe { width: 100%; min-height: 72px; padding: 11px 14px; background: var(--surface-sunken); border: 1.5px solid transparent; border-radius: var(--r-field); font-size: 15px; color: var(--content); font-family: inherit; outline: none; resize: none; transition: border-color 150ms; line-height: 1.5; }
+.reid-describe:focus { border-color: var(--accent); }
+.source-divider { height: 1px; background: var(--border-field); margin: 18px 0; }
+
+/* ── Toast ── */
+.toast { position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%) translateY(12px); background: rgba(28,28,30,0.92); color: #fff; padding: 10px 20px; border-radius: var(--r-pill); font-size: 14px; font-weight: 500; white-space: nowrap; opacity: 0; transition: opacity 240ms, transform 240ms var(--spring); z-index: 50; pointer-events: none; backdrop-filter: blur(10px); }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <!-- Today screen -->
+  <div class="today">
+    <div class="today-nav"><h1>Diary</h1><span>📅 7th Jun</span></div>
+    <div class="week-strip">
+      <div class="week-day"><span class="dl">M</span><div class="wd miss">✕</div></div>
+      <div class="week-day"><span class="dl">T</span><div class="wd miss">✕</div></div>
+      <div class="week-day"><span class="dl">W</span><div class="wd done">✓</div></div>
+      <div class="week-day"><span class="dl">T</span><div class="wd done">✓</div></div>
+      <div class="week-day"><span class="dl">F</span><div class="wd done">✓</div></div>
+      <div class="week-day"><span class="dl">S</span><div class="wd today"></div></div>
+      <div class="week-day"><span class="dl">S</span><div class="wd fut"></div></div>
+    </div>
+    <div class="gauge-card">
+      <div class="gauge-badge">On track</div>
+      <div class="gauge-number">107</div>
+      <div class="gauge-sub">kcal under</div>
+      <div class="gauge-stats">
+        <div class="gstat"><strong>−825</strong>Food</div>
+        <div class="gstat"><strong>1000</strong>Activity</div>
+        <div class="gstat"><strong>67.5</strong>Weight</div>
+      </div>
+    </div>
+    <div class="day-log">
+      <h3>Day's log</h3>
+      <div class="log-row">🍽 Pasta <span>−450 kcal</span></div>
+      <div class="log-row">🍽 Granola <span>−380 kcal</span></div>
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="bottom-bar">
+    <div class="tab-pill">
+      <button class="tab-btn active">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M3 9h18M9 9v13"/></svg>
+        Diary
+      </button>
+      <button class="tab-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        Goal
+      </button>
+      <div class="fab-slot">
+        <button class="fab" id="fabBtn">+</button>
+      </div>
+      <button class="tab-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        Pantry
+      </button>
+      <button class="tab-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        Account
+      </button>
+    </div>
+  </div>
+
+  <!-- Scrim -->
+  <div class="scrim" id="scrim"></div>
+
+  <!-- Sheet -->
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Add entry" tabindex="-1">
+    <div class="drag-handle"><span></span></div>
+
+    <div class="sheet-hd">
+      <button class="close-btn" id="closeBtn">✕</button>
+      <span class="sheet-title">Add</span>
+    </div>
+
+    <div class="top-seg-wrap">
+      <div class="top-seg">
+        <button class="top-seg-btn active" data-top="food">Food</button>
+        <button class="top-seg-btn" data-top="activity">Activity</button>
+        <button class="top-seg-btn" data-top="weight">Weight</button>
+      </div>
+    </div>
+
+    <div class="sheet-body">
+
+      <!-- ── FOOD PANE ── -->
+      <div class="pane active" id="pane-food">
+        <div class="method-content">
+          <div id="imageHeroArea"></div>
+          <div class="meal-header">
+            <span class="meal-title-label">Meal</span>
+            <button class="meal-edit-btn" id="mealEditBtn">Edit</button>
+          </div>
+          <div id="mealNameContainer"></div>
+          <div class="added-items" id="addedItems"></div>
+          <div id="addAnotherContainer"></div>
+        </div>
+      </div><!-- /pane-food -->
+
+      <!-- ── ACTIVITY PANE ── -->
+      <div class="pane" id="pane-activity">
+        <div class="method-content">
+          <div class="act-seg">
+            <button class="act-seg-btn active" data-act="manual">Manual</button>
+            <button class="act-seg-btn" data-act="estimate">Estimate</button>
+          </div>
+          <div id="act-manual">
+            <label class="f-label">Name (optional)</label>
+            <input class="f-input" type="text" placeholder="e.g. Morning run" id="actName">
+            <label class="f-label">Calories burned</label>
+            <input class="f-input" type="number" placeholder="e.g. 300" id="actKcal">
+          </div>
+          <div id="act-estimate" style="display:none;">
+            <div class="f-label">Intensity</div>
+            <div class="pill-group" id="intensityPills">
+              <button class="pill" data-kcal="4">Light</button>
+              <button class="pill" data-kcal="7">Moderate</button>
+              <button class="pill" data-kcal="11">Intense</button>
+            </div>
+            <div class="f-label">Duration</div>
+            <div class="pill-group" id="durationPills">
+              <button class="pill" data-min="30">30 min</button>
+              <button class="pill" data-min="45">45 min</button>
+              <button class="pill" data-min="60">1 hour</button>
+              <button class="pill" data-min="90">1.5 hrs</button>
+            </div>
+            <div class="est-result" id="estResult" style="display:none;">
+              Estimated <strong id="estKcal">—</strong> kcal
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── WEIGHT PANE ── -->
+      <div class="pane" id="pane-weight">
+        <div class="method-content">
+          <input class="weight-input" type="number" placeholder="0.0" step="0.1" id="weightVal">
+          <div class="unit-row">
+            <button class="pill on" id="uKg">kg</button>
+            <button class="pill" id="uLbs">lbs</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /sheet-body -->
+
+    <div class="sheet-cta">
+      <button class="cta-btn" id="ctaBtn" disabled>Log it</button>
+    </div>
+
+    <!-- ── Analysing overlay ── -->
+    <div class="analysing-overlay" id="analysingOverlay">
+      <div class="analysing-spinner"></div>
+      <div class="analysing-label" id="analysingLabel">Analysing your meal…</div>
+      <button class="analysing-cancel" id="analysingCancel">Cancel</button>
+    </div>
+
+    <!-- ── Serving size modal ── -->
+    <div class="serving-scrim" id="servingScrim">
+      <div class="serving-modal">
+        <div class="serving-modal-title">Which values to use?</div>
+        <div class="serving-modal-sub" id="servingModalSub">The label shows nutrition for both options.</div>
+        <button class="serving-opt" id="servingPer100">Per 100g</button>
+        <button class="serving-opt" id="servingPerServing">Per serving (150g)</button>
+      </div>
+    </div>
+
+    <!-- ── Edit item — full-sheet overlay ── -->
+    <div class="source-overlay" id="sourceOverlay">
+      <div class="drag-handle"><span></span></div>
+      <div class="sheet-hd">
+        <button class="close-btn" id="sourceBack">‹</button>
+        <span class="sheet-title">Edit</span>
+      </div>
+      <div class="source-overlay-body">
+        <div class="f-label" style="margin-bottom:6px;">Name</div>
+        <input class="f-input" type="text" id="srcNameInput" placeholder="Food name" style="margin-bottom:16px;">
+        <div class="source-divider" style="margin-top:4px; margin-bottom:16px;"></div>
+
+        <!-- Top values row: serving size (g) + calories side by side (serving items),
+             or just calories full-width (per-100g items) -->
+        <div id="srcTopRow" style="display:grid;gap:8px;margin-bottom:8px;">
+          <div id="srcServingCol">
+            <div class="f-label" style="margin-bottom:6px;">Serving size (g)</div>
+            <input class="f-input" type="number" id="srcServingG" placeholder="0">
+          </div>
+          <div>
+            <div class="f-label" id="srcCalLabel" style="margin-bottom:6px;">Calories (kcal)</div>
+            <input class="f-input" type="number" id="srcCal" placeholder="0">
+          </div>
+        </div>
+
+        <div class="src-grid">
+          <div><div class="f-label" style="margin-bottom:6px;">Protein (g)</div><input class="f-input" type="number" id="srcPro" placeholder="0"></div>
+          <div><div class="f-label" style="margin-bottom:6px;">Carbs (g)</div><input class="f-input" type="number" id="srcCarb" placeholder="0"></div>
+          <div><div class="f-label" style="margin-bottom:6px;">Fat (g)</div><input class="f-input" type="number" id="srcFat" placeholder="0"></div>
+          <div><div class="f-label" style="margin-bottom:6px;">Fiber (g)</div><input class="f-input" type="number" id="srcFiber" placeholder="0"></div>
+        </div>
+        <p id="srcNote" style="font-size:12px;color:var(--content-sec);margin-top:8px;line-height:1.5;"></p>
+        <div style="margin-top:24px; display:flex; flex-direction:column; gap:10px;">
+          <button class="cta-btn" id="saveSrcBtn">Save</button>
+          <button id="cancelSrcBtn" style="width:100%;padding:14px;border:none;background:none;font-size:15px;font-weight:500;color:var(--content-sec);cursor:pointer;font-family:inherit;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Manual add — full-sheet overlay ── -->
+    <div class="manual-overlay" id="manualOverlay">
+      <div class="drag-handle"><span></span></div>
+      <div class="sheet-hd">
+        <button class="close-btn" id="manualBack">‹</button>
+        <span class="sheet-title">Add manually</span>
+      </div>
+      <div class="manual-overlay-body">
+        <div class="manual-form">
+          <label class="f-label">Name</label>
+          <input class="f-input" type="text" placeholder="e.g. Homemade granola" id="manualName">
+          <div class="f-grid">
+            <div><label class="f-label">Calories</label><input class="f-input" type="number" placeholder="0" id="manualCal"></div>
+            <div><label class="f-label">Protein (g)</label><input class="f-input" type="number" placeholder="0"></div>
+            <div><label class="f-label">Carbs (g)</label><input class="f-input" type="number" placeholder="0"></div>
+            <div><label class="f-label">Fat (g)</label><input class="f-input" type="number" placeholder="0"></div>
+          </div>
+          <label class="save-pantry-row">
+            <input type="checkbox"> Save to pantry for next time
+          </label>
+        </div>
+      </div>
+      <div class="sheet-cta">
+        <button class="cta-btn" id="manualCtaBtn" disabled>Save</button>
+      </div>
+    </div>
+
+    <!-- ── Camera overlay ── -->
+    <div class="method-overlay" id="cameraOverlay">
+      <div class="drag-handle"><span></span></div>
+      <div class="sheet-hd">
+        <button class="close-btn" id="cameraOverlayBack">‹</button>
+        <span class="sheet-title">Camera</span>
+      </div>
+      <div class="method-overlay-body">
+        <div class="camera-view">
+          <div class="camera-viewfinder" id="cameraViewfinder">
+            <video id="cameraVideo" autoplay playsinline muted style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;"></video>
+            <div class="cam-guide" style="position:relative;z-index:1;"></div>
+            <div class="cam-hint" style="position:absolute;z-index:1;">Point at your meal</div>
+          </div>
+          <button class="cam-shutter" id="cameraCaptureBtn"><div class="cam-shutter-inner"></div></button>
+          <button class="cam-alt" id="cameraToPhotoBtn">Choose from photos instead</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Photo overlay ── -->
+    <div class="method-overlay" id="photoOverlay">
+      <div class="drag-handle"><span></span></div>
+      <div class="sheet-hd">
+        <button class="close-btn" id="photoOverlayBack">‹</button>
+        <span class="sheet-title">Photo</span>
+      </div>
+      <div class="method-overlay-body">
+        <div class="photo-grid" id="photoGrid"></div>
+        <div style="text-align:center;margin-top:8px;">
+          <button class="cam-alt" id="photoToCameraBtn">Take a photo instead</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Describe overlay ── -->
+    <div class="method-overlay" id="describeOverlay">
+      <div class="drag-handle"><span></span></div>
+      <div class="sheet-hd">
+        <button class="close-btn" id="describeOverlayBack">‹</button>
+        <span class="sheet-title">Describe</span>
+      </div>
+      <div class="method-overlay-body">
+        <textarea class="describe-input" id="describeInput" placeholder="What did you eat? e.g. &ldquo;a bowl of oats with banana and honey&rdquo;" rows="5"></textarea>
+        <button class="describe-analyse-btn" id="describeAnalyseBtn" style="display:none">Analyse</button>
+      </div>
+    </div>
+
+    <!-- ── Label overlay ── -->
+    <div class="method-overlay" id="labelOverlay">
+      <div class="drag-handle"><span></span></div>
+      <div class="sheet-hd">
+        <button class="close-btn" id="labelOverlayBack">‹</button>
+        <span class="sheet-title">Scan label</span>
+      </div>
+      <div class="method-overlay-body">
+        <div class="camera-view">
+          <div class="camera-viewfinder" id="labelViewfinder">
+            <video id="labelVideo" autoplay playsinline muted style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;"></video>
+            <div class="cam-guide label-mode" style="position:relative;z-index:1;"></div>
+            <div class="cam-hint" style="position:absolute;z-index:1;">Point at the nutrition label</div>
+          </div>
+          <button class="describe-analyse-btn" id="labelScanBtn">Scan label</button>
+          <button class="cam-alt" style="margin-top:4px;">Choose a photo instead</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────
+const PANTRY = [
+  { id:1, name:'Chicken breast', cal:165, pro:31,  carbs:0,   fat:3.6,  fiber:0,   thumb:'linear-gradient(135deg,#f5d9c0,#e8a87a)' },
+  { id:2, name:'Oats',           cal:389, pro:17,  carbs:66,  fat:7,    fiber:11,  thumb:'linear-gradient(135deg,#ede8d8,#c8b87a)' },
+  { id:3, name:'Greek yogurt',   cal:59,  pro:10,  carbs:3.6, fat:0.4,  fiber:0,   thumb:'linear-gradient(135deg,#f0f0f0,#d8d8d8)' },
+  { id:4, name:'Banana',         cal:89,  pro:1.1, carbs:23,  fat:0.3,  fiber:2.6, thumb:'linear-gradient(135deg,#fdefc0,#f0c840)' },
+  { id:5, name:'Brown rice',     cal:216, pro:5,   carbs:45,  fat:1.8,  fiber:3.5, thumb:'linear-gradient(135deg,#e8dcc8,#c8a870)' },
+  { id:6, name:'Eggs',           cal:155, pro:13,  carbs:1.1, fat:11,   fiber:0,   thumb:'linear-gradient(135deg,#fef8e8,#f0d880)' },
+  { id:7, name:'Avocado',        cal:160, pro:2,   carbs:9,   fat:15,   fiber:7,   thumb:'linear-gradient(135deg,#d8ecc8,#88b848)' },
+  { id:8, name:'Salmon',         cal:208, pro:20,  carbs:0,   fat:13,   fiber:0,   thumb:'linear-gradient(135deg,#f8d0c0,#e87858)' },
+];
+
+// Mock results for Camera / Photo / Describe / Label
+const CAMERA_MOCK = [
+  { id:201, name:'Grilled chicken',  cal:165, pro:31,  carbs:0,   fat:3.6,  fiber:0   },
+  { id:202, name:'Steamed broccoli', cal:34,  pro:2.8, carbs:6.6, fat:0.4,  fiber:2.6 },
+  { id:203, name:'Brown rice',       cal:216, pro:5,   carbs:45,  fat:1.8,  fiber:3.5 },
+];
+const DESCRIBE_MOCK = [
+  { id:301, name:'Rolled oats',  cal:389, pro:16.9, carbs:66,  fat:6.9, fiber:10.6 },
+  { id:302, name:'Banana',       cal:89,  pro:1.1,  carbs:22.8,fat:0.3, fiber:2.6  },
+  { id:303, name:'Honey',        cal:304, pro:0.3,  carbs:82,  fat:0,   fiber:0.2  },
+];
+const LABEL_MOCK_100 = { id:401, name:'Skyr Yoghurt', cal:67,  pro:11,  carbs:4,   fat:0.2, fiber:0 };
+const LABEL_MOCK_SRV = { id:401, name:'Skyr Yoghurt', cal:101, pro:16.5,carbs:6,   fat:0.3, fiber:0, servingG:150 };
+const LABEL_SERVING_G = 150;
+
+// Most recently used — in a real app this is derived from usage history.
+// Seeded with 5 defaults; ordered most-recent first.
+const RECENT_ITEMS = [2, 6, 1, 4, 3].map(id => PANTRY.find(i => i.id === id));
+
+// Photo grid colours (simulate thumbnails)
+const PHOTO_COLOURS = ['#e8d0b8','#b8d4e8','#c8e8c0','#e8c8d0','#e8e4b8','#c0c8e8','#e0cce4','#b8e0d8','#e4d8c0'];
+
+let loggedItems = [];       // { item, qty, unit? }
+let sourceImages = [];      // { gradient } — one per distinct photo source
+let addAnotherOpen = false;
+let editingIdx = null;
+let intensityKcal = null, durationMin = null;
+
+// ── Sheet open/close ──────────────────────────────────────────────────────
+const fabBtn   = document.getElementById('fabBtn');
+const sheet    = document.getElementById('sheet');
+const scrim    = document.getElementById('scrim');
+const closeBtn = document.getElementById('closeBtn');
+const ctaBtn   = document.getElementById('ctaBtn');
+const toast    = document.getElementById('toast');
+
+function openSheet() {
+  loggedItems = []; sourceImages = []; addAnotherOpen = false; editingIdx = null; editMode = false;
+  renderPantrySection();
+  sheet.classList.add('open');
+  scrim.classList.add('open');
+  switchTopTab('food');
+  updateCta();
+}
+function closeAllMethodOverlays() {
+  ['cameraOverlay','photoOverlay','describeOverlay','labelOverlay'].forEach(id => {
+    document.getElementById(id).classList.remove('open');
+  });
+  stopStream();
+}
+function closeSheet() {
+  sheet.classList.remove('open');
+  scrim.classList.remove('open');
+  closeSourceOverlay();
+  closeManualOverlay();
+  closeAllMethodOverlays();
+  editMode = false;
+  const btn = document.getElementById('mealEditBtn');
+  if (btn) btn.textContent = 'Edit';
+}
+fabBtn.addEventListener('click', openSheet);
+closeBtn.addEventListener('click', closeSheet);
+scrim.addEventListener('click', closeSheet);
+
+// ── Top tab (Food / Activity / Weight) ───────────────────────────────────
+document.querySelectorAll('[data-top]').forEach(btn => {
+  btn.addEventListener('click', () => switchTopTab(btn.dataset.top));
+});
+function switchTopTab(tab) {
+  document.querySelectorAll('[data-top]').forEach(b => b.classList.toggle('active', b.dataset.top === tab));
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('pane-' + tab).classList.add('active');
+  updateCta();
+}
+
+// ── Method overlays (Camera / Photo / Describe / Label) ──────────────────
+function openMethodOverlay(id) {
+  closeAllMethodOverlays();
+  document.getElementById(id).classList.add('open');
+}
+document.getElementById('cameraOverlayBack').addEventListener('click', () => { closeAllMethodOverlays(); addAnotherOpen = true; renderPantrySection(); });
+document.getElementById('photoOverlayBack').addEventListener('click',   () => { closeAllMethodOverlays(); addAnotherOpen = true; renderPantrySection(); });
+document.getElementById('describeOverlayBack').addEventListener('click',() => { closeAllMethodOverlays(); addAnotherOpen = true; renderPantrySection(); });
+document.getElementById('labelOverlayBack').addEventListener('click',   () => { closeAllMethodOverlays(); addAnotherOpen = true; renderPantrySection(); });
+
+// ── Manual overlay ────────────────────────────────────────────────────────
+function openManualOverlay() {
+  document.getElementById('manualOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('manualName')?.focus(), 300);
+}
+function closeManualOverlay() {
+  document.getElementById('manualOverlay').classList.remove('open');
+}
+document.getElementById('manualBack').addEventListener('click', closeManualOverlay);
+
+// Enable manual CTA when name has content
+document.getElementById('manualName').addEventListener('input', e => {
+  document.getElementById('manualCtaBtn').disabled = e.target.value.trim().length === 0;
+});
+
+document.getElementById('manualCtaBtn').addEventListener('click', () => {
+  const name = document.getElementById('manualName').value.trim();
+  if (!name) return;
+  const cal = parseInt(document.getElementById('manualCal').value) || 0;
+  loggedItems.push({ id: 'manual-' + Date.now(), name, cal, qty: 1, unit: 'serving' });
+  // reset form
+  document.getElementById('manualName').value = '';
+  document.getElementById('manualCal').value = '';
+  document.getElementById('manualCtaBtn').disabled = true;
+  closeManualOverlay();
+  renderPantrySection();
+  updateCta();
+  showToast(`"${name}" added`);
+});
+
+// ── Pantry rendering ──────────────────────────────────────────────────────
+
+// The "add another" component — same HTML whether it's the initial empty state
+// or expanded after tapping the button. Always shows search + list inside a container.
+function methodCardHTML(overlayId, label, svgPath) {
+  return `<button class="method-card" data-overlay="${overlayId}">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${svgPath}</svg>
+    ${label}
+  </button>`;
+}
+
+function addAnotherExpandedHTML() {
+  return `
+    <div class="add-another-expanded">
+      <div class="search-wrap">
+        <span class="search-ico">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        </span>
+        <input class="search-input" id="pantrySearch" type="search" placeholder="Search foods…" autocomplete="off" autocorrect="off">
+      </div>
+      <div class="pantry-list" id="pantryList"></div>
+      <div class="method-cards-row">
+        ${methodCardHTML('cameraOverlay',  'Camera',   '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>')}
+        ${methodCardHTML('photoOverlay',   'Photo',    '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>')}
+        ${methodCardHTML('describeOverlay','Describe', '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>')}
+        ${methodCardHTML('labelOverlay',   'Label',    '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/>')}
+        ${methodCardHTML('manualOverlay',  'Manual',   '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>')}
+      </div>
+    </div>`;
+}
+
+function bindExpandedContainer() {
+  const input = document.getElementById('pantrySearch');
+  if (input) input.addEventListener('input', e => renderPantryList(e.target.value));
+
+  document.querySelectorAll('.method-card[data-overlay]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.overlay;
+      addAnotherOpen = false;
+      renderPantrySection();
+
+      if (id === 'manualOverlay') { openManualOverlay(); return; }
+
+      // Camera & Photo → native system UI in the real app.
+      // In the prototype: simulate immediately (no overlay).
+      if (id === 'cameraOverlay') {
+        simulateAnalysis(CAMERA_MOCK, 'Analysing your photo…', null, 'linear-gradient(135deg,#e8d0b8,#c8a060)');
+        return;
+      }
+      if (id === 'photoOverlay') {
+        simulateAnalysis(CAMERA_MOCK, 'Analysing your photo…', null, PHOTO_COLOURS[Math.floor(Math.random()*PHOTO_COLOURS.length)]);
+        return;
+      }
+
+      // Describe & Label → custom overlays
+      openMethodOverlay(id);
+      if (id === 'labelOverlay') startStream('labelVideo');
+    });
+  });
+}
+
+function renderPantryList(query) {
+  const list = document.getElementById('pantryList');
+  if (!list) return;
+  const q = query.toLowerCase().trim();
+  const exclude = new Set(loggedItems.map(li => li.item.id));
+  // No query → show recents (up to 5); typing → full pantry search
+  const items = q
+    ? PANTRY.filter(i => !exclude.has(i.id) && i.name.toLowerCase().includes(q))
+    : RECENT_ITEMS.filter(i => i && !exclude.has(i.id)).slice(0, 5);
+  list.innerHTML = items.map(item => `
+    <div class="pantry-row" data-pid="${item.id}">
+      <div class="pantry-row-thumb">
+        <div class="pantry-row-thumb-inner" style="background:${item.thumb || 'var(--surface-sunken)'}"></div>
+      </div>
+      <div class="pantry-row-info">
+        <div class="pantry-row-name">${item.name}</div>
+        <div class="pantry-row-meta">${item.servingG ? 'Per serving' : 'Per 100g'}</div>
+      </div>
+      <div class="pantry-row-right">
+        <div class="pantry-row-kcal">${item.cal} kcal</div>
+        <div class="pantry-row-pro">${item.pro}g P</div>
+      </div>
+      <button class="pantry-add" data-pid="${item.id}" aria-label="Add ${item.name}">+</button>
+    </div>`).join('') || `<div style="padding:20px;text-align:center;font-size:14px;color:var(--content-muted);">No results</div>`;
+
+  list.querySelectorAll('.pantry-row').forEach(row => {
+    row.addEventListener('click', () => pickItem(+row.dataset.pid));
+  });
+  list.querySelectorAll('.pantry-add').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); pickItem(+btn.dataset.pid); });
+  });
+}
+
+function pickItem(pid) {
+  const item = PANTRY.find(i => i.id === pid);
+  if (!item) return;
+  loggedItems.push({ item, qty: 100 });
+  addAnotherOpen = false;
+  renderPantrySection();
+  updateCta();
+}
+
+function mealSuggestion() {
+  const h = new Date().getHours();
+  if (h < 10) return 'Breakfast';
+  if (h < 14) return 'Lunch';
+  if (h < 17) return 'Afternoon snack';
+  return 'Dinner';
+}
+let mealName = '';
+let editMode = false;
+
+// ── Edit / Done toggle ────────────────────────────────────────────────────
+document.getElementById('mealEditBtn').addEventListener('click', () => {
+  editMode = !editMode;
+  document.getElementById('mealEditBtn').textContent = editMode ? 'Done' : 'Edit';
+  renderPantrySection();
+});
+
+function cardActionsHTML(idx) {
+  return `<div class="card-actions-col">
+    <button class="card-action-icon" data-remove="${idx}" aria-label="Delete">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+    </button>
+    <button class="card-action-icon" data-edit="${idx}" aria-label="Edit">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </button>
+  </div>`;
+}
+
+function renderImageHero() {
+  const el = document.getElementById('imageHeroArea');
+  if (!el) return;
+  if (sourceImages.length === 0) { el.innerHTML = ''; return; }
+  if (sourceImages.length === 1) {
+    el.innerHTML = `<div class="image-hero">
+      <div class="image-hero-single">
+        <div class="image-hero-single-inner" style="background:${sourceImages[0].gradient}"></div>
+      </div>
+    </div>`;
+  } else {
+    const photos = sourceImages.slice(0,3).map(img =>
+      `<div class="collage-photo"><div class="collage-photo-inner" style="background:${img.gradient}"></div></div>`
+    ).join('');
+    el.innerHTML = `<div class="image-collage">${photos}</div>`;
+  }
+}
+
+function renderPantrySection() {
+  renderImageHero();
+  const addedEl   = document.getElementById('addedItems');
+  const mealEl    = document.getElementById('mealNameContainer');
+  const container = document.getElementById('addAnotherContainer');
+
+  // ── Show/hide Edit button ──
+  const mealEditBtn = document.getElementById('mealEditBtn');
+  if (mealEditBtn) mealEditBtn.style.visibility = loggedItems.length > 0 ? 'visible' : 'hidden';
+  // If items drop to 0, exit edit mode
+  if (loggedItems.length === 0 && editMode) {
+    editMode = false;
+    if (mealEditBtn) mealEditBtn.textContent = 'Edit';
+  }
+
+  // ── Meal name + Save to pantry (2+ items, above cards) ──
+  if (loggedItems.length >= 2) {
+    const suggestion = mealSuggestion();
+    if (!mealName) mealName = suggestion;
+    mealEl.innerHTML = `<div class="meal-meta-block">
+      <input class="meal-name-input" id="mealNameInput" type="text" placeholder="${suggestion}" value="${mealName}">
+      <label class="save-pantry-row"><input type="checkbox"> Save to pantry</label>
+    </div>`;
+    const inp = document.getElementById('mealNameInput');
+    inp.addEventListener('input', e => { mealName = e.target.value; });
+    inp.addEventListener('focus', e => { e.target.select(); });
+  } else {
+    mealEl.innerHTML = '';
+    if (!loggedItems.length) mealName = '';
+  }
+
+  // ── Added item cards ──
+  addedEl.innerHTML = loggedItems.map((li, idx) => {
+    const m = macros(li.item, li.qty, li.unit);
+    const isSrv = li.unit === 'srv';
+    const qtyLabel = isSrv ? `${li.qty} srv` : `${li.qty}g`;
+    const qtyCtrl = `<div class="qty-ctrl">
+      <button class="qty-btn" data-dec="${idx}">−</button>
+      <span class="qty-val" id="qv${idx}" data-qtyidx="${idx}">${qtyLabel}</span>
+      <button class="qty-btn" data-inc="${idx}">+</button>
+    </div>`;
+    if (editMode) {
+      return `
+      <div class="item-swipe-wrapper">
+        <div class="item-card edit-mode">
+          <div class="item-card-main">
+            <div class="added-item-row">
+              <span class="added-item-name">${li.item.name}</span>
+              <span class="item-cal" id="mc${idx}">${m.cal} kcal</span>
+            </div>
+            <div class="added-item-qty">${qtyCtrl}</div>
+          </div>
+          ${cardActionsHTML(idx)}
+        </div>
+      </div>`;
+    } else {
+      return `
+      <div class="item-swipe-wrapper" id="sw${idx}">
+        <div class="item-swipe-actions">
+          <button class="swipe-action" data-remove="${idx}" aria-label="Delete">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          </button>
+          <button class="swipe-action" data-edit="${idx}" aria-label="Edit">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+        </div>
+        <div class="item-card" data-cardidx="${idx}">
+          <div class="added-item-row">
+            <span class="added-item-name">${li.item.name}</span>
+            <span class="item-cal" id="mc${idx}">${m.cal} kcal</span>
+          </div>
+          <div class="added-item-qty">${qtyCtrl}</div>
+        </div>
+      </div>`;
+    }
+  }).join('');
+
+  // ── Bind qty +/− (srv step = 1, g step = 10) ──
+  addedEl.querySelectorAll('[data-dec]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const i = +b.dataset.dec;
+    const step = loggedItems[i].unit === 'srv' ? 1 : 10;
+    const minQ = loggedItems[i].unit === 'srv' ? 1 : 10;
+    loggedItems[i].qty = Math.max(minQ, loggedItems[i].qty - step);
+    refreshItem(i);
+  }));
+  addedEl.querySelectorAll('[data-inc]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const i = +b.dataset.inc;
+    const step = loggedItems[i].unit === 'srv' ? 1 : 10;
+    loggedItems[i].qty += step;
+    refreshItem(i);
+  }));
+  // ── Bind remove + edit buttons ──
+  addedEl.querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); loggedItems.splice(+b.dataset.remove,1); renderPantrySection(); updateCta(); }));
+  addedEl.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); openSourceOverlay(+b.dataset.edit); }));
+
+  // ── Tap card → edit overlay (default mode only) ──
+  addedEl.querySelectorAll('.item-card[data-cardidx]').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('.qty-ctrl')) return;
+      openSourceOverlay(+card.dataset.cardidx);
+    });
+  });
+
+  // ── Qty tap → inline input ──
+  addedEl.querySelectorAll('.qty-val').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const idx = +el.dataset.qtyidx;
+      const inp = document.createElement('input');
+      inp.type = 'number'; inp.min = '1';
+      inp.value = loggedItems[idx].qty;
+      inp.className = 'qty-input';
+      el.replaceWith(inp);
+      inp.focus(); inp.select();
+      function commit() {
+        const v = parseInt(inp.value);
+        if (v > 0) loggedItems[idx].qty = v;
+        renderPantrySection(); updateCta();
+      }
+      inp.addEventListener('blur', commit);
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+    });
+  });
+
+  // ── Swipe-to-reveal (default mode) ──
+  if (!editMode) {
+    addedEl.querySelectorAll('.item-swipe-wrapper').forEach(wrapper => {
+      const card = wrapper.querySelector('.item-card');
+      if (!card) return;
+      let startX = 0, startY = 0, dx = 0, swiped = false;
+      wrapper.addEventListener('touchstart', e => {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        card.style.transition = 'none';
+      }, { passive: true });
+      wrapper.addEventListener('touchmove', e => {
+        dx = e.touches[0].clientX - startX;
+        const dy = e.touches[0].clientY - startY;
+        if (Math.abs(dy) > Math.abs(dx)) return; // vertical scroll wins
+        if (dx < 0) card.style.transform = `translateX(${Math.max(dx, -90)}px)`;
+      }, { passive: true });
+      wrapper.addEventListener('touchend', () => {
+        card.style.transition = 'transform 200ms ease';
+        swiped = dx < -40;
+        card.style.transform = swiped ? 'translateX(-90px)' : 'translateX(0)';
+        dx = 0;
+      });
+      // Close swipe on outside tap
+      document.addEventListener('touchstart', e => {
+        if (swiped && !wrapper.contains(e.target)) {
+          card.style.transition = 'transform 200ms ease';
+          card.style.transform = 'translateX(0)';
+          swiped = false;
+        }
+      }, { passive: true });
+    });
+  }
+
+  // ── Add-another container ──
+  // Hide entirely in edit mode — user is managing existing items, not adding
+  if (editMode) {
+    container.innerHTML = '';
+  } else if (loggedItems.length === 0) {
+    container.innerHTML = addAnotherExpandedHTML();
+    bindExpandedContainer(); renderPantryList('');
+  } else if (addAnotherOpen) {
+    container.innerHTML = addAnotherExpandedHTML();
+    bindExpandedContainer(); renderPantryList('');
+    setTimeout(() => document.getElementById('pantrySearch')?.focus(), 50);
+  } else {
+    container.innerHTML = `<button class="add-another-btn" id="addAnotherBtn">+ Add another item</button>`;
+    document.getElementById('addAnotherBtn').addEventListener('click', () => {
+      addAnotherOpen = true;
+      renderPantrySection();
+    });
+  }
+}
+
+function refreshItem(idx) {
+  const li = loggedItems[idx];
+  const m = macros(li.item, li.qty, li.unit);
+  const qvEl = document.getElementById('qv'+idx);
+  if (qvEl) qvEl.textContent = li.unit === 'srv' ? `${li.qty} srv` : `${li.qty}g`;
+  const mcEl = document.getElementById('mc'+idx);
+  if (mcEl) mcEl.textContent = m.cal + ' kcal';
+  updateCta();
+}
+
+function macros(item, qty, unit) {
+  const s = unit === 'srv' ? qty : qty / 100;
+  return { cal: Math.round(item.cal*s), pro: +(item.pro*s).toFixed(1) };
+}
+
+// ── Source edit overlay ───────────────────────────────────────────────────
+const sourceOverlay = document.getElementById('sourceOverlay');
+
+function openSourceOverlay(idx) {
+  editingIdx = idx;
+  const li = loggedItems[idx];
+  const isSrv = li.unit === 'srv';
+
+  // Name
+  document.getElementById('srcNameInput').value = li.item.name;
+
+  // Top row: serving size + cal (serving) vs cal only (per 100g)
+  const topRow     = document.getElementById('srcTopRow');
+  const servingCol = document.getElementById('srcServingCol');
+  if (isSrv) {
+    topRow.style.gridTemplateColumns = '1fr 1fr';
+    servingCol.style.display = '';
+    document.getElementById('srcServingG').value = li.item.servingG || '';
+    document.getElementById('srcCalLabel').textContent = 'Calories (kcal)';
+    document.getElementById('srcNote').textContent = 'Values are per serving. Changing grams is for reference only.';
+  } else {
+    topRow.style.gridTemplateColumns = '1fr';
+    servingCol.style.display = 'none';
+    document.getElementById('srcCalLabel').textContent = 'Calories (kcal · per 100g)';
+    document.getElementById('srcNote').textContent = 'Values are per 100g. Adjust how much you ate on the card.';
+  }
+
+  // Nutrition values
+  document.getElementById('srcCal').value   = li.item.cal;
+  document.getElementById('srcPro').value   = li.item.pro;
+  document.getElementById('srcCarb').value  = li.item.carbs;
+  document.getElementById('srcFat').value   = li.item.fat;
+  document.getElementById('srcFiber').value = li.item.fiber;
+
+  sourceOverlay.classList.add('open');
+}
+function closeSourceOverlay() {
+  sourceOverlay.classList.remove('open');
+  editingIdx = null;
+}
+function saveSourceEdits() {
+  if (editingIdx !== null) {
+    const li = loggedItems[editingIdx];
+    const updates = {
+      name:  document.getElementById('srcNameInput').value.trim() || li.item.name,
+      cal:   +document.getElementById('srcCal').value   || li.item.cal,
+      pro:   +document.getElementById('srcPro').value   || li.item.pro,
+      carbs: +document.getElementById('srcCarb').value  || li.item.carbs,
+      fat:   +document.getElementById('srcFat').value   || li.item.fat,
+      fiber: +document.getElementById('srcFiber').value || li.item.fiber,
+    };
+    // servingG is metadata only — save it back but it doesn't affect macro math
+    if (li.unit === 'srv') {
+      const g = +document.getElementById('srcServingG').value;
+      if (g > 0) updates.servingG = g;
+    }
+    li.item = { ...li.item, ...updates };
+    renderPantrySection();
+    updateCta();
+  }
+  closeSourceOverlay();
+}
+document.getElementById('saveSrcBtn').addEventListener('click', saveSourceEdits);
+document.getElementById('sourceBack').addEventListener('click', closeSourceOverlay);
+document.getElementById('cancelSrcBtn').addEventListener('click', closeSourceOverlay);
+
+
+// ── Activity ──────────────────────────────────────────────────────────────
+document.querySelectorAll('[data-act]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-act]').forEach(b => b.classList.toggle('active', b.dataset.act === btn.dataset.act));
+    document.getElementById('act-manual').style.display   = btn.dataset.act === 'manual'   ? '' : 'none';
+    document.getElementById('act-estimate').style.display = btn.dataset.act === 'estimate' ? '' : 'none';
+    updateCta();
+  });
+});
+document.querySelectorAll('[data-kcal]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-kcal]').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on'); intensityKcal = +btn.dataset.kcal; calcEst();
+  });
+});
+document.querySelectorAll('[data-min]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-min]').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on'); durationMin = +btn.dataset.min; calcEst();
+  });
+});
+function calcEst() {
+  if (intensityKcal && durationMin) {
+    const est = Math.round(intensityKcal * durationMin);
+    document.getElementById('estKcal').textContent = est;
+    document.getElementById('estResult').style.display = '';
+  }
+  updateCta();
+}
+document.getElementById('actKcal').addEventListener('input', updateCta);
+document.getElementById('weightVal').addEventListener('input', updateCta);
+
+// ── Weight unit ───────────────────────────────────────────────────────────
+document.getElementById('uKg').addEventListener('click',  () => { document.getElementById('uKg').classList.add('on');  document.getElementById('uLbs').classList.remove('on'); });
+document.getElementById('uLbs').addEventListener('click', () => { document.getElementById('uLbs').classList.add('on'); document.getElementById('uKg').classList.remove('on');  });
+
+// ── Analysis simulation engine ────────────────────────────────────────────
+const analysingOverlay = document.getElementById('analysingOverlay');
+const analysingLabel   = document.getElementById('analysingLabel');
+
+function simulateAnalysis(items, label = 'Analysing your meal…', onDone, imageGradient) {
+  closeAllMethodOverlays();
+  analysingLabel.textContent = label;
+  analysingOverlay.classList.add('show');
+  const cancel = document.getElementById('analysingCancel');
+  let cancelled = false;
+  cancel.onclick = () => { cancelled = true; analysingOverlay.classList.remove('show'); };
+  setTimeout(() => {
+    if (cancelled) return;
+    analysingOverlay.classList.remove('show');
+    items.forEach(item => loggedItems.push({ item, qty: 100 }));
+    if (imageGradient) sourceImages.push({ gradient: imageGradient });
+    addAnotherOpen = false;
+    renderPantrySection();
+    updateCta();
+    if (onDone) onDone();
+  }, 1600);
+}
+
+// ── Photo grid ────────────────────────────────────────────────────────────
+(function buildPhotoGrid() {
+  const grid = document.getElementById('photoGrid');
+  if (!grid) return;
+  grid.innerHTML = PHOTO_COLOURS.map((c, i) =>
+    `<div class="photo-tile" data-photo="${i}" style="background:${c}"></div>`
+  ).join('');
+  grid.querySelectorAll('.photo-tile').forEach((tile, i) => {
+    tile.addEventListener('click', () => {
+      simulateAnalysis(CAMERA_MOCK, 'Analysing your photo…', null, PHOTO_COLOURS[i]);
+    });
+  });
+})();
+
+// ── Live camera stream ─────────────────────────────────────────────────────
+let activeStream = null;
+
+async function startStream(videoId) {
+  stopStream();
+  if (!navigator.mediaDevices?.getUserMedia) return;
+  try {
+    activeStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }
+    });
+    const video = document.getElementById(videoId);
+    if (video) video.srcObject = activeStream;
+  } catch (e) {
+    // Camera unavailable or permission denied — dark placeholder remains
+  }
+}
+function stopStream() {
+  if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null; }
+}
+
+// ── Camera ────────────────────────────────────────────────────────────────
+document.getElementById('cameraCaptureBtn').addEventListener('click', () => {
+  simulateAnalysis(CAMERA_MOCK, 'Analysing your photo…', null, 'linear-gradient(135deg,#e8d0b8,#c8a060)');
+});
+document.getElementById('cameraToPhotoBtn').addEventListener('click', () => {
+  stopStream();
+  openMethodOverlay('photoOverlay');
+});
+document.getElementById('photoToCameraBtn').addEventListener('click', () => {
+  openMethodOverlay('cameraOverlay');
+  startStream('cameraVideo');
+});
+
+// ── Describe ─────────────────────────────────────────────────────────────
+const describeInput       = document.getElementById('describeInput');
+const describeAnalyseBtn  = document.getElementById('describeAnalyseBtn');
+
+describeInput.addEventListener('input', () => {
+  const hasText = describeInput.value.trim().length > 0;
+  describeAnalyseBtn.style.display = hasText ? 'block' : 'none';
+  updateCta();
+});
+describeAnalyseBtn.addEventListener('click', () => {
+  if (!describeInput.value.trim()) return;
+  // describe produces no source image
+  simulateAnalysis(DESCRIBE_MOCK, 'Analysing your description…', () => {
+    describeInput.value = '';
+    describeAnalyseBtn.style.display = 'none';
+    updateCta();
+  }, null);
+});
+
+// ── Label scan → serving modal ────────────────────────────────────────────
+const servingScrim = document.getElementById('servingScrim');
+function closeServingModal() { servingScrim.classList.remove('show'); }
+
+document.getElementById('labelScanBtn').addEventListener('click', () => {
+  analysingLabel.textContent = 'Reading the label…';
+  analysingOverlay.classList.add('show');
+  setTimeout(() => {
+    analysingOverlay.classList.remove('show');
+    servingScrim.classList.add('show');
+  }, 1200);
+});
+document.getElementById('servingPer100').addEventListener('click', () => {
+  closeServingModal();
+  loggedItems.push({ item: LABEL_MOCK_100, qty: 100 });
+  addAnotherOpen = false;
+  renderPantrySection(); updateCta();
+});
+document.getElementById('servingPerServing').addEventListener('click', () => {
+  closeServingModal();
+  loggedItems.push({ item: LABEL_MOCK_SRV, qty: 1, unit: 'srv' });
+  addAnotherOpen = false;
+  renderPantrySection(); updateCta();
+});
+servingScrim.addEventListener('click', e => { if (e.target === servingScrim) closeServingModal(); });
+
+
+// ── CTA state ─────────────────────────────────────────────────────────────
+function updateCta() {
+  const activeTop = document.querySelector('[data-top].active')?.dataset.top;
+
+  if (activeTop === 'food') {
+    ctaBtn.disabled = loggedItems.length === 0;
+    ctaBtn.textContent = loggedItems.length > 1 ? 'Log meal' : loggedItems.length === 1 ? `Log ${loggedItems[0].item.name}` : 'Log it';
+  } else if (activeTop === 'activity') {
+    const isEst = document.querySelector('[data-act].active')?.dataset.act === 'estimate';
+    ctaBtn.disabled = isEst ? !(intensityKcal && durationMin) : !+document.getElementById('actKcal').value;
+    ctaBtn.textContent = 'Log activity';
+  } else if (activeTop === 'weight') {
+    ctaBtn.disabled = !+document.getElementById('weightVal').value;
+    ctaBtn.textContent = 'Save weight';
+  }
+}
+
+// ── CTA action ────────────────────────────────────────────────────────────
+ctaBtn.addEventListener('click', () => {
+  if (ctaBtn.disabled) return;
+  const activeTop = document.querySelector('[data-top].active')?.dataset.top;
+  let msg = 'Logged!';
+  if (activeTop === 'food') {
+    msg = loggedItems.length > 1 ? 'Meal logged' : loggedItems.length === 1 ? `${loggedItems[0].item.name} logged` : 'Food logged';
+  } else if (activeTop === 'activity') { msg = 'Activity logged'; }
+  else if (activeTop === 'weight') { msg = 'Weight saved'; }
+  closeSheet();
+  setTimeout(() => showToast(msg), 120);
+});
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+// init
+renderPantrySection();
+</script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-26 — Round 107 (macro sheet clipping; breakdown intro fix; goal pre-fill; gauge polish; custom info icon)
+Last updated: 2026-06-28 — Round 108 (Add-Entry flow design sprint: spec doc + interactive prototype)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -113,38 +113,23 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 107, 2026-06-26)
+7. CURRENT STATUS (as of round 108, 2026-06-28)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. Recent work:
-- Rounds 85–100: BreakdownSheet redesign, gain gauge overhaul, Past Goals
-  portal redesign, chart capping, info panels. All shipped.
-- Round 101 (2026-06-23): First-open fork screen, GoalSetupScreen full
-  rewrite (Simple + Custom modes), sticky header, animations, domain additions.
-- Rounds 102–104 (2026-06-24): Onboarding/goal-setup UI polish complete.
-- Round 105 (2026-06-25): Estimated BMR from weight; breakdown disclaimer;
-  inline profile setup modal.
-- Round 106 (2026-06-25): Codebase audit + fixes; WheelPicker→plain-input
-  migration; keyboard overlay overhaul; sheet polish.
-- Round 107 (2026-06-26): TodayScreen/GoalSetupScreen UX polish + custom
-  info icon.
-  · MacroDetailSheet: overflow-hidden → overflowX:'clip' (clips slide
-    animation horizontally without blocking vertical scroll).
-  · BreakdownSheet intro paragraph moved inside sliding div so it hides
-    correctly during info panel slide-in.
-  · GoalSetupForm: direct useLive(() => repos.user.get()) query so Section 2
-    always pre-fills height/age/sex from saved profile (bypasses prop timing).
-  · Gauge center number: removed +/− prefix (plain number, matching breakdown).
-  · Gauge sub-labels: Food = plain positive, Activity = always −N.
-  · MacroDetailRow: reverted to label → icon order.
-  · Daily target container: center-aligned + text-content color.
-  · Gauge badge: info icon added inside badge to signal tap affordance.
-  · Icon.tsx: custom filled info icon (20×20 SVG) replaces stroke version
-    everywhere. Added to FILL_ICONS + CUSTOM_VIEWBOX.
-  · Info icon color: inline icons paired with secondary text now use
-    text-content-secondary (not text-content-muted).
+- Rounds 85–107: All V1 UI work complete (see CHANGELOG.txt).
+- Round 108 (2026-06-28): Design sprint — Add-Entry flow redesign.
+  No source code changes. Deliverables:
+  · leve-add-entry-design-spec.docx — 15-section design spec, 733
+    paragraphs, 5 embedded Figma screenshots, codebase type mapping,
+    kit component inventory, motion specs, z-index stack.
+  · add-entry-prototype.html — interactive wireframe-quality HTML
+    prototype covering all states (basket, overlays, edit mode, etc).
+  Both files live in Documents/leve/ root.
+  NEXT: Implement the Add-Entry redesign (basket-first UX) based on the
+  spec. Main file: src/ui/components/AddEntrySheet.tsx (~1200 lines).
 - .env.local: gitignored, must be recreated if folder is deleted.
   VITE_FOOD_SCAN_API_URL=https://food-scan-api-delta.vercel.app
-- tsc: clean. lint: clean (r107).
+- tsc: clean. lint: clean (r107 — no code changes in r108).
 
 ----------------------------------------------------------------
 8. ARCHITECTURE NOTES
@@ -173,6 +158,14 @@ changes, on the Mac: `npm install` → `npm test` → `npm run build` →
 ----------------------------------------------------------------
 KNOWN GAPS
 ----------------------------------------------------------------
+HIGH (next round):
+- ADD-ENTRY FLOW REDESIGN: basket-first UX not yet implemented.
+  Spec: leve-add-entry-design-spec.docx (Documents/leve/).
+  Prototype: add-entry-prototype.html (Documents/leve/).
+  Main file to restructure: src/ui/components/AddEntrySheet.tsx (~1200 lines).
+  Key changes: multi-item basket, image hero/collage, meal name, save-to-pantry,
+  method cards (Camera/Photo/Describe/Label), edit-mode overlay, analysis overlay.
+
 MED:
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
   entries. (Goal actions confirm via Sheet; entry deletes are immediate.)
@@ -194,6 +187,13 @@ LOW:
   Very tall/short or young/old users may see a notably off estimate until
   they complete their profile.
 
+DONE (r108):
+- ✓ Add-Entry design spec written (leve-add-entry-design-spec.docx).
+- ✓ Interactive HTML prototype built (add-entry-prototype.html).
+- ✓ Edit mode now hides add-another tray entirely (prototype + spec updated).
+- ✓ Save-to-pantry confirmed unchecked by default (prototype + spec updated).
+- ✓ Meal header confirmed always visible; Edit button hidden when basket empty.
+
 DONE (r107):
 - ✓ MacroDetailSheet horizontal clip without blocking vertical scroll.
 - ✓ BreakdownSheet intro text now hides when info panel slides in.
@@ -213,6 +213,33 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 ----------------------------------------------------------------
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
+
+ROUND 108 — ADD-ENTRY FLOW DESIGN SPRINT: SPEC DOC + INTERACTIVE PROTOTYPE (2026-06-28)
+Files: leve-add-entry-design-spec.docx (new), add-entry-prototype.html (new),
+       leve/PNGs/ (5 Figma frame exports)
+No source code changes — design sprint only.
+- Created add-entry-prototype.html: interactive wireframe-quality behavioural
+  prototype covering all states of the Add-Entry sheet (basket, all 5 input
+  method overlays, edit mode, analysis overlay, serving modal, etc.).
+  Built in vanilla JS/CSS; runnable standalone from file:// with no server.
+- Created leve-add-entry-design-spec.docx (v1.1, 733 paragraphs, 5.4 MB):
+  15-section design spec covering full Add-Entry flow redesign.
+  Key sections:
+  · Overview & Principles, Design Tokens, Add Sheet (motion + z-index stack)
+  · Food Pane with 5 embedded Figma screenshots (empty/1-item/edit/2-items/3-items)
+  · 5 Input Methods (Camera, Photo, Describe, Label, Manual)
+  · Image Hero/Collage, Edit Overlay, Data Model, Analysis Overlay
+  · Activity + Weight panes, Day's Log Edit Meal
+  · Component Inventory (maps to actual AddEntrySheet.tsx)
+  · Section 15: Codebase Reference — spec-to-type mapping, kit components,
+    supporting infra (camera.ts, foodScan.ts, haptics.ts, etc.)
+  · Appendix: 5 Figma frame hyperlinks + prototype reference
+- UX decisions confirmed:
+  · Edit mode hides add-another tray entirely (spec + prototype updated)
+  · Save-to-pantry unchecked by default (prototype checkbox bug fixed)
+  · Meal header always visible; Edit button hidden when basket is empty
+  · Meal name input only shown at 2+ items in basket
+- tsc: clean. lint: clean (no code changes).
 
 ROUND 107 — UX POLISH: MACRO SHEET CLIP, BREAKDOWN INTRO, GOAL PRE-FILL, GAUGE + INFO ICON OVERHAUL (2026-06-26)
 Files: src/ui/screens/TodayScreen.tsx, src/ui/screens/GoalSetupScreen.tsx,
@@ -275,25 +302,6 @@ Files: src/lib/useKeyboardInset.ts (new), src/ui/kit/Sheet.tsx,
   · Header shadow-nav on scroll (scrolled state + onScroll on scroll area).
   · Activity Estimate tab: labels text-subhead, selects bg-surface-sunken.
   · Rounded-t-sheet corners restored: removed bg-surface from header wrapper.
-- tsc: clean. lint: clean.
-
-ROUND 105 — ESTIMATED BMR + BREAKDOWN DISCLAIMER + PROFILE MODAL (2026-06-25)
-Files: src/domain/bmr.ts, src/state/useDay.ts, src/ui/screens/TodayScreen.tsx
-- bmr.ts: added estimateBmrFromWeight(kg) = round(10·kg + 810). Equivalent to
-  Mifflin–St Jeor at pop-avg 170 cm / 35 yr / neutral sex.
-- useDay.ts: DayData gains bmrIsEstimated flag. When bmrActual=0 but a weight
-  entry exists, falls back to estimate so gauge shows non-zero numbers.
-  summarizeDay() uses the estimated BMR so totalBurn is meaningful.
-- TodayScreen:
-  · noBmr banner replaced by softer "Numbers estimated" info row that opens
-    the breakdown sheet on tap.
-  · DayPanel: showProfileSetup state + profileUser prop for initial values.
-  · BreakdownSheet: new bmrIsEstimated + onSetupProfile props; disclaimer
-    banner (bg-surface-sunken) above math rows when estimate is active; BMR
-    info panel text switches to explain the estimate vs exact calculation.
-  · ProfileSetupSheet: new bottom sheet — sex (FilterPills), height (select,
-    140–220 cm), age (select, 10–90 yrs); saves Mifflin–St Jeor BMR to user
-    record on submit; useDay reacts immediately.
 - tsc: clean. lint: clean.
 
 ================================================================

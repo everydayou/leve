@@ -7,6 +7,100 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 110 — FAB MORPH ANIMATION + PICKER UI FIXES (2026-06-28)
+================================================================
+Files: src/ui/kit/FloatingTabBar.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/components/TabBar.tsx, src/ui/AppShell.tsx,
+       src/ui/kit/Sheet.tsx, src/ui/kit/SegmentedControl.tsx
+
+── FAB MORPH ANIMATION ───────────────────────────────────────────────────────
+FloatingTabBar rewritten with 7-phase clip-path morph animation. FAB tap no
+longer opens the speed-dial; instead it kicks off a ~580ms forward sequence
+and the sheet × button (or Log it) triggers the ~580ms reverse.
+
+Phases:
+  fwd1 (230ms)   FAB icon rotates 45° (×). Nav tab icons fade out (opacity 0).
+                 White overlay fades in at pill clip-path position.
+  fwd2 (350ms)   FAB hides. White overlay grows pill → full sheet via CSS
+                 clip-path: inset(). Green CTA pill grows from 48px circle
+                 to full-width 56px pill, centre anchored at FAB position via
+                 transform: translate(-50%, 50%) + bottom: FAB_CENTER_BOTTOM.
+  open           Morph overlay visually behind the Sheet portal (z-200).
+                 Nav tab icons fade back in.
+  rev-init       Snap overlay to full-screen (no transition) — called by
+                 AppShell when sheet × is pressed.
+  rev2 (350ms)   Overlay shrinks full → pill. CTA pill shrinks to 48px circle.
+  rev1 (230ms)   Overlay fades out. Nav icons already visible. FAB fades back in.
+  idle           Normal state.
+
+CSS technique: clip-path: inset() transitions between:
+  Pill: inset(calc(100% - max(0.75rem, env(safe-area-inset-bottom)) - 68px)
+              1rem 0 1rem round 9999px)
+  Full: inset(0 0 0 0 round 1.5rem 1.5rem 0 0)   ← matches Sheet top radius
+
+Speed-dial code preserved (block-commented openMenu). ACTION_ITEMS array and
+all button render logic intact for future re-enable.
+
+New props on FloatingTabBar:
+  onFabMorphComplete?: () => void  — called when fwd morph ends (→ open sheet)
+  startFabReverseRef?: MutableRefObject<(() => void) | null>
+    — FloatingTabBar populates this ref; AppShell calls it to trigger reverse
+
+── APPSHELL COORDINATION ─────────────────────────────────────────────────────
+- startFabReverseRef: useRef<(() => void) | null>(null) — passed to TabBar/FloatingTabBar
+- fabMorphOpenedSheetRef: useRef(false) — tracks whether current sheet was FAB-opened
+- fabMorphSheet: useState(false) — mirror of ref for JSX reads (ESLint react-hooks/refs)
+- handleFabMorphComplete(): sets fabMorphOpenedSheetRef=true, fabMorphSheet=true, opens sheet
+- handleSheetClose(): if FAB-opened → startFabReverseRef.current() then setSheetOpen(false)
+  (same render batch → no flicker); otherwise plain close
+- AddEntrySheet receives noCloseAnimation={fabMorphSheet} → Sheet closeImmediately
+
+── TABBAR ────────────────────────────────────────────────────────────────────
+Forwards onFabMorphComplete + startFabReverseRef through to FloatingTabBar.
+
+── SHEET: closeImmediately PROP ─────────────────────────────────────────────
+New optional prop closeImmediately?: boolean. When true, the × button calls
+onClose() immediately instead of running the 300ms slide-down animation.
+Prevents competing animations during reverse morph.
+
+── SEGMENTEDCONTROL: optionClassName PROP ───────────────────────────────────
+New optional prop optionClassName?: string. AddEntrySheet passes "w-[90px]"
+for fixed-width 90px tabs.
+
+── ADDENTRYSHEET PICKER UI FIXES ────────────────────────────────────────────
+- Tab bar: SegmentedControl (Food/Activity/Weight, optionClassName="w-[90px]")
+  in Sheet stickyHeader slot. Replaces old underline tab button row + tabCls()
+  helper. noCloseAnimation prop plumbed through to Sheet closeImmediately.
+- FoodPicker container: rounded-[24px] (was 16px).
+- Recent list: .slice(0, 4) (was 5).
+- Section headers ("Recent", "Other methods"): replaced <SectionLabel> with
+  <p className="px-1 pt-3 pb-2 text-callout font-semibold text-content">.
+  Sentence case, 16pt, text-content (was uppercase, content-secondary).
+- Method cards: h-[72px] w-[82px], text-subhead text-content icons+labels.
+  Container: py-2 -my-1 overflowY:visible — lets card shadows bleed outside
+  the sunken box without clipping. Border removed from card.
+- List item wrapper: rounded-[16px] (was 12px).
+- Log it always visible: removed hasItems guard from useSheetSetFooter.
+  logBasket(): early return with showToast?.('Add something first') when empty.
+- SVG icons (fill="currentColor") replacing old stroke icons:
+  CameraMethodIcon — corner brackets + camera lens from camera.svg
+  PhotoMethodIcon  — image frame + mountain thumbnail from photo.svg
+  DescribeMethodIcon — document + lines from describe.svg
+  LabelMethodIcon  — document + camera overlay from label.svg
+  ManualMethodIcon — document with T-text from manual.svg
+- SectionLabel import removed (no longer used).
+- hasItems and logLabel variables removed from FoodForm (no longer used).
+
+── TYPECHECK / LINT ──────────────────────────────────────────────────────────
+tsc: clean. lint: clean.
+Issues fixed during session:
+  · hasItems and logLabel unused after removing guard (removed variables).
+  · useRef import in FloatingTabBar unused (removed import).
+  · openMenu unused in FloatingTabBar — block-commented, void _openMenu trick.
+  · fabMorphOpenedSheetRef.current read during render → added fabMorphSheet
+    state mirror to satisfy react-hooks/refs ESLint rule.
+
+================================================================
 ROUND 108 — ADD-ENTRY FLOW DESIGN SPRINT: SPEC DOC + INTERACTIVE PROTOTYPE (2026-06-28)
 ================================================================
 Files: leve-add-entry-design-spec.docx (new), add-entry-prototype.html (new),

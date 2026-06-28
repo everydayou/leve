@@ -3,9 +3,13 @@ import { hapticLight } from '../../lib/haptics';
 /* iOS segmented control — used for the goal chart range (Weekly/Monthly/Total)
    and Add-entry Food/Activity tabs. Sliding selected pill on a sunken track. */
 export function SegmentedControl<T extends string>({
-  options, value, onChange,
+  options, value, onChange, optionClassName,
 }: {
-  options: { value: T; label: string }[]; value: T; onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  /** Extra className applied to every option button (e.g. "w-[90px]" for fixed width). */
+  optionClassName?: string;
 }) {
   return (
     <div className="inline-flex w-fit rounded-pill bg-surface-sunken p-0.5">
@@ -16,7 +20,8 @@ export function SegmentedControl<T extends string>({
             key={o.value}
             onClick={() => { hapticLight(); onChange(o.value); }}
             className={`rounded-pill px-4 py-1.5 text-subhead font-medium transition whitespace-nowrap
-              ${active ? 'segmented-active text-accent-hover shadow-sm' : 'text-content'}`}
+              ${active ? 'segmented-active text-accent-hover shadow-sm' : 'text-content'}
+              ${optionClassName ?? ''}`}
           >
             {o.label}
           </button>

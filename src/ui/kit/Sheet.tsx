@@ -61,7 +61,7 @@ const DRAG_DISMISS_PX = 110; // drag at least this far down to dismiss
  *  screen consumes (Add entry, Today edit sheets, Pantry form, Account sheets). */
 const EXPAND_THRESHOLD = 60; // px of upward drag to trigger expansion
 
-export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, rightAction, footer, onClose, forceExpanded, scrollAreaPaddingBottom, 'aria-label': ariaLabel }: {
+export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, rightAction, footer, onClose, forceExpanded, scrollAreaPaddingBottom, closeImmediately, 'aria-label': ariaLabel }: {
   children: ReactNode;
   title?: string;
   /** Optional icon rendered inline to the left of the title text. */
@@ -86,6 +86,9 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
   /** Accessible name for the dialog — used by screen readers (VoiceOver: "Add entry, web dialog").
    *  Falls back to `title` if omitted. */
   'aria-label'?: string;
+  /** When true, the × close button calls onClose() immediately with no slide-down animation.
+   *  Use when the caller handles its own dismiss animation (e.g. FAB morph reverse). */
+  closeImmediately?: boolean;
 }) {
   const [dragY, setDragY] = useState(0);
   const [closing, setClosing] = useState(false);
@@ -429,7 +432,7 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
                 manage their own header (e.g. navigating sub-pages) omit title. */}
             {title !== undefined && (
               <div className="mb-4 flex items-center gap-2">
-                <button data-no-drag onClick={close} aria-label="Close" className="-m-3 p-3 text-content-secondary">
+                <button data-no-drag onClick={closeImmediately ? onClose : close} aria-label="Close" className="-m-3 p-3 text-content-secondary">
                   <Icon name="close" size={22} strokeWidth={2.25} />
                 </button>
                 <div className="flex-1 flex flex-col items-center">

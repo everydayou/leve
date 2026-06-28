@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Icon, type IconName } from './Icon';
 import { hapticLight } from '../../lib/haptics';
 import { prefersReducedMotion } from '../../lib/motion';
@@ -10,14 +10,12 @@ type ActionItem = {
   type: ActionType;
   icon: IconName;
   label: string;
-  /** Distance ring from the FAB centre. 'inner' = adjacent slot, 'outer' = one
-   *  slot further out. Drives both the emanate-from-FAB start offset and the
-   *  inner-leads-outer stagger. */
   tier: 'inner' | 'outer';
 };
 
 const SCAN_ENABLED = !!(import.meta.env.VITE_FOOD_SCAN_API_URL as string | undefined);
 
+// Speed-dial items — preserved for future use (currently disconnected from FAB tap)
 const ACTION_ITEMS: ActionItem[] = [
   ...(SCAN_ENABLED ? [{ type: 'scan' as ActionType, icon: 'scanFood' as IconName, label: 'Scan meal', tier: 'outer' as const }] : []),
   { type: 'food',     icon: 'foodIcon',    label: 'Food',       tier: 'inner' },
@@ -26,47 +24,83 @@ const ACTION_ITEMS: ActionItem[] = [
 ];
 
 /*
+  FAB MORPH ANIMATION
+  ───────────────────
+  Tapping the FAB skips the speed-dial and instead morphs the nav bar into the sheet:
+
+  fwd1 (230ms) — FAB rotates to ×; nav icons fade out; white pill overlay fades in
+  fwd2 (350ms) — FAB rotates back to +; white overlay grows from pill → full screen;
+                 existing FAB hides; green CTA pill grows from 48px → full width
+  open         — morph overlay hidden behind the Sheet portal (z-200)
+  rev-init     — immediately snap overlay back to full-screen white (no transition)
+  rev2 (350ms) — white shrinks full→pill; CTA shrinks full→48px circle
+  rev1 (230ms) — white pill fades out; nav icons fade in; FAB reappears
+  idle         — normal state
+
+  The white overlay uses clip-path: inset() which is fully animatable in CSS.
+  Pill clip:  inset(calc(100% - safe - 68px)  1rem 0 1rem round 9999px)
+  Full clip:  inset(0 0 0 0 round 1.5rem 1.5rem 0 0)   ← matches Sheet top radius
+
+  The CTA pill (green, absolutely positioned over the overlay) grows in width
+  and keeps its centre anchored to the FAB position via bottom + translate(−50%,50%).
+
   Layer stack (bottom → top):
-  0  nav-backdrop  120 px gradient transparent→surface-muted — ALWAYS on. The
-                   resting backdrop that lets the floating pill read over
-                   scrolling content (restored from round 88; token, no hex).
-  1  tab-pill      glass pill with navigation tab buttons.
-  2  bg-solid      150 px, surface-muted @ 90 % — ACTIVE ONLY (menu open). Painted
-                   ABOVE the pill so it HIDES the nav bar (pill + labels) when the
-                   dial opens — a backdrop BEHIND the pill could never hide it.
-  3  bg-gradient   100 px, transparent→surface-muted @ 90 % — ACTIVE ONLY.
-                   Layers 2+3 are the backdrop under the FAB while the dial is
-                   open; they fade in/out with the FAB morph.
-  4  scrim         full-screen INVISIBLE tap-blocker — rendered last-but-one so it
-                   sits above the pill in the stacking order; when open it
-                   intercepts ALL taps (including the nav bar). No visible fill.
-  5  fab+actions   FAB (48 px base → 64 px active) + 4 action buttons (48 px) —
-                   rendered AFTER the scrim, always interactive; container height
-                   hard-matched to the real pill so the FAB -top-4 aligns correctly
+  0  nav-backdrop  gradient — ALWAYS on
+  1  tab-pill      glass pill — ALWAYS on
+  2  bg-solid      150px surface-muted — ONLY when menuOpen (speed-dial, preserved)
+  3  bg-gradient   — ONLY when menuOpen
+  4  scrim         full-screen tap blocker — ONLY when menuOpen
+  5  FAB+actions   — ALWAYS rendered; FAB hides during fwd2–rev2
+  6  morph-overlay white clip-path div + green CTA — ONLY during morph phases
 */
+
+type MorphPhase = 'idle' | 'fwd1' | 'fwd2' | 'open' | 'rev-init' | 'rev2' | 'rev1';
+
+// FAB center is 48px from the bottom of the inner pill container (including safe area).
+// Combined: safe-area-inset-bottom + PILL_H(56px) + (-top-4 offset to FAB center) = safe + 48
+// → bottom: calc(safe + 48px), and translate(−50%, 50%) keeps the centre fixed as CTA grows.
+const FAB_CENTER_BOTTOM = 'calc(max(0.75rem, env(safe-area-inset-bottom)) + 48px)';
+
+// Pill clip: shows the nav pill area (68px from bottom of container, ±1rem sides)
+const PILL_CLIP = 'inset(calc(100% - max(0.75rem, env(safe-area-inset-bottom)) - 68px) 1rem 0 1rem round 9999px)';
+// Full-screen clip: matches Sheet's rounded-t-sheet top corners (--radius-sheet = 1.5rem)
+const FULL_CLIP = 'inset(0 0 0 0 round 1.5rem 1.5rem 0 0)';
+
 export function FloatingTabBar({
-  items, active, onSelect, onAction,
+  items, active, onSelect, onAction, onFabMorphComplete, startFabReverseRef,
 }: {
   items: TabItem[];
   active: string;
   onSelect: (key: string) => void;
+  /** Called when a speed-dial action is chosen OR when FAB morph forward completes. */
   onAction: (type: ActionType) => void;
+  /** Called at the end of the forward morph (fwd2) so AppShell can open the sheet. */
+  onFabMorphComplete?: () => void;
+  /** Ref populated by FloatingTabBar with a function that AppShell can call to start
+   *  the reverse morph (sheet closing → FAB restores). */
+  startFabReverseRef?: React.MutableRefObject<(() => void) | null>;
 }) {
+  // ── Speed-dial state (preserved, currently disconnected from FAB tap) ──────
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted]   = useState(false);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- close speed-dial when the active tab changes externally
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMenuOpen(false); }, [active]);
 
+  /* Speed-dial open — preserved for future use (currently disconnected from FAB tap)
   function openMenu() {
     hapticLight();
     setMenuOpen(true);
     requestAnimationFrame(() => setMounted(true));
   }
+  */
+  // Provide a no-op so the rest of the speed-dial machinery has something to reference
+  const _openMenu = () => { /* see block comment above */ };
+  void _openMenu; // suppress TS6133
 
   function closeMenu() {
     hapticLight();
-    setMounted(false);    // buttons, FAB and bg all revert together (same render)
+    setMounted(false);
     setMenuOpen(false);
   }
 
@@ -77,40 +111,109 @@ export function FloatingTabBar({
     onAction(type);
   }
 
+  // ── Morph animation state ─────────────────────────────────────────────────
+  const [morphPhase, setMorphPhase] = useState<MorphPhase>('idle');
+  // morphEntered: triggers the opacity fade-in of the pill overlay in fwd1
+  const [morphEntered, setMorphEntered] = useState(false);
+
+  const startReverse = useCallback(() => {
+    // rev-init: immediately full screen (no transition), then transition to pill
+    setMorphPhase('rev-init');
+    requestAnimationFrame(() => {
+      setMorphPhase('rev2');
+    });
+    setTimeout(() => setMorphPhase('rev1'), 350);
+    setTimeout(() => {
+      setMorphPhase('idle');
+      setMorphEntered(false);
+    }, 580);
+  }, []);
+
+  // Expose startReverse to AppShell via ref
+  useEffect(() => {
+    if (startFabReverseRef) startFabReverseRef.current = startReverse;
+    return () => { if (startFabReverseRef) startFabReverseRef.current = null; };
+  }, [startFabReverseRef, startReverse]);
+
+  function startMorph() {
+    if (morphPhase !== 'idle') return;
+    hapticLight();
+    setMorphPhase('fwd1');
+    requestAnimationFrame(() => setMorphEntered(true)); // trigger opacity fade-in
+
+    setTimeout(() => setMorphPhase('fwd2'), 230); // FAB_DUR
+
+    setTimeout(() => {
+      onFabMorphComplete?.();
+      setMorphPhase('open');
+    }, 580); // FAB_DUR + 350
+  }
+
   const mid   = Math.ceil(items.length / 2);
   const left  = items.slice(0, mid);
   const right = items.slice(mid);
 
   const reduced    = prefersReducedMotion();
-  const springEase = 'cubic-bezier(0.34,1.56,0.64,1)';          // FAB: full spring
-  const btnEase    = 'cubic-bezier(0.34,1.30,0.64,1)';          // buttons: gentler
+  const springEase = 'cubic-bezier(0.34,1.56,0.64,1)';
+  const btnEase    = 'cubic-bezier(0.34,1.30,0.64,1)';
 
-  /*
-    CHOREOGRAPHY (two-phase, mirrored open ↔ close):
+  const FAB_DUR  = 230;
+  const BTN_DUR  = 380;
+  const BTN_LEAD = Math.round(FAB_DUR / 2);
 
-    OPEN  (tap +):
-      Phase 1 (0 → FAB_DUR):  FAB rotates +→× and scales 48→64; the active
-                              background (layers 1+2) fades in. These run
-                              together, keyed off menuOpen.
-      Phase 2 (≈¾ in → …):    the four buttons emanate FROM BEHIND the FAB —
-                              starting collapsed at the FAB centre (scaled down,
-                              hidden), then fanning out to their slots on the
-                              spring. Keyed off `mounted`, delayed by BTN_LEAD.
-    CLOSE (tap ×):
-      Everything reverts AT ONCE — buttons retract behind the FAB while the FAB
-      rotates ×→+ / scales down and the background fades out, all kicked off in
-      the same render (menuOpen + mounted both → false, no delay).
-  */
-  const FAB_DUR  = 230;   // FAB rotate+scale AND background fade (was 280)
-  const BTN_DUR  = 380;   // action-button spring travel (was 460)
-  const BTN_LEAD = Math.round(FAB_DUR / 2);  // buttons start HALFWAY through the FAB
-
-  // Slot distance from the FAB centre (px), measured to each button's resting
-  // centre so they collapse exactly onto the FAB. With the 64 px active FAB,
-  // 12 px gaps and 48 px buttons:
-  //   inner = half-FAB(32) + gap(12) + half-btn(24)              = 68
-  //   outer = inner + (half-btn(24) + gap(12) + half-btn(24))    = 128
   const slotDist = (tier: 'inner' | 'outer') => (tier === 'outer' ? 128 : 68);
+
+  // ── Morph overlay computed styles ─────────────────────────────────────────
+  const isMorphing = morphPhase !== 'idle';
+  // Show the FAB button normally during idle, fwd1, rev1; hide during active morph
+  const fabHidden = morphPhase === 'fwd2' || morphPhase === 'open' || morphPhase === 'rev-init' || morphPhase === 'rev2';
+  // FAB icon rotates to × during fwd1 only
+  const fabRotated = morphPhase === 'fwd1';
+  // Nav tab opacity: normal when idle or open (sheet covers everything); 0 during all morph phases
+  const navIconOpacity = (morphPhase === 'idle' || morphPhase === 'open') ? 1 :
+    morphPhase === 'rev1' ? 1 : // fading back in
+    0;
+
+  // White overlay clip-path
+  const overlayClipPath = (() => {
+    switch (morphPhase) {
+      case 'idle': case 'fwd1': case 'rev1': return PILL_CLIP;
+      case 'fwd2': case 'open': case 'rev-init': return FULL_CLIP;
+      case 'rev2': return PILL_CLIP; // transitions FROM FULL_CLIP
+      default: return PILL_CLIP;
+    }
+  })();
+
+  // Overlay opacity: fades in during fwd1, always 1 during active morph, fades out during rev1
+  const overlayOpacity = (() => {
+    switch (morphPhase) {
+      case 'idle': return 0;
+      case 'fwd1': return morphEntered ? 1 : 0;
+      case 'rev1': return 0; // fading out
+      default: return 1;
+    }
+  })();
+
+  // CSS transition for the overlay
+  const overlayTransition = reduced ? 'none' : (() => {
+    switch (morphPhase) {
+      case 'fwd1': return `opacity ${FAB_DUR}ms ease, clip-path ${FAB_DUR}ms ease`;
+      case 'fwd2': return 'clip-path 350ms cubic-bezier(0.22, 0.65, 0.25, 1)';
+      case 'rev-init': return 'none'; // immediate snap to full-screen
+      case 'rev2': return 'clip-path 350ms cubic-bezier(0.22, 0.65, 0.25, 1)';
+      case 'rev1': return 'opacity 230ms ease';
+      default: return 'none';
+    }
+  })();
+
+  // Green CTA pill: visible and expanding during fwd2, shrinking during rev2
+  const showCTA = morphPhase === 'fwd2' || morphPhase === 'rev-init' || morphPhase === 'rev2';
+  const ctaExpanded = morphPhase === 'fwd2' || morphPhase === 'rev-init';
+  const ctaTransition = reduced ? 'none' : (() => {
+    if (morphPhase === 'fwd2') return 'width 350ms cubic-bezier(0.22, 0.65, 0.25, 1), height 350ms cubic-bezier(0.22, 0.65, 0.25, 1)';
+    if (morphPhase === 'rev2') return 'width 350ms cubic-bezier(0.22, 0.65, 0.25, 1), height 350ms cubic-bezier(0.22, 0.65, 0.25, 1)';
+    return 'none';
+  })();
 
   /* ── Tab button ────────────────────────────────────────────────────────── */
   const Tab = (t: TabItem) => {
@@ -122,8 +225,11 @@ export function FloatingTabBar({
         aria-selected={isActive}
         aria-label={t.label}
         onClick={() => { hapticLight(); onSelect(t.key); }}
-        className={`flex flex-1 flex-col items-center gap-0.5 py-1 transition-opacity duration-150
-          ${menuOpen ? 'opacity-30' : 'opacity-100'}`}
+        className="flex flex-1 flex-col items-center gap-0.5 py-1"
+        style={{
+          opacity: navIconOpacity,
+          transition: reduced ? 'none' : 'opacity 230ms ease',
+        }}
       >
         <Icon name={t.icon} size={24} filled={isActive} strokeWidth={1.85}
           className={isActive ? 'text-content' : 'text-content-secondary'} aria-hidden />
@@ -134,40 +240,13 @@ export function FloatingTabBar({
     );
   };
 
-  /*
-    Action button animation — "emanate from behind the FAB":
-      START (closed): translateX(±slotDist) scale(0.4) opacity:0
-                      → collapsed onto the FAB centre, scaled down and hidden
-                        BEHIND the FAB (the FAB is painted after / on top).
-      END   (open):   translateX(0) scale(1) opacity:1  → resting in its slot.
-
-    Transform order is translateX THEN scale, so the offset is measured in the
-    parent's coordinate space (the button travels the FULL slot distance from
-    the FAB centre regardless of its current scale). Left slots collapse to the
-    RIGHT (+, toward the FAB), right slots to the LEFT (−).
-
-    Timing: on OPEN every button is delayed by BTN_LEAD so it starts ≈¾ through
-    the FAB morph; inner buttons lead, outer follow (+70 ms). On CLOSE there is
-    no delay — buttons retract immediately, ahead of the FAB.
-  */
-  /* NOTE: this is a render HELPER, invoked as `renderActionBtn(...)` (NOT as a
-     <Component/>). Defining a component inline and using it as JSX gives it a new
-     function identity every render, so React would remount the <button> each time
-     — and a freshly-mounted node has no previous style to transition from, so the
-     buttons would just pop in/out with no animation. Calling it as a function (the
-     same pattern as Tab above) keeps the host <button> nodes stable across renders
-     so their CSS transitions actually run. */
   const renderActionBtn = (item: ActionItem, side: 'left' | 'right') => {
     const open     = menuOpen && mounted;
     const dist     = slotDist(item.tier);
-    const startTx  = side === 'left' ? dist : -dist;       // collapse toward FAB
+    const startTx  = side === 'left' ? dist : -dist;
     const tx       = open ? 0 : startTx;
-    const lead     = item.tier === 'outer' ? 70 : 0;       // inner leads outer
+    const lead     = item.tier === 'outer' ? 70 : 0;
     const delay    = reduced ? 0 : (open ? BTN_LEAD + lead : 0);
-    // Subtle unfurl: start at ±45° and settle to 0°. Right buttons spin clockwise
-    // (−45→0), left buttons counter-clockwise (+45→0). Rotate is LAST in the
-    // transform list so it spins around the button's own centre and doesn't
-    // affect the parent-space translateX travel.
     const startRot = side === 'right' ? -45 : 45;
     const rot      = open ? 0 : startRot;
 
@@ -192,29 +271,16 @@ export function FloatingTabBar({
     );
   };
 
-  const leftActions  = ACTION_ITEMS.slice(0, 2);  // scan, food
-  const rightActions = ACTION_ITEMS.slice(2);      // activity, weight
+  const leftActions  = ACTION_ITEMS.slice(0, 2);
+  const rightActions = ACTION_ITEMS.slice(2);
 
-  // Shared bottom padding — same on Layer 3 (pill) and Layer 5 (FAB+actions)
   const bottomPad = 'pb-[max(0.75rem,env(safe-area-inset-bottom))]';
-
-  /*
-    Layer 5 pill height calculation:
-      Tab button: py-1 (8 px) + icon 24 px + gap-0.5 (2 px) + text-micro (~10 px) = 44 px
-      Pill outer: py-1.5 (12 px)
-      Total: 56 px
-    The FAB uses -top-4 (-16 px) → FAB centre = -16 + 24 = 8 px from pill top.
-    Action row uses top: -12 px → button centre = -12 + 20 = 8 px from pill top. ✓
-  */
   const PILL_H = 56;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-30">
 
-      {/* ── Layer 0: Nav backdrop — 120 px gradient, ALWAYS on ──────────────
-          Restored resting backdrop (round 88). Fades transparent→surface-muted
-          so the floating pill stays legible over scrolling content. Token-based
-          (no hardcoded hex); pointer-events:none so it never blocks taps.       */}
+      {/* ── Layer 0: Nav backdrop ──────────────────────────────────────────── */}
       <div
         className="pointer-events-none absolute inset-x-0 bottom-0"
         style={{
@@ -223,12 +289,7 @@ export function FloatingTabBar({
         }}
       />
 
-      {/* ── Layer 1: Tab pill ───────────────────────────────────────────────
-          Sits directly on the nav backdrop. CRUCIAL: the active FAB backdrop
-          (layers 2+3) is rendered AFTER this, so when the dial opens it paints
-          OVER the pill — that's what makes the nav bar (pill + labels) disappear
-          behind the 98 % surface. A backdrop BEHIND the pill could never hide it,
-          no matter the opacity.                                                */}
+      {/* ── Layer 1: Tab pill ─────────────────────────────────────────────── */}
       <div className={`pointer-events-none absolute inset-x-0 bottom-0 flex justify-center px-4 ${bottomPad}`}>
         <div
           role="tablist"
@@ -241,10 +302,7 @@ export function FloatingTabBar({
         </div>
       </div>
 
-      {/* ── Layer 2: Active solid base — 150 px, surface-muted @ 90 % ────────
-          Active only. Painted ABOVE the pill so it HIDES the nav bar when the
-          dial is open. Keyed off menuOpen and timed to FAB_DUR so it fades in/
-          out in lock-step with the FAB morph.                                  */}
+      {/* ── Layer 2: Speed-dial active solid base (preserved) ────────────── */}
       <div
         className="pointer-events-none absolute inset-x-0 bottom-0"
         style={{
@@ -255,9 +313,7 @@ export function FloatingTabBar({
         }}
       />
 
-      {/* ── Layer 3: Active gradient fade — 100 px, transparent→surface-muted @ 90 % ──
-          Sits above layer 2. Div opacity 0.9 → bottom = 90 % surface-muted,
-          top = fully transparent (0 %). Same menuOpen/FAB_DUR sync.            */}
+      {/* ── Layer 3: Speed-dial active gradient (preserved) ──────────────── */}
       <div
         className="pointer-events-none absolute inset-x-0"
         style={{
@@ -269,53 +325,46 @@ export function FloatingTabBar({
         }}
       />
 
-      {/* ── Layer 4: Full-screen tap-blocker ────────────────────────────────
-          Rendered AFTER the pill → sits ABOVE it in stacking order. INVISIBLE
-          (no fill): its only job is to intercept every tap (including the nav
-          bar) so the rest of the screen is inert while the dial is open. The
-          visible backdrop comes entirely from layers 1+2.                      */}
+      {/* ── Layer 4: Tap-blocker scrim (speed-dial, preserved) ───────────── */}
       <div
         className="absolute inset-0"
-        style={{
-          background: 'transparent',
-          pointerEvents: menuOpen ? 'auto' : 'none',
-        }}
+        style={{ background: 'transparent', pointerEvents: menuOpen ? 'auto' : 'none' }}
         onClick={closeMenu}
         aria-hidden
       />
 
-      {/* ── Layer 5: FAB + action buttons ───────────────────────────────────
-          Rendered AFTER the scrim → stays interactive above it.
-          Container height = PILL_H (56 px) so -top-4 FAB offset is identical
-          to Layer 3, keeping the FAB visually aligned with the pill.          */}
+      {/* ── Layer 5: FAB + speed-dial action buttons ──────────────────────── */}
       <div className={`pointer-events-none absolute inset-x-0 bottom-0 flex justify-center px-4 ${bottomPad}`}>
         <div
           className="relative w-full max-w-sm px-3 py-1.5"
           style={{ height: PILL_H }}
         >
-          {/* Action button row — 12 px gaps, centred above FAB */}
+          {/* Speed-dial action buttons (preserved, only visible when menuOpen) */}
           <div
             className="pointer-events-none absolute inset-x-0 flex items-center justify-center gap-3"
             style={{ top: '-16px' }}
             aria-hidden={!menuOpen ? true : undefined}
           >
             {leftActions.map((item) => renderActionBtn(item, 'left'))}
-            {/* 64 px placeholder = active FAB width, so the gap-3 leaves a true
-                12 px between the FAB and the two inner buttons */}
             <div className="w-16 shrink-0" aria-hidden />
             {rightActions.map((item) => renderActionBtn(item, 'right'))}
           </div>
 
-          {/* FAB — 48 px base, scales to 64 px when active. Scaled from its own
-              centre (transform-origin) so it grows symmetrically and stays
-              anchored to the same point above the pill. */}
-          <div className="pointer-events-auto absolute left-1/2 -top-4 -translate-x-1/2">
+          {/* FAB button — hidden during active morph phases (fwd2 → rev2) */}
+          <div
+            className="pointer-events-auto absolute left-1/2 -top-4 -translate-x-1/2"
+            style={{
+              opacity: fabHidden ? 0 : 1,
+              pointerEvents: fabHidden ? 'none' : 'auto',
+              transition: reduced ? 'none' : `opacity ${fabHidden ? 150 : 200}ms ease`,
+            }}
+          >
             <button
               aria-label={menuOpen ? 'Close menu' : 'Add entry'}
-              onClick={menuOpen ? closeMenu : openMenu}
+              onClick={morphPhase === 'idle' ? startMorph : menuOpen ? closeMenu : undefined}
               style={{
                 width: 48, height: 48,
-                transform: menuOpen ? 'scale(1.3333)' : 'scale(1)',  // 48 → 64 px
+                transform: menuOpen ? 'scale(1.3333)' : 'scale(1)',
                 transformOrigin: 'center',
                 transition: reduced ? 'none' : `transform ${FAB_DUR}ms ${springEase}`,
               }}
@@ -324,7 +373,7 @@ export function FloatingTabBar({
               <span
                 style={{
                   display: 'inline-flex',
-                  transform: menuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
+                  transform: (menuOpen || fabRotated) ? 'rotate(45deg)' : 'rotate(0deg)',
                   transition: reduced
                     ? 'none'
                     : `transform ${FAB_DUR}ms ${springEase}`,
@@ -336,6 +385,45 @@ export function FloatingTabBar({
           </div>
         </div>
       </div>
+
+      {/* ── Layer 6: Morph animation overlay ─────────────────────────────────
+          Rendered only when a morph phase is active. Contains:
+          (a) white surface div clipped to pill → full screen
+          (b) green CTA pill that grows from FAB size to full width           */}
+      {isMorphing && (
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          {/* White surface — clip-path morphs between pill and full screen */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: 'var(--color-surface)',
+              clipPath: overlayClipPath,
+              opacity: overlayOpacity,
+              transition: overlayTransition,
+            }}
+          />
+
+          {/* Green CTA pill — visible during fwd2 / rev-init / rev2 */}
+          {showCTA && (
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                bottom: FAB_CENTER_BOTTOM,
+                // translate(-50%, 50%) keeps the centre fixed at FAB_CENTER_BOTTOM
+                // as the element's width/height change during animation
+                transform: 'translate(-50%, 50%)',
+                width: ctaExpanded ? 'calc(100% - 2rem)' : '48px',
+                height: ctaExpanded ? '56px' : '48px',
+                borderRadius: '9999px',
+                backgroundColor: 'var(--color-accent)',
+                transition: ctaTransition,
+              }}
+            />
+          )}
+        </div>
+      )}
 
     </div>
   );

@@ -3,23 +3,23 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { FloatingTabBar, type TabItem, type ActionType } from '../kit';
 export type { ActionType };
 
-/* Router-bound wrapper around the kit's FloatingTabBar (the glass floating
-   nav). Maps the active route to the selected tab and routes on select; the
-   central FAB opens the Add-entry sheet via onAdd. Double-tap Today resets
-   the viewed date to today via onTodayDoubleClick. */
 const TABS: TabItem[] = [
   { key: '/today', label: 'Diary', icon: 'today' },
-  { key: '/goal', label: 'Goal', icon: 'goal' },
-  { key: '/pantry', label: 'Pantry', icon: 'pantry' },
-  { key: '/account', label: 'Account', icon: 'account' },
+  { key: '/goal',  label: 'Goal',  icon: 'goal'  },
+  { key: '/pantry',label: 'Pantry',icon: 'pantry' },
+  { key: '/account',label:'Account',icon:'account' },
 ];
 
 export function TabBar({
   onAction,
+  onFabMorphComplete,
+  startFabReverseRef,
   onTodayDoubleClick,
   onActiveTabDoubleTap,
 }: {
   onAction: (type: ActionType) => void;
+  onFabMorphComplete?: () => void;
+  startFabReverseRef?: React.MutableRefObject<(() => void) | null>;
   onTodayDoubleClick: () => void;
   onActiveTabDoubleTap: (key: string) => void;
 }) {
@@ -41,5 +41,14 @@ export function TabBar({
     }
   };
 
-  return <FloatingTabBar items={TABS} active={active} onSelect={handleSelect} onAction={onAction} />;
+  return (
+    <FloatingTabBar
+      items={TABS}
+      active={active}
+      onSelect={handleSelect}
+      onAction={onAction}
+      onFabMorphComplete={onFabMorphComplete}
+      startFabReverseRef={startFabReverseRef}
+    />
+  );
 }

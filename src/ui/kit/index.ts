@@ -27,3 +27,4 @@ export { Toast } from './Toast';
 export { EmptyState } from './EmptyState';
 export { Skeleton } from './Skeleton';
 export { ServingStepper } from './ServingStepper';
+export { ImageHero } from './ImageHero';

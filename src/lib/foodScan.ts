@@ -37,3 +37,22 @@ export async function scanFood(imageDataUrl: string): Promise<ScannedFood[]> {
   const data = await response.json() as { foods?: ScannedFood[] };
   return Array.isArray(data.foods) ? data.foods : [];
 }
+
+/** Estimate nutrition from a plain-text meal description.
+ *  Requires a /api/describe-food endpoint on the same API server. */
+export async function describeFood(description: string): Promise<ScannedFood[]> {
+  if (!API_URL) {
+    throw new Error('Food scan not configured. Set VITE_FOOD_SCAN_API_URL in .env.local.');
+  }
+  const response = await fetch(`${API_URL}/api/describe-food`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ description }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error ?? `Describe failed (${response.status})`);
+  }
+  const data = await response.json() as { foods?: ScannedFood[] };
+  return Array.isArray(data.foods) ? data.foods : [];
+}

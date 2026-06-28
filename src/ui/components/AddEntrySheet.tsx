@@ -6,22 +6,23 @@ import { nutritionFor } from '../../domain/calc';
 import { currentWeightKg } from '../../domain/goal';
 import { kgToLbs, lbsToKg } from '../../domain/units';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
-import { onDecimalChange } from '../../lib/num';
 import { fmtDiaryDate } from '../../lib/date';
-import { PhotoPicker } from './PhotoPicker';
 import { downscaleImage, MAX_SCAN_PX } from '../../lib/image';
 import { captureFromCamera, captureFromLibrary, isNativeIOS } from '../../lib/camera';
-import { scanFood } from '../../lib/foodScan';
-
-const SCAN_ENABLED = !!(import.meta.env.VITE_FOOD_SCAN_API_URL as string | undefined);
-import { SegmentedControl, Button, LabeledInput, NumberField, WheelPicker, Icon, Sheet, MeasurementTypeSelector, ServingStepper, useSheetSetFooter } from '../kit';
+import { scanFood, describeFood } from '../../lib/foodScan';
+import { hapticLight } from '../../lib/haptics';
+import {
+  SegmentedControl, Button, LabeledInput, NumberField, WheelPicker,
+  Icon, Sheet, useSheetSetFooter, SectionLabel, ListRow, ImageHero,
+} from '../kit';
 import type { ShowToast } from './Toaster';
 import { findByName } from '../../domain/pantry';
-import type { FoodItem, MeasurementType, MealItem } from '../../domain/types';
+import type { FoodItem, MealItem, NutritionSnapshot } from '../../domain/types';
 
-/** Recalculate and persist the account BMR using the most recent weight entry
- *  on or before today. Editing a past entry should not change the account BMR
- *  to that old value — only the latest calendar weight drives the profile BMR. */
+const SCAN_ENABLED = !!(import.meta.env.VITE_FOOD_SCAN_API_URL as string | undefined);
+
+// ── Account BMR sync ──────────────────────────────────────────────────────────
+
 async function syncAccountBmr() {
   const today   = todayISO();
   const weights = await repos.weights.all();
@@ -30,84 +31,124 @@ async function syncAccountBmr() {
     .sort((a, b) => b.date.localeCompare(a.date))[0];
   if (!latest) return;
   const user = await repos.user.get();
-  if (user && canComputeBmr({ weightKg: latest.weightKg, heightCm: user.heightCm, age: user.age, sex: user.sex })) {
-    const newBmr = mifflinStJeorBMR({ weightKg: latest.weightKg, heightCm: user.heightCm, age: user.age!, sex: user.sex! });
+  if (
+    user &&
+    canComputeBmr({ weightKg: latest.weightKg, heightCm: user.heightCm, age: user.age, sex: user.sex })
+  ) {
+    const newBmr = mifflinStJeorBMR({
+      weightKg: latest.weightKg, heightCm: user.heightCm,
+      age: user.age!, sex: user.sex!,
+    });
     await repos.user.save({ ...user, bmr: newBmr });
   }
 }
 
+// ── Internal basket types ─────────────────────────────────────────────────────
 
+type BasketItem = {
+  id: string;
+  name: string;
+  /** Stored as literal union to avoid importing MeasurementType here. */
+  measurementType: 'per_100g' | 'per_serving';
+  /** 100 for per_100g; grams-per-serving for per_serving. */
+  referenceAmount: number;
+  /** Macros at referenceAmount (not at current qty). */
+  calories: number;
+  protein: number;
+  carbs: number;
+  fiber: number;
+  fat: number;
+  /** Current quantity: grams (per_100g) or servings (per_serving). */
+  qty: number;
+  /** Links to a SourceGroup photo (scan or pantry photo). */
+  sourceId?: string;
+  /** Set when item was added from the pantry. */
+  pantryItemId?: string;
+};
+
+type SourceGroup = { id: string; photo: string };
+
+// ── Basket helpers ────────────────────────────────────────────────────────────
+
+function basketNutrition(item: BasketItem): NutritionSnapshot {
+  const s = item.measurementType === 'per_100g' ? item.qty / 100 : item.qty;
+  return {
+    calories: Math.round(item.calories * s),
+    protein:  Math.round(item.protein  * s * 10) / 10,
+    carbs:    Math.round(item.carbs    * s * 10) / 10,
+    fiber:    Math.round(item.fiber    * s * 10) / 10,
+    fat:      Math.round(item.fat      * s * 10) / 10,
+  };
+}
+
+function pantryToBasket(item: FoodItem, sourceId?: string): BasketItem {
+  return {
+    id: newId(),
+    name: item.name,
+    measurementType: item.measurementType,
+    referenceAmount: item.referenceAmount,
+    calories: item.calories,
+    protein:  item.protein,
+    carbs:    item.carbs,
+    fiber:    item.fiber,
+    fat:      item.fat,
+    qty: item.measurementType === 'per_100g' ? 100 : 1,
+    sourceId,
+    pantryItemId: item.id,
+  };
+}
+
+function scanResultToBasket(
+  r: { name: string; estimatedGrams: number; calories: number; protein: number; carbs: number; fiber: number; fat: number },
+  sourceId: string,
+): BasketItem {
+  const grams = Math.max(Number(r.estimatedGrams) || 100, 1);
+  const f = 100 / grams;
+  return {
+    id: newId(),
+    name: r.name,
+    measurementType: 'per_100g',
+    referenceAmount: 100,
+    calories: (Number(r.calories) || 0) * f,
+    protein:  (Number(r.protein)  || 0) * f,
+    carbs:    (Number(r.carbs)    || 0) * f,
+    fiber:    (Number(r.fiber)    || 0) * f,
+    fat:      (Number(r.fat)      || 0) * f,
+    qty: grams,
+    sourceId,
+  };
+}
+
+// ── AddEntrySheet ─────────────────────────────────────────────────────────────
 
 export type AddEntryTab = 'food' | 'activity' | 'weight';
 type Tab = AddEntryTab;
-type FoodMode = 'pantry' | 'new';
 
-// ── Scan types ───────────────────────────────────────────────────────────────
-
-type ScanState = 'idle' | 'source-picking' | 'confirming' | 'analyzing' | 'results';
-
-export type ResultItem = MealItem;
-
-export function AddEntrySheet({ date, onClose, initialTab = 'food', hideTabs = false, autoScan = false, initialScanPhoto, showToast }: {
+export function AddEntrySheet({
+  date, onClose, initialTab = 'food', hideTabs = false,
+  autoScan = false, initialScanPhoto, showToast,
+}: {
   date: string;
   onClose: () => void;
   initialTab?: Tab;
-  /** When true the Food/Activity/Weight tab bar is hidden — used when the
+  /** When true, the Food/Activity/Weight tab bar is hidden — used when the
    *  caller already chose the entry type via the speed-dial FAB menu. */
   hideTabs?: boolean;
-  /** When true the FoodForm immediately triggers the scan camera on mount.
-   *  Only meaningful on web (native uses initialScanPhoto instead). */
+  /** When true FoodForm immediately triggers the camera on web (native uses
+   *  initialScanPhoto instead). */
   autoScan?: boolean;
-  /** Pre-captured photo data URL to scan on mount (native path).
-   *  When provided, FoodForm skips the camera step and goes straight to AI analysis. */
+  /** Pre-captured photo data URL (native path) — scanned immediately on mount. */
   initialScanPhoto?: string;
   showToast?: ShowToast;
 }) {
   const [tab, setTab] = useState<Tab>(initialTab);
-  // Lifted scan state so AddEntrySheet can update the sheet height.
-  const [foodScanState, setFoodScanState] = useState<ScanState>('idle');
-  // Ref that FoodForm populates with its startScan fn so the header icon can call it.
-  const foodScanTriggerRef = useRef<(() => void) | null>(null);
-
-  // When any scan state is active on the food tab, the modal becomes "Scan food".
-  const isScanActive = tab === 'food' && foodScanState !== 'idle';
-
-  // Derive sheet title: scan state overrides everything; otherwise name by selected type.
-  const sheetTitle = isScanActive
-    ? 'Scan food'
-    : hideTabs
-      ? (tab === 'food' ? 'Add food' : tab === 'activity' ? 'Add activity' : 'Add weight')
-      : 'Add entry';
-
-  // Icon shown inline next to the title.
-  const titleIcon = isScanActive
-    ? <Icon name="scanFood" size={16} />
-    : hideTabs
-      ? (tab === 'food'
-          ? <Icon name="foodIcon" size={16} />
-          : tab === 'activity'
-            ? <Icon name="activityIcon" size={16} />
-            : <Icon name="weight" size={16} />)
-      : undefined;
-
-  // Right-side header action: scan icon when on Food tab and not already scanning.
-  const sheetRightAction = (tab === 'food' && foodScanState === 'idle' && SCAN_ENABLED)
-    ? (
-      <button
-        onClick={() => foodScanTriggerRef.current?.()}
-        className="-m-1 p-1 text-accent-hover active:opacity-70 transition-colors"
-        aria-label="Scan food"
-      >
-        <Icon name="scanFood" size={20} />
-      </button>
-    )
-    : undefined;
-
   const items = useLive(() => repos.foodItems.all(), []) ?? [];
-  const isNotToday = date !== todayISO();
 
+  const isNotToday = date !== todayISO();
   const tabCls = (t: Tab) =>
-    `flex flex-1 items-center justify-center gap-2 pb-3 text-subhead font-normal transition-colors ${tab === t ? 'text-content border-b-2 border-accent -mb-0.5' : 'text-content-secondary'}`;
+    `flex flex-1 items-center justify-center gap-2 pb-3 text-subhead font-normal transition-colors ${
+      tab === t ? 'text-content border-b-2 border-accent -mb-0.5' : 'text-content-secondary'
+    }`;
 
   const dateSubtitle = isNotToday ? (
     <span className="inline-flex items-center gap-1.5 rounded-pill bg-danger-soft px-2.5 py-1 text-subhead font-semibold text-danger">
@@ -124,14 +165,10 @@ export function AddEntrySheet({ date, onClose, initialTab = 'food', hideTabs = f
   return (
     <Sheet
       onClose={onClose}
-      title={sheetTitle}
-      titleIcon={titleIcon}
+      title="Add"
       subtitle={dateSubtitle}
-      rightAction={sheetRightAction}
-      forceExpanded={tab === 'food' ? foodScanState !== 'source-picking' : tab === 'activity'}
-      scrollAreaPaddingBottom={foodScanState === 'results' ? '0px' : undefined}
+      forceExpanded={tab !== 'weight'}
     >
-      {/* Full-width underline tab bar — hidden when caller pre-selected a type */}
       {!hideTabs && (
         <div className="-mx-5 mb-4 flex border-b border-border-subtle px-5 shadow-card">
           <button onClick={() => setTab('food')} className={tabCls('food')}>
@@ -156,9 +193,6 @@ export function AddEntrySheet({ date, onClose, initialTab = 'food', hideTabs = f
           autoScan={autoScan}
           initialScanPhoto={initialScanPhoto}
           showToast={showToast}
-          scanState={foodScanState}
-          setScanState={setFoodScanState}
-          scanTriggerRef={foodScanTriggerRef}
         />
       )}
       {tab === 'activity' && <ActivityForm date={date} onDone={onClose} showToast={showToast} />}
@@ -167,357 +201,1072 @@ export function AddEntrySheet({ date, onClose, initialTab = 'food', hideTabs = f
   );
 }
 
-// ── FoodForm ─────────────────────────────────────────────────────────────────
+// ── FoodForm ──────────────────────────────────────────────────────────────────
 
-function FoodForm({ date, items, onDone, autoScan = false, initialScanPhoto, showToast, scanState, setScanState, scanTriggerRef }: {
-  date: string; items: FoodItem[]; onDone: () => void; autoScan?: boolean; initialScanPhoto?: string; showToast?: ShowToast;
-  /** Scan state lifted to AddEntrySheet so the sheet height can respond. */
-  scanState: ScanState;
-  setScanState: (state: ScanState) => void;
-  /** Ref populated with startScan so the parent header icon can trigger scanning. */
-  scanTriggerRef?: React.MutableRefObject<(() => void) | null>;
+type OverlayKey = 'describe' | 'label' | 'manual' | 'edit';
+
+function FoodForm({
+  date, items, onDone, autoScan = false, initialScanPhoto, showToast,
+}: {
+  date: string;
+  items: FoodItem[];
+  onDone: () => void;
+  autoScan?: boolean;
+  initialScanPhoto?: string;
+  showToast?: ShowToast;
 }) {
-  const [mode, setMode] = useState<FoodMode>('pantry');
-  const [scanResults, setScanResults] = useState<ResultItem[]>([]);
-  const [mealName, setMealName] = useState('');
-  const [scanError, setScanError] = useState<string | null>(null);
-  const [currentScanPhoto, setCurrentScanPhoto] = useState<string | null>(null);
-  // Holds a photo waiting for the user to confirm before analysis starts.
-  // 'web'  — file from the file-picker (needs downscaling + a revokable blob URL).
-  // 'native' — already-downscaled dataUrl from capturePhoto() / initialScanPhoto.
-  type PendingPhoto =
-    | { kind: 'web'; file: File; previewUrl: string; source: 'library' }
-    | { kind: 'native'; dataUrl: string; source: 'library' };
-  const [pendingScanPhoto, setPendingScanPhoto] = useState<PendingPhoto | null>(null);
-  const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [basket, setBasket]             = useState<BasketItem[]>([]);
+  const [sources, setSources]           = useState<SourceGroup[]>([]);
+  const [mealName, setMealName]         = useState('');
+  const [saveToPantry, setSaveToPantry] = useState(false);
+  const [editMode, setEditMode]         = useState(false);
+  const [pickerOpen, setPickerOpen]     = useState(false);
+  const [activeOverlay, setActiveOverlay] = useState<OverlayKey | null>(null);
+  const [editingIdx, setEditingIdx]     = useState<number | null>(null);
+  const [analyzing, setAnalyzing]       = useState(false);
+  const [analyzeLabel, setAnalyzeLabel] = useState('Analysing…');
+  const [servingModal, setServingModal] = useState<{
+    item100: BasketItem; itemSrv: BasketItem; servingG: number;
+  } | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
 
-  // On mount: if a pre-captured photo was passed in (native path), show the
-  // confirm screen so the user can verify before analysis starts.
-  // If autoScan is set (web fallback), open the file picker.
+  // ── Derived: which source photos to show in the collage ──────────────────
+  const sourcePhotos = (() => {
+    const seen = new Set<string>();
+    const photos: string[] = [];
+    for (const b of basket) {
+      if (b.sourceId && !seen.has(b.sourceId)) {
+        const src = sources.find((s) => s.id === b.sourceId);
+        if (src) { seen.add(b.sourceId); photos.push(src.photo); }
+      }
+    }
+    // Also show pantry-item photos not attached to a scan source group
+    for (const b of basket) {
+      if (!b.sourceId && b.pantryItemId) {
+        const pi = items.find((i) => i.id === b.pantryItemId);
+        if (pi?.photo && !photos.includes(pi.photo)) photos.push(pi.photo);
+      }
+    }
+    return photos.slice(0, 3); // max 3 in collage
+  })();
+
+  // ── Sheet footer CTA ──────────────────────────────────────────────────────
+  // Including `activeOverlay` in deps ensures the effect re-runs when an overlay
+  // closes, restoring "Log it" after the overlay's cleanup sets footer to null.
+  const hasItems = basket.length > 0;
+  const logLabel =
+    basket.length === 0 ? 'Log it'
+    : basket.length === 1 ? `Log ${basket[0].name}`
+    : 'Log meal';
+  const logRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  useSheetSetFooter(
+    hasItems && !analyzing
+      ? <Button size="lg" onClick={() => void logRef.current()}>{logLabel}</Button>
+      : null,
+    [hasItems, logLabel, activeOverlay, analyzing],
+  );
+
+  // ── Auto-scan on mount ────────────────────────────────────────────────────
   useEffect(() => {
     if (initialScanPhoto) {
-      // Camera path: go straight to analysis — no custom confirmation screen.
-      void runScan(initialScanPhoto);
+      void runScan(initialScanPhoto, 'Analysing your meal…');
     } else if (autoScan) {
-      void startScan();
+      void handleCamera();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Expose startScan to the parent header icon via ref.
-  useEffect(() => {
-    if (scanTriggerRef) scanTriggerRef.current = startScan;
-    return () => { if (scanTriggerRef) scanTriggerRef.current = null; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // ── Scan ─────────────────────────────────────────────────────────────────
 
-  async function runScan(imageDataUrl: string) {
-    setCurrentScanPhoto(imageDataUrl);
-    setScanState('analyzing');
-    setScanError(null);
+  async function runScan(imageDataUrl: string, label = 'Analysing your meal…') {
+    setAnalyzeLabel(label);
+    setAnalyzing(true);
+    setActiveOverlay(null);
+    const sourceId = newId();
     try {
-      const foods = await scanFood(imageDataUrl);
-      // Strip parenthetical qualifiers from names — the AI sometimes appends
-      // extra detail in brackets (e.g. "Avocado Toast (with poached egg)").
-      // All such info belongs in the description field instead.
-      const cleaned = foods.map((f) => {
+      const rawFoods = await scanFood(imageDataUrl);
+      const foods = rawFoods.map((f) => {
         const match = f.name.match(/^(.+?)\s*\((.+?)\)$/);
         if (match) {
-          const extraInfo = match[2].trim();
-          return { ...f, name: match[1].trim(), description: f.description ? `${extraInfo}. ${f.description}` : extraInfo };
+          const extra = match[2].trim();
+          return { ...f, name: match[1].trim(), description: f.description ? `${extra}. ${f.description}` : extra };
         }
         return f;
       });
-      // Coerce all numeric fields — the AI API sometimes returns strings.
-      const resultItems = cleaned.map((f) => ({
-        ...f,
-        selected: true,
-        calories: Number(f.calories) || 0,
-        protein: Number(f.protein) || 0,
-        carbs: Number(f.carbs) || 0,
-        fiber: Number(f.fiber) || 0,
-        fat: Number(f.fat) || 0,
-        estimatedGrams: Number(f.estimatedGrams) || 0,
-      }));
-      setScanResults(resultItems);
-      // Auto-generate meal name for multi-item scans based on total calories.
-      if (resultItems.length > 1) {
-        const totalCals = resultItems.reduce((s, f) => s + f.calories, 0);
-        setMealName(totalCals < 400 ? 'Small meal' : totalCals <= 700 ? 'Medium meal' : 'Large meal');
-      }
-      setScanState('results');
+      const newItems = foods.map((f) =>
+        scanResultToBasket({
+          name: f.name, estimatedGrams: f.estimatedGrams,
+          calories: f.calories, protein: f.protein,
+          carbs: f.carbs, fiber: f.fiber, fat: f.fat,
+        }, sourceId),
+      );
+      setSources((prev) => [...prev, { id: sourceId, photo: imageDataUrl }]);
+      setBasket((prev) => [...prev, ...newItems]);
+      setPickerOpen(false);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Scan failed';
-      setScanError(msg);
-      setScanState('idle');
+      showToast?.(err instanceof Error ? err.message : 'Scan failed');
+    } finally {
+      setAnalyzing(false);
     }
   }
 
-  async function startScan() {
-    setScanError(null);
+  async function handleCamera() {
+    setPickerOpen(false);
     if (isNativeIOS()) {
-      // Show our own source picker so we know which path the user took.
-      setShowSourcePicker(true);
-      setScanState('source-picking');
-    } else {
-      scanInputRef.current?.click();
-    }
-  }
-
-  async function scanFromCamera() {
-    setScanError(null);
-    try {
-      // Keep the source picker visible while the native camera UI is open so there's
-      // no flash of the default form between button tap and the camera taking over.
       const photo = await captureFromCamera();
-      if (photo) {
-        setShowSourcePicker(false);
-        await runScan(photo);
-      }
-      // On cancel: leave source picker visible so they can retry or tap X to dismiss.
-    } catch {
-      setScanError('Could not get photo. Please try again.');
-    }
-  }
-
-  async function scanFromLibrary() {
-    setScanError(null);
-    try {
-      // Keep the source picker visible while the native photo library is open.
-      const photo = await captureFromLibrary();
-      if (photo) {
-        setShowSourcePicker(false);
-        // Library: show our confirmation screen so the user can verify before scanning.
-        setPendingScanPhoto({ kind: 'native', dataUrl: photo, source: 'library' });
-        setScanState('confirming');
-      }
-      // On cancel: leave source picker visible so they can retry or tap X to dismiss.
-    } catch {
-      setScanError('Could not open photo library. Please try again.');
-    }
-  }
-
-  async function handleScanFile(file: File) {
-    const small = await downscaleImage(file, MAX_SCAN_PX);
-    await runScan(small);
-  }
-
-  function pickScanFile(file: File) {
-    // Show confirm preview so the user can verify the photo before analysis.
-    const previewUrl = URL.createObjectURL(file);
-    setPendingScanPhoto({ kind: 'web', file, previewUrl, source: 'library' });
-    setScanState('confirming');
-  }
-
-  async function chooseAnotherPhoto() {
-    if (!pendingScanPhoto) return;
-    // Always library source — re-open the appropriate picker.
-    cancelScan();
-    if (isNativeIOS()) {
-      void scanFromLibrary();
-    } else {
+      if (photo) await runScan(photo, 'Analysing your photo…');
+    } else if (SCAN_ENABLED) {
       scanInputRef.current?.click();
-    }
-  }
-
-  async function confirmScan() {
-    if (!pendingScanPhoto) return;
-    if (pendingScanPhoto.kind === 'web') {
-      const { file, previewUrl } = pendingScanPhoto;
-      URL.revokeObjectURL(previewUrl);
-      setPendingScanPhoto(null);
-      await handleScanFile(file);
     } else {
-      const { dataUrl } = pendingScanPhoto;
-      setPendingScanPhoto(null);
-      await runScan(dataUrl);
+      showToast?.('Food scan not configured');
     }
   }
 
-  function cancelScan() {
-    if (pendingScanPhoto?.kind === 'web') URL.revokeObjectURL(pendingScanPhoto.previewUrl);
-    setPendingScanPhoto(null);
-    setShowSourcePicker(false);
-    setScanState('idle');
-    if (scanInputRef.current) scanInputRef.current.value = '';
+  async function handlePhoto() {
+    setPickerOpen(false);
+    if (isNativeIOS()) {
+      const photo = await captureFromLibrary();
+      if (photo) await runScan(photo, 'Analysing your photo…');
+    } else if (SCAN_ENABLED) {
+      scanInputRef.current?.click();
+    } else {
+      showToast?.('Food scan not configured');
+    }
   }
 
-  async function logSelected() {
-    const selected = scanResults.filter((i) => i.selected);
-    if (scanResults.length > 1) {
-      // Multi-item scan → log as a single meal entry.
-      const snapshot = {
-        calories: selected.reduce((s, i) => s + i.calories, 0),
-        protein:  selected.reduce((s, i) => s + i.protein, 0),
-        carbs:    selected.reduce((s, i) => s + i.carbs, 0),
-        fiber:    selected.reduce((s, i) => s + i.fiber, 0),
-        fat:      selected.reduce((s, i) => s + i.fat, 0),
+  async function handleDescribeAnalyze(text: string) {
+    setActiveOverlay(null);
+    setAnalyzeLabel('Thinking about your meal…');
+    setAnalyzing(true);
+    const sourceId = newId();
+    try {
+      const foods = await describeFood(text);
+      const newItems = foods.map((f) =>
+        scanResultToBasket({
+          name: f.name, estimatedGrams: f.estimatedGrams,
+          calories: f.calories, protein: f.protein,
+          carbs: f.carbs, fiber: f.fiber, fat: f.fat,
+        }, sourceId),
+      );
+      // Describe has no photo, so no source group is added
+      setBasket((prev) => [...prev, ...newItems]);
+      setPickerOpen(false);
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : 'Analysis failed');
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function handleLabelScan(imageDataUrl: string) {
+    setActiveOverlay(null);
+    setAnalyzeLabel('Reading the label…');
+    setAnalyzing(true);
+    try {
+      const foods = await scanFood(imageDataUrl);
+      if (foods.length === 0) throw new Error('No nutrition label detected');
+      const f = foods[0];
+      const sourceId = newId();
+      const servingG = Math.max(Number(f.estimatedGrams) || 100, 1);
+      const factor   = 100 / servingG;
+      const item100: BasketItem = {
+        id: newId(), name: f.name, measurementType: 'per_100g', referenceAmount: 100,
+        calories: (Number(f.calories) || 0) * factor,
+        protein:  (Number(f.protein)  || 0) * factor,
+        carbs:    (Number(f.carbs)    || 0) * factor,
+        fiber:    (Number(f.fiber)    || 0) * factor,
+        fat:      (Number(f.fat)      || 0) * factor,
+        qty: 100, sourceId,
       };
-      const entryName = mealName.trim() || 'Meal';
-      await repos.foodEntries.add({
-        id: newId(), date,
-        manualName: entryName,
-        isManual: true,
-        snapshot,
-        createdAt: new Date().toISOString(),
-        mealData: {
-          name: entryName,
-          photo: currentScanPhoto ?? undefined,
-          items: scanResults,
-        },
+      const itemSrv: BasketItem = {
+        id: newId(), name: f.name, measurementType: 'per_serving', referenceAmount: servingG,
+        calories: Number(f.calories) || 0,
+        protein:  Number(f.protein)  || 0,
+        carbs:    Number(f.carbs)    || 0,
+        fiber:    Number(f.fiber)    || 0,
+        fat:      Number(f.fat)      || 0,
+        qty: 1, sourceId,
+      };
+      setSources((prev) => [...prev, { id: sourceId, photo: imageDataUrl }]);
+      setServingModal({ item100, itemSrv, servingG });
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : 'Label scan failed');
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  // ── Basket mutations ──────────────────────────────────────────────────────
+
+  function addPantryItem(item: FoodItem) {
+    hapticLight();
+    const sourceId = item.photo ? newId() : undefined;
+    if (sourceId && item.photo) {
+      setSources((prev) => [...prev, { id: sourceId, photo: item.photo! }]);
+    }
+    setBasket((prev) => [...prev, pantryToBasket(item, sourceId)]);
+    setPickerOpen(false);
+  }
+
+  function removeItem(idx: number) {
+    hapticLight();
+    const item = basket[idx];
+    const remaining = basket.filter((_, i) => i !== idx);
+    setBasket(remaining);
+    // Remove orphaned source group when no remaining items reference it
+    if (item.sourceId && !remaining.some((b) => b.sourceId === item.sourceId)) {
+      setSources((prev) => prev.filter((s) => s.id !== item.sourceId));
+    }
+    if (remaining.length === 0) setEditMode(false);
+  }
+
+  function updateQty(idx: number, qty: number) {
+    setBasket((prev) => prev.map((b, i) => (i === idx ? { ...b, qty } : b)));
+  }
+
+  function updateItem(idx: number, patch: Partial<BasketItem>) {
+    setBasket((prev) => prev.map((b, i) => (i === idx ? { ...b, ...patch } : b)));
+  }
+
+  function addManualItem(entry: {
+    name: string; calories: number; protein: number; carbs: number;
+    fiber: number; fat: number; saveToPantry: boolean;
+  }) {
+    const newItem: BasketItem = {
+      id: newId(), name: entry.name, measurementType: 'per_serving',
+      referenceAmount: 1, calories: entry.calories, protein: entry.protein,
+      carbs: entry.carbs, fiber: entry.fiber, fat: entry.fat, qty: 1,
+    };
+    if (entry.saveToPantry) {
+      void repos.foodItems.put({
+        id: newId(), name: entry.name, measurementType: 'per_serving', referenceAmount: 1,
+        calories: entry.calories, protein: entry.protein, carbs: entry.carbs,
+        fiber: entry.fiber, fat: entry.fat, isArchived: false,
       });
-      showToast?.(`${entryName} logged`);
+    }
+    setBasket((prev) => [...prev, newItem]);
+    setActiveOverlay(null);
+    setPickerOpen(false);
+  }
+
+  // ── Log basket ────────────────────────────────────────────────────────────
+
+  async function logBasket() {
+    if (basket.length === 0) return;
+    const primaryPhoto = sourcePhotos[0]; // first captured photo = day's-log thumbnail
+
+    if (basket.length === 1) {
+      const item = basket[0];
+      const n = basketNutrition(item);
+      const entryId = newId();
+      await repos.foodEntries.add({
+        id: entryId, date,
+        foodItemId: item.pantryItemId,
+        quantity: item.qty,
+        manualName: item.pantryItemId ? undefined : item.name,
+        isManual: !item.pantryItemId,
+        snapshot: n,
+        createdAt: new Date().toISOString(),
+      });
+      showToast?.(
+        `${item.name} logged`,
+        item.pantryItemId ? async () => repos.foodEntries.remove(entryId) : undefined,
+      );
     } else {
-      // Single item → log individually.
-      for (const item of selected) {
+      const name = mealName.trim() || 'Meal';
+      const totals = basket.reduce(
+        (acc, item) => {
+          const n = basketNutrition(item);
+          return {
+            calories: acc.calories + n.calories,
+            protein:  acc.protein  + n.protein,
+            carbs:    acc.carbs    + n.carbs,
+            fiber:    acc.fiber    + n.fiber,
+            fat:      acc.fat      + n.fat,
+          };
+        },
+        { calories: 0, protein: 0, carbs: 0, fiber: 0, fat: 0 } as NutritionSnapshot,
+      );
+      const mealItems: MealItem[] = basket.map((item) => {
+        const n = basketNutrition(item);
+        return { name: item.name, estimatedGrams: item.qty, calories: n.calories,
+          protein: n.protein, carbs: n.carbs, fiber: n.fiber, fat: n.fat,
+          confidence: 'high' as const, selected: true };
+      });
+      const entryId = newId();
+
+      if (saveToPantry) {
+        const foodItemId = newId();
+        await repos.foodItems.put({
+          id: foodItemId, name, measurementType: 'per_serving', referenceAmount: 1,
+          calories: totals.calories, protein: totals.protein, carbs: totals.carbs,
+          fiber: totals.fiber, fat: totals.fat, photo: primaryPhoto, isArchived: false,
+        });
         await repos.foodEntries.add({
-          id: newId(), date,
-          manualName: item.name,
-          isManual: true,
-          snapshot: {
-            calories: item.calories, protein: item.protein,
-            carbs: item.carbs, fiber: item.fiber, fat: item.fat,
-          },
-          createdAt: new Date().toISOString(),
+          id: entryId, date, foodItemId, quantity: 1, isManual: false,
+          snapshot: totals, createdAt: new Date().toISOString(),
+          mealData: { name, photo: primaryPhoto, items: mealItems },
+        });
+      } else {
+        await repos.foodEntries.add({
+          id: entryId, date, manualName: name, isManual: true,
+          snapshot: totals, createdAt: new Date().toISOString(),
+          mealData: { name, photo: primaryPhoto, items: mealItems },
         });
       }
-      const label = selected.length === 1 ? selected[0].name : `${selected.length} foods`;
-      showToast?.(`${label} logged`);
+      showToast?.(`${name} logged`);
     }
     onDone();
   }
 
-  // ── Source picker (native only) ───────────────────────────────────────────
-  if (showSourcePicker) {
-    return (
-      <div className="flex flex-col gap-3 py-6">
-        <Button size="lg" onClick={scanFromCamera}>Take photo</Button>
-        <Button size="lg" variant="outline" onClick={scanFromLibrary}>Choose from library</Button>
-      </div>
-    );
+  logRef.current = logBasket;
+
+  // ── Overlay back helper ───────────────────────────────────────────────────
+  function overlayBack() {
+    setActiveOverlay(null);
+    setEditingIdx(null);
+    // Re-open picker when returning to a non-empty basket so user can pick another method
+    if (basket.length > 0) setPickerOpen(true);
   }
 
-  // ── Confirm scan photo ────────────────────────────────────────────────────
-  if (pendingScanPhoto) {
-    const previewSrc = pendingScanPhoto.kind === 'web'
-      ? pendingScanPhoto.previewUrl
-      : pendingScanPhoto.dataUrl;
-    return (
-      <div className="flex flex-col items-stretch pt-2" style={{ minHeight: '100%' }}>
-        <div className="flex justify-center flex-shrink-0">
-          <div className="w-64 h-64 overflow-hidden rounded-[24px] shadow-card-lg">
-            <img src={previewSrc} alt="Photo to scan" className="w-full h-full object-cover" />
-          </div>
-        </div>
-        {/* Spacer pushes buttons to the bottom */}
-        <div className="flex-1" />
-        <div
-          className="sticky bottom-0 pt-6 flex flex-col gap-2"
-          style={{ background: 'linear-gradient(to bottom, transparent 0px, var(--color-surface) 1.5rem)', paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}
-        >
-          <Button variant="outline" size="lg" onClick={chooseAnotherPhoto}>
-            Choose another photo
-          </Button>
-          <Button size="lg" onClick={confirmScan}>Scan this photo</Button>
-        </div>
-      </div>
-    );
-  }
+  const showPicker = basket.length === 0 || pickerOpen;
 
   // ── Analysing state ───────────────────────────────────────────────────────
-  if (scanState === 'analyzing') {
+  if (analyzing) {
     return (
-      <div className="flex flex-col items-center pt-2" style={{ minHeight: '100%' }}>
-        {/* Photo always shown at top during analyzing */}
-        {currentScanPhoto && (
-          <div className="w-64 h-64 overflow-hidden rounded-[24px] shadow-card-lg flex-shrink-0">
-            <img src={currentScanPhoto} alt="Photo being scanned" className="w-full h-full object-cover" />
-          </div>
-        )}
-        {/* Spinner vertically centered in remaining space */}
-        <div className="flex flex-col items-center gap-3 flex-1 justify-center">
-          <span className="h-6 w-6 animate-spin rounded-full border-2 border-border-subtle border-t-accent" />
-          <p className="text-subhead text-content-secondary">Analysing food…</p>
-        </div>
+      <div className="flex flex-col items-center justify-center gap-3 py-16">
+        <span className="h-8 w-8 animate-spin rounded-full border-2 border-border-subtle border-t-accent" />
+        <p className="text-subhead text-content-secondary">{analyzeLabel}</p>
       </div>
     );
   }
 
-  // ── Scan results view ─────────────────────────────────────────────────────
-  if (scanState === 'results') {
+  // ── Overlays (content-swap pattern: renders in place of basket content) ───
+
+  if (activeOverlay === 'describe') {
     return (
-      <ScanResults
-        items={scanResults}
-        onChange={setScanResults}
-        onLog={logSelected}
-        scanPhoto={currentScanPhoto}
-        mealName={mealName}
-        onMealNameChange={setMealName}
+      <DescribeOverlay
+        onBack={overlayBack}
+        onAnalyze={handleDescribeAnalyze}
       />
     );
   }
 
-  // ── Normal (pantry / new food) view ───────────────────────────────────────
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-center">
-        <SegmentedControl<FoodMode>
-          value={mode}
-          onChange={setMode}
-          options={[{ value: 'pantry', label: 'Pantry' }, { value: 'new', label: 'New food' }]}
+  if (activeOverlay === 'label') {
+    return (
+      <LabelOverlay
+        onBack={overlayBack}
+        onScan={handleLabelScan}
+      />
+    );
+  }
+
+  if (activeOverlay === 'manual') {
+    return (
+      <ManualOverlay
+        items={items}
+        onBack={overlayBack}
+        onAdd={addManualItem}
+      />
+    );
+  }
+
+  if (activeOverlay === 'edit' && editingIdx !== null) {
+    const editItem = basket[editingIdx];
+    if (editItem) {
+      return (
+        <EditOverlay
+          item={editItem}
+          onBack={overlayBack}
+          onSave={(patch) => {
+            updateItem(editingIdx, patch);
+            overlayBack();
+          }}
         />
-      </div>
+      );
+    }
+  }
 
-      {scanError && <p className="text-caption text-danger">{scanError}</p>}
-
-      {/* Hidden file input for web scan (triggered via the header scan button) */}
+  // ── Main basket view ──────────────────────────────────────────────────────
+  return (
+    <div className="space-y-3 pb-2">
+      {/* Hidden file input for web Camera/Photo (both use same picker) */}
       {SCAN_ENABLED && (
         <input
           ref={scanInputRef}
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) pickScanFile(f); }}
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            e.target.value = '';
+            const small = await downscaleImage(f, MAX_SCAN_PX);
+            await runScan(small, 'Analysing your photo…');
+          }}
         />
       )}
 
-      {mode === 'pantry'
-        ? <PantryPick date={date} items={items} onDone={onDone} showToast={showToast} />
-        : <NewFood date={date} items={items} onDone={onDone} showToast={showToast} />}
+      {/* Photo collage */}
+      {sourcePhotos.length > 0 && <ImageHero photos={sourcePhotos} />}
+
+      {/* Meal header — shown whenever basket has items */}
+      {basket.length > 0 && (
+        <div className="flex items-center justify-between">
+          <span className="text-headline font-bold text-content">Meal</span>
+          <button
+            onClick={() => setEditMode((v) => !v)}
+            className="text-callout font-semibold text-accent active:opacity-70"
+          >
+            {editMode ? 'Done' : 'Edit'}
+          </button>
+        </div>
+      )}
+
+      {/* Meal name + save to pantry (2+ items, not in editMode) */}
+      {basket.length >= 2 && !editMode && (
+        <>
+          <LabeledInput
+            label="Meal name"
+            value={mealName}
+            onChange={(e) => setMealName(e.target.value)}
+            placeholder="Name this meal"
+          />
+          <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
+            <input
+              type="checkbox"
+              checked={saveToPantry}
+              onChange={(e) => setSaveToPantry(e.target.checked)}
+              className="h-4 w-4 accent-accent"
+            />
+            Save to pantry
+          </label>
+        </>
+      )}
+
+      {/* Basket cards */}
+      {basket.map((item, idx) => (
+        <BasketCard
+          key={item.id}
+          item={item}
+          nutrition={basketNutrition(item)}
+          editMode={editMode}
+          onQtyChange={(qty) => updateQty(idx, qty)}
+          onRemove={() => removeItem(idx)}
+          onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+        />
+      ))}
+
+      {/* Serving size modal (Label scan — shown over the basket) */}
+      {servingModal && (
+        <ServingModal
+          name={servingModal.item100.name}
+          servingG={servingModal.servingG}
+          onPer100g={() => {
+            setBasket((prev) => [...prev, { ...servingModal.item100, id: newId() }]);
+            setServingModal(null);
+            setPickerOpen(false);
+          }}
+          onPerServing={() => {
+            setBasket((prev) => [...prev, { ...servingModal.itemSrv, id: newId() }]);
+            setServingModal(null);
+            setPickerOpen(false);
+          }}
+          onDismiss={() => setServingModal(null)}
+        />
+      )}
+
+      {/* Food picker (always visible on empty basket; toggled by pickerOpen otherwise) */}
+      {!editMode && showPicker && (
+        <FoodPicker
+          items={items}
+          onPickItem={addPantryItem}
+          onCamera={() => void handleCamera()}
+          onPhoto={() => void handlePhoto()}
+          onDescribe={() => { setPickerOpen(false); setActiveOverlay('describe'); }}
+          onLabel={() => { setPickerOpen(false); setActiveOverlay('label'); }}
+          onManual={() => { setPickerOpen(false); setActiveOverlay('manual'); }}
+        />
+      )}
+
+      {/* Add another — shown when basket has items and picker is closed */}
+      {!editMode && !showPicker && basket.length > 0 && (
+        <button
+          onClick={() => setPickerOpen(true)}
+          className="w-full rounded-field border border-dashed border-border-field py-3.5 text-body font-semibold text-content-secondary transition-colors active:border-accent active:text-accent"
+        >
+          + Add another item
+        </button>
+      )}
     </div>
   );
 }
 
-// ── ScanResults ───────────────────────────────────────────────────────────────
+// ── BasketStepper ─────────────────────────────────────────────────────────────
+
+function BasketStepper({
+  item, qty, onChange,
+}: {
+  item: BasketItem;
+  qty: number;
+  onChange: (v: number) => void;
+}) {
+  const isGrams = item.measurementType === 'per_100g';
+  const step    = isGrams ? 10 : 0.5;
+  const min     = isGrams ? 10 : 0.5;
+
+  function adj(delta: number) {
+    hapticLight();
+    onChange(Math.max(min, Math.round((qty + delta) * 10) / 10));
+  }
+
+  const label = isGrams
+    ? `${qty}g`
+    : qty === 1
+      ? '1 serving'
+      : `${qty % 1 === 0 ? qty : qty.toFixed(1)} servings`;
+
+  const btnCls =
+    'flex h-8 w-8 items-center justify-center rounded-full border border-border-field bg-surface text-content transition-colors active:bg-surface-sunken';
+
+  return (
+    <div className="flex items-center gap-2">
+      <button data-no-drag onClick={() => adj(-step)} className={btnCls} aria-label="Decrease">
+        <Icon name="minus" size={14} strokeWidth={2} />
+      </button>
+      <span className="min-w-[68px] text-center text-subhead font-semibold text-content">
+        {label}
+      </span>
+      <button data-no-drag onClick={() => adj(step)} className={btnCls} aria-label="Increase">
+        <Icon name="plus" size={14} strokeWidth={2} />
+      </button>
+    </div>
+  );
+}
+
+// ── BasketCard ────────────────────────────────────────────────────────────────
+
+function BasketCard({
+  item, nutrition, editMode, onQtyChange, onRemove, onEdit,
+}: {
+  item: BasketItem;
+  nutrition: NutritionSnapshot;
+  editMode: boolean;
+  onQtyChange: (v: number) => void;
+  onRemove: () => void;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-[20px] bg-surface p-4 shadow-card">
+      <div className="min-w-0 flex-1 space-y-2.5">
+        <div className="flex items-center gap-2">
+          <span className="flex-1 truncate text-body font-semibold text-content">{item.name}</span>
+          <span className="shrink-0 text-subhead text-content-secondary">
+            {nutrition.calories} kcal
+          </span>
+        </div>
+        <BasketStepper item={item} qty={item.qty} onChange={onQtyChange} />
+      </div>
+
+      {editMode && (
+        <div className="flex shrink-0 flex-col items-center gap-2 pl-1">
+          <button
+            onClick={onRemove}
+            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-border-field bg-surface-sunken text-content-secondary transition-colors active:text-danger"
+            aria-label="Remove"
+          >
+            <Icon name="trash" size={14} strokeWidth={2.2} />
+          </button>
+          <button
+            onClick={onEdit}
+            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-border-field bg-surface-sunken text-content-secondary transition-colors active:text-accent"
+            aria-label="Edit nutrition"
+          >
+            <Icon name="edit" size={14} strokeWidth={2.2} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── FoodPicker ────────────────────────────────────────────────────────────────
+
+function FoodPicker({
+  items, onPickItem, onCamera, onPhoto, onDescribe, onLabel, onManual,
+}: {
+  items: FoodItem[];
+  onPickItem: (item: FoodItem) => void;
+  onCamera: () => void;
+  onPhoto: () => void;
+  onDescribe: () => void;
+  onLabel: () => void;
+  onManual: () => void;
+}) {
+  const [query, setQuery] = useState('');
+
+  // Show 5 most-recently-added non-archived items as "recent"
+  const recent   = items.filter((i) => !i.isArchived).slice(0, 5);
+  const filtered = query.trim()
+    ? items.filter((i) => !i.isArchived && i.name.toLowerCase().includes(query.toLowerCase()))
+    : recent;
+
+  return (
+    <div className="space-y-1 rounded-[16px] bg-surface-sunken p-3">
+      {/* Search */}
+      <div className="relative">
+        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-content-muted">
+          <Icon name="search" size={16} strokeWidth={2} />
+        </span>
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search foods…"
+          autoComplete="off"
+          className="w-full rounded-full bg-surface py-3 pl-10 pr-4 text-body text-content placeholder:text-content-muted outline-none"
+        />
+      </div>
+
+      {/* List */}
+      {filtered.length > 0 && (
+        <div>
+          <SectionLabel>{query.trim() ? 'Results' : 'Recent'}</SectionLabel>
+          <div className="overflow-hidden rounded-[12px] bg-surface divide-y divide-border-subtle">
+            {filtered.map((item) => {
+              const n = nutritionFor(item, item.referenceAmount);
+              return (
+                <ListRow
+                  key={item.id}
+                  leading={
+                    item.photo ? (
+                      <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[10px]">
+                        <img src={item.photo} alt={item.name} className="h-full w-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="h-11 w-11 shrink-0 rounded-[10px] bg-surface-sunken" />
+                    )
+                  }
+                  title={item.name}
+                  subtitle={item.measurementType === 'per_serving' ? 'Per serving' : 'Per 100g'}
+                  trailing={
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="text-subhead font-semibold text-content">
+                        {Math.round(n.calories)} kcal
+                      </span>
+                      <span className="text-caption text-content-secondary">
+                        {n.protein.toFixed(0)}g P
+                      </span>
+                    </div>
+                  }
+                  onClick={() => onPickItem(item)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {filtered.length === 0 && query.trim() && (
+        <p className="py-4 text-center text-subhead text-content-secondary">No results</p>
+      )}
+
+      {/* Method cards */}
+      <div>
+        <SectionLabel>Other methods</SectionLabel>
+        <MethodCards
+          onCamera={onCamera}
+          onPhoto={onPhoto}
+          onDescribe={onDescribe}
+          onLabel={onLabel}
+          onManual={onManual}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Method cards + inline icons ───────────────────────────────────────────────
+
+function MethodCards({
+  onCamera, onPhoto, onDescribe, onLabel, onManual,
+}: {
+  onCamera: () => void; onPhoto: () => void; onDescribe: () => void;
+  onLabel: () => void;  onManual: () => void;
+}) {
+  const methods = [
+    { label: 'Camera',   onClick: onCamera,   icon: <Icon name="camera" size={22} strokeWidth={1.8} /> },
+    { label: 'Photo',    onClick: onPhoto,    icon: <PhotoMethodIcon /> },
+    { label: 'Describe', onClick: onDescribe, icon: <DescribeMethodIcon /> },
+    { label: 'Label',    onClick: onLabel,    icon: <LabelMethodIcon /> },
+    { label: 'Manual',   onClick: onManual,   icon: <Icon name="plus" size={22} strokeWidth={1.8} /> },
+  ];
+
+  return (
+    // -mx-1 / px-1 keeps scroll shadow visible; scrollbar-hide via inline style
+    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" style={{ scrollbarWidth: 'none' }}>
+      {methods.map(({ label, onClick, icon }) => (
+        <button
+          key={label}
+          onClick={onClick}
+          className="flex min-w-[68px] shrink-0 flex-col items-center gap-1.5 rounded-[14px] border border-border-field bg-surface p-2.5 text-caption font-medium text-content-secondary shadow-card transition-colors active:border-accent active:bg-accent/5"
+        >
+          <span className="text-content-muted">{icon}</span>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PhotoMethodIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="3" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <path d="M21 15l-5-5L5 21" />
+    </svg>
+  );
+}
+
+function DescribeMethodIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function LabelMethodIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+      <rect x="9" y="3" width="6" height="4" rx="1" />
+      <path d="M9 12h6M9 16h4" />
+    </svg>
+  );
+}
+
+// ── DescribeOverlay ───────────────────────────────────────────────────────────
+
+function DescribeOverlay({
+  onBack, onAnalyze,
+}: {
+  onBack: () => void;
+  onAnalyze: (text: string) => void;
+}) {
+  const [text, setText] = useState('');
+  const hasText = text.trim().length > 0;
+
+  // Use ref so the button closure always calls the latest onAnalyze without
+  // adding it to useSheetSetFooter deps (avoids re-running on every parent render).
+  const onAnalyzeRef = useRef(onAnalyze);
+  onAnalyzeRef.current = onAnalyze; // eslint-disable-line react-hooks/refs
+
+  useSheetSetFooter(
+    hasText
+      ? <Button size="lg" onClick={() => onAnalyzeRef.current(text.trim())}>Analyse</Button>
+      : null,
+    [hasText, text],
+  );
+
+  return (
+    <div className="space-y-3 py-1">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="-ml-1 p-1 text-content-secondary active:opacity-70">
+          <Icon name="back" size={22} strokeWidth={2.25} />
+        </button>
+        <span className="text-headline font-semibold text-content">Describe</span>
+      </div>
+      <textarea
+        autoFocus
+        rows={5}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={`What did you eat?\ne.g. "a bowl of oats with banana and honey"`}
+        className="min-h-[130px] w-full resize-none rounded-[16px] bg-surface-sunken px-4 py-3.5 text-callout leading-relaxed text-content placeholder:text-content-muted outline-none focus:ring-2 focus:ring-accent/30"
+      />
+      <p className="text-caption text-content-secondary">
+        Describe what you ate and AI will estimate the nutrition.
+      </p>
+    </div>
+  );
+}
+
+// ── LabelOverlay ──────────────────────────────────────────────────────────────
+
+function LabelOverlay({
+  onBack, onScan,
+}: {
+  onBack: () => void;
+  onScan: (imageDataUrl: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // No footer button — "Scan label" lives inline as a primary action button
+  useSheetSetFooter(null, []);
+
+  const onScanRef = useRef(onScan);
+  onScanRef.current = onScan; // eslint-disable-line react-hooks/refs
+
+  async function handleCapture() {
+    if (isNativeIOS()) {
+      const photo = await captureFromCamera();
+      if (photo) onScanRef.current(photo);
+    } else if (SCAN_ENABLED) {
+      inputRef.current?.click();
+    } else {
+      // Dev fallback without SCAN_ENABLED: just trigger file picker anyway
+      inputRef.current?.click();
+    }
+  }
+
+  return (
+    <div className="space-y-4 py-1">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          e.target.value = '';
+          const small = await downscaleImage(f, MAX_SCAN_PX);
+          onScanRef.current(small);
+        }}
+      />
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="-ml-1 p-1 text-content-secondary active:opacity-70">
+          <Icon name="back" size={22} strokeWidth={2.25} />
+        </button>
+        <span className="text-headline font-semibold text-content">Scan label</span>
+      </div>
+      {/* Viewfinder placeholder */}
+      <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 rounded-[20px] bg-black">
+        <div className="h-[35%] w-4/5 rounded-[10px] border-2 border-accent" />
+        <p className="text-caption text-white/50">Point at the nutrition label</p>
+      </div>
+      <Button size="lg" onClick={handleCapture}>Scan label</Button>
+    </div>
+  );
+}
+
+// ── ServingModal ──────────────────────────────────────────────────────────────
+
+function ServingModal({
+  name, servingG, onPer100g, onPerServing, onDismiss,
+}: {
+  name: string; servingG: number;
+  onPer100g: () => void; onPerServing: () => void; onDismiss: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[300] flex items-end bg-black/40" onClick={onDismiss}>
+      <div
+        className="w-full space-y-3 rounded-t-[28px] bg-surface px-5 pt-6"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-headline font-bold text-content">How to track {name}?</p>
+        <p className="text-subhead text-content-secondary">
+          Choose the measurement from the nutrition label.
+        </p>
+        <button
+          onClick={onPer100g}
+          className="w-full rounded-full border border-border-field bg-surface-sunken py-4 text-body font-semibold text-content transition-colors active:border-accent"
+        >
+          Per 100g
+        </button>
+        <button
+          onClick={onPerServing}
+          className="w-full rounded-full border border-border-field bg-surface-sunken py-4 text-body font-semibold text-content transition-colors active:border-accent"
+        >
+          Per serving ({servingG}g)
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── ManualOverlay ─────────────────────────────────────────────────────────────
+
+function ManualOverlay({
+  items, onBack, onAdd,
+}: {
+  items: FoodItem[];
+  onBack: () => void;
+  onAdd: (entry: { name: string; calories: number; protein: number; carbs: number; fiber: number; fat: number; saveToPantry: boolean }) => void;
+}) {
+  const [name, setName] = useState('');
+  const [cal, setCal]   = useState('');
+  const [pro, setPro]   = useState('');
+  const [carb, setCarb] = useState('');
+  const [fib, setFib]   = useState('');
+  const [fat, setFat]   = useState('');
+  const [save, setSave] = useState(false);
+
+  const duplicate = findByName(items, name);
+  const blocked   = save && !!duplicate;
+  const canAdd    = name.trim().length > 0 && !blocked;
+
+  const addRef = useRef<() => void>(() => undefined);
+  addRef.current = () => { // eslint-disable-line react-hooks/refs
+    if (!canAdd) return;
+    onAdd({
+      name: name.trim(),
+      calories: +cal || 0, protein: +pro || 0, carbs: +carb || 0,
+      fiber: +fib || 0, fat: +fat || 0, saveToPantry: save,
+    });
+  };
+
+  useSheetSetFooter(
+    <Button size="lg" onClick={() => addRef.current()} disabled={!canAdd}>
+      Add to meal
+    </Button>,
+    [canAdd],
+  );
+
+  return (
+    <div className="space-y-3 py-1">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="-ml-1 p-1 text-content-secondary active:opacity-70">
+          <Icon name="back" size={22} strokeWidth={2.25} />
+        </button>
+        <span className="text-headline font-semibold text-content">Add manually</span>
+      </div>
+
+      <LabeledInput
+        label="Food name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="e.g. Homemade granola"
+        invalid={blocked}
+      />
+      {blocked && (
+        <p className="text-caption text-danger">This name already exists in your pantry</p>
+      )}
+
+      <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
+        <input
+          type="checkbox"
+          checked={save}
+          onChange={(e) => setSave(e.target.checked)}
+          className="h-4 w-4 accent-accent"
+        />
+        Save to pantry for next time
+      </label>
+
+      <div className="grid grid-cols-2 gap-2">
+        <NumberField label="Calories" value={cal} set={setCal} max={5000} step={1} centerAt={350} />
+        <NumberField label="Protein (g)" value={pro} set={setPro} max={500} step={1} centerAt={25} />
+        <NumberField label="Carbs (g)" value={carb} set={setCarb} max={800} step={1} centerAt={30} />
+        <NumberField label="Fiber (g)" value={fib} set={setFib} max={200} step={1} centerAt={5} />
+        <NumberField label="Fat (g)" value={fat} set={setFat} max={400} step={1} centerAt={12} />
+      </div>
+    </div>
+  );
+}
+
+// ── EditOverlay ───────────────────────────────────────────────────────────────
+
+function EditOverlay({
+  item, onBack, onSave,
+}: {
+  item: BasketItem;
+  onBack: () => void;
+  onSave: (patch: Partial<BasketItem>) => void;
+}) {
+  const isSrv  = item.measurementType === 'per_serving';
+  const [name, setName] = useState(item.name);
+  const [cal, setCal]   = useState(String(Math.round(item.calories)));
+  const [pro, setPro]   = useState(String(item.protein));
+  const [carb, setCarb] = useState(String(item.carbs));
+  const [fib, setFib]   = useState(String(item.fiber));
+  const [fat, setFat]   = useState(String(item.fat));
+  const [srvG, setSrvG] = useState(isSrv ? String(item.referenceAmount) : '');
+
+  const saveRef = useRef<() => void>(() => undefined);
+  saveRef.current = () => { // eslint-disable-line react-hooks/refs
+    const patch: Partial<BasketItem> = {
+      name: name.trim() || item.name,
+      calories: +cal || item.calories,
+      protein:  +pro  || item.protein,
+      carbs:    +carb || item.carbs,
+      fiber:    +fib  || item.fiber,
+      fat:      +fat  || item.fat,
+    };
+    if (isSrv && srvG) patch.referenceAmount = +srvG || item.referenceAmount;
+    onSave(patch);
+  };
+
+  useSheetSetFooter(
+    <Button size="lg" onClick={() => saveRef.current()}>Save</Button>,
+    [],
+  );
+
+  return (
+    <div className="space-y-3 py-1">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="-ml-1 p-1 text-content-secondary active:opacity-70">
+          <Icon name="back" size={22} strokeWidth={2.25} />
+        </button>
+        <span className="text-headline font-semibold text-content">Edit nutrition</span>
+      </div>
+
+      <LabeledInput label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+
+      <div className="h-px bg-border-subtle" />
+
+      {isSrv ? (
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField label="Serving size (g)" value={srvG} set={setSrvG} centerAt={100} />
+          <NumberField label="Calories (kcal)" value={cal} set={setCal} centerAt={350} />
+        </div>
+      ) : (
+        <NumberField label="Calories (kcal · per 100g)" value={cal} set={setCal} centerAt={350} />
+      )}
+
+      <div className="grid grid-cols-2 gap-2">
+        <NumberField label="Protein (g)" value={pro} set={setPro} centerAt={25} />
+        <NumberField label="Carbs (g)" value={carb} set={setCarb} centerAt={30} />
+        <NumberField label="Fat (g)" value={fat} set={setFat} centerAt={12} />
+        <NumberField label="Fiber (g)" value={fib} set={setFib} centerAt={5} />
+      </div>
+
+      <p className="text-caption text-content-secondary">
+        {isSrv
+          ? 'Values are per serving. Adjust quantity in the basket.'
+          : 'Values are per 100g. Adjust grams in the basket.'}
+      </p>
+    </div>
+  );
+}
+
+// ── ScanResults (exported — used by TodayScreen + DevMenu) ───────────────────
+
+export type ResultItem = import('../../domain/types').MealItem;
 
 export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMealNameChange, logLabel, extraSection }: {
   items: ResultItem[];
   onChange: (items: ResultItem[]) => void;
   onLog: () => Promise<void>;
   scanPhoto: string | null;
-  /** Present when items.length > 1 — editable name for the whole meal. */
   mealName?: string;
   onMealNameChange?: (name: string) => void;
-  /** Override the primary action button label (default: 'Log meal' / 'Log N items'). */
   logLabel?: string;
-  /** Optional content rendered between the items list and the sticky CTA. */
   extraSection?: React.ReactNode;
 }) {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [logging, setLogging] = useState(false);
   const isMeal = items.length > 1;
-  const selectedCount = items.filter((i) => i.selected).length;
   const selectedItems = items.filter((i) => i.selected);
 
-  // Calculate totals for selected items only — Number() guards against API strings.
-  const totalCalories = selectedItems.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
-  const totalProtein  = selectedItems.reduce((sum, item) => sum + (Number(item.protein)  || 0), 0);
-  const totalCarbs    = selectedItems.reduce((sum, item) => sum + (Number(item.carbs)    || 0), 0);
-  const totalFiber    = selectedItems.reduce((sum, item) => sum + (Number(item.fiber)    || 0), 0);
-  const totalFat      = selectedItems.reduce((sum, item) => sum + (Number(item.fat)      || 0), 0);
-  const totalGrams    = selectedItems.reduce((sum, item) => sum + (Number(item.estimatedGrams) || 0), 0);
+  const totalCalories = selectedItems.reduce((s, i) => s + (Number(i.calories) || 0), 0);
+  const totalProtein  = selectedItems.reduce((s, i) => s + (Number(i.protein)  || 0), 0);
+  const totalCarbs    = selectedItems.reduce((s, i) => s + (Number(i.carbs)    || 0), 0);
+  const totalFiber    = selectedItems.reduce((s, i) => s + (Number(i.fiber)    || 0), 0);
+  const totalFat      = selectedItems.reduce((s, i) => s + (Number(i.fat)      || 0), 0);
+  const totalGrams    = selectedItems.reduce((s, i) => s + (Number(i.estimatedGrams) || 0), 0);
 
-  // Capture original AI-estimated values per item the first time the edit panel
-  // is opened, so that changing grams always scales from the original baseline.
   const originalsRef = useRef<Record<number, { g: number; cal: number; pro: number; carbs: number; fib: number; fat: number }>>({});
 
   function expand(idx: number) {
@@ -536,7 +1285,6 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
     onChange(items.map((item, i) => i === idx ? { ...item, ...patch } : item));
   }
 
-  /** Change grams and proportionally rescale all macros from the original AI values. */
   function updateGrams(idx: number, newGrams: number) {
     const orig = originalsRef.current[idx];
     if (!orig || orig.g === 0) { update(idx, { estimatedGrams: newGrams }); return; }
@@ -544,25 +1292,23 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
     update(idx, {
       estimatedGrams: newGrams,
       calories: Math.round(orig.cal * s),
-      protein:  Math.round(orig.pro    * s * 10) / 10,
-      carbs:    Math.round(orig.carbs  * s * 10) / 10,
-      fiber:    Math.round(orig.fib    * s * 10) / 10,
-      fat:      Math.round(orig.fat    * s * 10) / 10,
+      protein:  Math.round(orig.pro   * s * 10) / 10,
+      carbs:    Math.round(orig.carbs * s * 10) / 10,
+      fiber:    Math.round(orig.fib   * s * 10) / 10,
+      fat:      Math.round(orig.fat   * s * 10) / 10,
     });
   }
 
   return (
-    <div className="space-y-3 mt-2 flex flex-col">
-      {/* [1] Scanned photo at top — always shown and consistent size */}
+    <div className="mt-2 flex flex-col space-y-3">
       {scanPhoto && (
-        <div className="flex justify-center pb-1 flex-shrink-0">
-          <div className="w-64 h-64 overflow-hidden rounded-[24px] shadow-card-lg">
-            <img src={scanPhoto} alt="Scanned meal" className="w-full h-full object-cover" />
+        <div className="flex shrink-0 justify-center pb-1">
+          <div className="h-64 w-64 overflow-hidden rounded-[24px] shadow-card-lg">
+            <img src={scanPhoto} alt="Scanned meal" className="h-full w-full object-cover" />
           </div>
         </div>
       )}
 
-      {/* [2] Meal name input — shown only for multi-item scans */}
       {isMeal && onMealNameChange && (
         <LabeledInput
           label="Meal name"
@@ -572,10 +1318,9 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
         />
       )}
 
-      {/* [3] Total meal nutrition summary — shown only for multi-item scans, read-only */}
       {isMeal && items.length > 0 && (
         <div className="rounded-[16px] bg-surface-sunken px-4 py-3">
-          <p className="text-caption text-content-secondary font-semibold uppercase mb-2">Total nutrition</p>
+          <p className="mb-2 text-caption font-semibold uppercase text-content-secondary">Total nutrition</p>
           <div className="flex gap-4">
             <div className="flex-1">
               <p className="text-subhead text-content-secondary">≈{totalGrams}g total</p>
@@ -591,14 +1336,12 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
         </div>
       )}
 
-      {/* [4] Item count badge — mt-3 adds extra gap above space-y-3's 12px = 24px total */}
-      <div className="flex items-center justify-between px-0.5 mt-3">
+      <div className="mt-3 flex items-center justify-between px-0.5">
         <span className="text-subhead font-semibold text-content">
           {items.length} item{items.length !== 1 ? 's' : ''} detected
         </span>
       </div>
 
-      {/* Items list and no-food placeholder */}
       {items.length === 0 ? (
         <p className="py-8 text-center text-subhead text-content-secondary">
           No food detected. Try again with better lighting or a clearer angle.
@@ -611,13 +1354,6 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
               className={`rounded-[20px] bg-surface shadow-card transition-opacity ${item.selected ? '' : 'opacity-40'}`}
             >
               <div className="flex flex-col gap-2 p-4">
-                {/* Low confidence badge — inline at top of card, part of normal flow */}
-                {item.confidence === 'low' && (
-                  <div className="self-start rounded-pill bg-content px-2.5 py-1 text-subhead font-medium text-content-inverse">
-                    low confidence
-                  </div>
-                )}
-                {/* Name row: checkbox + title (truncated) + edit */}
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -626,9 +1362,7 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
                     className="h-5 w-5 shrink-0 accent-accent"
                     aria-label={`Include ${item.name}`}
                   />
-                  <span className="flex-1 truncate text-body font-semibold text-content">
-                    {item.name}
-                  </span>
+                  <span className="flex-1 truncate text-body font-semibold text-content">{item.name}</span>
                   <button
                     type="button"
                     onClick={() => expand(idx)}
@@ -643,12 +1377,10 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
                   </button>
                 </div>
 
-                {/* Description — shown when the scan API returns one */}
                 {item.description && (
                   <p className="text-subhead text-content">{item.description}</p>
                 )}
 
-                {/* Nutrition facts container — hidden when edit form is open */}
                 {expandedIdx !== idx && (
                   <div className="rounded-[16px] bg-surface-sunken px-4 py-3">
                     <div className="flex gap-4">
@@ -666,7 +1398,6 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
                   </div>
                 )}
 
-                {/* Expanded edit form */}
                 {expandedIdx === idx && (
                   <div className="border-t border-border-subtle pt-3">
                     <div className="grid grid-cols-2 gap-2">
@@ -685,17 +1416,12 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
         </div>
       )}
 
-      {/* Accuracy disclaimer — scrolls with content, below all items */}
-      <p className="text-caption text-content-secondary text-center px-1 pb-2">
+      <p className="px-1 pb-2 text-center text-caption text-content-secondary">
         AI-generated results may be inaccurate.
       </p>
 
       {extraSection}
 
-      {/* Sticky Log button — -mx-5 px-5 breaks out of the scroll area's px-5
-          padding so the gradient fills the full panel width edge-to-edge.
-          (The div fills exactly the scroll container's padding-box width, so
-          there is no horizontal overflow and overflow-x clipping is not triggered.) */}
       <div
         className="sticky bottom-0 -mx-5 px-5"
         style={{
@@ -707,7 +1433,7 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
         <Button
           size="lg"
           onClick={async () => { setLogging(true); await onLog(); }}
-          disabled={selectedCount === 0 || logging}
+          disabled={selectedItems.length === 0 || logging}
         >
           {logging
             ? 'Logging…'
@@ -715,241 +1441,9 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
               ? logLabel
               : isMeal
                 ? 'Log meal'
-                : `Log ${selectedCount} item${selectedCount !== 1 ? 's' : ''}`}
+                : `Log ${selectedItems.length} item${selectedItems.length !== 1 ? 's' : ''}`}
         </Button>
       </div>
-    </div>
-  );
-}
-
-type PickedItem = { item: FoodItem; qty: string };
-
-function PantryPick({ date, items, onDone, showToast }: {
-  date: string; items: FoodItem[]; onDone: () => void; showToast?: ShowToast;
-}) {
-  const [picked, setPicked] = useState<PickedItem[]>([]);
-  const [mealName, setMealName] = useState('');
-
-  const isMeal = picked.length >= 2;
-
-  function addItem(id: string) {
-    const item = items.find((i) => i.id === id);
-    if (!item) return;
-    const qty = item.measurementType === 'per_100g' ? '100' : '1';
-    setPicked((prev) => [...prev, { item, qty }]);
-  }
-
-  function removeItem(idx: number) {
-    setPicked((prev) => prev.filter((_, i) => i !== idx));
-  }
-
-  function updateQty(idx: number, qty: string) {
-    setPicked((prev) => prev.map((p, i) => i === idx ? { ...p, qty } : p));
-  }
-
-  // Register log CTA in Sheet's pinned footer slot.
-  // Passes null when nothing is picked (hides footer), updates label as items change.
-  const logRef = useRef<() => Promise<void>>(() => Promise.resolve());
-  // logRef.current is updated BELOW after `log` is defined; the hook call is placed
-  // here so hook call order is stable across renders (hooks must not be conditional).
-  const hasPicked = picked.length > 0;
-  const logButtonLabel = isMeal ? 'Log meal' : hasPicked ? `Log ${picked[0].item.name}` : '';
-  useSheetSetFooter(
-    hasPicked
-      ? <Button size="lg" onClick={() => void logRef.current()}>{logButtonLabel}</Button>
-      : null,
-    [hasPicked, logButtonLabel],
-  );
-
-  async function log() {
-    if (picked.length === 0) return;
-
-    if (isMeal) {
-      const entries = picked.map((p) => {
-        const quantity = Number(p.qty) || 0;
-        const n = nutritionFor(p.item, quantity);
-        return { item: p.item, quantity, n };
-      });
-      const snapshot = {
-        calories: entries.reduce((s, e) => s + e.n.calories, 0),
-        protein:  entries.reduce((s, e) => s + e.n.protein, 0),
-        carbs:    entries.reduce((s, e) => s + e.n.carbs, 0),
-        fiber:    entries.reduce((s, e) => s + e.n.fiber, 0),
-        fat:      entries.reduce((s, e) => s + e.n.fat, 0),
-      };
-      const name = mealName.trim() || 'Meal';
-      await repos.foodEntries.add({
-        id: newId(), date,
-        manualName: name,
-        isManual: true,
-        snapshot,
-        createdAt: new Date().toISOString(),
-        mealData: {
-          name,
-          items: entries.map((e) => ({
-            name: e.item.name,
-            selected: true,
-            confidence: 'high' as const,
-            calories: e.n.calories,
-            protein: e.n.protein,
-            carbs: e.n.carbs,
-            fiber: e.n.fiber,
-            fat: e.n.fat,
-            estimatedGrams: e.quantity,
-          })),
-        },
-      });
-      showToast?.(`${name} logged`);
-    } else {
-      const { item, qty } = picked[0];
-      const quantity = Number(qty) || 0;
-      const id = newId();
-      await repos.foodEntries.add({
-        id, date, foodItemId: item.id, quantity, isManual: false,
-        snapshot: nutritionFor(item, quantity), createdAt: new Date().toISOString(),
-      });
-      showToast?.(`${item.name} logged`, async () => repos.foodEntries.remove(id));
-    }
-    onDone();
-  }
-  logRef.current = log; // eslint-disable-line react-hooks/refs -- keep ref current after `log` is defined; safe because onClick reads ref at call time
-
-  return (
-    <div className="flex flex-col space-y-3">
-      {/* Meal name — only when 2+ items */}
-      {isMeal && (
-        <LabeledInput
-          label="Meal name"
-          value={mealName}
-          onChange={(e) => setMealName(e.target.value)}
-          placeholder="Name this meal"
-        />
-      )}
-
-      {/* Picked item cards */}
-      {picked.map((p, idx) => {
-        const quantity = Number(p.qty) || 0;
-        const n = nutritionFor(p.item, quantity);
-        const isServing = p.item.measurementType === 'per_serving';
-        return (
-          <div key={idx} className="rounded-[20px] bg-surface shadow-card p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="flex-1 truncate text-body font-semibold text-content">{p.item.name}</span>
-              <button
-                onClick={() => removeItem(idx)}
-                className="-m-1 p-1 text-content-muted active:text-danger transition-colors"
-                aria-label={`Remove ${p.item.name}`}
-              >
-                <Icon name="trash" size={18} strokeWidth={2} />
-              </button>
-            </div>
-            {isServing
-              ? <ServingStepper qty={p.qty} setQty={(q) => updateQty(idx, q)} />
-              : <LabeledInput label="Quantity (g)" value={p.qty} onChange={onDecimalChange((v) => updateQty(idx, v))} inputMode="decimal" />
-            }
-            <div className="rounded-[12px] bg-surface-sunken px-3 py-2">
-              <span className="text-subhead text-content-secondary">
-                {Math.round(n.calories)} kcal · {n.protein.toFixed(1)}g protein
-              </span>
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Item picker — label changes based on whether items already picked */}
-      <label className="block">
-        <span className="text-micro font-medium uppercase text-content-secondary">
-          {picked.length === 0 ? 'Pick an item' : 'Add another item'}
-        </span>
-        <div className="relative mt-1">
-          <select
-            value=""
-            onChange={(e) => { if (e.target.value) addItem(e.target.value); }}
-            className="w-full appearance-none rounded-field border border-transparent bg-surface-sunken pl-3 pr-10 py-3 text-body font-medium text-content"
-          >
-            <option value="">Pick an item</option>
-            {items
-              .filter((i) => !picked.some((p) => p.item.id === i.id))
-              .map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-          </select>
-          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-            <Icon name="chevronDown" size={16} strokeWidth={2} className="text-content-muted" />
-          </div>
-        </div>
-      </label>
-
-    </div>
-  );
-}
-
-function NewFood({ date, items, onDone, showToast }: {
-  date: string; items: FoodItem[]; onDone: () => void; showToast?: ShowToast;
-}) {
-  const [name, setName] = useState('');
-  const [mt, setMt] = useState<MeasurementType>('per_100g');
-  const [cal, setCal] = useState(''); const [pro, setPro] = useState('');
-  const [carb, setCarb] = useState(''); const [fib, setFib] = useState(''); const [fat, setFat] = useState('');
-  const [qty, setQty] = useState('100'); const [photo, setPhoto] = useState<string | undefined>();
-  const [saveToPantry, setSaveToPantry] = useState(true);
-
-  const ref = mt === 'per_100g' ? 100 : 1;
-  const item: FoodItem = { id: 'tmp', name, measurementType: mt, referenceAmount: ref, calories: +cal || 0, protein: +pro || 0, carbs: +carb || 0, fiber: +fib || 0, fat: +fat || 0, photo, isArchived: false };
-  const quantity = Number(qty) || 0;
-
-  // Duplicate guard: only matters when saving to the pantry (a one-off manual
-  // log can repeat a name freely). Case/space-insensitive match.
-  const duplicate = findByName(items, name);
-  const blocked = saveToPantry && !!duplicate;
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- reset qty to sensible default when measurement type changes
-  useEffect(() => { setQty(mt === 'per_100g' ? '100' : '1'); }, [mt]);
-
-  async function save() {
-    if (!name.trim() || blocked) return;
-    const snapshot = nutritionFor(item, quantity);
-    const entryId = newId();
-    if (saveToPantry) {
-      const itemId = newId();
-      await repos.foodItems.put({ ...item, id: itemId });
-      await repos.foodEntries.add({ id: entryId, date, foodItemId: itemId, quantity, isManual: false, snapshot, createdAt: new Date().toISOString() });
-    } else {
-      await repos.foodEntries.add({ id: entryId, date, manualName: name.trim(), isManual: true, snapshot, createdAt: new Date().toISOString() });
-    }
-    showToast?.('Food logged', async () => repos.foodEntries.remove(entryId));
-    onDone();
-  }
-
-  // Register "Log it" in Sheet's pinned footer slot so it stays at the panel
-  // bottom even when the keyboard is open (avoids floating mid-form).
-  const saveRef = useRef<() => Promise<void>>(() => Promise.resolve());
-  saveRef.current = save; // eslint-disable-line react-hooks/refs -- keep ref current; onClick reads it at call time, not during render
-  useSheetSetFooter(
-    <Button size="lg" onClick={() => void saveRef.current()} disabled={!name.trim() || blocked}>Log it</Button>,
-    [!name.trim(), blocked],
-  );
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <PhotoPicker photo={photo} onChange={setPhoto} />
-        <LabeledInput wrapClassName="flex-1" value={name} onChange={(e) => setName(e.target.value)} placeholder="Food name" invalid={blocked} />
-      </div>
-      {blocked && (
-        <p className="text-caption text-danger">This name already exists in your pantry</p>
-      )}
-      <label className="flex items-center gap-2 text-subhead text-content-secondary pb-2">
-        <input type="checkbox" checked={saveToPantry} onChange={(e) => setSaveToPantry(e.target.checked)} /> Save to pantry
-      </label>
-      <MeasurementTypeSelector value={mt} onChange={setMt} />
-      <div className="grid grid-cols-2 gap-2">
-        <NumberField label="Calories" value={cal} set={setCal} max={5000} step={1} centerAt={350} />
-        <NumberField label="Protein (g)" value={pro} set={setPro} max={500} step={1} centerAt={25} />
-        <NumberField label="Carbs (g)" value={carb} set={setCarb} max={800} step={1} centerAt={30} />
-        <NumberField label="Fiber (g)" value={fib} set={setFib} max={200} step={1} centerAt={5} />
-        <NumberField label="Fat (g)" value={fat} set={setFat} max={400} step={1} centerAt={12} />
-        <NumberField label={mt === 'per_100g' ? 'Quantity (g)' : 'Servings'} value={qty} set={setQty} />
-      </div>
-
     </div>
   );
 }
@@ -962,9 +1456,9 @@ const INTENSITY_OPTIONS = [
   { value: 'intense',  label: 'Intense',  kcalPerMin: 11 },
 ];
 const DURATION_OPTIONS = [
-  { value: '30',  label: '30 min', minutes: 30 },
-  { value: '45',  label: '45 min', minutes: 45 },
-  { value: '60',  label: '1 hour', minutes: 60 },
+  { value: '30',  label: '30 min',  minutes: 30 },
+  { value: '45',  label: '45 min',  minutes: 45 },
+  { value: '60',  label: '1 hour',  minutes: 60 },
   { value: '90',  label: '1.5 hrs', minutes: 90 },
 ];
 
@@ -977,73 +1471,58 @@ function ActivityForm({ date, onDone, showToast }: {
   const [mode, setMode] = useState<ActivityMode>(
     () => (localStorage.getItem(ACTIVITY_MODE_KEY) === 'estimate' ? 'estimate' : 'manual')
   );
-  const [name, setName]       = useState('');
-  const [kcal, setKcal]       = useState('');
+  const [name, setName]           = useState('');
+  const [kcal, setKcal]           = useState('');
   const [intensity, setIntensity] = useState<string | null>(null);
-  const [duration,  setDuration]  = useState<string | null>(null);
+  const [duration, setDuration]   = useState<string | null>(null);
 
   function changeMode(m: ActivityMode) {
     setMode(m);
     localStorage.setItem(ACTIVITY_MODE_KEY, m);
-    // Reset fields when switching modes
     setKcal('');
     setIntensity(null);
     setDuration(null);
   }
 
-  // Recalculate kcal and auto-name whenever intensity/duration changes
   function handleIntensity(val: string | null) {
     setIntensity(val);
     const i = INTENSITY_OPTIONS.find((o) => o.value === val);
     const d = DURATION_OPTIONS.find((o) => o.value === duration);
-    if (i && d) {
-      setKcal(String(Math.round(i.kcalPerMin * d.minutes)));
-    } else {
-      setKcal('');
-    }
+    if (i && d) setKcal(String(Math.round(i.kcalPerMin * d.minutes)));
+    else setKcal('');
   }
+
   function handleDuration(val: string | null) {
     setDuration(val);
     const i = INTENSITY_OPTIONS.find((o) => o.value === intensity);
     const d = DURATION_OPTIONS.find((o) => o.value === val);
-    if (i && d) {
-      setKcal(String(Math.round(i.kcalPerMin * d.minutes)));
-    } else {
-      setKcal('');
-    }
+    if (i && d) setKcal(String(Math.round(i.kcalPerMin * d.minutes)));
+    else setKcal('');
   }
 
-  // Derive auto-name for estimate mode
-  function estimateName(): string {
+  function estimateName() {
     const i = INTENSITY_OPTIONS.find((o) => o.value === intensity);
     const d = DURATION_OPTIONS.find((o) => o.value === duration);
-    if (i && d) return `${i.label} · ${d.label}`;
-    return '';
+    return i && d ? `${i.label} · ${d.label}` : '';
   }
 
   const canSave = mode === 'manual' ? !!Number(kcal) : !!(intensity && duration && Number(kcal));
 
   async function save() {
     if (!canSave) return;
-    const v = Number(kcal);
-    const entryName = mode === 'manual'
-      ? (name.trim() || undefined)
-      : (estimateName() || undefined);
     const entryId = newId();
     await repos.activities.add({
-      id: entryId,
-      date,
-      name: entryName,
-      activeCalories: v,
+      id: entryId, date,
+      name: mode === 'manual' ? (name.trim() || undefined) : (estimateName() || undefined),
+      activeCalories: Number(kcal),
       createdAt: new Date().toISOString(),
     });
     showToast?.('Activity logged', async () => repos.activities.remove(entryId));
     onDone();
   }
 
-  // Register "Log activity" in Sheet's pinned footer slot.
   const saveRef = useRef<() => Promise<void>>(() => Promise.resolve());
-  saveRef.current = save; // eslint-disable-line react-hooks/refs -- keep ref current; onClick reads it at call time, not during render
+  saveRef.current = save; // eslint-disable-line react-hooks/refs
   useSheetSetFooter(
     <Button size="lg" onClick={() => void saveRef.current()} disabled={!canSave}>Log activity</Button>,
     [canSave],
@@ -1051,7 +1530,6 @@ function ActivityForm({ date, onDone, showToast }: {
 
   return (
     <div className="space-y-4">
-      {/* Mode toggle */}
       <div className="flex justify-center">
         <SegmentedControl<ActivityMode>
           value={mode}
@@ -1064,7 +1542,6 @@ function ActivityForm({ date, onDone, showToast }: {
       </div>
 
       {mode === 'manual' ? (
-        /* ── Manual: name + calories drum-roll ────────────────────────── */
         <div className="space-y-3">
           <LabeledInput
             label="Name"
@@ -1085,16 +1562,14 @@ function ActivityForm({ date, onDone, showToast }: {
           />
         </div>
       ) : (
-        /* ── Estimate: two native pickers → auto-fills kcal ───────────── */
         <div className="space-y-3">
-          {/* Intensity picker */}
           <div className="flex flex-col gap-1">
             <span className="text-subhead font-normal text-content-secondary">Intensity</span>
             <div className="relative mt-1">
               <select
                 value={intensity ?? ''}
                 onChange={(e) => handleIntensity(e.target.value || null)}
-                className="w-full appearance-none rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content pr-10 focus:outline-none"
+                className="w-full appearance-none rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 pr-10 text-subhead font-semibold text-content focus:outline-none"
               >
                 <option value="">Select intensity</option>
                 {INTENSITY_OPTIONS.map((o) => (
@@ -1107,14 +1582,13 @@ function ActivityForm({ date, onDone, showToast }: {
             </div>
           </div>
 
-          {/* Duration picker */}
           <div className="flex flex-col gap-1">
             <span className="text-subhead font-normal text-content-secondary">Duration</span>
             <div className="relative mt-1">
               <select
                 value={duration ?? ''}
                 onChange={(e) => handleDuration(e.target.value || null)}
-                className="w-full appearance-none rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content pr-10 focus:outline-none"
+                className="w-full appearance-none rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 pr-10 text-subhead font-semibold text-content focus:outline-none"
               >
                 <option value="">Select duration</option>
                 {DURATION_OPTIONS.map((o) => (
@@ -1127,7 +1601,6 @@ function ActivityForm({ date, onDone, showToast }: {
             </div>
           </div>
 
-          {/* Computed result */}
           {kcal ? (
             <p className="text-center text-subhead text-content-secondary">
               ≈ <span className="font-semibold text-content">{kcal} kcal</span> estimated
@@ -1139,16 +1612,18 @@ function ActivityForm({ date, onDone, showToast }: {
   );
 }
 
+// ── WeightForm ────────────────────────────────────────────────────────────────
+
 function WeightForm({ date, onDone }: { date: string; onDone: () => void }) {
   const weights = useLive(() => repos.weights.all(), []) ?? [];
-  const user = useLive(() => repos.user.get(), []);
-  const units = user?.units ?? 'kg';
+  const user    = useLive(() => repos.user.get(), []);
+  const units   = user?.units ?? 'kg';
   const existing = weights.find((w) => w.date === date);
-  const prefill = existing?.weightKg ?? currentWeightKg(weights);
+  const prefill  = existing?.weightKg ?? currentWeightKg(weights);
   const [val, setVal] = useState('');
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- populate field when async prefill resolves
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (prefill != null) setVal(units === 'lbs' ? String(parseFloat(kgToLbs(prefill).toFixed(1))) : String(prefill));
   }, [prefill, units]);
 
@@ -1157,15 +1632,12 @@ function WeightForm({ date, onDone }: { date: string; onDone: () => void }) {
     if (!display) return;
     const v = units === 'lbs' ? lbsToKg(display) : display;
     await repos.weights.upsertForDate({ id: newId(), date, weightKg: v, source: 'manual' });
-    // Recalculate account BMR from the most-recent weight ≤ today (not always the
-    // just-saved one — editing a past entry shouldn't overwrite the current BMR).
     await syncAccountBmr();
     onDone();
   }
 
-  // Register "Save weight" in Sheet's pinned footer slot.
   const saveRef = useRef<() => Promise<void>>(() => Promise.resolve());
-  saveRef.current = save; // eslint-disable-line react-hooks/refs -- keep ref current; onClick reads it at call time, not during render
+  saveRef.current = save; // eslint-disable-line react-hooks/refs
   useSheetSetFooter(
     <Button size="lg" onClick={() => void saveRef.current()} disabled={!Number(val)}>Save weight</Button>,
     [!Number(val)],
@@ -1197,4 +1669,3 @@ function WeightForm({ date, onDone }: { date: string; onDone: () => void }) {
     </div>
   );
 }
-

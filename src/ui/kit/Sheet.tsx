@@ -64,7 +64,7 @@ export function OverlayNav({
   const scrolled = useOverlayScrolled();
   return (
     <div
-      className={`sticky top-0 -mx-5 px-5 bg-surface pb-3 pt-2 ${scrolled ? 'shadow-[0_1px_0_0_var(--color-border-subtle)]' : ''}`}
+      className={`sticky top-0 z-10 -mx-5 px-5 bg-surface pb-3 pt-2 ${scrolled ? 'shadow-[0_1px_0_0_var(--color-border-subtle)]' : ''}`}
     >
       <div className="flex items-center">
         <button onClick={onBack} className="-m-3 p-3 text-content-secondary active:opacity-70" aria-label="Back">
@@ -601,12 +601,14 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
         />
         {/* Header wrapper — shadow appears once the scroll area has been scrolled,
             mirroring the same pattern used on fixed nav bars in full-screen views. */}
-        <div className={`shrink-0 transition-[box-shadow] duration-200${scrolled ? ' shadow-nav' : ''}`}>
+        <div
+          className={`shrink-0 cursor-grab touch-none transition-[box-shadow] duration-200 active:cursor-grabbing${scrolled ? ' shadow-nav' : ''}`}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+        >
           <div
-            className="cursor-grab touch-none px-5 pt-3 active:cursor-grabbing"
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
+            className="px-5 pt-3"
           >
             <div className="mx-auto mb-3 h-1.5 w-11 rounded-pill bg-border-strong" />
             {/* Title row — only rendered when a title is provided. Sheets that
@@ -636,7 +638,7 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
             )}
           </div>
           {stickyHeader && (
-            <div className="px-5">{stickyHeader}</div>
+            <div className="px-5" data-no-drag>{stickyHeader}</div>
           )}
         </div>
         <SheetOverlayBackSetContext.Provider value={setChildOverlayBackCb}>

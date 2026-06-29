@@ -157,6 +157,10 @@ export function AddEntrySheet({
 }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const items = useLive(() => repos.foodItems.all(), []) ?? [];
+  const freqIds = useLive(() => repos.foodEntries.frequentItemIds(4, 3), []) ?? [];
+  const frequentItems = freqIds
+    .map((id) => items.find((i) => i.id === id))
+    .filter((i): i is FoodItem => !!i && !i.isArchived);
 
   const isNotToday = date !== todayISO();
   const dateSubtitle = isNotToday ? (
@@ -201,6 +205,7 @@ export function AddEntrySheet({
         <FoodForm
           date={date}
           items={items}
+          frequentItems={frequentItems}
           onDone={onClose}
           autoScan={autoScan}
           initialScanPhoto={initialScanPhoto}
@@ -218,10 +223,11 @@ export function AddEntrySheet({
 type OverlayKey = 'describe' | 'label' | 'manual' | 'edit';
 
 function FoodForm({
-  date, items, onDone, autoScan = false, initialScanPhoto, showToast,
+  date, items, frequentItems = [], onDone, autoScan = false, initialScanPhoto, showToast,
 }: {
   date: string;
   items: FoodItem[];
+  frequentItems?: FoodItem[];
   onDone: () => void;
   autoScan?: boolean;
   initialScanPhoto?: string;
@@ -262,20 +268,10 @@ function FoodForm({
     return photos.slice(0, 3); // max 3 in collage
   })();
 
-  // ── Sheet footer CTA ──────────────────────────────────────────────────────
-  // Hidden when an overlay is active — each overlay carries its own inline CTA.
+  // ── Log CTA ref (called by inline button in main basket view) ────────────
   const logRef = useRef<() => Promise<void>>(() => Promise.resolve());
-  useSheetSetFooter(
-    !analyzing && !activeOverlay
-      ? <Button
-          size="lg"
-          onClick={() => void logRef.current()}
-        >
-          {basket.length >= 2 ? 'Log meal' : 'Log it'}
-        </Button>
-      : null,
-    [analyzing, activeOverlay, basket.length],
-  );
+  // Footer is null — Log it is rendered inline (non-sticky) after basket content
+  useSheetSetFooter(null, []);
 
   // Register overlayBack so swipe-right on any overlay dismisses it.
   // Use a stable ref so the effect doesn't re-run every render.
@@ -378,28 +374,23 @@ function FoodForm({
     }
   }
 
-  async function handleDescribeAnalyze(text: string) {
-    setActiveOverlay(null);
-    setAnalyzeLabel('Thinking about your meal…');
-    setAnalyzing(true);
+  async function handleDescribeAnalyze(text: string): Promise<void> {
+    // Keep the overlay open during the async call — close it only on success.
+    // The overlay manages its own loading state and re-throws on error so the
+    // overlay can display the error message inline.
     const sourceId = newId();
-    try {
-      const foods = await describeFood(text);
-      const newItems = foods.map((f) =>
-        scanResultToBasket({
-          name: f.name, estimatedGrams: f.estimatedGrams,
-          calories: f.calories, protein: f.protein,
-          carbs: f.carbs, fiber: f.fiber, fat: f.fat,
-        }, sourceId),
-      );
-      // Describe has no photo, so no source group is added
-      setBasket((prev) => [...prev, ...newItems]);
-      setPickerOpen(false);
-    } catch (err) {
-      showToast?.(err instanceof Error ? err.message : 'Analysis failed');
-    } finally {
-      setAnalyzing(false);
-    }
+    const foods = await describeFood(text);
+    const newItems = foods.map((f) =>
+      scanResultToBasket({
+        name: f.name, estimatedGrams: f.estimatedGrams,
+        calories: f.calories, protein: f.protein,
+        carbs: f.carbs, fiber: f.fiber, fat: f.fat,
+      }, sourceId),
+    );
+    // Describe has no photo, so no source group is added
+    setBasket((prev) => [...prev, ...newItems]);
+    setPickerOpen(false);
+    setActiveOverlay(null);
   }
 
   async function handleLabelScan(imageDataUrl: string) {
@@ -448,7 +439,7 @@ function FoodForm({
     const existingIdx = basket.findIndex((b) => b.pantryItemId === item.id);
     if (existingIdx !== -1) {
       const existing = basket[existingIdx];
-      const step = existing.measurementType === 'per_100g' ? 10 : 0.5;
+      const step = existing.measurementType === 'per_100g' ? 10 : 1;
       updateQty(existingIdx, existing.qty + step);
       setPickerOpen(false);
       return;
@@ -636,10 +627,10 @@ function FoodForm({
       {/* Meal header — only when basket has items */}
       {basket.length > 0 && (
         <div className="flex items-center justify-between">
-          <span className="text-[15px] font-semibold text-content">Meal</span>
+          <span className="text-headline font-semibold text-content">Meal</span>
           <button
             onClick={() => setEditMode((v) => !v)}
-            className="text-callout font-semibold text-accent active:opacity-70"
+            className="text-callout font-semibold text-accent-hover active:opacity-70"
           >
             {editMode ? 'Done' : 'Edit'}
           </button>
@@ -700,10 +691,18 @@ function FoodForm({
         />
       )}
 
+      {/* Inline Log it CTA — non-sticky, appears after basket content, only when basket non-empty */}
+      {basket.length > 0 && !editMode && !activeOverlay && !analyzing && (
+        <Button size="lg" onClick={() => void logRef.current()}>
+          {basket.length >= 2 ? 'Log meal' : 'Log it'}
+        </Button>
+      )}
+
       {/* Food picker (always visible on empty basket; toggled by pickerOpen otherwise) */}
       {showPicker && (
         <FoodPicker
           items={items}
+          frequentItems={frequentItems}
           onPickItem={addPantryItem}
           onCamera={() => void handleCamera()}
           onPhoto={() => void handlePhoto()}
@@ -741,6 +740,8 @@ function BasketStepper({
 }) {
   const isGrams = item.measurementType === 'per_100g';
   const step    = isGrams ? 10 : 0.5;
+  // Show trash icon on the minus button when one more decrement would remove the item
+  const atThreshold = qty <= step;
 
   function adj(delta: number) {
     hapticLight();
@@ -757,32 +758,42 @@ function BasketStepper({
     : `${qty % 1 === 0 ? qty : qty.toFixed(1)} srv`;
 
   const btnCls =
-    'flex h-8 w-8 items-center justify-center rounded-full border border-border-field bg-surface text-content transition-colors active:bg-surface-sunken';
+    'flex h-8 w-8 items-center justify-center rounded-full text-content transition-colors active:opacity-70';
 
   return (
     // stopPropagation so tapping stepper inside a card doesn't trigger card's onEdit
-    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-      <button data-no-drag onClick={() => adj(-step)} className={btnCls} aria-label="Decrease">
-        <Icon name="minus" size={14} strokeWidth={2} />
+    <div
+      className="inline-flex items-center gap-1.5 rounded-[4px] bg-surface-sunken px-1.5 py-1"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        data-no-drag
+        onClick={() => atThreshold ? (hapticLight(), onRemove()) : adj(-step)}
+        className={btnCls}
+        aria-label={atThreshold ? 'Remove item' : 'Decrease'}
+      >
+        {atThreshold ? (
+          <DeleteIcon />
+        ) : (
+          <Icon name="minus" size={14} strokeWidth={2} />
+        )}
       </button>
-      {qty <= 0 ? (
-        <button
-          data-no-drag
-          onClick={() => { hapticLight(); onRemove(); }}
-          className="flex min-w-[68px] items-center justify-center text-danger active:opacity-70"
-          aria-label="Remove item"
-        >
-          <Icon name="trash" size={16} strokeWidth={2} />
-        </button>
-      ) : (
-        <span className="min-w-[68px] text-center text-subhead font-semibold text-content">
-          {label}
-        </span>
-      )}
+      <span className="min-w-[54px] text-center text-subhead font-normal text-content">
+        {label}
+      </span>
       <button data-no-drag onClick={() => adj(step)} className={btnCls} aria-label="Increase">
         <Icon name="plus" size={14} strokeWidth={2} />
       </button>
     </div>
+  );
+}
+
+/** Delete icon from design spec — 20×20, uses currentColor */
+function DeleteIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M5.75 18.1673C5.125 18.1673 4.60069 17.9555 4.17708 17.5319C3.75347 17.1083 3.54167 16.584 3.54167 15.959V4.91732C3.23611 4.91732 2.97569 4.80968 2.76042 4.5944C2.54514 4.37912 2.4375 4.11871 2.4375 3.81315C2.4375 3.5076 2.54514 3.24718 2.76042 3.0319C2.97569 2.81662 3.23611 2.70898 3.54167 2.70898H7.45833C7.45833 2.43121 7.55417 2.1951 7.74583 2.00065C7.9375 1.80621 8.175 1.70898 8.45833 1.70898H11.5833C11.8667 1.70898 12.1042 1.80482 12.2958 1.99648C12.4875 2.18815 12.5833 2.42565 12.5833 2.70898H16.5C16.8056 2.70898 17.066 2.81662 17.2813 3.0319C17.4965 3.24718 17.6042 3.5076 17.6042 3.81315C17.6042 4.11871 17.4965 4.37912 17.2813 4.5944C17.066 4.80968 16.8056 4.91732 16.5 4.91732V15.959C16.5 16.584 16.2882 17.1083 15.8646 17.5319C15.441 17.9555 14.9167 18.1673 14.2917 18.1673H5.75ZM14.2917 4.91732H5.75V15.959H14.2917V4.91732ZM8.94792 13.9486C9.16319 13.7333 9.27083 13.4729 9.27083 13.1673V7.70898C9.27083 7.40343 9.16319 7.14301 8.94792 6.92773C8.73264 6.71246 8.47222 6.60482 8.16667 6.60482C7.86111 6.60482 7.60069 6.71246 7.38542 6.92773C7.17014 7.14301 7.0625 7.40343 7.0625 7.70898V13.1673C7.0625 13.4729 7.17014 13.7333 7.38542 13.9486C7.60069 14.1638 7.86111 14.2715 8.16667 14.2715C8.47222 14.2715 8.73264 14.1638 8.94792 13.9486ZM12.6563 13.9486C12.8715 13.7333 12.9792 13.4729 12.9792 13.1673V7.70898C12.9792 7.40343 12.8715 7.14301 12.6563 6.92773C12.441 6.71246 12.1806 6.60482 11.875 6.60482C11.5694 6.60482 11.309 6.71246 11.0938 6.92773C10.8785 7.14301 10.7708 7.40343 10.7708 7.70898V13.1673C10.7708 13.4729 10.8785 13.7333 11.0938 13.9486C11.309 14.1638 11.5694 14.2715 11.875 14.2715C12.1806 14.2715 12.441 14.1638 12.6563 13.9486Z" fill="currentColor"/>
+    </svg>
   );
 }
 
@@ -832,8 +843,9 @@ function BasketCard({
 
   return (
     <div className="flex items-center gap-3">
+      {/* Card doesn't translate — sibling delete icon causes flex shrink */}
       <div
-        className={`flex-1 rounded-[20px] bg-surface p-4 shadow-card transition-transform duration-200 ${revealed ? '-translate-x-1' : ''}`}
+        className="flex-1 rounded-[20px] bg-surface p-4 shadow-card"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onClick={handleCardClick}
@@ -843,15 +855,24 @@ function BasketCard({
           <span className="flex-1 truncate text-body font-semibold text-content">{item.name}</span>
           <span className="shrink-0 text-subhead text-content-secondary">{nutrition.calories} kcal</span>
         </div>
-        <BasketStepper item={item} qty={item.qty} onChange={onQtyChange} onRemove={onRemove} />
+        {/* Bottom row: stepper + tappable fill so right-side of card also opens edit */}
+        <div className="flex items-center">
+          <BasketStepper item={item} qty={item.qty} onChange={onQtyChange} onRemove={onRemove} />
+          {/* Invisible fill area — tapping here opens edit mode (same as card tap) */}
+          <div
+            className="flex-1 self-stretch min-h-[36px]"
+            onClick={(e) => { e.stopPropagation(); if (!editMode && !swiped) onEdit(); }}
+          />
+        </div>
       </div>
+      {/* Delete icon — no background, icon only, 20×20 black */}
       {revealed && (
         <button
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface shadow-card text-content-secondary active:text-danger"
+          className="shrink-0 flex items-center justify-center text-content active:opacity-60"
           aria-label="Remove"
         >
-          <Icon name="trash" size={16} strokeWidth={2} />
+          <DeleteIcon />
         </button>
       )}
     </div>
@@ -861,10 +882,12 @@ function BasketCard({
 // ── FoodPicker ────────────────────────────────────────────────────────────────
 
 function FoodPicker({
-  items, onPickItem, onCamera, onPhoto, onDescribe, onLabel, onManual,
+  items, frequentItems = [], onPickItem, onCamera, onPhoto, onDescribe, onLabel, onManual,
   heading, onClose,
 }: {
   items: FoodItem[];
+  /** Pre-computed frequent items (most logged) to show in the Recent list. */
+  frequentItems?: FoodItem[];
   onPickItem: (item: FoodItem) => void;
   onCamera: () => void;
   onPhoto: () => void;
@@ -878,8 +901,10 @@ function FoodPicker({
 }) {
   const [query, setQuery] = useState('');
 
-  // Show 4 most-recently-added non-archived items as "recent"
-  const recent   = items.filter((i) => !i.isArchived).slice(0, 4);
+  // Recent = frequently logged items; fall back to newest pantry items if none logged yet
+  const recent = frequentItems.length > 0
+    ? frequentItems
+    : items.filter((i) => !i.isArchived).slice(0, 4);
   const filtered = query.trim()
     ? items.filter((i) => !i.isArchived && i.name.toLowerCase().includes(query.toLowerCase()))
     : recent;
@@ -901,17 +926,18 @@ function FoodPicker({
         </div>
       )}
 
-      {/* Search */}
-      <div className="relative">
+      {/* Search — 8px gap below heading; pill shape maintained on focus via appearance:none */}
+      <div className={`relative${heading ? ' mt-2' : ''}`}>
         <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-content-muted">
           <Icon name="search" size={16} strokeWidth={2} />
         </span>
         <input
-          type="search"
+          type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search foods…"
           autoComplete="off"
+          style={{ WebkitAppearance: 'none', appearance: 'none' }}
           className="w-full rounded-full bg-surface py-3 pl-10 pr-4 text-body text-content placeholder:text-content-muted outline-none"
         />
       </div>
@@ -990,15 +1016,15 @@ function MethodCards({
   ];
 
   return (
-    // -mx-3 + px-3 breaks out of the parent container's p-3 padding so shadows aren't clipped
-    // pb-3 -mb-3 does the same for the bottom edge
-    <div className="-mx-3 -mb-3 overflow-x-auto pb-3" style={{ scrollbarWidth: 'none', overflowY: 'visible' }}>
-      <div className="flex gap-2 px-3 pt-1">
+    // overflow-x-auto with negative margin so the scroll container reaches the full
+    // grey container width and card shadows aren't clipped at the edges
+    <div className="-mx-3 -mb-3 overflow-x-auto pb-3" style={{ scrollbarWidth: 'none' }}>
+      <div className="flex gap-2 px-3 pt-1 pb-1">
         {methods.map(({ label, onClick, icon }) => (
           <button
             key={label}
             onClick={onClick}
-            className="flex h-[72px] w-[82px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[14px] border-[1.5px] border-border-subtle bg-surface text-[12px] font-medium text-content shadow-card transition-colors active:bg-accent/5"
+            className="flex h-[72px] w-[82px] shrink-0 flex-col items-center justify-center gap-[3px] rounded-[14px] bg-surface text-[12px] font-medium text-content shadow-card transition-colors active:bg-accent/5"
           >
             {icon}
             {label}
@@ -1057,18 +1083,34 @@ function DescribeOverlay({
   onBack, onAnalyze,
 }: {
   onBack: () => void;
-  onAnalyze: (text: string) => void;
+  /** Async — throws on error. Overlay stays open until this resolves or rejects. */
+  onAnalyze: (text: string) => Promise<void>;
 }) {
   const [text, setText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const hasText = text.trim().length > 0;
-  const onAnalyzeRef = useRef(onAnalyze);
-  onAnalyzeRef.current = onAnalyze; // eslint-disable-line react-hooks/refs
+
+  async function handleAnalyse() {
+    if (!hasText || loading) return;
+    setLoading(true);
+    setError('');
+    try {
+      await onAnalyze(text.trim());
+      // onAnalyze closes the overlay on success — no action needed here
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.');
+      setLoading(false);
+    }
+  }
 
   useOverlaySetFooter(
     hasText
-      ? <Button size="lg" onClick={() => onAnalyzeRef.current(text.trim())}>Analyse</Button>
+      ? <Button size="lg" onClick={() => void handleAnalyse()} disabled={loading}>
+          {loading ? 'Analysing…' : 'Analyse'}
+        </Button>
       : null,
-    [hasText],
+    [hasText, loading],
   );
 
   return (
@@ -1078,10 +1120,11 @@ function DescribeOverlay({
         autoFocus
         rows={5}
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => { setText(e.target.value); if (error) setError(''); }}
         placeholder={`What did you eat?\ne.g. "a bowl of oats with banana and honey"`}
         className="min-h-[130px] w-full resize-none rounded-[16px] bg-surface-sunken px-4 py-3.5 text-callout leading-relaxed text-content placeholder:text-content-muted outline-none focus:ring-2 focus:ring-accent/30"
       />
+      {error && <p className="text-caption text-danger">{error}</p>}
       <p className="text-caption text-content-secondary">
         Describe what you ate and AI will estimate the nutrition.
       </p>
@@ -1256,7 +1299,7 @@ function ManualOverlay({
           </button>
           <button
             onClick={() => fileRef.current?.click()}
-            className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
           >
             Change photo
           </button>
@@ -1264,7 +1307,7 @@ function ManualOverlay({
       ) : (
         <button
           onClick={() => fileRef.current?.click()}
-          className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-dashed border-border-field py-4 text-subhead font-medium text-content-secondary active:border-accent active:text-accent"
+          className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-border-field py-4 text-subhead font-medium text-content-secondary active:border-accent active:text-accent"
         >
           <Icon name="camera" size={18} strokeWidth={1.8} />
           Add photo
@@ -1289,7 +1332,7 @@ function ManualOverlay({
           onChange={(e) => setSave(e.target.checked)}
           className="h-4 w-4 accent-accent"
         />
-        Save to pantry for next time
+        Save to pantry
       </label>
 
       {/* Measurement type */}
@@ -1388,7 +1431,7 @@ function EditOverlay({
           </button>
           <button
             onClick={() => fileRef.current?.click()}
-            className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
           >
             Change photo
           </button>
@@ -1396,7 +1439,7 @@ function EditOverlay({
       ) : onPhotoChange && (
         <button
           onClick={() => fileRef.current?.click()}
-          className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-dashed border-border-field py-4 text-subhead font-medium text-content-secondary active:border-accent active:text-accent"
+          className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-border-field py-4 text-subhead font-medium text-content-secondary active:border-accent active:text-accent"
         >
           <Icon name="camera" size={18} strokeWidth={1.8} />
           Add photo
@@ -1404,8 +1447,6 @@ function EditOverlay({
       )}
 
       <LabeledInput label="Name" value={name} onChange={(e) => setName(e.target.value)} />
-
-      <div className="h-px bg-border-subtle" />
 
       {isSrv ? (
         <div className="grid grid-cols-2 gap-2">
@@ -1434,7 +1475,7 @@ function EditOverlay({
         <Button size="lg" onClick={() => saveRef.current()}>Save</Button>
         <button
           onClick={onBack}
-          className="w-full py-3 text-body font-semibold text-content-secondary active:opacity-70"
+          className="w-full py-3 text-body font-semibold text-content active:opacity-70"
         >
           Cancel
         </button>

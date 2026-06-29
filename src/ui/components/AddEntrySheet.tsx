@@ -737,6 +737,7 @@ function FoodForm({
           onClose={() => setPickerOpen(false)}
         >
           <FoodPicker
+            bare
             items={items}
             frequentItems={frequentItems}
             onPickItem={addPantryItem}
@@ -762,8 +763,8 @@ function FoodForm({
 }
 
 // ── AddAnotherSection ─────────────────────────────────────────────────────────
-// Persistent "+ Add another item" heading that stays anchored while the picker
-// content expands downward. The heading never moves on open/close.
+// Single rounded container: heading row always visible, picker content expands
+// downward inside the same surface. Heading Y position never jumps.
 
 function AddAnotherSection({
   open, onToggle, onClose, children,
@@ -774,32 +775,35 @@ function AddAnotherSection({
   children: React.ReactNode;
 }) {
   return (
-    <div>
-      {/* Heading row — fixed anchor; always at the same Y position */}
+    <div className="rounded-[24px] bg-surface-sunken">
+      {/* Heading row */}
       <button
         onClick={onToggle}
-        className="flex w-full items-center rounded-[24px] bg-surface-sunken px-4 py-3.5"
+        className={`flex w-full items-center px-4 py-3.5${open ? ' pb-2' : ''}`}
       >
-        {/* X — visible when open; invisible placeholder keeps title centred when closed */}
-        <span
-          className={`flex h-6 w-6 items-center justify-center transition-opacity${open ? '' : ' opacity-0 pointer-events-none'}`}
-          onClick={(e) => { if (open) { e.stopPropagation(); onClose(); } }}
-          role="button"
-          aria-label="Close"
-        >
-          <Icon name="close" size={18} strokeWidth={2} className="text-content-muted" />
+        {/* X — same width as right spacer to keep title centred */}
+        <span className="w-6 flex items-center justify-center">
+          {open && (
+            <span
+              onClick={(e) => { e.stopPropagation(); onClose(); }}
+              role="button"
+              aria-label="Close"
+              className="flex h-6 w-6 items-center justify-center"
+            >
+              <Icon name="close" size={18} strokeWidth={2} className="text-content-muted" />
+            </span>
+          )}
         </span>
         <span className="flex-1 text-center text-body font-semibold text-content">
           <Icon name="plus" size={18} strokeWidth={2.5} className="inline mr-1 align-[-3px]" />
           Add another item
         </span>
-        {/* Right spacer — mirrors X on left to keep title centred */}
         <span className="w-6" />
       </button>
 
-      {/* Picker content — expands below the heading */}
+      {/* Picker content — bare (no extra container), expands inside the same surface */}
       {open && (
-        <div className="mt-1">
+        <div className="px-3 pb-3">
           {children}
         </div>
       )}
@@ -962,6 +966,7 @@ function BasketCard({
 
 function FoodPicker({
   items, frequentItems = [], onPickItem, onCamera, onPhoto, onDescribe, onLabel, onManual,
+  bare = false,
 }: {
   items: FoodItem[];
   /** Pre-computed frequent items (most logged) to show in the Recent list. */
@@ -972,6 +977,8 @@ function FoodPicker({
   onDescribe: () => void;
   onLabel: () => void;
   onManual: () => void;
+  /** When true, skips the outer rounded container (use when parent already provides one). */
+  bare?: boolean;
 }) {
   const [query, setQuery] = useState('');
 
@@ -983,12 +990,10 @@ function FoodPicker({
     ? items.filter((i) => !i.isArchived && i.name.toLowerCase().includes(query.toLowerCase()))
     : recent;
 
-  return (
-    <div className="space-y-1">
-      {/* Grey container — search and recent list */}
-      <div className="rounded-[24px] bg-surface-sunken p-3">
-        {/* Search — pill shape guaranteed via overflow-hidden on wrapper (iOS focus resets border-radius on input) */}
-        <div className="relative rounded-full bg-surface overflow-hidden">
+  const inner = (
+    <>
+      {/* Search — pill shape guaranteed via overflow-hidden on wrapper (iOS focus resets border-radius on input) */}
+      <div className="relative rounded-full bg-surface overflow-hidden">
           <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-content-muted">
             <Icon name="search" size={16} strokeWidth={2} />
           </span>
@@ -1044,10 +1049,9 @@ function FoodPicker({
         {filtered.length === 0 && query.trim() && (
           <p className="py-4 text-center text-subhead text-content-secondary">No results</p>
         )}
-      </div>
 
-      {/* Method cards — outside the grey container so WebKit border-radius doesn't clip card shadows */}
-      <div>
+      {/* Method cards */}
+      <div className={bare ? '' : 'mt-1'}>
         <p className="px-1 pt-3 pb-2 text-callout font-semibold text-content">Other methods</p>
         <MethodCards
           onCamera={onCamera}
@@ -1057,6 +1061,13 @@ function FoodPicker({
           onManual={onManual}
         />
       </div>
+    </>
+  );
+
+  if (bare) return <div className="space-y-1">{inner}</div>;
+  return (
+    <div className="space-y-1">
+      <div className="rounded-[24px] bg-surface-sunken p-3">{inner}</div>
     </div>
   );
 }
@@ -1179,7 +1190,6 @@ function DescribeOverlay({
     <div className="space-y-3 py-1">
       <OverlayNav title="Describe" onBack={onBack} />
       <textarea
-        autoFocus
         rows={5}
         value={text}
         onChange={(e) => { setText(e.target.value); if (error) setError(''); }}

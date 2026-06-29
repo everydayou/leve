@@ -24,6 +24,14 @@ const SheetOverlaySetContext = createContext<((node: ReactNode) => void) | null>
  *  pinned CTA inside the OverlayLayer footer slot. */
 const OverlayFooterSetContext = createContext<((node: ReactNode) => void) | null>(null);
 
+/** Shape of the nav bar registered by OverlayNav via OverlayNavSetContext. */
+type OverlayNavValue = { title: string; onBack: () => void; right?: ReactNode };
+
+/** Internal context — OverlayNav calls `set` to register its props with
+ *  OverlayLayer so the nav bar renders ABOVE the scroll area (truly fixed,
+ *  immune to rubber-band scroll on iOS). */
+const OverlayNavSetContext = createContext<((nav: OverlayNavValue | null) => void) | null>(null);
+
 /** Internal context — child forms register a dismiss/back function so the
  *  OverlayLayer can call it when the user swipes right to go back. */
 const SheetOverlayBackSetContext = createContext<((fn: (() => void) | null) => void) | null>(null);
@@ -51,9 +59,10 @@ const OverlayScrolledContext = createContext(false);
 // eslint-disable-next-line react-refresh/only-export-components
 export function useOverlayScrolled(): boolean { return useContext(OverlayScrolledContext); }
 
-/** Shared sticky nav row for overlay panels. Back arrow on left, centred title,
- *  optional right slot. Shows a subtle bottom border when content scrolls beneath it.
- *  Use inside every overlay component so the nav sticks to the top of the scroll area. */
+/** Shared nav row for overlay panels. Back arrow on left, centred title,
+ *  optional right slot. Registers itself with OverlayLayer via OverlayNavSetContext
+ *  so the nav bar is rendered ABOVE the scroll area — fully fixed, immune to
+ *  rubber-band scroll on iOS. This component renders nothing in the tree. */
 export function OverlayNav({
   title, onBack, right,
 }: {
@@ -61,20 +70,25 @@ export function OverlayNav({
   onBack: () => void;
   right?: ReactNode;
 }) {
-  const scrolled = useOverlayScrolled();
-  return (
-    <div
-      className={`sticky top-0 z-10 -mx-5 px-5 bg-surface pb-3 pt-2 ${scrolled ? 'shadow-[0_1px_0_0_var(--color-border-subtle)]' : ''}`}
-    >
-      <div className="flex items-center">
-        <button onClick={onBack} className="-m-3 p-3 text-content-secondary active:opacity-70" aria-label="Back">
-          <Icon name="back" size={22} strokeWidth={2.25} />
-        </button>
-        <h2 className="flex-1 text-center text-headline font-semibold text-content">{title}</h2>
-        {right ?? <span className="w-10" />}
-      </div>
-    </div>
-  );
+  const set = useContext(OverlayNavSetContext);
+  // Keep a ref so the stable callback wrapper always calls the latest onBack.
+  const propsRef = useRef({ onBack, right });
+  propsRef.current = { onBack, right }; // eslint-disable-line react-hooks/refs
+
+  // useLayoutEffect fires before paint — no visible flash on first render.
+  useLayoutEffect(() => {
+    set?.({
+      title,
+      // Stable wrapper: OverlayLayer calls this, which reads propsRef.current
+      // so it always invokes the freshest onBack even if the parent re-rendered.
+      onBack: () => propsRef.current.onBack(),
+      right: propsRef.current.right,
+    });
+    return () => set?.(null);
+  }, [set, title]);
+
+  // Renders nothing — the nav bar is drawn by OverlayLayer above the scroll area.
+  return null;
 }
 
 /** Register a CTA button from inside Sheet's scroll area children so it
@@ -134,8 +148,10 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
   const [show, setShow]         = useState(false);
   const [rendered, setRendered] = useState<ReactNode>(null);
   const [overlayFooter, setOverlayFooter] = useState<ReactNode>(null);
+  const [overlayNav, setOverlayNav] = useState<OverlayNavValue | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const setOverlayFooterCb = useCallback((n: ReactNode) => setOverlayFooter(n), []);
+  const setOverlayNavCb = useCallback((nav: OverlayNavValue | null) => setOverlayNav(nav), []);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
@@ -184,10 +200,25 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
       <div className="shrink-0 pt-3 px-5">
         <div className="mx-auto mb-3 h-1.5 w-11 rounded-pill bg-border-strong" />
       </div>
+      {/* Nav bar — rendered OUTSIDE the scroll container so it stays fixed
+          during rubber-band scroll on iOS (sticky inside a scroll area moves). */}
+      {overlayNav && (
+        <div className={`shrink-0 -mt-1 px-5 pb-3 pt-2 bg-surface${scrolled ? ' shadow-[0_1px_0_0_var(--color-border-subtle)]' : ''}`}>
+          <div className="flex items-center">
+            <button onClick={overlayNav.onBack} className="-m-3 p-3 text-content-secondary active:opacity-70" aria-label="Back">
+              <Icon name="back" size={22} strokeWidth={2.25} />
+            </button>
+            <h2 className="flex-1 text-center text-headline font-semibold text-content">{overlayNav.title}</h2>
+            {overlayNav.right ?? <span className="w-10" />}
+          </div>
+        </div>
+      )}
+      <OverlayNavSetContext.Provider value={setOverlayNavCb}>
       <OverlayFooterSetContext.Provider value={setOverlayFooterCb}>
         <OverlayScrolledContext.Provider value={scrolled}>
           <div
             className="flex-1 overflow-y-auto overscroll-contain px-5 pb-2"
+            style={{ touchAction: 'pan-y' }}
             onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
           >
             {rendered}
@@ -206,6 +237,7 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
           </div>
         )}
       </OverlayFooterSetContext.Provider>
+      </OverlayNavSetContext.Provider>
     </div>
   );
 }
@@ -649,7 +681,7 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
                 ref={scrollAreaRef}
                 className="flex-1 overflow-y-auto px-5"
                 onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
-                style={{
+                style={{ touchAction: 'pan-y',
                   paddingBottom: keyboardInset > 0
                     ? `${keyboardInset}px`
                     : scrollAreaPaddingBottom !== undefined

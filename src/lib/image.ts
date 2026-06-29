@@ -2,7 +2,7 @@
  *  A camera shot can be several MB; we only ever show a tiny thumbnail, so we
  *  shrink to a small max dimension and re-encode as JPEG. Result is a data URL
  *  of a few KB. No external library — just a canvas. */
-const MAX_THUMB_PX = 120; // ~2x the largest display thumb, stays crisp on retina
+const MAX_THUMB_PX = 256; // 256px — matches the 256×256 photo display in edit/pantry views
 export const MAX_SCAN_PX  = 768; // large enough for AI food analysis, small enough for cheap API calls
 const JPEG_QUALITY = 0.72;
 

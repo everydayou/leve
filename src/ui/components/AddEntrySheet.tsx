@@ -109,6 +109,20 @@ function pantryToBasket(item: FoodItem, sourceId?: string): BasketItem {
   };
 }
 
+/** Strip parenthetical descriptors and cap to 22 chars at a word boundary.
+ *  Scan results often return verbose names like "Sourdough bread (toasted, partial slice)"
+ *  — this normalises them to concise meal names. */
+function cleanScanName(raw: string): string {
+  // Remove trailing parenthetical description: "Bread (with butter)" → "Bread"
+  let name = raw.replace(/\s*\([^)]*\)$/, '').trim();
+  // Also strip " - description" suffixes
+  name = name.replace(/\s+[-–]\s+.+$/, '').trim();
+  if (name.length <= 22) return name;
+  // Truncate at last word boundary within 22 chars
+  const truncated = name.slice(0, 22).replace(/\s+\S*$/, '').trim();
+  return truncated || name.slice(0, 22).trim();
+}
+
 function scanResultToBasket(
   r: { name: string; estimatedGrams: number; calories: number; protein: number; carbs: number; fiber: number; fat: number },
   sourceId: string,
@@ -117,7 +131,7 @@ function scanResultToBasket(
   const f = 100 / grams;
   return {
     id: newId(),
-    name: r.name,
+    name: cleanScanName(r.name),
     measurementType: 'per_100g',
     referenceAmount: 100,
     calories: (Number(r.calories) || 0) * f,
@@ -220,7 +234,7 @@ export function AddEntrySheet({
 
 // ── FoodForm ──────────────────────────────────────────────────────────────────
 
-type OverlayKey = 'describe' | 'label' | 'manual' | 'edit';
+type OverlayKey = 'describe' | 'manual' | 'edit';
 
 function FoodForm({
   date, items, frequentItems = [], onDone, autoScan = false, initialScanPhoto, showToast,
@@ -247,6 +261,7 @@ function FoodForm({
     item100: BasketItem; itemSrv: BasketItem; servingG: number;
   } | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
+  const labelInputRef = useRef<HTMLInputElement>(null);
 
   // ── Derived: which source photos to show in the collage ──────────────────
   const sourcePhotos = (() => {
@@ -287,8 +302,6 @@ function FoodForm({
   useSheetSetOverlay(
     activeOverlay === 'describe' ? (
       <DescribeOverlay onBack={overlayBack} onAnalyze={handleDescribeAnalyze} />
-    ) : activeOverlay === 'label' ? (
-      <LabelOverlay onBack={overlayBack} onScan={handleLabelScan} />
     ) : activeOverlay === 'manual' ? (
       <ManualOverlay items={items} onBack={overlayBack} onAdd={addManualItem} />
     ) : editItem ? (
@@ -394,7 +407,6 @@ function FoodForm({
   }
 
   async function handleLabelScan(imageDataUrl: string) {
-    setActiveOverlay(null);
     setAnalyzeLabel('Reading the label…');
     setAnalyzing(true);
     try {
@@ -422,7 +434,7 @@ function FoodForm({
         fat:      Number(f.fat)      || 0,
         qty: 1, sourceId,
       };
-      setSources((prev) => [...prev, { id: sourceId, photo: imageDataUrl }]);
+      // Label scan: no source photo added to the basket collage
       setServingModal({ item100, itemSrv, servingG });
     } catch (err) {
       showToast?.(err instanceof Error ? err.message : 'Label scan failed');
@@ -620,6 +632,20 @@ function FoodForm({
           }}
         />
       )}
+      {/* Label scan — native iOS picker (Photo Library / Take Photo / Files) */}
+      <input
+        ref={labelInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          e.target.value = '';
+          const small = await downscaleImage(f, MAX_SCAN_PX);
+          await handleLabelScan(small);
+        }}
+      />
 
       {/* Photo collage */}
       {sourcePhotos.length > 0 && <ImageHero photos={sourcePhotos} />}
@@ -707,7 +733,12 @@ function FoodForm({
           onCamera={() => void handleCamera()}
           onPhoto={() => void handlePhoto()}
           onDescribe={() => { setPickerOpen(false); setActiveOverlay('describe'); }}
-          onLabel={() => { setPickerOpen(false); setActiveOverlay('label'); }}
+          onLabel={() => {
+            setPickerOpen(false);
+            // Trigger native iOS picker (Photo Library / Take Photo / Files)
+            // same pattern as "Add Photo" — no intermediate overlay needed.
+            labelInputRef.current?.click();
+          }}
           onManual={() => { setPickerOpen(false); setActiveOverlay('manual'); }}
           heading={basket.length > 0 ? 'Add another item' : undefined}
           onClose={basket.length > 0 ? () => setPickerOpen(false) : undefined}
@@ -718,6 +749,7 @@ function FoodForm({
       {!showPicker && basket.length > 0 && (
         <button
           onClick={() => setPickerOpen(true)}
+          style={{ marginTop: '24px' }}
           className="flex w-full items-center justify-center gap-2 rounded-[24px] bg-surface-sunken py-3.5 text-body font-semibold text-content active:opacity-70"
         >
           <Icon name="plus" size={18} strokeWidth={2.5} />
@@ -758,12 +790,12 @@ function BasketStepper({
     : `${qty % 1 === 0 ? qty : qty.toFixed(1)} srv`;
 
   const btnCls =
-    'flex h-8 w-8 items-center justify-center rounded-full text-content transition-colors active:opacity-70';
+    'flex h-7 w-7 items-center justify-center rounded-full bg-surface text-content shadow-sm transition-colors active:opacity-70';
 
   return (
     // stopPropagation so tapping stepper inside a card doesn't trigger card's onEdit
     <div
-      className="inline-flex items-center gap-1.5 rounded-[4px] bg-surface-sunken px-1.5 py-1"
+      className="inline-flex items-center gap-1 rounded-full bg-surface-sunken px-1 py-1"
       onClick={(e) => e.stopPropagation()}
     >
       <button
@@ -910,81 +942,84 @@ function FoodPicker({
     : recent;
 
   return (
-    <div className="space-y-1 rounded-[24px] bg-surface-sunken p-3">
-      {/* Heading row — X on left, title centred (shown when picker is expanded over a non-empty basket) */}
-      {heading && (
-        <div className="flex items-center pb-1">
-          {onClose && (
-            <button onClick={onClose} className="-m-1 p-1 text-content-muted active:opacity-70" aria-label="Close">
-              <Icon name="close" size={20} strokeWidth={2} />
-            </button>
-          )}
-          <span className="flex-1 text-center text-body font-semibold text-content pr-6">
-            <Icon name="plus" size={14} strokeWidth={2.5} className="inline mr-1 align-[-2px]" />
-            {heading}
-          </span>
-        </div>
-      )}
+    <div className="space-y-1">
+      {/* Grey container — heading, search, and recent list */}
+      <div className="rounded-[24px] bg-surface-sunken p-3">
+        {/* Heading row — X on left, title centred (shown when picker is expanded over a non-empty basket) */}
+        {heading && (
+          <div className="flex items-center pb-1">
+            {onClose && (
+              <button onClick={onClose} className="-m-1 p-1 text-content-muted active:opacity-70" aria-label="Close">
+                <Icon name="close" size={20} strokeWidth={2} />
+              </button>
+            )}
+            <span className="flex-1 text-center text-body font-semibold text-content pr-6">
+              <Icon name="plus" size={18} strokeWidth={2.5} className="inline mr-1 align-[-2px]" />
+              {heading}
+            </span>
+          </div>
+        )}
 
-      {/* Search — 8px gap below heading; pill shape maintained on focus via appearance:none */}
-      <div className={`relative${heading ? ' mt-2' : ''}`}>
-        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-content-muted">
-          <Icon name="search" size={16} strokeWidth={2} />
-        </span>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search foods…"
-          autoComplete="off"
-          style={{ WebkitAppearance: 'none', appearance: 'none' }}
-          className="w-full rounded-full bg-surface py-3 pl-10 pr-4 text-body text-content placeholder:text-content-muted outline-none"
-        />
+        {/* Search — pill shape guaranteed via overflow-hidden on wrapper (iOS focus resets border-radius on input) */}
+        <div className={`relative rounded-full bg-surface overflow-hidden${heading ? ' mt-2' : ''}`}>
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-content-muted">
+            <Icon name="search" size={16} strokeWidth={2} />
+          </span>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search foods…"
+            autoComplete="off"
+            style={{ WebkitAppearance: 'none', appearance: 'none' }}
+            className="w-full py-3 pl-10 pr-4 text-body text-content placeholder:text-content-muted outline-none bg-transparent"
+          />
+        </div>
+
+        {/* List */}
+        {filtered.length > 0 && (
+          <div>
+            <p className="px-1 pt-3 pb-2 text-callout font-semibold text-content">{query.trim() ? 'Results' : 'Recent'}</p>
+            <div className="overflow-hidden rounded-[16px] bg-surface divide-y divide-border-subtle">
+              {filtered.map((item) => {
+                const n = nutritionFor(item, item.referenceAmount);
+                return (
+                  <ListRow
+                    key={item.id}
+                    leading={
+                      item.photo ? (
+                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[10px]">
+                          <img src={item.photo} alt={item.name} className="h-full w-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="h-11 w-11 shrink-0 rounded-[10px] bg-surface-sunken" />
+                      )
+                    }
+                    title={item.name}
+                    subtitle={`${Math.round(n.calories)} kcal · ${item.measurementType === 'per_serving' ? 'per serving' : 'per 100g'}`}
+                    trailing={
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onPickItem(item); }}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-black active:opacity-80"
+                        aria-label={`Add ${item.name}`}
+                      >
+                        <Icon name="plus" size={16} strokeWidth={2.5} />
+                      </button>
+                    }
+                    onClick={() => onPickItem(item)}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {filtered.length === 0 && query.trim() && (
+          <p className="py-4 text-center text-subhead text-content-secondary">No results</p>
+        )}
       </div>
 
-      {/* List */}
-      {filtered.length > 0 && (
-        <div>
-          <p className="px-1 pt-3 pb-2 text-callout font-semibold text-content">{query.trim() ? 'Results' : 'Recent'}</p>
-          <div className="overflow-hidden rounded-[16px] bg-surface divide-y divide-border-subtle">
-            {filtered.map((item) => {
-              const n = nutritionFor(item, item.referenceAmount);
-              return (
-                <ListRow
-                  key={item.id}
-                  leading={
-                    item.photo ? (
-                      <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[10px]">
-                        <img src={item.photo} alt={item.name} className="h-full w-full object-cover" />
-                      </div>
-                    ) : (
-                      <div className="h-11 w-11 shrink-0 rounded-[10px] bg-surface-sunken" />
-                    )
-                  }
-                  title={item.name}
-                  subtitle={`${Math.round(n.calories)} kcal · ${item.measurementType === 'per_serving' ? 'per serving' : 'per 100g'}`}
-                  trailing={
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onPickItem(item); }}
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-black active:opacity-80"
-                      aria-label={`Add ${item.name}`}
-                    >
-                      <Icon name="plus" size={16} strokeWidth={2.5} />
-                    </button>
-                  }
-                  onClick={() => onPickItem(item)}
-                />
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {filtered.length === 0 && query.trim() && (
-        <p className="py-4 text-center text-subhead text-content-secondary">No results</p>
-      )}
-
-      {/* Method cards — negative margin lets card shadows bleed outside the sunken container */}
+      {/* Method cards — outside the grey container so WebKit border-radius doesn't clip card shadows */}
       <div>
         <p className="px-1 pt-3 pb-2 text-callout font-semibold text-content">Other methods</p>
         <MethodCards
@@ -1099,7 +1134,13 @@ function DescribeOverlay({
       await onAnalyze(text.trim());
       // onAnalyze closes the overlay on success — no action needed here
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.');
+      const raw = err instanceof Error ? err.message : '';
+      const isNetworkErr = /load failed|network|fetch/i.test(raw);
+      setError(
+        isNetworkErr
+          ? 'Could not reach the AI service. Please check your connection and try again.'
+          : raw || 'Analysis failed. Please try again.',
+      );
       setLoading(false);
     }
   }
@@ -1132,57 +1173,6 @@ function DescribeOverlay({
   );
 }
 
-// ── LabelOverlay ──────────────────────────────────────────────────────────────
-
-function LabelOverlay({
-  onBack, onScan,
-}: {
-  onBack: () => void;
-  onScan: (imageDataUrl: string) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // No footer hook — "Scan label" lives inline as a primary action button
-  const onScanRef = useRef(onScan);
-  onScanRef.current = onScan; // eslint-disable-line react-hooks/refs
-
-  async function handleCapture() {
-    if (isNativeIOS()) {
-      const photo = await captureFromCamera();
-      if (photo) onScanRef.current(photo);
-    } else if (SCAN_ENABLED) {
-      inputRef.current?.click();
-    } else {
-      // Dev fallback without SCAN_ENABLED: just trigger file picker anyway
-      inputRef.current?.click();
-    }
-  }
-
-  return (
-    <div className="space-y-4 py-1">
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={async (e) => {
-          const f = e.target.files?.[0];
-          if (!f) return;
-          e.target.value = '';
-          const small = await downscaleImage(f, MAX_SCAN_PX);
-          onScanRef.current(small);
-        }}
-      />
-      <OverlayNav title="Scan label" onBack={onBack} />
-      {/* Viewfinder placeholder */}
-      <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 rounded-[20px] bg-black">
-        <div className="h-[35%] w-4/5 rounded-[10px] border-2 border-accent" />
-        <p className="text-caption text-white/50">Point at the nutrition label</p>
-      </div>
-      <Button size="lg" onClick={handleCapture}>Scan label</Button>
-    </div>
-  );
-}
 
 // ── ServingModal ──────────────────────────────────────────────────────────────
 
@@ -1419,22 +1409,25 @@ function EditOverlay({
 
       {/* Photo — trash top-right to delete; "Change photo" as white-border button */}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+      {/* 256×256 centered square — matches ImageHero single-photo style */}
       {localPhoto ? (
-        <div className="relative w-full overflow-hidden rounded-[16px]">
-          <img src={localPhoto} alt="Food" className="aspect-[4/3] w-full object-cover" />
-          <button
-            onClick={() => { setLocalPhoto(undefined); }}
-            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
-            aria-label="Remove photo"
-          >
-            <Icon name="trash" size={14} strokeWidth={2} />
-          </button>
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
-          >
-            Change photo
-          </button>
+        <div className="flex justify-center">
+          <div className="relative h-64 w-64 overflow-hidden rounded-[20px]">
+            <img src={localPhoto} alt="Food" className="h-full w-full object-cover" />
+            <button
+              onClick={() => { setLocalPhoto(undefined); }}
+              className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
+              aria-label="Remove photo"
+            >
+              <Icon name="trash" size={14} strokeWidth={2} />
+            </button>
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
+            >
+              Change photo
+            </button>
+          </div>
         </div>
       ) : onPhotoChange && (
         <button

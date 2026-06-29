@@ -172,26 +172,28 @@ function FoodItemForm({ item, items, onClose, showToast }: {
           {/* Photo — full-width with trash + "Change photo" overlay, matching EditOverlay style */}
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
           {photo ? (
-            <div className="relative w-full overflow-hidden rounded-[16px]">
-              <img src={photo} alt="Food" className="aspect-[4/3] w-full object-cover" />
-              <button
-                onClick={() => setPhoto(undefined)}
-                className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
-                aria-label="Remove photo"
-              >
-                <Icon name="trash" size={14} strokeWidth={2} />
-              </button>
-              <button
-                onClick={() => fileRef.current?.click()}
-                className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
-              >
-                Change photo
-              </button>
+            <div className="flex justify-center"> {/* 256×256 centered square — matches EditOverlay style */}
+              <div className="relative h-64 w-64 overflow-hidden rounded-[20px]">
+                <img src={photo} alt="Food" className="h-full w-full object-cover" />
+                <button
+                  onClick={() => setPhoto(undefined)}
+                  className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
+                  aria-label="Remove photo"
+                >
+                  <Icon name="trash" size={14} strokeWidth={2} />
+                </button>
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
+                >
+                  Change photo
+                </button>
+              </div>
             </div>
           ) : (
             <button
               onClick={() => fileRef.current?.click()}
-              className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-dashed border-border-field py-4 text-subhead font-medium text-content-secondary active:border-accent active:text-accent"
+              className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-border-field py-4 text-subhead font-medium text-content-secondary active:border-accent active:text-accent"
             >
               <Icon name="camera" size={18} strokeWidth={1.8} />
               Add photo
@@ -220,7 +222,7 @@ function FoodItemForm({ item, items, onClose, showToast }: {
           )}
           <button
             onClick={onClose}
-            className="w-full py-3 text-body font-semibold text-content-secondary active:opacity-70"
+            className="w-full py-3 text-body font-semibold text-content active:opacity-70"
           >
             Cancel
           </button>

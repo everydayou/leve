@@ -150,6 +150,7 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
   const [overlayFooter, setOverlayFooter] = useState<ReactNode>(null);
   const [overlayNav, setOverlayNav] = useState<OverlayNavValue | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  const keyboardInset = useKeyboardInset(); // keyboard inset for overlay scroll area
   const setOverlayFooterCb = useCallback((n: ReactNode) => setOverlayFooter(n), []);
   const setOverlayNavCb = useCallback((nav: OverlayNavValue | null) => setOverlayNav(nav), []);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -219,8 +220,11 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
       <OverlayFooterSetContext.Provider value={setOverlayFooterCb}>
         <OverlayScrolledContext.Provider value={scrolled}>
           <div
-            className="flex-1 overflow-y-auto overscroll-contain px-5 pb-2"
-            style={{ touchAction: 'pan-y' }}
+            className="flex-1 overflow-y-auto overscroll-contain px-5"
+            style={{
+              touchAction: 'pan-y',
+              paddingBottom: keyboardInset > 0 ? `${keyboardInset}px` : '0.5rem',
+            }}
             onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
           >
             {rendered}

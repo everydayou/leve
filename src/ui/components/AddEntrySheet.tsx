@@ -255,6 +255,7 @@ function FoodForm({
   const [pickerOpen, setPickerOpen]     = useState(false);
   const [activeOverlay, setActiveOverlay] = useState<OverlayKey | null>(null);
   const [editingIdx, setEditingIdx]     = useState<number | null>(null);
+  const [correctingIdx, setCorrectingIdx] = useState<number | null>(null);
   const [analyzing, setAnalyzing]       = useState(false);
   const [analyzeLabel, setAnalyzeLabel] = useState('Analysing…');
   const [servingModal, setServingModal] = useState<{
@@ -402,9 +403,20 @@ function FoodForm({
         carbs: f.carbs, fiber: f.fiber, fat: f.fat,
       }, sourceId),
     );
-    // Describe has no photo, so no source group is added
-    setBasket((prev) => [...prev, ...newItems]);
-    setPickerOpen(false);
+
+    if (correctingIdx !== null) {
+      // "Fix" mode: replace the specific basket card at correctingIdx with Describe result
+      setBasket((prev) => [
+        ...prev.slice(0, correctingIdx),
+        ...newItems,
+        ...prev.slice(correctingIdx + 1),
+      ]);
+      setCorrectingIdx(null);
+    } else {
+      // Normal mode: append new items
+      setBasket((prev) => [...prev, ...newItems]);
+      setPickerOpen(false);
+    }
     setActiveOverlay(null);
   }
 
@@ -695,6 +707,7 @@ function FoodForm({
           onQtyChange={(qty) => updateQty(idx, qty)}
           onRemove={() => removeItem(idx)}
           onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+          onCorrect={!item.pantryItemId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
         />
       ))}
 
@@ -883,7 +896,7 @@ function DeleteIcon({ size = 20 }: { size?: number }) {
 // ── BasketCard ────────────────────────────────────────────────────────────────
 
 function BasketCard({
-  item, nutrition, editMode, isEditing, onQtyChange, onRemove, onEdit,
+  item, nutrition, editMode, isEditing, onQtyChange, onRemove, onEdit, onCorrect,
 }: {
   item: BasketItem;
   nutrition: NutritionSnapshot;
@@ -893,6 +906,8 @@ function BasketCard({
   onQtyChange: (v: number) => void;
   onRemove: () => void;
   onEdit: () => void;
+  /** When provided, shows a small "Fix" button so user can re-describe this item. */
+  onCorrect?: () => void;
 }) {
   const [swiped, setSwiped] = useState(false);
   const touchStartX = useRef(0);
@@ -938,14 +953,23 @@ function BasketCard({
           <span className="flex-1 truncate text-body font-semibold text-content">{item.name}</span>
           <span className="shrink-0 text-subhead text-content-secondary">{nutrition.calories} kcal</span>
         </div>
-        {/* Bottom row: stepper + tappable fill so right-side of card also opens edit */}
-        <div className="flex items-center">
+        {/* Bottom row: Fix button (left) + stepper (right) */}
+        <div className="flex items-center justify-between">
+          {onCorrect ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); onCorrect(); }}
+              className="flex items-center gap-1 rounded-full border border-border-subtle px-2.5 py-1 text-caption font-medium text-content-secondary active:bg-surface-sunken"
+            >
+              <Icon name="edit" size={11} strokeWidth={2} />
+              Fix
+            </button>
+          ) : (
+            <div
+              className="flex-1 self-stretch min-h-[36px]"
+              onClick={(e) => { e.stopPropagation(); if (!editMode && !swiped) onEdit(); }}
+            />
+          )}
           <BasketStepper item={item} qty={item.qty} onChange={onQtyChange} onRemove={onRemove} />
-          {/* Invisible fill area — tapping here opens edit mode (same as card tap) */}
-          <div
-            className="flex-1 self-stretch min-h-[36px]"
-            onClick={(e) => { e.stopPropagation(); if (!editMode && !swiped) onEdit(); }}
-          />
         </div>
       </div>
       {/* Delete icon — no background, icon only, 20×20 black */}
@@ -1290,12 +1314,8 @@ function ManualOverlay({
     });
   };
 
-  useOverlaySetFooter(
-    <Button size="lg" onClick={() => addRef.current()} disabled={!canAdd}>
-      Add to meal
-    </Button>,
-    [canAdd],
-  );
+  // No sticky footer — CTA is inline below content
+  useOverlaySetFooter(null, []);
 
   const calLabel = mType === 'per_serving' ? 'Calories (kcal)' : 'Calories (kcal · per 100g)';
 
@@ -1315,21 +1335,25 @@ function ManualOverlay({
       {/* Photo upload — same pattern as EditOverlay */}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
       {localPhoto ? (
-        <div className="relative w-full overflow-hidden rounded-[16px]">
-          <img src={localPhoto} alt="Food" className="aspect-[4/3] w-full object-cover" />
-          <button
-            onClick={() => setLocalPhoto(undefined)}
-            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
-            aria-label="Remove photo"
-          >
-            <Icon name="trash" size={14} strokeWidth={2} />
-          </button>
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
-          >
-            Change photo
-          </button>
+        <div className="flex justify-center">
+          <div className="h-64 w-64 rounded-[20px] shadow-card-lg">
+          <div className="relative h-full w-full overflow-hidden rounded-[20px]">
+            <img src={localPhoto} alt="Food" className="h-full w-full object-cover" />
+            <button
+              onClick={() => setLocalPhoto(undefined)}
+              className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
+              aria-label="Remove photo"
+            >
+              <DeleteIcon size={16} />
+            </button>
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
+            >
+              Change photo
+            </button>
+          </div>
+          </div>
         </div>
       ) : (
         <button
@@ -1383,6 +1407,10 @@ function ManualOverlay({
         <NumberField label="Fiber (g)" value={fib} set={setFib} max={200} step={1} centerAt={5} />
         <NumberField label="Fat (g)" value={fat} set={setFat} max={400} step={1} centerAt={12} />
       </div>
+      {/* Inline CTA */}
+      <Button size="lg" onClick={() => addRef.current()} disabled={!canAdd}>
+        Add to meal
+      </Button>
     </div>
   );
 }
@@ -1401,10 +1429,10 @@ function EditOverlay({
   const isSrv  = item.measurementType === 'per_serving';
   const [name, setName] = useState(item.name);
   const [cal, setCal]   = useState(String(Math.round(item.calories)));
-  const [pro, setPro]   = useState(String(item.protein));
-  const [carb, setCarb] = useState(String(item.carbs));
-  const [fib, setFib]   = useState(String(item.fiber));
-  const [fat, setFat]   = useState(String(item.fat));
+  const [pro, setPro]   = useState(String(Math.round(item.protein * 10) / 10));
+  const [carb, setCarb] = useState(String(Math.round(item.carbs * 10) / 10));
+  const [fib, setFib]   = useState(String(Math.round(item.fiber * 10) / 10));
+  const [fat, setFat]   = useState(String(Math.round(item.fat * 10) / 10));
   const [srvG, setSrvG] = useState(isSrv ? String(item.referenceAmount) : '');
   const [localPhoto, setLocalPhoto] = useState(currentPhoto);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1600,12 +1628,12 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
             <div className="flex-1">
               <p className="text-subhead text-content-secondary">≈{totalGrams}g total</p>
               <p className="text-subhead text-content-secondary">{totalCalories} kcal</p>
-              <p className="text-subhead text-content-secondary">{totalProtein.toFixed(1)}g protein</p>
+              <p className="text-subhead text-content-secondary">{parseFloat(totalProtein.toFixed(1))}g protein</p>
             </div>
             <div className="flex-1">
-              <p className="text-subhead text-content-secondary">{totalCarbs.toFixed(1)}g carbs</p>
-              <p className="text-subhead text-content-secondary">{totalFiber.toFixed(1)}g fiber</p>
-              <p className="text-subhead text-content-secondary">{totalFat.toFixed(1)}g fat</p>
+              <p className="text-subhead text-content-secondary">{parseFloat(totalCarbs.toFixed(1))}g carbs</p>
+              <p className="text-subhead text-content-secondary">{parseFloat(totalFiber.toFixed(1))}g fiber</p>
+              <p className="text-subhead text-content-secondary">{parseFloat(totalFat.toFixed(1))}g fat</p>
             </div>
           </div>
         </div>

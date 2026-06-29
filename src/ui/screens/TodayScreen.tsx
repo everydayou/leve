@@ -10,7 +10,6 @@ import { getMondayOfWeek, fmtDiaryDate } from '../../lib/date';
 import { nutritionFor, effectiveNutrition, calcDigestionCalories } from '../../domain/calc';
 import { requiredDailyDeficit, isGainGoal } from '../../domain/goal';
 import { mifflinStJeorBMR } from '../../domain/bmr';
-import { onDecimalChange } from '../../lib/num';
 import { kgToLbs } from '../../domain/units';
 import { prefersReducedMotion } from '../../lib/motion';
 import {
@@ -22,8 +21,6 @@ import { WeightLogSheet } from '../components/WeightLogSheet';
 import type { ShowToast } from '../components/Toaster';
 import type { NutritionSnapshot } from '../../domain/types';
 import type { FoodEntry, FoodItem, WeightEntry, ActivityEntry, Goal, Sex, User } from '../../domain/types';
-import { ScanResults } from '../components/AddEntrySheet';
-import type { ResultItem } from '../components/AddEntrySheet';
 
 const GAUGE_RANGE = 500;
 const reminderKey = (date: string) => `weightReminderDismissed_${date}`;
@@ -1232,8 +1229,15 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
           onClose={() => setShowMacroDetail(false)}
         />
       )}
-      {editFood && <EditFoodSheet entry={editFood} items={items} onClose={() => setEditFood(null)} showToast={ctx.showToast} />}
-      {editMeal && <MealEditSheet entry={editMeal} pantryItems={items} onClose={() => setEditMeal(null)} showToast={ctx.showToast} />}
+      {(editFood ?? editMeal) && (
+        <LogEntrySheet
+          entry={(editFood ?? editMeal)!}
+          pantryItems={items}
+          onClose={() => { setEditFood(null); setEditMeal(null); }}
+          showToast={ctx.showToast}
+          onAddMore={() => ctx.openAddEntry('food', { hideTabs: true })}
+        />
+      )}
       {editActivity && <EditActivitySheet entry={editActivity} onClose={() => setEditActivity(null)} showToast={ctx.showToast} />}
       {showProfileSetup && (
         <ProfileSetupSheet
@@ -1533,197 +1537,189 @@ function BreakdownSheet({
   );
 }
 
-// ── Edit sheets ───────────────────────────────────────────────────────────────
+// ── LogEntrySheet — unified basket-style entry editor ────────────────────────
+// Replaces EditFoodSheet + MealEditSheet. Shows entry items as basket cards,
+// tracks changes, and shows a Save CTA only when something has changed.
 
-function EditFoodSheet({ entry, items, onClose, showToast }: {
-  entry: FoodEntry; items: FoodItem[]; onClose: () => void; showToast?: ShowToast;
+function LogEntrySheet({ entry, pantryItems, onClose, showToast, onAddMore }: {
+  entry: FoodEntry;
+  pantryItems: FoodItem[];
+  onClose: () => void;
+  showToast?: ShowToast;
+  onAddMore: () => void;
 }) {
-  const item     = items.find((i) => i.id === entry.foodItemId);
-  const name     = entry.manualName ?? item?.name ?? 'Food';
-  const isManual = !item;
+  const pantryItem = pantryItems.find((i) => i.id === entry.foodItemId);
+  const isMeal     = !!entry.mealData;
+  const name       = entry.mealData?.name ?? entry.manualName ?? pantryItem?.name ?? 'Food';
 
-  async function del() {
-    await repos.foodEntries.remove(entry.id);
-    showToast?.('Food removed', async () => repos.foodEntries.add(entry));
+  // ── Pantry entry state ──────────────────────────────────────────
+  const [qty, setQty] = useState(String(entry.quantity ?? (pantryItem?.measurementType === 'per_100g' ? 100 : 1)));
+  const qtyNum  = Number(qty) || 0;
+  const qtyChanged = !!pantryItem && qtyNum !== (entry.quantity ?? (pantryItem.measurementType === 'per_100g' ? 100 : 1));
+
+  // ── Manual entry state ─────────────────────────────────────────
+  const [manName, setManName] = useState(entry.manualName ?? '');
+  const [manCal,  setManCal]  = useState(String(entry.snapshot.calories));
+  const [manPro,  setManPro]  = useState(String(Math.round(entry.snapshot.protein * 10) / 10));
+  const [manCarb, setManCarb] = useState(String(Math.round(entry.snapshot.carbs * 10) / 10));
+  const [manFib,  setManFib]  = useState(String(Math.round(entry.snapshot.fiber * 10) / 10));
+  const [manFat,  setManFat]  = useState(String(Math.round(entry.snapshot.fat * 10) / 10));
+  const manChanged = !pantryItem && !isMeal && (
+    manName !== (entry.manualName ?? '') ||
+    +manCal !== entry.snapshot.calories ||
+    +manPro !== entry.snapshot.protein  ||
+    +manCarb !== entry.snapshot.carbs   ||
+    +manFib !== entry.snapshot.fiber    ||
+    +manFat !== entry.snapshot.fat
+  );
+
+  // ── Meal entry state ───────────────────────────────────────────
+  const [mealSel, setMealSel] = useState<boolean[]>(
+    () => (entry.mealData?.items ?? []).map((i) => i.selected),
+  );
+  const mealChanged = isMeal && mealSel.some((s, i) => s !== entry.mealData!.items[i].selected);
+
+  const hasChanges = qtyChanged || manChanged || mealChanged;
+
+  async function save() {
+    if (pantryItem) {
+      await repos.foodEntries.update({
+        ...entry, quantity: qtyNum, snapshot: nutritionFor(pantryItem, qtyNum),
+      });
+    } else if (isMeal) {
+      const items = entry.mealData!.items.map((item, i) => ({ ...item, selected: mealSel[i] }));
+      const selected = items.filter((i) => i.selected);
+      const snapshot: NutritionSnapshot = {
+        calories: selected.reduce((s, i) => s + i.calories, 0),
+        protein:  selected.reduce((s, i) => s + i.protein, 0),
+        carbs:    selected.reduce((s, i) => s + i.carbs, 0),
+        fiber:    selected.reduce((s, i) => s + i.fiber, 0),
+        fat:      selected.reduce((s, i) => s + i.fat, 0),
+      };
+      await repos.foodEntries.update({ ...entry, snapshot, mealData: { ...entry.mealData!, items } });
+    } else {
+      const snapshot: NutritionSnapshot = {
+        calories: +manCal || 0, protein: +manPro || 0, carbs: +manCarb || 0,
+        fiber: +manFib || 0, fat: +manFat || 0,
+      };
+      await repos.foodEntries.update({ ...entry, manualName: manName.trim() || entry.manualName, snapshot });
+    }
+    showToast?.('Saved');
     onClose();
   }
 
-  // Wrap onClose so saving shows a confirmation toast.
-  function onSaved() {
-    showToast?.('Changes saved');
+  async function del() {
+    await repos.foodEntries.remove(entry.id);
+    showToast?.('Removed', async () => repos.foodEntries.add(entry));
     onClose();
   }
 
   const trashBtn = (
-    <button data-no-drag onClick={del} aria-label="Delete entry"
-      className="-m-1 p-1 text-accent-hover active:text-danger">
+    <button data-no-drag onClick={() => void del()} aria-label="Delete"
+      className="-m-1 p-1 text-content-secondary active:text-danger">
       <Icon name="trash" size={20} strokeWidth={2} />
     </button>
   );
 
   return (
     <Sheet title={name} onClose={onClose} forceExpanded rightAction={trashBtn}>
-      {isManual
-        ? <ManualFoodFields entry={entry} onClose={onSaved} />
-        : <PantryFoodQty    entry={entry} item={item!} onClose={onSaved} />}
-    </Sheet>
-  );
-}
+      <div className="space-y-3 pb-4">
 
-function PantryFoodQty({ entry, item, onClose }: { entry: FoodEntry; item: FoodItem; onClose: () => void }) {
-  const [qty, setQty] = useState(String(entry.quantity ?? ''));
-  const quantity = Number(qty) || 0;
-  const isServing = item.measurementType === 'per_serving';
-  async function save() {
-    await repos.foodEntries.update({
-      ...entry, quantity, snapshot: nutritionFor(item, quantity),
-    });
-    onClose();
-  }
-  return (
-    <div className="flex flex-col">
-      <div className="flex items-center justify-center py-10">
-        {isServing
-          ? <ServingStepper qty={qty} setQty={setQty} />
-          : <LabeledInput label="Quantity (g)" value={qty} onChange={onDecimalChange(setQty)} inputMode="decimal" />}
-      </div>
-      <Button size="lg" onClick={save}>Save changes</Button>
-    </div>
-  );
-}
+        {/* ── Pantry item — basket card with stepper ── */}
+        {pantryItem && (
+          <EntryBasketCard
+            name={pantryItem.name}
+            calories={nutritionFor(pantryItem, qtyNum).calories}
+            bottom={
+              pantryItem.measurementType === 'per_serving'
+                ? <ServingStepper qty={qty} setQty={setQty} />
+                : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-caption text-content-muted">Grams</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={qty}
+                      onChange={(e) => setQty(e.target.value)}
+                      className="w-20 rounded-full bg-surface-sunken px-3 py-1 text-center text-body font-medium text-content outline-none"
+                    />
+                  </div>
+                )
+            }
+          />
+        )}
 
-function ManualFoodFields({ entry, onClose }: { entry: FoodEntry; onClose: () => void }) {
-  const [name, setName] = useState(entry.manualName ?? '');
-  const [cal,  setCal]  = useState(String(entry.snapshot.calories));
-  const [pro,  setPro]  = useState(String(entry.snapshot.protein));
-  const [carb, setCarb] = useState(String(entry.snapshot.carbs));
-  const [fib,  setFib]  = useState(String(entry.snapshot.fiber));
-  const [fat,  setFat]  = useState(String(entry.snapshot.fat));
-  async function save() {
-    if (!name.trim()) return;
-    const snapshot: NutritionSnapshot = {
-      calories: +cal || 0, protein: +pro || 0, carbs: +carb || 0,
-      fiber: +fib || 0, fat: +fat || 0,
-    };
-    await repos.foodEntries.update({ ...entry, manualName: name.trim(), snapshot });
-    onClose();
-  }
-  return (
-    <div className="flex flex-col gap-3">
-      <LabeledInput label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Food name" />
-      <div className="grid grid-cols-2 gap-2">
-        <NumberField label="Calories"    value={cal}  set={setCal} max={5000} step={1} />
-        <NumberField label="Protein (g)" value={pro}  set={setPro} max={500} step={1} />
-        <NumberField label="Carbs (g)"   value={carb} set={setCarb} max={800} step={1} />
-        <NumberField label="Fiber (g)"   value={fib}  set={setFib} max={200} step={1} />
-        <NumberField label="Fat (g)"     value={fat}  set={setFat} max={400} step={1} />
-      </div>
-      <Button size="lg" onClick={save} disabled={!name.trim()} className="mt-1">Save changes</Button>
-    </div>
-  );
-}
-
-// ── Meal edit sheet ───────────────────────────────────────────────────────────
-
-function MealEditSheet({ entry, pantryItems, onClose, showToast }: {
-  entry: FoodEntry; pantryItems: FoodItem[]; onClose: () => void; showToast?: ShowToast;
-}) {
-  const meal = entry.mealData!;
-  const [mealItems, setMealItems] = useState<ResultItem[]>(meal.items);
-  const [mealName,  setMealName]  = useState(meal.name);
-
-  async function save() {
-    const selected = mealItems.filter((i) => i.selected);
-    const snapshot: NutritionSnapshot = {
-      calories: selected.reduce((s, i) => s + i.calories, 0),
-      protein:  selected.reduce((s, i) => s + i.protein, 0),
-      carbs:    selected.reduce((s, i) => s + i.carbs, 0),
-      fiber:    selected.reduce((s, i) => s + i.fiber, 0),
-      fat:      selected.reduce((s, i) => s + i.fat, 0),
-    };
-    const name = mealName.trim() || meal.name;
-    await repos.foodEntries.update({
-      ...entry,
-      manualName: name,
-      snapshot,
-      mealData: { ...meal, name, items: mealItems },
-    });
-    showToast?.('Changes saved');
-    onClose();
-  }
-
-  async function del() {
-    await repos.foodEntries.remove(entry.id);
-    showToast?.('Meal removed', async () => repos.foodEntries.add(entry));
-    onClose();
-  }
-
-  const trashBtn = (
-    <button data-no-drag onClick={del} aria-label="Delete meal"
-      className="-m-1 p-1 text-accent-hover active:text-danger">
-      <Icon name="trash" size={20} strokeWidth={2} />
-    </button>
-  );
-
-  function addPantryItem(id: string) {
-    const foodItem = pantryItems.find((i) => i.id === id);
-    if (!foodItem) return;
-    const qty = foodItem.measurementType === 'per_100g' ? 100 : 1;
-    const n = nutritionFor(foodItem, qty);
-    setMealItems((prev) => [
-      ...prev,
-      {
-        name: foodItem.name,
-        selected: true,
-        confidence: 'high' as const,
-        calories: n.calories,
-        protein: n.protein,
-        carbs: n.carbs,
-        fiber: n.fiber,
-        fat: n.fat,
-        estimatedGrams: qty,
-      },
-    ]);
-  }
-
-  const pickerSection = (
-    <div className="mt-2">
-      <label className="block">
-        <span className="text-micro font-medium uppercase text-content-secondary">Add from pantry</span>
-        <div className="relative mt-1">
-          <select
-            value=""
-            onChange={(e) => { if (e.target.value) addPantryItem(e.target.value); }}
-            className="w-full appearance-none rounded-field border border-transparent bg-surface-sunken pl-3 pr-10 py-3 text-body font-medium text-content"
-          >
-            <option value="">Pick an item</option>
-            {pantryItems
-              .filter((i) => !mealItems.some((m) => m.name === i.name))
-              .map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-          </select>
-          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-            <Icon name="chevronDown" size={16} strokeWidth={2} className="text-content-muted" />
+        {/* ── Manual / scan item — editable fields in a card ── */}
+        {!pantryItem && !isMeal && (
+          <div className="rounded-[20px] bg-surface p-4 shadow-card space-y-3">
+            <LabeledInput label="Name" value={manName} onChange={(e) => setManName(e.target.value)} placeholder="Food name" />
+            <div className="grid grid-cols-2 gap-2">
+              <NumberField label="Calories" value={manCal} set={setManCal} max={5000} step={1} />
+              <NumberField label="Protein (g)" value={manPro} set={setManPro} max={500} step={1} />
+              <NumberField label="Carbs (g)" value={manCarb} set={setManCarb} max={800} step={1} />
+              <NumberField label="Fiber (g)" value={manFib} set={setManFib} max={200} step={1} />
+              <NumberField label="Fat (g)" value={manFat} set={setManFat} max={400} step={1} />
+            </div>
           </div>
-        </div>
-      </label>
-    </div>
-  );
+        )}
 
-  return (
-    <Sheet title={mealName || meal.name} onClose={onClose} rightAction={trashBtn} forceExpanded>
-      <ScanResults
-        items={mealItems}
-        onChange={setMealItems}
-        onLog={save}
-        scanPhoto={meal.photo ?? null}
-        mealName={mealName}
-        onMealNameChange={setMealName}
-        logLabel="Save changes"
-        extraSection={pickerSection}
-      />
+        {/* ── Meal entry — each item as a toggleable card ── */}
+        {isMeal && entry.mealData!.items.map((item, i) => (
+          <EntryBasketCard
+            key={i}
+            name={item.name}
+            calories={item.calories}
+            faded={!mealSel[i]}
+            bottom={
+              <button
+                onClick={() => setMealSel((prev) => prev.map((s, j) => j === i ? !s : s))}
+                className={`rounded-full px-3 py-1 text-caption font-medium transition-colors ${
+                  mealSel[i]
+                    ? 'bg-accent/10 text-accent'
+                    : 'bg-surface-sunken text-content-muted'
+                }`}
+              >
+                {mealSel[i] ? 'Included' : 'Excluded'}
+              </button>
+            }
+          />
+        ))}
+
+        {/* ── Add another item ── */}
+        <button
+          onClick={() => { onClose(); onAddMore(); }}
+          className="flex w-full items-center justify-center gap-2 rounded-[24px] bg-surface-sunken py-3.5 text-body font-semibold text-content active:opacity-70"
+        >
+          <Icon name="plus" size={18} strokeWidth={2.5} />
+          Add another item
+        </button>
+
+        {/* ── Save CTA — only when changed ── */}
+        {hasChanges && (
+          <Button size="lg" onClick={() => void save()}>Save</Button>
+        )}
+      </div>
     </Sheet>
   );
 }
+
+/** A basket-card-style display row used inside LogEntrySheet. */
+function EntryBasketCard({ name, calories, bottom, faded = false }: {
+  name: string; calories: number; bottom: React.ReactNode; faded?: boolean;
+}) {
+  return (
+    <div className={`rounded-[20px] bg-surface p-4 shadow-card transition-opacity${faded ? ' opacity-40' : ''}`}>
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="flex-1 truncate text-body font-semibold text-content">{name}</span>
+        <span className="shrink-0 text-subhead text-content-secondary">{Math.round(calories)} kcal</span>
+      </div>
+      <div className="flex items-center">{bottom}</div>
+    </div>
+  );
+}
+
+// Meal editing is now handled by LogEntrySheet above.
+
 
 
 // ── Edit activity sheet ───────────────────────────────────────────────────────

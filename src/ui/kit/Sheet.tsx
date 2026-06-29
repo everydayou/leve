@@ -16,6 +16,67 @@ export function useSheetKeyboardInset() { return useContext(SheetKeyboardContext
  *  Sheet's pinned footer slot (outside the scroll area). */
 const SheetFooterSetContext = createContext<((node: ReactNode) => void) | null>(null);
 
+/** Internal context — overlay components call `set` to register a full-panel
+ *  overlay that slides in from the right, covering the Sheet header. */
+const SheetOverlaySetContext = createContext<((node: ReactNode) => void) | null>(null);
+
+/** Internal context — overlay components call `set` to register their own
+ *  pinned CTA inside the OverlayLayer footer slot. */
+const OverlayFooterSetContext = createContext<((node: ReactNode) => void) | null>(null);
+
+/** Internal context — child forms register a dismiss/back function so the
+ *  OverlayLayer can call it when the user swipes right to go back. */
+const SheetOverlayBackSetContext = createContext<((fn: (() => void) | null) => void) | null>(null);
+
+/** Register a function that should be called when the user swipes right on
+ *  the overlay to go back. Call from inside a Sheet child (same rule as
+ *  useSheetSetOverlay — must be inside Sheet's context tree). */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useSheetSetOverlayBack(fn: () => void): void {
+  const set = useContext(SheetOverlayBackSetContext);
+  const fnRef = useRef(fn);
+  fnRef.current = fn; // eslint-disable-line react-hooks/refs
+  useEffect(() => {
+    if (!set) return;
+    set(() => fnRef.current());
+    return () => set(null);
+  }, [set]);
+}
+
+/** Provides whether the OverlayLayer's scroll area has scrolled past the top. */
+const OverlayScrolledContext = createContext(false);
+
+/** Returns true when the current overlay's scroll area has scrolled down.
+ *  Use inside an OverlayNav or any overlay child to conditionally show a shadow. */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useOverlayScrolled(): boolean { return useContext(OverlayScrolledContext); }
+
+/** Shared sticky nav row for overlay panels. Back arrow on left, centred title,
+ *  optional right slot. Shows a subtle bottom border when content scrolls beneath it.
+ *  Use inside every overlay component so the nav sticks to the top of the scroll area. */
+export function OverlayNav({
+  title, onBack, right,
+}: {
+  title: string;
+  onBack: () => void;
+  right?: ReactNode;
+}) {
+  const scrolled = useOverlayScrolled();
+  return (
+    <div
+      className={`sticky top-0 -mx-5 px-5 bg-surface pb-3 pt-2 ${scrolled ? 'shadow-[0_1px_0_0_var(--color-border-subtle)]' : ''}`}
+    >
+      <div className="flex items-center">
+        <button onClick={onBack} className="-m-3 p-3 text-content-secondary active:opacity-70" aria-label="Back">
+          <Icon name="back" size={22} strokeWidth={2.25} />
+        </button>
+        <h2 className="flex-1 text-center text-headline font-semibold text-content">{title}</h2>
+        {right ?? <span className="w-10" />}
+      </div>
+    </div>
+  );
+}
+
 /** Register a CTA button from inside Sheet's scroll area children so it
  *  renders in the Sheet's pinned footer slot (outside the scroll area).
  *
@@ -36,6 +97,117 @@ export function useSheetSetFooter(node: ReactNode, deps: readonly unknown[]): vo
     set?.(nodeRef.current);
     return () => set?.(null);
   }, [set, ...deps]); // eslint-disable-line react-hooks/exhaustive-deps -- deps intentionally dynamic; spread controls re-registration frequency
+}
+
+/** Register a full-panel overlay from inside a Sheet child. When `node` is
+ *  non-null the overlay slides in from the right, covering the entire sheet
+ *  surface (header, tabs, scroll area). Pass `null` to slide it back out. */
+// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its context
+export function useSheetSetOverlay(node: ReactNode, deps: readonly unknown[]): void {
+  const set = useContext(SheetOverlaySetContext);
+  const nodeRef = useRef(node);
+  nodeRef.current = node; // eslint-disable-line react-hooks/refs
+  useEffect(() => {
+    set?.(nodeRef.current);
+    return () => set?.(null);
+  }, [set, ...deps]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+/** Register a pinned CTA button inside the current OverlayLayer footer slot.
+ *  Works like useSheetSetFooter but scoped to the overlay surface. */
+// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its context
+export function useOverlaySetFooter(node: ReactNode, deps: readonly unknown[]): void {
+  const set = useContext(OverlayFooterSetContext);
+  const nodeRef = useRef(node);
+  nodeRef.current = node; // eslint-disable-line react-hooks/refs
+  useEffect(() => {
+    set?.(nodeRef.current);
+    return () => set?.(null);
+  }, [set, ...deps]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+/** Full-panel overlay that slides in from the right when `node` is non-null,
+ *  covering the sheet's grab handle, header, and scroll area. Provides its own
+ *  pinned footer slot via OverlayFooterSetContext.
+ *  Swipe right-to-left (≥60px horizontal, less vertical) calls `onBack`. */
+function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void) | null }) {
+  const [show, setShow]         = useState(false);
+  const [rendered, setRendered] = useState<ReactNode>(null);
+  const [overlayFooter, setOverlayFooter] = useState<ReactNode>(null);
+  const [scrolled, setScrolled] = useState(false);
+  const setOverlayFooterCb = useCallback((n: ReactNode) => setOverlayFooter(n), []);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+
+  useEffect(() => {
+    if (node) {
+      clearTimeout(timerRef.current);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: must put rendered in DOM before triggering the CSS transition in the rAF below
+      setRendered(node);
+      // Two rAFs ensure the initial translateX(100%) is painted before the
+      // transition begins; a single rAF can race the browser's paint flush.
+      const id = requestAnimationFrame(() => requestAnimationFrame(() => setShow(true)));
+      return () => cancelAnimationFrame(id);
+    } else {
+      setShow(false);
+      setOverlayFooter(null); // hide footer immediately when overlay starts closing
+      timerRef.current = setTimeout(() => setRendered(null), 290);
+      return () => clearTimeout(timerRef.current);
+    }
+  }, [node]);
+
+  if (!rendered) return null;
+
+  return (
+    <div
+      className="absolute inset-0 z-40 flex flex-col rounded-t-sheet bg-surface overflow-hidden"
+      style={{
+        transform: show ? 'translateX(0)' : 'translateX(100%)',
+        transition: prefersReducedMotion()
+          ? 'none'
+          : 'transform 280ms cubic-bezier(0.4, 0, 0.2, 1)',
+      }}
+      onTouchStart={(e) => {
+        touchStartX.current = e.touches[0].clientX;
+        touchStartY.current = e.touches[0].clientY;
+      }}
+      onTouchEnd={(e) => {
+        const dx = e.changedTouches[0].clientX - touchStartX.current;
+        const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+        if (dx > 60 && dy < Math.abs(dx) * 0.6) {
+          onBack?.();
+        }
+      }}
+    >
+      {/* Grab handle — same visual as Sheet header; overlay is not draggable */}
+      <div className="shrink-0 pt-3 px-5">
+        <div className="mx-auto mb-3 h-1.5 w-11 rounded-pill bg-border-strong" />
+      </div>
+      <OverlayFooterSetContext.Provider value={setOverlayFooterCb}>
+        <OverlayScrolledContext.Provider value={scrolled}>
+          <div
+            className="flex-1 overflow-y-auto overscroll-contain px-5 pb-2"
+            onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
+          >
+            {rendered}
+          </div>
+        </OverlayScrolledContext.Provider>
+        {overlayFooter && (
+          <div
+            className="shrink-0 px-5"
+            style={{
+              paddingTop: '1.5rem',
+              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+              background: 'linear-gradient(to bottom, transparent 0px, var(--color-surface) 1.5rem)',
+            }}
+          >
+            {overlayFooter}
+          </div>
+        )}
+      </OverlayFooterSetContext.Provider>
+    </div>
+  );
 }
 
 // Focusable element selector used by the focus trap.
@@ -106,6 +278,15 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
   const setChildFooterCb = useCallback((node: ReactNode) => setChildFooter(node), []);
   // Explicit footer prop takes priority over child-registered footer.
   const effectiveFooter = footer ?? childFooter;
+  const [childOverlay, setChildOverlay] = useState<ReactNode>(null);
+  const setChildOverlayCb = useCallback((node: ReactNode) => setChildOverlay(node), []);
+  // Back function registered by a child via useSheetSetOverlayBack();
+  // passed to OverlayLayer so swipe-right can call it.
+  const [childOverlayBack, setChildOverlayBack] = useState<(() => void) | null>(null);
+  const setChildOverlayBackCb = useCallback(
+    (fn: (() => void) | null) => setChildOverlayBack(() => fn),
+    [],
+  );
   // Ref to the panel element — used by the focus trap.
   const panelRef = useRef<HTMLDivElement>(null);
   // Ref to the scroll area — used to scroll a focused input into view when keyboard opens.
@@ -458,37 +639,43 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
             <div className="px-5">{stickyHeader}</div>
           )}
         </div>
-        <SheetFooterSetContext.Provider value={setChildFooterCb}>
-          <SheetKeyboardContext.Provider value={keyboardInset}>
-            <div
-              ref={scrollAreaRef}
-              className="flex-1 overflow-y-auto px-5"
-              onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
-              style={{
-                paddingBottom: keyboardInset > 0
-                  ? `${keyboardInset}px`
-                  : scrollAreaPaddingBottom !== undefined
-                  ? scrollAreaPaddingBottom
-                  : effectiveFooter
-                  ? '8px'
-                  : 'env(safe-area-inset-bottom, 0px)',
-              }}
-            >{children}</div>
-            {effectiveFooter && (
+        <SheetOverlayBackSetContext.Provider value={setChildOverlayBackCb}>
+        <SheetOverlaySetContext.Provider value={setChildOverlayCb}>
+          <SheetFooterSetContext.Provider value={setChildFooterCb}>
+            <SheetKeyboardContext.Provider value={keyboardInset}>
               <div
-                className="shrink-0 px-5"
+                ref={scrollAreaRef}
+                className="flex-1 overflow-y-auto px-5"
+                onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
                 style={{
-                  paddingTop: '1.5rem',
-                  paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
-                  // Gradient fades scroll content into the surface behind the CTA
-                  background: 'linear-gradient(to bottom, transparent 0px, var(--color-surface) 1.5rem)',
+                  paddingBottom: keyboardInset > 0
+                    ? `${keyboardInset}px`
+                    : scrollAreaPaddingBottom !== undefined
+                    ? scrollAreaPaddingBottom
+                    : effectiveFooter
+                    ? '8px'
+                    : 'env(safe-area-inset-bottom, 0px)',
                 }}
-              >
-                {effectiveFooter}
-              </div>
-            )}
-          </SheetKeyboardContext.Provider>
-        </SheetFooterSetContext.Provider>
+              >{children}</div>
+              {effectiveFooter && (
+                <div
+                  className="shrink-0 px-5"
+                  style={{
+                    paddingTop: '1.5rem',
+                    paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+                    // Gradient fades scroll content into the surface behind the CTA
+                    background: 'linear-gradient(to bottom, transparent 0px, var(--color-surface) 1.5rem)',
+                  }}
+                >
+                  {effectiveFooter}
+                </div>
+              )}
+            </SheetKeyboardContext.Provider>
+          </SheetFooterSetContext.Provider>
+        </SheetOverlaySetContext.Provider>
+        </SheetOverlayBackSetContext.Provider>
+        {/* Full-panel overlay — absolute inset-0 covers header, tabs, and scroll area */}
+        <OverlayLayer node={childOverlay} onBack={childOverlayBack} />
       </div>
     </div>,
     document.body,

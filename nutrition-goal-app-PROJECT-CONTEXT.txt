@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-28 — Round 110 (FAB morph animation + picker UI fixes)
+Last updated: 2026-06-29 — Round 111 (Add-Entry UX polish batch 2)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -113,18 +113,14 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 110, 2026-06-28)
+7. CURRENT STATUS (as of round 111, 2026-06-29)
 ----------------------------------------------------------------
-All V1 features shipped and running on device. Rounds 109–110 implemented
-the Add-Entry basket-first redesign and FAB morph animation:
-- Round 109: Basket-first Add-Entry — multi-item basket, ImageHero collage,
-  FoodForm rewrite, meal name, photo capture, scan/describe/label/manual
-  overlays, edit-mode overlay, analysis overlay.
-- Round 110 (2026-06-28): FAB morph animation + picker UI polish:
-  · FloatingTabBar: FAB tap → clip-path pill→sheet morph (no speed-dial)
-  · AddEntrySheet: SegmentedControl tab bar, 24px picker radius, 4 recents,
-    callout section headers, 82×72px method cards, SVG icons, Log it always
-    visible, 16px list radius. Speed-dial code preserved but disconnected.
+All V1 features shipped and running on device. Rounds 109–111 delivered
+the Add-Entry basket-first redesign, FAB morph animation, and a major
+UX polish batch:
+- Round 109: Basket-first Add-Entry UX rewrite.
+- Round 110: FAB morph animation + picker UI polish.
+- Round 111 (2026-06-29): Add-Entry UX polish batch 2 — see RECENT ROUNDS.
 - .env.local: gitignored, must be recreated if folder is deleted.
   VITE_FOOD_SCAN_API_URL=https://food-scan-api-delta.vercel.app
 - tsc: clean. lint: clean.
@@ -161,10 +157,11 @@ HIGH:
   morph animation on a real device. Timing, easing, and colour accuracy
   (esp. overlay white vs Sheet white) may need tweaking after seeing it live.
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
-  pinned-above-scroll position on device (sheet must actually support
-  stickyHeader prop — confirm at runtime).
+  pinned-above-scroll position on device.
 
 MED:
+- COLLAGE PHOTO SIZING: 2–3 photo collage in ImageHero still uses the old
+  160×120 card fan layout. Needs its own review/redesign pass (deferred).
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
   entries. (Goal actions confirm via Sheet; entry deletes are immediate.)
 - ACCOUNT IA: layout still growing — grouping pass worthwhile when more
@@ -176,34 +173,48 @@ LOW:
 - GoalOutcomeView: no haptic on appearance.
 - App.tsx still has /past-goals and /past-goals/:id stub routes (now unused;
   PastGoalsPortal is portal-based). Safe to remove eventually.
-- ACTIVITY TEACHING MOMENT (§9 first-open spec): deferred. Component ready;
-  copy for gain/explore paths not finalised.
+- ACTIVITY TEACHING MOMENT (§9 first-open spec): deferred.
 - GoalForkScreen (/goal-fork): built but not device-reviewed.
 - ProfileSetupSheet height select always shows cm. Users set to lbs see no
   ft/in option. Low priority until imperial height preference is added.
 - Estimated BMR (weight-only) assumes pop-avg 170 cm / 35 yr / neutral sex.
-  Very tall/short or young/old users may see a notably off estimate until
-  they complete their profile.
+
+DONE (r111):
+- ✓ Overlay panels: swipe right → go back (touch handler on OverlayLayer).
+- ✓ OverlayNav: shared sticky title bar + scroll shadow for all overlays.
+- ✓ Single food photo: 256×256 square (was 4:3 wide).
+- ✓ Duplicate pantry item in basket → increments qty instead of new entry.
+- ✓ Meal header hidden when basket is empty.
+- ✓ Frequent-foods quick-log grid removed from Diary.
+- ✓ Log button always active (removed disabled state).
+- ✓ Recent items "+" button: solid accent bg, black icon.
+- ✓ Basket cards: removed thumbnail + protein, stepper always visible,
+    tap card (normal mode) → edit overlay, edit mode → trash only beside
+    card, swipe left reveals trash, returning from edit resets swipe state.
+- ✓ Stepper at 0 → trash icon → tap removes item.
+- ✓ "Add another item": grey bg, black text, visible in edit mode.
+- ✓ Expanded picker: heading row with X left + title centred.
+- ✓ Method cards: text-content (not secondary), overflow clipping fixed.
+- ✓ ManualOverlay: photo upload added (same style as EditOverlay).
+- ✓ EditOverlay: sticky nav via OverlayNav, non-sticky Save + Cancel,
+    photo trash icon + "Change photo" white-border button.
+- ✓ PantryScreen FoodItemForm: updated to new EditOverlay-style design.
 
 DONE (r108):
 - ✓ Add-Entry design spec written (leve-add-entry-design-spec.docx).
 - ✓ Interactive HTML prototype built (add-entry-prototype.html).
-- ✓ Edit mode now hides add-another tray entirely (prototype + spec updated).
-- ✓ Save-to-pantry confirmed unchecked by default (prototype + spec updated).
-- ✓ Meal header confirmed always visible; Edit button hidden when basket empty.
 
 DONE (r107):
 - ✓ MacroDetailSheet horizontal clip without blocking vertical scroll.
 - ✓ BreakdownSheet intro text now hides when info panel slides in.
 - ✓ GoalSetupScreen Section 2 pre-fills from saved profile on every open.
-- ✓ Gauge center number sign removed; sub-labels consistent (food +, activity −).
-- ✓ Custom filled info icon deployed everywhere; color matches adjacent text.
+- ✓ Gauge center number sign removed; sub-labels consistent.
+- ✓ Custom filled info icon deployed everywhere.
 
 DONE (r106):
 - ✓ KEYBOARD/VIEW CONFLICT: content jumping + black void when keyboard opened
   in sheets. Fixed via @capacitor/keyboard resize:'none' + Capacitor
-  keyboardWillShow/Hide events + scrollFocusedAboveKeyboard() +
-  touchAction:pan-y on sheet outer container.
+  keyboardWillShow/Hide events + scrollFocusedAboveKeyboard().
 
 DEFERRED V1.5+: JSON import, HealthKit, BMR auto-calibration, full tablet
 layouts, per-piece measurement types, time-of-day food suggestions.
@@ -212,51 +223,72 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 111 — ADD-ENTRY UX POLISH BATCH 2 (2026-06-29)
+Files: src/ui/kit/Sheet.tsx, src/ui/kit/index.ts, src/ui/kit/ImageHero.tsx,
+       src/ui/screens/TodayScreen.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/screens/PantryScreen.tsx
+- Sheet.tsx: OverlayLayer now accepts onBack prop + touch swipe detection
+  (swipe right ≥60px → calls onBack). New OverlayScrolledContext tracks
+  scroll position inside overlay. New exported OverlayNav component: sticky
+  title bar that shows a subtle border-bottom shadow when scrolled. New
+  useSheetSetOverlayBack hook registers a back function for swipe-to-dismiss.
+  New SheetOverlayBackSetContext + childOverlayBack state wired in Sheet.
+- ImageHero: single photo changed from 4:3 wide to 256×256 square (centred).
+- TodayScreen: frequent-foods quick-log grid removed from Diary. InfoOverlaySlot
+  now calls useSheetSetOverlayBack so swipe works on info panels too.
+  SheetInfoPanel uses shared OverlayNav. Removed unused quickLog(), newId,
+  FREQUENT_MIN_LOGS/FOODS, QuickLogCard, Thumb imports + frequentFoods prop.
+- AddEntrySheet:
+  · Log button always active (removed disabled={basket.length === 0}).
+  · Meal header hidden when basket is empty.
+  · Duplicate pantry item → qty incremented, not new entry.
+  · useSheetSetOverlayBack registered (overlayBackRef pattern) so all overlays
+    are swipe-dismissible.
+  · BasketCard redesigned: no thumbnail, no protein; stepper always visible;
+    tap in normal mode → edit overlay; edit mode → -translate-x-1 + trash only
+    beside card; swipe left reveals trash (local swiped state); returning from
+    edit resets swipe state via isEditing prop + useEffect.
+  · BasketStepper: qty can reach 0; at 0 shows trash icon; tap trash → onRemove.
+    Outer div has onClick stopPropagation so tapping stepper doesn't open edit.
+  · "Add another item" button: bg-surface-sunken, text-content, always visible
+    (removed !editMode guard). FoodPicker shown even in edit mode when open.
+  · FoodPicker: heading + onClose props for expanded state header row
+    (X left, title centred). Recent "+" button: bg-accent, text-black.
+  · MethodCards: text-content (was secondary); overflow fix via -mx-3/-mb-3
+    + px-3/pb-3 to let shadows bleed outside the sunken container.
+  · ManualOverlay: full-width photo upload added (identical to EditOverlay).
+    onAdd signature extended with optional photo field.
+  · EditOverlay: useOverlaySetFooter removed (no sticky footer). Nav replaced
+    with OverlayNav. Right Cancel removed. Non-sticky Save + Cancel added at
+    bottom of scroll area. Photo: trash icon top-right, "Change photo" as
+    white-border button at 16px font. File reader clears e.target.value.
+- PantryScreen FoodItemForm: PhotoPicker replaced with full-width photo section
+  (same style as EditOverlay). useRef for file input. Save + Delete + Cancel
+  buttons inline at bottom (non-sticky). Import cleaned.
+- tsc: clean. lint: clean.
+
 ROUND 110 — FAB MORPH ANIMATION + PICKER UI FIXES (2026-06-28)
 Files: src/ui/kit/FloatingTabBar.tsx, src/ui/components/AddEntrySheet.tsx,
        src/ui/components/TabBar.tsx, src/ui/AppShell.tsx,
        src/ui/kit/Sheet.tsx, src/ui/kit/SegmentedControl.tsx
 - FloatingTabBar: FAB tap triggers 7-phase clip-path morph animation (replaces
   speed-dial). Phases fwd1→fwd2→open→rev-init→rev2→rev1 (580ms forward,
-  580ms reverse). White overlay clips from pill shape → full Sheet shape via
-  CSS clip-path: inset(). Green CTA pill grows from 48px circle to full-width
-  56px pill at FAB centre position. Speed-dial code block-commented but
-  preserved. New props: onFabMorphComplete, startFabReverseRef (ref pattern
-  so AppShell can call reverse without prop drilling).
-- AppShell: fabMorphOpenedSheetRef + fabMorphSheet state mirror (lint
-  compliance). handleFabMorphComplete opens sheet; handleSheetClose triggers
-  reverse morph when sheet was FAB-opened. startFabReverseRef plumbed through.
+  580ms reverse). New props: onFabMorphComplete, startFabReverseRef.
+- AppShell: fabMorphOpenedSheetRef + fabMorphSheet state mirror.
 - TabBar: forwards onFabMorphComplete + startFabReverseRef to FloatingTabBar.
-- Sheet: closeImmediately prop — × button calls onClose() with no 300ms
-  slide-down (prevents competing animations during reverse morph).
+- Sheet: closeImmediately prop — × button calls onClose() immediately.
 - SegmentedControl: optionClassName prop for fixed-width tabs.
-- AddEntrySheet:
-  · SegmentedControl (Food/Activity/Weight, 90px each) in Sheet stickyHeader
-    slot, replacing old underline tab button row.
-  · noCloseAnimation prop → Sheet closeImmediately.
-  · FoodPicker container: 24px border-radius (was 16px).
-  · Recent list: max 4 items (was 5).
-  · Section headers: text-callout text-content font-semibold (was SectionLabel
-    uppercase / content-secondary).
-  · Method cards: 82×72px, text-subhead text-content. Shadow overflow via
-    py-2 -my-1 + overflowY:visible. Removed border.
-  · List item wrapper: 16px border-radius (was 12px).
-  · Log it: always rendered (removed hasItems guard). Empty basket → toast
-    "Add something first" rather than disabled button.
-  · SVG icons: CameraMethodIcon, PhotoMethodIcon, DescribeMethodIcon,
-    LabelMethodIcon, ManualMethodIcon — all fill="currentColor" from Marco's
-    uploaded SVG paths.
+- AddEntrySheet: SegmentedControl tab bar, 24px picker radius, 4 recents,
+  callout section headers, 82×72px method cards with custom SVG fill icons,
+  Log it always visible, 16px list radius.
 - tsc: clean. lint: clean.
 
 ROUND 109 — ADD-ENTRY BASKET-FIRST REDESIGN (2026-06-28)
 Files: src/ui/components/AddEntrySheet.tsx, src/ui/kit/ImageHero.tsx (new),
        src/ui/kit/index.ts
-- Implemented basket-first Add-Entry UX from the r108 design spec.
-  FoodForm rewritten: multi-item basket, ImageHero/collage, meal name,
-  photo capture, scan/describe/label/manual method overlays, edit-mode
-  overlay, analysis overlay. Backed by leve-add-entry-design-spec.docx.
-- ImageHero: new kit component. Single photo = rounded rect; 2–3 photos =
-  card-fan collage. Exported from kit/index.ts.
+- FoodForm rewritten: multi-item basket, ImageHero/collage, meal name,
+  photo capture, scan/describe/label/manual overlays, edit-mode overlay.
+- ImageHero: new kit component. Single photo = rounded rect; 2–3 = card fan.
 - tsc: clean. lint: clean.
 
 

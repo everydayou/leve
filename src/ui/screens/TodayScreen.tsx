@@ -5,7 +5,7 @@ import { hapticLight } from '../../lib/haptics';
 import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
 import { useDay } from '../../state/useDay';
-import { todayISO, addDays, newId } from '../../data/ids';
+import { todayISO, addDays } from '../../data/ids';
 import { getMondayOfWeek, fmtDiaryDate } from '../../lib/date';
 import { nutritionFor, effectiveNutrition, calcDigestionCalories } from '../../domain/calc';
 import { requiredDailyDeficit, isGainGoal } from '../../domain/goal';
@@ -14,19 +14,17 @@ import { onDecimalChange } from '../../lib/num';
 import { kgToLbs } from '../../domain/units';
 import { prefersReducedMotion } from '../../lib/motion';
 import {
-  Card, QuickLogCard, Badge, Button, LabeledInput, NumberField,
+  Card, Badge, Button, LabeledInput, NumberField,
   Icon, GaugeArc, Sheet, Skeleton, ProgressBar, ServingStepper, FilterPills, WheelPicker,
+  useSheetSetOverlay, useSheetSetOverlayBack, OverlayNav,
 } from '../kit';
 import { WeightLogSheet } from '../components/WeightLogSheet';
 import type { ShowToast } from '../components/Toaster';
 import type { NutritionSnapshot } from '../../domain/types';
-import { Thumb } from '../components/PhotoPicker';
 import type { FoodEntry, FoodItem, WeightEntry, ActivityEntry, Goal, Sex, User } from '../../domain/types';
 import { ScanResults } from '../components/AddEntrySheet';
 import type { ResultItem } from '../components/AddEntrySheet';
 
-const FREQUENT_MIN_LOGS = 3;
-const FREQUENT_MIN_FOODS = 3;
 const GAUGE_RANGE = 500;
 const reminderKey = (date: string) => `weightReminderDismissed_${date}`;
 
@@ -41,11 +39,6 @@ export function TodayScreen() {
   const user          = useLive(() => repos.user.get(), []);
   const items         = useLive(() => repos.foodItems.all(), []) ?? [];
   const weights       = useLive(() => repos.weights.all(), []) ?? [];
-  const freqIds       = useLive(() => repos.foodEntries.frequentItemIds(4, FREQUENT_MIN_LOGS), []) ?? [];
-  const frequentFoods = freqIds
-    .map((id) => items.find((i) => i.id === id))
-    .filter((i): i is FoodItem => !!i);
-
   // Weekly data for strip indicators — fetch 3 weeks so adjacent weeks render during drag.
   const monday      = getMondayOfWeek(date);
   const prevMonday  = addDays(monday, -7);
@@ -256,7 +249,6 @@ export function TodayScreen() {
                   date={d}
                   items={items}
                   weights={weights}
-                  frequentFoods={frequentFoods}
                   dailyTarget={dailyTarget}
                   proteinGoalG={user?.proteinGoalG ?? 0}
                   isActive={d === date}
@@ -284,6 +276,19 @@ export function TodayScreen() {
 }
 
 // ── Macro progress bars ───────────────────────────────────────────────────────
+
+/** Reusable info panel rendered inside OverlayLayer via useSheetSetOverlay.
+ *  Uses the shared OverlayNav for a sticky title bar with scroll shadow. */
+function SheetInfoPanel({ title, onBack, children }: {
+  title: string; onBack: () => void; children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-3 py-1">
+      <OverlayNav title={title} onBack={onBack} />
+      {children}
+    </div>
+  );
+}
 
 /** Single macro column: label top, number middle, progress bar bottom.
  *  Used in horizontal MacroBarsRow layout. */
@@ -332,6 +337,31 @@ function MacroDetailRow({ label, consumed, targetG = 0, onInfo }: {
   );
 }
 
+/**
+ * Null-rendering child that must live INSIDE a <Sheet> to access
+ * SheetOverlaySetContext. Registers an info panel overlay via useSheetSetOverlay.
+ */
+function InfoOverlaySlot({
+  activeKey, title, content, onBack,
+}: {
+  activeKey: string | null;
+  title: string;
+  content: React.ReactNode;
+  onBack: () => void;
+}) {
+  useSheetSetOverlay(
+    activeKey !== null ? (
+      <SheetInfoPanel title={title} onBack={onBack}>
+        {content}
+      </SheetInfoPanel>
+    ) : null,
+    [activeKey],
+  );
+  // Register onBack so swipe-right on the overlay also goes back
+  useSheetSetOverlayBack(onBack);
+  return null;
+}
+
 /** Full-screen sheet showing all three macros stacked vertically. */
 function MacroDetailSheet({
   protein, proteinGoal, carbs, fat,
@@ -347,18 +377,8 @@ function MacroDetailSheet({
   const fatTargetEff = (macroStyle === 'balanced' || macroStyle === 'performance') ? fatTarget : 0;
 
   const [activeInfo, setActiveInfo] = useState<'protein' | 'carbs' | 'fat' | null>(null);
-  const [infoEntered, setInfoEntered] = useState(false);
-
-  function openInfo(key: 'protein' | 'carbs' | 'fat') {
-    setActiveInfo(key);
-    requestAnimationFrame(() => setInfoEntered(true));
-  }
-  function closeInfo() {
-    setInfoEntered(false);
-    setTimeout(() => setActiveInfo(null), 260);
-  }
-
-  const slide: React.CSSProperties = { transition: 'transform 260ms cubic-bezier(0.32,0.72,0,1)' };
+  const openInfo  = (key: 'protein' | 'carbs' | 'fat') => setActiveInfo(key);
+  const closeInfo = () => setActiveInfo(null);
   const infoTitles = { protein: 'Protein', carbs: 'Carbs', fat: 'Fat' };
 
   const infoPanels: Record<'protein' | 'carbs' | 'fat', React.ReactNode> = {
@@ -395,56 +415,39 @@ function MacroDetailSheet({
   };
 
   const stickyHeader = (
-    <div className="relative overflow-hidden mb-5">
-      <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
-        <div className="flex items-center gap-2 py-1">
-          <button data-no-drag onClick={onClose} aria-label="Close" className="-m-1 p-1 text-content-muted">
-            <Icon name="close" size={22} strokeWidth={2.25} />
-          </button>
-          <h2 className="flex-1 text-center text-headline font-semibold">Macros</h2>
-          <span className="w-6" />
-        </div>
+    <div className="mb-5">
+      <div className="flex items-center gap-2 py-1">
+        <button data-no-drag onClick={onClose} aria-label="Close" className="-m-1 p-1 text-content-muted">
+          <Icon name="close" size={22} strokeWidth={2.25} />
+        </button>
+        <h2 className="flex-1 text-center text-headline font-semibold">Macros</h2>
+        <span className="w-6" />
       </div>
-      {activeInfo && (
-        <div className="absolute inset-0 bg-surface"
-          style={{ ...slide, transform: infoEntered ? 'translateX(0)' : 'translateX(100%)' }}>
-          <div className="flex items-center gap-2 py-1">
-            <button data-no-drag onClick={closeInfo} aria-label="Back" className="-m-1 p-1 text-content-muted">
-              <Icon name="back" size={22} strokeWidth={2.25} />
-            </button>
-            <h2 className="flex-1 text-center text-headline font-semibold">{infoTitles[activeInfo]}</h2>
-            <span className="w-6" />
-          </div>
-        </div>
-      )}
     </div>
   );
 
   return (
     <Sheet onClose={onClose} stickyHeader={stickyHeader} forceExpanded>
-      <div className="relative" style={{ overflowX: 'clip' }}>
-        <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
-          <p className="mb-5 text-subhead text-content-secondary">
-            Macros are the three main nutrients that make up your calories. Tracking them alongside your total helps you eat in a way that supports your goal.
-          </p>
-          <div className="space-y-5">
-            {(['protein', 'carbs', 'fat'] as const).map((key) => (
-              <MacroDetailRow
-                key={key}
-                label={key.charAt(0).toUpperCase() + key.slice(1)}
-                consumed={key === 'protein' ? protein : key === 'carbs' ? carbs : fat}
-                targetG={key === 'protein' ? proteinGoal : key === 'carbs' ? carbTarget : fatTargetEff}
-                onInfo={() => openInfo(key)}
-              />
-            ))}
-          </div>
-        </div>
-        {activeInfo && (
-          <div className="absolute inset-0 bg-surface"
-            style={{ ...slide, transform: infoEntered ? 'translateX(0)' : 'translateX(100%)' }}>
-            {infoPanels[activeInfo]}
-          </div>
-        )}
+      {/* InfoOverlaySlot must be INSIDE Sheet to access SheetOverlaySetContext */}
+      <InfoOverlaySlot
+        activeKey={activeInfo}
+        title={activeInfo ? infoTitles[activeInfo] : ''}
+        content={activeInfo ? infoPanels[activeInfo] : null}
+        onBack={closeInfo}
+      />
+      <p className="mb-5 text-subhead text-content-secondary">
+        Macros are the three main nutrients that make up your calories. Tracking them alongside your total helps you eat in a way that supports your goal.
+      </p>
+      <div className="space-y-5">
+        {(['protein', 'carbs', 'fat'] as const).map((key) => (
+          <MacroDetailRow
+            key={key}
+            label={key.charAt(0).toUpperCase() + key.slice(1)}
+            consumed={key === 'protein' ? protein : key === 'carbs' ? carbs : fat}
+            targetG={key === 'protein' ? proteinGoal : key === 'carbs' ? carbTarget : fatTargetEff}
+            onInfo={() => openInfo(key)}
+          />
+        ))}
       </div>
     </Sheet>
   );
@@ -721,7 +724,6 @@ interface DayPanelProps {
   hasPastGoal?: boolean;
   items: FoodItem[];
   weights: WeightEntry[];
-  frequentFoods: FoodItem[];
   dailyTarget: number;
   proteinGoalG: number;
   isActive: boolean;
@@ -741,7 +743,7 @@ interface DayPanelProps {
   profileUser?: User | null;
 }
 
-function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoalG, isActive, gainGoal = false, goal = null, macroStyle, fatTargetG, carbLimitG, diaryShowProtein, diaryShowCarbs, diaryShowFat, weightCadence = 'weekly', weeklyWeightDay = 0, units = 'kg', hasPastGoal = false, profileUser = null }: DayPanelProps) {
+function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, gainGoal = false, goal = null, macroStyle, fatTargetG, carbLimitG, diaryShowProtein, diaryShowCarbs, diaryShowFat, weightCadence = 'weekly', weeklyWeightDay = 0, units = 'kg', hasPastGoal = false, profileUser = null }: DayPanelProps) {
   const nav = useNavigate();
   const ctx = useOutletContext<DayContext>();
   const [editFood,          setEditFood]          = useState<FoodEntry | null>(null);
@@ -757,7 +759,6 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
   const day = useDay(date);
 
   const isToday = date === todayISO();
-  const showFrequent = frequentFoods.length >= FREQUENT_MIN_FOODS;
   const todayWeightEntry = weights.find((w) => w.date === todayISO());
   const isAfter8pm = new Date().getHours() >= 20;
   // Gate reminder to the user's chosen weigh-in day.
@@ -1141,22 +1142,6 @@ function DayPanel({ date, items, weights, frequentFoods, dailyTarget, proteinGoa
           <h3 className="text-subhead font-semibold">Day's log</h3>
         </div>
 
-        {showFrequent && (
-          <div className="mb-3">
-            <div className="grid grid-cols-4 gap-2">
-              {frequentFoods.map((it) => (
-                <QuickLogCard key={it.id} onClick={async () => { hapticLight(); const id = await quickLog(it, date); ctx.showToast('Food logged', async () => repos.foodEntries.remove(id)); }}>
-                  <Thumb photo={it.photo} size={28} />
-                  <span className="mt-0.5 w-full block text-label font-medium text-content truncate px-1">{it.name}</span>
-                  <div className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-surface">
-                    <Icon name="addSmall" size={10} className="text-content" />
-                  </div>
-                </QuickLogCard>
-              ))}
-            </div>
-          </div>
-        )}
-
         {(() => {
           // Merge food + activity entries into a single chronological log (newest first).
           type LogItem =
@@ -1281,33 +1266,8 @@ function BreakdownSheet({
   onSetGoal?: () => void; onClose: () => void;
 }) {
   const [activeInfo, setActiveInfo] = useState<BreakdownInfoKey | null>(null);
-  const [infoEntered, setInfoEntered] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  // Reset scroll to top on every panel transition (including initial mount)
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    let parent = el.parentElement;
-    while (parent && parent !== document.body) {
-      const ov = window.getComputedStyle(parent).overflowY;
-      if (ov === 'auto' || ov === 'scroll') { parent.scrollTop = 0; break; }
-      parent = parent.parentElement;
-    }
-  }, [activeInfo]);
-
-  function openInfo(key: BreakdownInfoKey) {
-    setActiveInfo(key);
-    requestAnimationFrame(() => setInfoEntered(true));
-  }
-  function closeInfo() {
-    setInfoEntered(false);
-    setTimeout(() => setActiveInfo(null), 260);
-  }
-
-  const slide: React.CSSProperties = {
-    transition: 'transform 260ms cubic-bezier(0.32,0.72,0,1)',
-  };
+  const openInfo  = (key: BreakdownInfoKey) => setActiveInfo(key);
+  const closeInfo = () => setActiveInfo(null);
 
   // ── All derived values (computed unconditionally so header can reference them) ──
   const totalBurn       = Math.round(bmr + actCals + digestionCalories);
@@ -1340,83 +1300,8 @@ function BreakdownSheet({
     food: 'Food', goal: 'Goal', available: availableLabel,
   };
 
-  // ── Animated sticky header ─────────────────────────────────────────────────
-  const animatedHeader = (
-    <div className="relative overflow-hidden mb-5">
-      <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
-        <div className="flex items-center gap-2 py-1">
-          <button data-no-drag onClick={onClose} aria-label="Close" className="-m-1 p-1 text-content-muted">
-            <Icon name="close" size={22} strokeWidth={2.25} />
-          </button>
-          <h2 className="flex-1 text-center text-headline font-semibold">Calorie breakdown</h2>
-          <span className="w-6" />
-        </div>
-      </div>
-      {activeInfo && (
-        <div className="absolute inset-0 bg-surface"
-          style={{ ...slide, transform: infoEntered ? 'translateX(0)' : 'translateX(100%)' }}>
-          <div className="flex items-center gap-2 py-1">
-            <button data-no-drag onClick={closeInfo} aria-label="Back" className="-m-1 p-1 text-content-muted">
-              <Icon name="back" size={22} strokeWidth={2.25} />
-            </button>
-            <h2 className="flex-1 text-center text-headline font-semibold">{infoTitles[activeInfo]}</h2>
-            <span className="w-6" />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  // ── No-goal content ──────────────────────────────────────────────────────
-  if (mode === 'no-goal') {
-    const noGoalRows = [
-      { label: 'Food consumed', value: `${Math.round(consumed).toLocaleString()} kcal` },
-      ...(actCals > 0 ? [{ label: 'Activity', value: `${Math.round(actCals).toLocaleString()} kcal` }] : []),
-    ];
-    return (
-      <Sheet onClose={onClose} stickyHeader={animatedHeader} forceExpanded={forceExpanded}>
-        <p className="mb-5 text-subhead text-content-secondary">
-          Here's a snapshot of your day. Food consumed and any activity you've logged are shown below.
-        </p>
-        <div ref={wrapperRef} className="rounded-card border border-border-subtle bg-surface overflow-hidden">
-          {noGoalRows.map(({ label, value }, idx) => (
-            <div key={label}
-              className={`flex items-center justify-between px-4 py-3 ${idx < noGoalRows.length - 1 ? 'border-b border-border-subtle' : ''}`}>
-              <span className="text-subhead text-content">{label}</span>
-              <span className="text-subhead text-content">{value}</span>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 rounded-card border border-border-subtle bg-surface-sunken px-4 py-4">
-          <p className="text-subhead font-semibold text-content">Set a goal to see the full picture</p>
-          <p className="mt-0.5 text-subhead text-content-secondary">Get a daily calorie target, macro tracking, and weekly progress.</p>
-          <button
-            data-no-drag
-            onClick={() => { hapticLight(); onSetGoal?.(); }}
-            className="mt-3 rounded-field bg-accent px-4 py-2 text-subhead font-semibold text-content active:opacity-80 transition-opacity"
-          >
-            Set a goal
-          </button>
-        </div>
-        <div className="h-2" />
-      </Sheet>
-    );
-  }
-
-  // ── Math rows ────────────────────────────────────────────────────────────
-  type MathRow = { label: string; value: string; infoKey: BreakdownInfoKey };
-  const mathRows: MathRow[] = [
-    { label: 'BMR',      value: `−${Math.round(bmr).toLocaleString()} kcal`,    infoKey: 'bmr' },
-    { label: 'Activity', value: `−${Math.round(actCals).toLocaleString()} kcal`, infoKey: 'activity' },
-    ...(digestionCalories > 0 ? [{
-      label: 'Estimated digestion',
-      value: `−${digestionCalories.toLocaleString()} kcal`,
-      infoKey: 'digestion' as BreakdownInfoKey,
-    }] : []),
-    { label: 'Food', value: `+${Math.round(consumed).toLocaleString()} kcal`, infoKey: 'food' },
-  ];
-
-  // ── Info panel content ───────────────────────────────────────────────────
+  // ── Info panel content — defined here (before early return) so the
+  //    useSheetSetOverlay hook below satisfies React's Rules of Hooks. ─────────
   const infoPanels: Record<BreakdownInfoKey, React.ReactNode> = {
     bmr: bmrIsEstimated ? (
       <div className="space-y-3 leading-relaxed">
@@ -1492,14 +1377,80 @@ function BreakdownSheet({
     ),
   };
 
-  const scrollableContent = (
-    <div ref={wrapperRef} className="relative" style={{ overflow: activeInfo ? 'hidden' : 'visible' }}>
-      <div style={{ ...slide, transform: infoEntered ? 'translateX(-100%)' : 'translateX(0)' }}>
+  // ── Sticky header (static — overlay registered via InfoOverlaySlot inside Sheet) ───
+  const stickyHeader = (
+    <div className="mb-5">
+      <div className="flex items-center gap-2 py-1">
+        <button data-no-drag onClick={onClose} aria-label="Close" className="-m-1 p-1 text-content-muted">
+          <Icon name="close" size={22} strokeWidth={2.25} />
+        </button>
+        <h2 className="flex-1 text-center text-headline font-semibold">Calorie breakdown</h2>
+        <span className="w-6" />
+      </div>
+    </div>
+  );
 
-        <p className="mb-4 text-subhead text-content-secondary">
-          Food adds energy. Your body burns it through your base rate, activity, and digestion.
-          Based on your goal, we find a daily {gainGoal ? 'surplus' : 'deficit'} that hits the sweet spot.
+  // ── No-goal content ──────────────────────────────────────────────────────
+  if (mode === 'no-goal') {
+    const noGoalRows = [
+      { label: 'Food consumed', value: `${Math.round(consumed).toLocaleString()} kcal` },
+      ...(actCals > 0 ? [{ label: 'Activity', value: `${Math.round(actCals).toLocaleString()} kcal` }] : []),
+    ];
+    return (
+      <Sheet onClose={onClose} stickyHeader={stickyHeader} forceExpanded={forceExpanded}>
+        <InfoOverlaySlot
+          activeKey={activeInfo}
+          title={activeInfo ? infoTitles[activeInfo] : ''}
+          content={activeInfo ? infoPanels[activeInfo] : null}
+          onBack={closeInfo}
+        />
+        <p className="mb-5 text-subhead text-content-secondary">
+          Here's a snapshot of your day. Food consumed and any activity you've logged are shown below.
         </p>
+        <div className="rounded-card border border-border-subtle bg-surface overflow-hidden">
+          {noGoalRows.map(({ label, value }, idx) => (
+            <div key={label}
+              className={`flex items-center justify-between px-4 py-3 ${idx < noGoalRows.length - 1 ? 'border-b border-border-subtle' : ''}`}>
+              <span className="text-subhead text-content">{label}</span>
+              <span className="text-subhead text-content">{value}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 rounded-card border border-border-subtle bg-surface-sunken px-4 py-4">
+          <p className="text-subhead font-semibold text-content">Set a goal to see the full picture</p>
+          <p className="mt-0.5 text-subhead text-content-secondary">Get a daily calorie target, macro tracking, and weekly progress.</p>
+          <button
+            data-no-drag
+            onClick={() => { hapticLight(); onSetGoal?.(); }}
+            className="mt-3 rounded-field bg-accent px-4 py-2 text-subhead font-semibold text-content active:opacity-80 transition-opacity"
+          >
+            Set a goal
+          </button>
+        </div>
+        <div className="h-2" />
+      </Sheet>
+    );
+  }
+
+  // ── Math rows ────────────────────────────────────────────────────────────
+  type MathRow = { label: string; value: string; infoKey: BreakdownInfoKey };
+  const mathRows: MathRow[] = [
+    { label: 'BMR',      value: `−${Math.round(bmr).toLocaleString()} kcal`,    infoKey: 'bmr' },
+    { label: 'Activity', value: `−${Math.round(actCals).toLocaleString()} kcal`, infoKey: 'activity' },
+    ...(digestionCalories > 0 ? [{
+      label: 'Estimated digestion',
+      value: `−${digestionCalories.toLocaleString()} kcal`,
+      infoKey: 'digestion' as BreakdownInfoKey,
+    }] : []),
+    { label: 'Food', value: `+${Math.round(consumed).toLocaleString()} kcal`, infoKey: 'food' },
+  ];
+
+  const scrollableContent = (
+    <div>
+      <p className="mb-4 text-subhead text-content-secondary">
+        Food adds energy. Your body burns it through your base rate, activity, and digestion.
+        Based on your goal, we find a daily {gainGoal ? 'surplus' : 'deficit'} that hits the sweet spot.
+      </p>
 
         {/* ── One unified container ── */}
         <div className="rounded-card border border-border-card-no-shadow bg-surface pt-2.5">
@@ -1566,20 +1517,17 @@ function BreakdownSheet({
           </button>
         )}
         <div className="h-2" />
-      </div>
-
-      {/* Info panel (slides in from right) */}
-      {activeInfo && (
-        <div className="absolute inset-0 bg-surface"
-          style={{ ...slide, transform: infoEntered ? 'translateX(0)' : 'translateX(100%)' }}>
-          {infoPanels[activeInfo]}
-        </div>
-      )}
     </div>
   );
 
   return (
-    <Sheet onClose={onClose} stickyHeader={animatedHeader} forceExpanded={forceExpanded}>
+    <Sheet onClose={onClose} stickyHeader={stickyHeader} forceExpanded={forceExpanded}>
+      <InfoOverlaySlot
+        activeKey={activeInfo}
+        title={activeInfo ? infoTitles[activeInfo] : ''}
+        content={activeInfo ? infoPanels[activeInfo] : null}
+        onBack={closeInfo}
+      />
       {scrollableContent}
     </Sheet>
   );
@@ -1843,16 +1791,6 @@ function EditActivitySheet({ entry, onClose, showToast }: {
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
-
-async function quickLog(it: FoodItem, date: string): Promise<string> {
-  const id  = newId();
-  const qty = it.measurementType === 'per_100g' ? 100 : 1;
-  await repos.foodEntries.add({
-    id, date, foodItemId: it.id, quantity: qty, isManual: false,
-    snapshot: nutritionFor(it, qty), createdAt: new Date().toISOString(),
-  });
-  return id;
-}
 
 function labelFor(items: { id: string; name: string }[], id?: string) {
   return items.find((i) => i.id === id)?.name ?? 'Food';

@@ -13,13 +13,24 @@ import { scanFood, describeFood } from '../../lib/foodScan';
 import { hapticLight } from '../../lib/haptics';
 import {
   SegmentedControl, Button, LabeledInput, NumberField, WheelPicker,
-  Icon, Sheet, useSheetSetFooter, ListRow, ImageHero,
+  Icon, Sheet, useSheetSetFooter, useSheetSetOverlay, useOverlaySetFooter,
+  useSheetSetOverlayBack, OverlayNav, ListRow, ImageHero,
 } from '../kit';
 import type { ShowToast } from './Toaster';
 import { findByName } from '../../domain/pantry';
 import type { FoodItem, MealItem, NutritionSnapshot } from '../../domain/types';
 
 const SCAN_ENABLED = !!(import.meta.env.VITE_FOOD_SCAN_API_URL as string | undefined);
+
+function timeMealName(): string {
+  const h = new Date().getHours();
+  if (h >= 5  && h < 10) return 'Breakfast';
+  if (h >= 10 && h < 12) return 'Morning snack';
+  if (h >= 12 && h < 14) return 'Lunch';
+  if (h >= 14 && h < 17) return 'Afternoon snack';
+  if (h >= 17 && h < 21) return 'Dinner';
+  return 'Evening snack';
+}
 
 // ── Account BMR sync ──────────────────────────────────────────────────────────
 
@@ -252,14 +263,52 @@ function FoodForm({
   })();
 
   // ── Sheet footer CTA ──────────────────────────────────────────────────────
-  // Including `activeOverlay` in deps ensures the effect re-runs when an overlay
-  // closes, restoring "Log it" after the overlay's cleanup sets footer to null.
+  // Hidden when an overlay is active — each overlay carries its own inline CTA.
   const logRef = useRef<() => Promise<void>>(() => Promise.resolve());
   useSheetSetFooter(
-    !analyzing
-      ? <Button size="lg" onClick={() => void logRef.current()}>Log it</Button>
+    !analyzing && !activeOverlay
+      ? <Button
+          size="lg"
+          onClick={() => void logRef.current()}
+        >
+          {basket.length >= 2 ? 'Log meal' : 'Log it'}
+        </Button>
       : null,
-    [activeOverlay, analyzing],
+    [analyzing, activeOverlay, basket.length],
+  );
+
+  // Register overlayBack so swipe-right on any overlay dismisses it.
+  // Use a stable ref so the effect doesn't re-run every render.
+  const overlayBackRef = useRef<() => void>(() => undefined);
+  useSheetSetOverlayBack(() => overlayBackRef.current());
+
+  // ── Full-panel overlays (slide in from right, cover the entire sheet) ────
+  // Replaces the old early-return content-swap pattern. Each overlay receives
+  // its own pinned CTA via useOverlaySetFooter inside OverlayLayer.
+  const editItem = activeOverlay === 'edit' && editingIdx !== null
+    ? (basket[editingIdx] ?? null)
+    : null;
+  useSheetSetOverlay(
+    activeOverlay === 'describe' ? (
+      <DescribeOverlay onBack={overlayBack} onAnalyze={handleDescribeAnalyze} />
+    ) : activeOverlay === 'label' ? (
+      <LabelOverlay onBack={overlayBack} onScan={handleLabelScan} />
+    ) : activeOverlay === 'manual' ? (
+      <ManualOverlay items={items} onBack={overlayBack} onAdd={addManualItem} />
+    ) : editItem ? (
+      <EditOverlay
+        item={editItem}
+        currentPhoto={sources.find((s) => s.id === editItem.sourceId)?.photo}
+        onBack={overlayBack}
+        onSave={(patch) => { updateItem(editingIdx!, patch); overlayBack(); }}
+        onPhotoChange={(dataUrl) => {
+          const srcId = newId();
+          setSources((prev) => [...prev, { id: srcId, photo: dataUrl }]);
+          updateItem(editingIdx!, { sourceId: srcId });
+        }}
+      />
+    ) : null,
+    [activeOverlay, editingIdx, editItem],
   );
 
   // ── Auto-scan on mount ────────────────────────────────────────────────────
@@ -395,6 +444,15 @@ function FoodForm({
 
   function addPantryItem(item: FoodItem) {
     hapticLight();
+    // If the same pantry item is already in the basket, increment its quantity
+    const existingIdx = basket.findIndex((b) => b.pantryItemId === item.id);
+    if (existingIdx !== -1) {
+      const existing = basket[existingIdx];
+      const step = existing.measurementType === 'per_100g' ? 10 : 0.5;
+      updateQty(existingIdx, existing.qty + step);
+      setPickerOpen(false);
+      return;
+    }
     const sourceId = item.photo ? newId() : undefined;
     if (sourceId && item.photo) {
       setSources((prev) => [...prev, { id: sourceId, photo: item.photo! }]);
@@ -426,17 +484,29 @@ function FoodForm({
   function addManualItem(entry: {
     name: string; calories: number; protein: number; carbs: number;
     fiber: number; fat: number; saveToPantry: boolean;
+    measurementType: 'per_100g' | 'per_serving'; referenceAmount: number;
+    photo?: string;
   }) {
+    const sourceId = entry.photo ? newId() : undefined;
+    if (sourceId && entry.photo) {
+      setSources((prev) => [...prev, { id: sourceId, photo: entry.photo! }]);
+    }
     const newItem: BasketItem = {
-      id: newId(), name: entry.name, measurementType: 'per_serving',
-      referenceAmount: 1, calories: entry.calories, protein: entry.protein,
-      carbs: entry.carbs, fiber: entry.fiber, fat: entry.fat, qty: 1,
+      id: newId(), name: entry.name,
+      measurementType: entry.measurementType,
+      referenceAmount: entry.referenceAmount,
+      calories: entry.calories, protein: entry.protein,
+      carbs: entry.carbs, fiber: entry.fiber, fat: entry.fat,
+      qty: entry.measurementType === 'per_100g' ? 100 : 1,
+      sourceId,
     };
     if (entry.saveToPantry) {
       void repos.foodItems.put({
-        id: newId(), name: entry.name, measurementType: 'per_serving', referenceAmount: 1,
+        id: newId(), name: entry.name,
+        measurementType: entry.measurementType,
+        referenceAmount: entry.referenceAmount,
         calories: entry.calories, protein: entry.protein, carbs: entry.carbs,
-        fiber: entry.fiber, fat: entry.fat, isArchived: false,
+        fiber: entry.fiber, fat: entry.fat, photo: entry.photo, isArchived: false,
       });
     }
     setBasket((prev) => [...prev, newItem]);
@@ -526,6 +596,7 @@ function FoodForm({
     // Re-open picker when returning to a non-empty basket so user can pick another method
     if (basket.length > 0) setPickerOpen(true);
   }
+  overlayBackRef.current = overlayBack; // intentional ref update mid-render so swipe handler always calls latest overlayBack
 
   const showPicker = basket.length === 0 || pickerOpen;
 
@@ -537,52 +608,6 @@ function FoodForm({
         <p className="text-subhead text-content-secondary">{analyzeLabel}</p>
       </div>
     );
-  }
-
-  // ── Overlays (content-swap pattern: renders in place of basket content) ───
-
-  if (activeOverlay === 'describe') {
-    return (
-      <DescribeOverlay
-        onBack={overlayBack}
-        onAnalyze={handleDescribeAnalyze}
-      />
-    );
-  }
-
-  if (activeOverlay === 'label') {
-    return (
-      <LabelOverlay
-        onBack={overlayBack}
-        onScan={handleLabelScan}
-      />
-    );
-  }
-
-  if (activeOverlay === 'manual') {
-    return (
-      <ManualOverlay
-        items={items}
-        onBack={overlayBack}
-        onAdd={addManualItem}
-      />
-    );
-  }
-
-  if (activeOverlay === 'edit' && editingIdx !== null) {
-    const editItem = basket[editingIdx];
-    if (editItem) {
-      return (
-        <EditOverlay
-          item={editItem}
-          onBack={overlayBack}
-          onSave={(patch) => {
-            updateItem(editingIdx, patch);
-            overlayBack();
-          }}
-        />
-      );
-    }
   }
 
   // ── Main basket view ──────────────────────────────────────────────────────
@@ -608,10 +633,10 @@ function FoodForm({
       {/* Photo collage */}
       {sourcePhotos.length > 0 && <ImageHero photos={sourcePhotos} />}
 
-      {/* Meal header — shown whenever basket has items */}
+      {/* Meal header — only when basket has items */}
       {basket.length > 0 && (
         <div className="flex items-center justify-between">
-          <span className="text-headline font-bold text-content">Meal</span>
+          <span className="text-[15px] font-semibold text-content">Meal</span>
           <button
             onClick={() => setEditMode((v) => !v)}
             className="text-callout font-semibold text-accent active:opacity-70"
@@ -628,7 +653,7 @@ function FoodForm({
             label="Meal name"
             value={mealName}
             onChange={(e) => setMealName(e.target.value)}
-            placeholder="Name this meal"
+            placeholder={timeMealName()}
           />
           <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
             <input
@@ -649,6 +674,7 @@ function FoodForm({
           item={item}
           nutrition={basketNutrition(item)}
           editMode={editMode}
+          isEditing={editingIdx === idx}
           onQtyChange={(qty) => updateQty(idx, qty)}
           onRemove={() => removeItem(idx)}
           onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
@@ -675,7 +701,7 @@ function FoodForm({
       )}
 
       {/* Food picker (always visible on empty basket; toggled by pickerOpen otherwise) */}
-      {!editMode && showPicker && (
+      {showPicker && (
         <FoodPicker
           items={items}
           onPickItem={addPantryItem}
@@ -684,16 +710,19 @@ function FoodForm({
           onDescribe={() => { setPickerOpen(false); setActiveOverlay('describe'); }}
           onLabel={() => { setPickerOpen(false); setActiveOverlay('label'); }}
           onManual={() => { setPickerOpen(false); setActiveOverlay('manual'); }}
+          heading={basket.length > 0 ? 'Add another item' : undefined}
+          onClose={basket.length > 0 ? () => setPickerOpen(false) : undefined}
         />
       )}
 
       {/* Add another — shown when basket has items and picker is closed */}
-      {!editMode && !showPicker && basket.length > 0 && (
+      {!showPicker && basket.length > 0 && (
         <button
           onClick={() => setPickerOpen(true)}
-          className="w-full rounded-field border border-dashed border-border-field py-3.5 text-body font-semibold text-content-secondary transition-colors active:border-accent active:text-accent"
+          className="flex w-full items-center justify-center gap-2 rounded-[24px] bg-surface-sunken py-3.5 text-body font-semibold text-content active:opacity-70"
         >
-          + Add another item
+          <Icon name="plus" size={18} strokeWidth={2.5} />
+          Add another item
         </button>
       )}
     </div>
@@ -703,38 +732,53 @@ function FoodForm({
 // ── BasketStepper ─────────────────────────────────────────────────────────────
 
 function BasketStepper({
-  item, qty, onChange,
+  item, qty, onChange, onRemove,
 }: {
   item: BasketItem;
   qty: number;
   onChange: (v: number) => void;
+  onRemove: () => void;
 }) {
   const isGrams = item.measurementType === 'per_100g';
   const step    = isGrams ? 10 : 0.5;
-  const min     = isGrams ? 10 : 0.5;
 
   function adj(delta: number) {
     hapticLight();
-    onChange(Math.max(min, Math.round((qty + delta) * 10) / 10));
+    const next = Math.round((qty + delta) * 10) / 10;
+    if (next <= 0) {
+      onRemove();
+    } else {
+      onChange(next);
+    }
   }
 
   const label = isGrams
     ? `${qty}g`
-    : qty === 1
-      ? '1 serving'
-      : `${qty % 1 === 0 ? qty : qty.toFixed(1)} servings`;
+    : `${qty % 1 === 0 ? qty : qty.toFixed(1)} srv`;
 
   const btnCls =
     'flex h-8 w-8 items-center justify-center rounded-full border border-border-field bg-surface text-content transition-colors active:bg-surface-sunken';
 
   return (
-    <div className="flex items-center gap-2">
+    // stopPropagation so tapping stepper inside a card doesn't trigger card's onEdit
+    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
       <button data-no-drag onClick={() => adj(-step)} className={btnCls} aria-label="Decrease">
         <Icon name="minus" size={14} strokeWidth={2} />
       </button>
-      <span className="min-w-[68px] text-center text-subhead font-semibold text-content">
-        {label}
-      </span>
+      {qty <= 0 ? (
+        <button
+          data-no-drag
+          onClick={() => { hapticLight(); onRemove(); }}
+          className="flex min-w-[68px] items-center justify-center text-danger active:opacity-70"
+          aria-label="Remove item"
+        >
+          <Icon name="trash" size={16} strokeWidth={2} />
+        </button>
+      ) : (
+        <span className="min-w-[68px] text-center text-subhead font-semibold text-content">
+          {label}
+        </span>
+      )}
       <button data-no-drag onClick={() => adj(step)} className={btnCls} aria-label="Increase">
         <Icon name="plus" size={14} strokeWidth={2} />
       </button>
@@ -745,44 +789,70 @@ function BasketStepper({
 // ── BasketCard ────────────────────────────────────────────────────────────────
 
 function BasketCard({
-  item, nutrition, editMode, onQtyChange, onRemove, onEdit,
+  item, nutrition, editMode, isEditing, onQtyChange, onRemove, onEdit,
 }: {
   item: BasketItem;
   nutrition: NutritionSnapshot;
   editMode: boolean;
+  /** True when this card's edit overlay is currently open — used to reset swipe state on return. */
+  isEditing?: boolean;
   onQtyChange: (v: number) => void;
   onRemove: () => void;
   onEdit: () => void;
 }) {
-  return (
-    <div className="flex items-center gap-3 rounded-[20px] bg-surface p-4 shadow-card">
-      <div className="min-w-0 flex-1 space-y-2.5">
-        <div className="flex items-center gap-2">
-          <span className="flex-1 truncate text-body font-semibold text-content">{item.name}</span>
-          <span className="shrink-0 text-subhead text-content-secondary">
-            {nutrition.calories} kcal
-          </span>
-        </div>
-        <BasketStepper item={item} qty={item.qty} onChange={onQtyChange} />
-      </div>
+  const [swiped, setSwiped] = useState(false);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
 
-      {editMode && (
-        <div className="flex shrink-0 flex-col items-center gap-2 pl-1">
-          <button
-            onClick={onRemove}
-            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-border-field bg-surface-sunken text-content-secondary transition-colors active:text-danger"
-            aria-label="Remove"
-          >
-            <Icon name="trash" size={14} strokeWidth={2.2} />
-          </button>
-          <button
-            onClick={onEdit}
-            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-border-field bg-surface-sunken text-content-secondary transition-colors active:text-accent"
-            aria-label="Edit nutrition"
-          >
-            <Icon name="edit" size={14} strokeWidth={2.2} />
-          </button>
+  // Reset swipe state when the edit overlay closes (isEditing: true → false)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: resets local swipe state when overlay closes
+    if (!isEditing) setSwiped(false);
+  }, [isEditing]);
+
+  const revealed = editMode || swiped;
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+    if (Math.abs(dx) < 6) return; // treat as tap, not swipe
+    if (dx < -50 && dy < Math.abs(dx)) setSwiped(true);  // swipe left → reveal
+    if (dx > 30 && swiped) setSwiped(false);             // swipe right → dismiss
+  }
+
+  function handleCardClick() {
+    if (swiped) { setSwiped(false); return; } // dismiss swipe state on tap
+    if (!editMode) onEdit();                  // tap in normal mode → edit overlay
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <div
+        className={`flex-1 rounded-[20px] bg-surface p-4 shadow-card transition-transform duration-200 ${revealed ? '-translate-x-1' : ''}`}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onClick={handleCardClick}
+        style={{ cursor: !revealed ? 'pointer' : 'default' }}
+      >
+        <div className="flex items-center gap-2 mb-2.5">
+          <span className="flex-1 truncate text-body font-semibold text-content">{item.name}</span>
+          <span className="shrink-0 text-subhead text-content-secondary">{nutrition.calories} kcal</span>
         </div>
+        <BasketStepper item={item} qty={item.qty} onChange={onQtyChange} onRemove={onRemove} />
+      </div>
+      {revealed && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface shadow-card text-content-secondary active:text-danger"
+          aria-label="Remove"
+        >
+          <Icon name="trash" size={16} strokeWidth={2} />
+        </button>
       )}
     </div>
   );
@@ -792,6 +862,7 @@ function BasketCard({
 
 function FoodPicker({
   items, onPickItem, onCamera, onPhoto, onDescribe, onLabel, onManual,
+  heading, onClose,
 }: {
   items: FoodItem[];
   onPickItem: (item: FoodItem) => void;
@@ -800,10 +871,14 @@ function FoodPicker({
   onDescribe: () => void;
   onLabel: () => void;
   onManual: () => void;
+  /** When set, a heading row is shown at the top of the picker (expanded state). */
+  heading?: string;
+  /** When set, an X button on the left of the heading collapses the picker. */
+  onClose?: () => void;
 }) {
   const [query, setQuery] = useState('');
 
-  // Show 5 most-recently-added non-archived items as "recent"
+  // Show 4 most-recently-added non-archived items as "recent"
   const recent   = items.filter((i) => !i.isArchived).slice(0, 4);
   const filtered = query.trim()
     ? items.filter((i) => !i.isArchived && i.name.toLowerCase().includes(query.toLowerCase()))
@@ -811,6 +886,21 @@ function FoodPicker({
 
   return (
     <div className="space-y-1 rounded-[24px] bg-surface-sunken p-3">
+      {/* Heading row — X on left, title centred (shown when picker is expanded over a non-empty basket) */}
+      {heading && (
+        <div className="flex items-center pb-1">
+          {onClose && (
+            <button onClick={onClose} className="-m-1 p-1 text-content-muted active:opacity-70" aria-label="Close">
+              <Icon name="close" size={20} strokeWidth={2} />
+            </button>
+          )}
+          <span className="flex-1 text-center text-body font-semibold text-content pr-6">
+            <Icon name="plus" size={14} strokeWidth={2.5} className="inline mr-1 align-[-2px]" />
+            {heading}
+          </span>
+        </div>
+      )}
+
       {/* Search */}
       <div className="relative">
         <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-content-muted">
@@ -846,16 +936,15 @@ function FoodPicker({
                     )
                   }
                   title={item.name}
-                  subtitle={item.measurementType === 'per_serving' ? 'Per serving' : 'Per 100g'}
+                  subtitle={`${Math.round(n.calories)} kcal · ${item.measurementType === 'per_serving' ? 'per serving' : 'per 100g'}`}
                   trailing={
-                    <div className="flex flex-col items-end gap-0.5">
-                      <span className="text-subhead font-semibold text-content">
-                        {Math.round(n.calories)} kcal
-                      </span>
-                      <span className="text-caption text-content-secondary">
-                        {n.protein.toFixed(0)}g P
-                      </span>
-                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onPickItem(item); }}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-black active:opacity-80"
+                      aria-label={`Add ${item.name}`}
+                    >
+                      <Icon name="plus" size={16} strokeWidth={2.5} />
+                    </button>
                   }
                   onClick={() => onPickItem(item)}
                 />
@@ -869,7 +958,7 @@ function FoodPicker({
         <p className="py-4 text-center text-subhead text-content-secondary">No results</p>
       )}
 
-      {/* Method cards */}
+      {/* Method cards — negative margin lets card shadows bleed outside the sunken container */}
       <div>
         <p className="px-1 pt-3 pb-2 text-callout font-semibold text-content">Other methods</p>
         <MethodCards
@@ -901,19 +990,21 @@ function MethodCards({
   ];
 
   return (
-    // overflow-y visible lets card shadows bleed outside the sunken container
-    // scrollbar-hide via inline style; py-2 -my-2 gives shadow breathing room
-    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 py-2 -my-1" style={{ scrollbarWidth: 'none', overflowY: 'visible' }}>
-      {methods.map(({ label, onClick, icon }) => (
-        <button
-          key={label}
-          onClick={onClick}
-          className="flex h-[72px] w-[82px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[14px] bg-surface text-subhead font-medium text-content shadow-card transition-colors active:bg-accent/5"
-        >
-          {icon}
-          {label}
-        </button>
-      ))}
+    // -mx-3 + px-3 breaks out of the parent container's p-3 padding so shadows aren't clipped
+    // pb-3 -mb-3 does the same for the bottom edge
+    <div className="-mx-3 -mb-3 overflow-x-auto pb-3" style={{ scrollbarWidth: 'none', overflowY: 'visible' }}>
+      <div className="flex gap-2 px-3 pt-1">
+        {methods.map(({ label, onClick, icon }) => (
+          <button
+            key={label}
+            onClick={onClick}
+            className="flex h-[72px] w-[82px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[14px] border-[1.5px] border-border-subtle bg-surface text-[12px] font-medium text-content shadow-card transition-colors active:bg-accent/5"
+          >
+            {icon}
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -970,27 +1061,19 @@ function DescribeOverlay({
 }) {
   const [text, setText] = useState('');
   const hasText = text.trim().length > 0;
-
-  // Use ref so the button closure always calls the latest onAnalyze without
-  // adding it to useSheetSetFooter deps (avoids re-running on every parent render).
   const onAnalyzeRef = useRef(onAnalyze);
   onAnalyzeRef.current = onAnalyze; // eslint-disable-line react-hooks/refs
 
-  useSheetSetFooter(
+  useOverlaySetFooter(
     hasText
       ? <Button size="lg" onClick={() => onAnalyzeRef.current(text.trim())}>Analyse</Button>
       : null,
-    [hasText, text],
+    [hasText],
   );
 
   return (
     <div className="space-y-3 py-1">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="-ml-1 p-1 text-content-secondary active:opacity-70">
-          <Icon name="back" size={22} strokeWidth={2.25} />
-        </button>
-        <span className="text-headline font-semibold text-content">Describe</span>
-      </div>
+      <OverlayNav title="Describe" onBack={onBack} />
       <textarea
         autoFocus
         rows={5}
@@ -1016,9 +1099,7 @@ function LabelOverlay({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // No footer button — "Scan label" lives inline as a primary action button
-  useSheetSetFooter(null, []);
-
+  // No footer hook — "Scan label" lives inline as a primary action button
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan; // eslint-disable-line react-hooks/refs
 
@@ -1049,12 +1130,7 @@ function LabelOverlay({
           onScanRef.current(small);
         }}
       />
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="-ml-1 p-1 text-content-secondary active:opacity-70">
-          <Icon name="back" size={22} strokeWidth={2.25} />
-        </button>
-        <span className="text-headline font-semibold text-content">Scan label</span>
-      </div>
+      <OverlayNav title="Scan label" onBack={onBack} />
       {/* Viewfinder placeholder */}
       <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 rounded-[20px] bg-black">
         <div className="h-[35%] w-4/5 rounded-[10px] border-2 border-accent" />
@@ -1108,15 +1184,24 @@ function ManualOverlay({
 }: {
   items: FoodItem[];
   onBack: () => void;
-  onAdd: (entry: { name: string; calories: number; protein: number; carbs: number; fiber: number; fat: number; saveToPantry: boolean }) => void;
+  onAdd: (entry: {
+    name: string; calories: number; protein: number; carbs: number;
+    fiber: number; fat: number; saveToPantry: boolean;
+    measurementType: 'per_100g' | 'per_serving'; referenceAmount: number;
+    photo?: string;
+  }) => void;
 }) {
-  const [name, setName] = useState('');
-  const [cal, setCal]   = useState('');
-  const [pro, setPro]   = useState('');
-  const [carb, setCarb] = useState('');
-  const [fib, setFib]   = useState('');
-  const [fat, setFat]   = useState('');
-  const [save, setSave] = useState(false);
+  const [name, setName]         = useState('');
+  const [cal, setCal]           = useState('');
+  const [pro, setPro]           = useState('');
+  const [carb, setCarb]         = useState('');
+  const [fib, setFib]           = useState('');
+  const [fat, setFat]           = useState('');
+  const [save, setSave]         = useState(false);
+  const [mType, setMType]       = useState<'per_100g' | 'per_serving'>('per_100g');
+  const [srvG, setSrvG]         = useState('');
+  const [localPhoto, setLocalPhoto] = useState<string | undefined>(undefined);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const duplicate = findByName(items, name);
   const blocked   = save && !!duplicate;
@@ -1125,28 +1210,66 @@ function ManualOverlay({
   const addRef = useRef<() => void>(() => undefined);
   addRef.current = () => { // eslint-disable-line react-hooks/refs
     if (!canAdd) return;
+    const refAmount = mType === 'per_serving' ? (+srvG || 100) : 100;
     onAdd({
       name: name.trim(),
       calories: +cal || 0, protein: +pro || 0, carbs: +carb || 0,
       fiber: +fib || 0, fat: +fat || 0, saveToPantry: save,
+      measurementType: mType, referenceAmount: refAmount,
+      photo: localPhoto,
     });
   };
 
-  useSheetSetFooter(
+  useOverlaySetFooter(
     <Button size="lg" onClick={() => addRef.current()} disabled={!canAdd}>
       Add to meal
     </Button>,
     [canAdd],
   );
 
+  const calLabel = mType === 'per_serving' ? 'Calories (kcal)' : 'Calories (kcal · per 100g)';
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = () => setLocalPhoto(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
   return (
     <div className="space-y-3 py-1">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="-ml-1 p-1 text-content-secondary active:opacity-70">
-          <Icon name="back" size={22} strokeWidth={2.25} />
+      <OverlayNav title="Add manually" onBack={onBack} />
+
+      {/* Photo upload — same pattern as EditOverlay */}
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+      {localPhoto ? (
+        <div className="relative w-full overflow-hidden rounded-[16px]">
+          <img src={localPhoto} alt="Food" className="aspect-[4/3] w-full object-cover" />
+          <button
+            onClick={() => setLocalPhoto(undefined)}
+            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
+            aria-label="Remove photo"
+          >
+            <Icon name="trash" size={14} strokeWidth={2} />
+          </button>
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
+          >
+            Change photo
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-dashed border-border-field py-4 text-subhead font-medium text-content-secondary active:border-accent active:text-accent"
+        >
+          <Icon name="camera" size={18} strokeWidth={1.8} />
+          Add photo
         </button>
-        <span className="text-headline font-semibold text-content">Add manually</span>
-      </div>
+      )}
 
       <LabeledInput
         label="Food name"
@@ -1169,8 +1292,22 @@ function ManualOverlay({
         Save to pantry for next time
       </label>
 
+      {/* Measurement type */}
+      <SegmentedControl
+        options={[
+          { value: 'per_100g',    label: 'Per 100g' },
+          { value: 'per_serving', label: 'Per serving' },
+        ]}
+        value={mType}
+        onChange={(v) => setMType(v as 'per_100g' | 'per_serving')}
+      />
+
+      {mType === 'per_serving' && (
+        <NumberField label="Serving size (g)" value={srvG} set={setSrvG} centerAt={100} />
+      )}
+
       <div className="grid grid-cols-2 gap-2">
-        <NumberField label="Calories" value={cal} set={setCal} max={5000} step={1} centerAt={350} />
+        <NumberField label={calLabel} value={cal} set={setCal} max={5000} step={1} centerAt={350} />
         <NumberField label="Protein (g)" value={pro} set={setPro} max={500} step={1} centerAt={25} />
         <NumberField label="Carbs (g)" value={carb} set={setCarb} max={800} step={1} centerAt={30} />
         <NumberField label="Fiber (g)" value={fib} set={setFib} max={200} step={1} centerAt={5} />
@@ -1183,11 +1320,13 @@ function ManualOverlay({
 // ── EditOverlay ───────────────────────────────────────────────────────────────
 
 function EditOverlay({
-  item, onBack, onSave,
+  item, currentPhoto, onBack, onSave, onPhotoChange,
 }: {
   item: BasketItem;
+  currentPhoto?: string;
   onBack: () => void;
   onSave: (patch: Partial<BasketItem>) => void;
+  onPhotoChange?: (dataUrl: string) => void;
 }) {
   const isSrv  = item.measurementType === 'per_serving';
   const [name, setName] = useState(item.name);
@@ -1197,6 +1336,8 @@ function EditOverlay({
   const [fib, setFib]   = useState(String(item.fiber));
   const [fat, setFat]   = useState(String(item.fat));
   const [srvG, setSrvG] = useState(isSrv ? String(item.referenceAmount) : '');
+  const [localPhoto, setLocalPhoto] = useState(currentPhoto);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const saveRef = useRef<() => void>(() => undefined);
   saveRef.current = () => { // eslint-disable-line react-hooks/refs
@@ -1212,19 +1353,55 @@ function EditOverlay({
     onSave(patch);
   };
 
-  useSheetSetFooter(
-    <Button size="lg" onClick={() => saveRef.current()}>Save</Button>,
-    [],
-  );
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setLocalPhoto(dataUrl);
+      onPhotoChange?.(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // No sticky footer — Save + Cancel are inline in the scroll area
+  // (useOverlaySetFooter removed by design)
 
   return (
     <div className="space-y-3 py-1">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="-ml-1 p-1 text-content-secondary active:opacity-70">
-          <Icon name="back" size={22} strokeWidth={2.25} />
+      {/* Sticky nav — back arrow (= cancel) left, centred title, no right action */}
+      <OverlayNav title="Edit" onBack={onBack} />
+
+      {/* Photo — trash top-right to delete; "Change photo" as white-border button */}
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+      {localPhoto ? (
+        <div className="relative w-full overflow-hidden rounded-[16px]">
+          <img src={localPhoto} alt="Food" className="aspect-[4/3] w-full object-cover" />
+          <button
+            onClick={() => { setLocalPhoto(undefined); }}
+            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
+            aria-label="Remove photo"
+          >
+            <Icon name="trash" size={14} strokeWidth={2} />
+          </button>
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
+          >
+            Change photo
+          </button>
+        </div>
+      ) : onPhotoChange && (
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-dashed border-border-field py-4 text-subhead font-medium text-content-secondary active:border-accent active:text-accent"
+        >
+          <Icon name="camera" size={18} strokeWidth={1.8} />
+          Add photo
         </button>
-        <span className="text-headline font-semibold text-content">Edit nutrition</span>
-      </div>
+      )}
 
       <LabeledInput label="Name" value={name} onChange={(e) => setName(e.target.value)} />
 
@@ -1251,6 +1428,17 @@ function EditOverlay({
           ? 'Values are per serving. Adjust quantity in the basket.'
           : 'Values are per 100g. Adjust grams in the basket.'}
       </p>
+
+      {/* Non-sticky Save + Cancel */}
+      <div className="space-y-2 pt-2 pb-4">
+        <Button size="lg" onClick={() => saveRef.current()}>Save</Button>
+        <button
+          onClick={onBack}
+          className="w-full py-3 text-body font-semibold text-content-secondary active:opacity-70"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
@@ -1328,7 +1516,7 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
           label="Meal name"
           value={mealName ?? ''}
           onChange={(e) => onMealNameChange(e.target.value)}
-          placeholder="Name this meal"
+          placeholder={timeMealName()}
         />
       )}
 

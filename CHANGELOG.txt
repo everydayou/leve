@@ -7,6 +7,119 @@ know WHY something was decided or what changed in a specific round.
 Current active context: nutrition-goal-app-PROJECT-CONTEXT.txt
 
 ================================================================
+ROUND 111 — ADD-ENTRY UX POLISH BATCH 2 (2026-06-29)
+================================================================
+Files: src/ui/kit/Sheet.tsx, src/ui/kit/index.ts, src/ui/kit/ImageHero.tsx,
+       src/ui/screens/TodayScreen.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/screens/PantryScreen.tsx
+
+── OVERLAY SWIPE-TO-DISMISS + STICKY NAV ─────────────────────────────────────
+Sheet.tsx received a set of overlay improvements that apply to every panel
+app-wide:
+
+· OverlayLayer now accepts an `onBack` prop and installs touch handlers.
+  Swipe right ≥60px horizontal (with less than 60% vertical drift) calls onBack.
+· OverlayScrolledContext (internal) tracks whether the overlay's scroll area
+  has been scrolled. Provided to children via React context.
+· OverlayNav (new export): a sticky `top-0` title bar rendered inside the
+  overlay scroll container. Shows a subtle `border-bottom` shadow (via
+  box-shadow) when scrolled. Back arrow left, centred title, optional right
+  slot. All overlay components now use this instead of hand-rolled nav rows.
+  Applies to: DescribeOverlay, LabelOverlay, ManualOverlay, EditOverlay,
+  SheetInfoPanel (TodayScreen).
+· useSheetSetOverlayBack (new export): hook that registers a back/dismiss
+  function from inside a Sheet child. Sheet stores it as childOverlayBack
+  and passes it to OverlayLayer. Registered in FoodForm (via overlayBackRef
+  pattern) and InfoOverlaySlot (TodayScreen) so swipe works everywhere.
+· SheetOverlayBackSetContext + childOverlayBack state + setChildOverlayBackCb
+  added to Sheet. Provider wraps children alongside existing overlay/footer
+  providers.
+
+── IMAGE HERO ────────────────────────────────────────────────────────────────
+Single photo changed from `aspect-[4/3] w-full` to `h-64 w-64` centred square
+(256×256px). Multi-photo collage sizing deferred to a future round.
+
+── TODAY SCREEN ─────────────────────────────────────────────────────────────
+· Frequent-foods quick-log grid (4-item grid at top of Diary section) removed.
+  Related: quickLog() helper removed, freqIds/frequentFoods live queries
+  removed, FREQUENT_MIN_LOGS/FREQUENT_MIN_FOODS constants removed, QuickLogCard
+  + Thumb imports removed, frequentFoods prop removed from DayPanel.
+· InfoOverlaySlot: added useSheetSetOverlayBack(onBack) so info panels in
+  MacroDetailSheet and BreakdownSheet support swipe-to-go-back.
+· SheetInfoPanel: replaced hand-rolled nav row with shared <OverlayNav>.
+
+── ADD-ENTRY SHEET ───────────────────────────────────────────────────────────
+Log button: removed disabled={basket.length === 0} — always tappable.
+Meal header: now hidden when basket is empty (was always visible).
+
+addPantryItem: checks if same pantryItemId already in basket; if so,
+increments qty by one step rather than creating a duplicate entry.
+
+Swipe support: overlayBackRef pattern — overlayBack() assigns to ref during
+render; useSheetSetOverlayBack(() => overlayBackRef.current()) registers it
+once (stable effect deps).
+
+BasketCard redesign:
+· Removed photo thumbnail and protein label.
+· Stepper always visible (was hidden in edit mode).
+· Normal mode: tapping card anywhere → opens EditOverlay (calls onEdit).
+  card has cursor:pointer + onClick handler.
+· Card tracks local `swiped` state. Swipe left ≥50px (less vertical drift)
+  → swiped=true → `revealed` flag. Swipe right ≥30px when swiped → reset.
+  Tap when swiped → reset (dismiss).
+· revealed = editMode || swiped. When revealed: card slides -translate-x-1
+  (transition-transform 200ms) and a trash circle button appears to the right.
+· isEditing prop: when this card's edit overlay closes (true→false), useEffect
+  resets swiped to false (ESLint disable comment for set-state-in-effect).
+· Trash button has stopPropagation to avoid triggering card's onClick.
+
+BasketStepper: step delta can bring qty to 0. At 0 or below calls onRemove()
+immediately (no negative qty). Shows a trash icon (text-danger) instead of
+the qty label when qty ≤ 0. Outer div has onClick stopPropagation so stepper
+taps don't bubble to the card's onEdit handler.
+
+"Add another item" button: bg-surface-sunken + text-content (was bg-surface
++ text-accent shadow-card). Removed !editMode guard — visible in edit mode.
+FoodPicker rendered whenever showPicker=true (removed !editMode guard too).
+
+FoodPicker: new heading + onClose optional props. When heading is set, a row
+appears at the top: X button (left) + centred title. Used when basket has
+items and picker is expanded ("Add another item" expanded state). Recent items
+"+" button changed from bg-accent/10 text-accent to bg-accent text-black.
+
+MethodCards: text-content (was text-content-secondary). Overflow fix: outer
+wrapper changed to -mx-3 -mb-3 overflow-x-auto with inner flex row using
+px-3 pt-1 pb-3. This breaks the cards out of the parent's p-3 padding so
+card shadows are not clipped by the container's border-radius on WKWebView.
+
+ManualOverlay: added full-width photo upload (file input ref, FileReader,
+localPhoto state). Photo section identical to EditOverlay: Add photo button
+→ full-width image with trash (top-right) + "Change photo" (white-border
+bottom-centre). onAdd signature extended with optional `photo?: string` field.
+addManualItem updated to create a SourceGroup when photo is present, and to
+pass photo to pantry item when saveToPantry is true.
+
+EditOverlay:
+· useOverlaySetFooter removed — no sticky footer.
+· Nav row replaced with <OverlayNav title="Edit" onBack={onBack} /> (sticky,
+  shadow on scroll, no right Cancel).
+· Non-sticky Save button + Cancel text button added at bottom of scroll area.
+· Photo section: trash icon (top-right, rounded-full bg-black/50) removes
+  photo; "Change photo" is a rounded-full white-border button (text-[16px])
+  overlaid at the bottom-centre of the image. File reader clears e.target.value.
+
+── PANTRY SCREEN ─────────────────────────────────────────────────────────────
+FoodItemForm updated to match EditOverlay style:
+· PhotoPicker (small thumbnail row) replaced with full-width photo section
+  (same Add/Change/trash pattern as EditOverlay). useRef for file input.
+  handleFileChange reads file via FileReader.
+· Name input moved to its own LabeledInput below the photo (no more flex row).
+· Save + optional Delete + Cancel buttons inline at bottom (non-sticky).
+· PhotoPicker import removed; useRef added to React imports.
+
+tsc: clean. lint: clean.
+
+================================================================
 ROUND 110 — FAB MORPH ANIMATION + PICKER UI FIXES (2026-06-28)
 ================================================================
 Files: src/ui/kit/FloatingTabBar.tsx, src/ui/components/AddEntrySheet.tsx,

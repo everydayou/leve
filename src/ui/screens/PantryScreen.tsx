@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
 import { findByName } from '../../domain/pantry';
 import { Button, LabeledInput, NumberField, Icon, FilterPills, Sheet, EmptyState, MeasurementTypeSelector } from '../kit';
-import { PhotoPicker, Thumb } from '../components/PhotoPicker';
+import { Thumb } from '../components/PhotoPicker';
 import { hapticLight } from '../../lib/haptics';
 import type { DayContext } from '../AppShell';
 import type { ShowToast } from '../components/Toaster';
@@ -131,6 +131,7 @@ function FoodItemForm({ item, items, onClose, showToast }: {
   const [fat, setFat] = useState(item ? String(item.fat) : '');
   const [photo, setPhoto] = useState<string | undefined>(item?.photo);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   // Block a name that already belongs to a DIFFERENT pantry item (so renaming
   // an item to its own current name is fine).
@@ -155,14 +156,49 @@ function FoodItemForm({ item, items, onClose, showToast }: {
     onClose();
   }
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = () => setPhoto(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
   return (
     <>
       <Sheet title={item ? 'Edit food item' : 'New food item'} onClose={onClose} forceExpanded>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <PhotoPicker photo={photo} onChange={setPhoto} />
-            <LabeledInput wrapClassName="flex-1" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" invalid={blocked} />
-          </div>
+        <div className="space-y-3 pb-4">
+          {/* Photo — full-width with trash + "Change photo" overlay, matching EditOverlay style */}
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+          {photo ? (
+            <div className="relative w-full overflow-hidden rounded-[16px]">
+              <img src={photo} alt="Food" className="aspect-[4/3] w-full object-cover" />
+              <button
+                onClick={() => setPhoto(undefined)}
+                className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
+                aria-label="Remove photo"
+              >
+                <Icon name="trash" size={14} strokeWidth={2} />
+              </button>
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
+              >
+                Change photo
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-dashed border-border-field py-4 text-subhead font-medium text-content-secondary active:border-accent active:text-accent"
+            >
+              <Icon name="camera" size={18} strokeWidth={1.8} />
+              Add photo
+            </button>
+          )}
+
+          <LabeledInput label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Homemade granola" invalid={blocked} />
           {blocked && (
             <p className="text-caption text-danger">This name already exists in your pantry</p>
           )}
@@ -174,8 +210,20 @@ function FoodItemForm({ item, items, onClose, showToast }: {
             <NumberField label="Fiber (g)" value={fib} set={setFib} max={200} step={1} />
             <NumberField label="Fat (g)" value={fat} set={setFat} max={400} step={1} />
           </div>
-          <Button size="lg" onClick={save} disabled={!name.trim() || blocked}>{item ? 'Save changes' : 'Save to pantry'}</Button>
-          {item && <Button variant="outline" onClick={() => setConfirmingDelete(true)}>Delete food</Button>}
+
+          {/* Non-sticky Save + Cancel (cancel = Sheet's × button, but inline for clarity) */}
+          <Button size="lg" onClick={save} disabled={!name.trim() || blocked}>
+            {item ? 'Save changes' : 'Save to pantry'}
+          </Button>
+          {item && (
+            <Button variant="outline" onClick={() => setConfirmingDelete(true)}>Delete food</Button>
+          )}
+          <button
+            onClick={onClose}
+            className="w-full py-3 text-body font-semibold text-content-secondary active:opacity-70"
+          >
+            Cancel
+          </button>
         </div>
       </Sheet>
       {confirmingDelete && item && (

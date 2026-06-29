@@ -17,7 +17,7 @@ export { ListRow } from './ListRow';
 export { SegmentedControl } from './SegmentedControl';
 export { MeasurementTypeSelector } from './MeasurementTypeSelector';
 export { FilterPills } from './FilterPills';
-export { Sheet, useSheetSetFooter } from './Sheet';
+export { Sheet, useSheetSetFooter, useSheetSetOverlay, useOverlaySetFooter, useSheetSetOverlayBack, OverlayNav } from './Sheet';
 export { TopBar } from './TopBar';
 export { FloatingTabBar, type TabItem, type ActionType } from './FloatingTabBar';
 export { Fab } from './Fab';

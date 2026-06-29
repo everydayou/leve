@@ -11,6 +11,15 @@ import type { DayContext } from '../AppShell';
 import type { ShowToast } from '../components/Toaster';
 import type { FoodItem, MeasurementType } from '../../domain/types';
 
+/** Custom delete/trash icon from design spec — uses currentColor */
+function DeleteIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3.5 5.5H16.5M8.5 9V14M11.5 9V14M5.5 5.5L6.5 16.5H13.5L14.5 5.5M8 5.5V3.5H12V5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
 export function PantryScreen() {
   const { showToast } = useOutletContext<DayContext>();
   const [q, setQ] = useState('');
@@ -173,21 +182,23 @@ function FoodItemForm({ item, items, onClose, showToast }: {
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
           {photo ? (
             <div className="flex justify-center"> {/* 256×256 centered square — matches EditOverlay style */}
-              <div className="relative h-64 w-64 overflow-hidden rounded-[20px]">
+              <div className="h-64 w-64 rounded-[20px] shadow-card-lg">
+              <div className="relative h-full w-full overflow-hidden rounded-[20px]">
                 <img src={photo} alt="Food" className="h-full w-full object-cover" />
                 <button
                   onClick={() => setPhoto(undefined)}
                   className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
                   aria-label="Remove photo"
                 >
-                  <Icon name="trash" size={14} strokeWidth={2} />
+                  <DeleteIcon size={16} />
                 </button>
                 <button
                   onClick={() => fileRef.current?.click()}
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
                 >
                   Change photo
                 </button>
+              </div>
               </div>
             </div>
           ) : (

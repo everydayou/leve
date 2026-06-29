@@ -389,10 +389,12 @@ function FoodForm({
 
   async function handleDescribeAnalyze(text: string): Promise<void> {
     // Keep the overlay open during the async call — close it only on success.
-    // The overlay manages its own loading state and re-throws on error so the
-    // overlay can display the error message inline.
     const sourceId = newId();
     const foods = await describeFood(text);
+    if (foods.length === 0) {
+      // Throw so DescribeOverlay can show the inline error
+      throw new Error('no food — Please describe a food or meal (e.g. "a bowl of oats with banana").');
+    }
     const newItems = foods.map((f) =>
       scanResultToBasket({
         name: f.name, estimatedGrams: f.estimatedGrams,
@@ -417,7 +419,7 @@ function FoodForm({
       const servingG = Math.max(Number(f.estimatedGrams) || 100, 1);
       const factor   = 100 / servingG;
       const item100: BasketItem = {
-        id: newId(), name: f.name, measurementType: 'per_100g', referenceAmount: 100,
+        id: newId(), name: cleanScanName(f.name), measurementType: 'per_100g', referenceAmount: 100,
         calories: (Number(f.calories) || 0) * factor,
         protein:  (Number(f.protein)  || 0) * factor,
         carbs:    (Number(f.carbs)    || 0) * factor,
@@ -426,7 +428,7 @@ function FoodForm({
         qty: 100, sourceId,
       };
       const itemSrv: BasketItem = {
-        id: newId(), name: f.name, measurementType: 'per_serving', referenceAmount: servingG,
+        id: newId(), name: cleanScanName(f.name), measurementType: 'per_serving', referenceAmount: servingG,
         calories: Number(f.calories) || 0,
         protein:  Number(f.protein)  || 0,
         carbs:    Number(f.carbs)    || 0,
@@ -601,8 +603,6 @@ function FoodForm({
   }
   overlayBackRef.current = overlayBack; // intentional ref update mid-render so swipe handler always calls latest overlayBack
 
-  const showPicker = basket.length === 0 || pickerOpen;
-
   // ── Analysing state ───────────────────────────────────────────────────────
   if (analyzing) {
     return (
@@ -706,55 +706,102 @@ function FoodForm({
           onPer100g={() => {
             setBasket((prev) => [...prev, { ...servingModal.item100, id: newId() }]);
             setServingModal(null);
-            setPickerOpen(false);
           }}
           onPerServing={() => {
             setBasket((prev) => [...prev, { ...servingModal.itemSrv, id: newId() }]);
             setServingModal(null);
-            setPickerOpen(false);
           }}
           onDismiss={() => setServingModal(null)}
         />
       )}
 
-      {/* Inline Log it CTA — non-sticky, appears after basket content, only when basket non-empty */}
-      {basket.length > 0 && !editMode && !activeOverlay && !analyzing && (
-        <Button size="lg" onClick={() => void logRef.current()}>
-          {basket.length >= 2 ? 'Log meal' : 'Log it'}
-        </Button>
-      )}
-
-      {/* Food picker (always visible on empty basket; toggled by pickerOpen otherwise) */}
-      {showPicker && (
+      {/* ── Empty basket: full picker with no heading ──────────────────── */}
+      {basket.length === 0 && (
         <FoodPicker
           items={items}
           frequentItems={frequentItems}
           onPickItem={addPantryItem}
           onCamera={() => void handleCamera()}
           onPhoto={() => void handlePhoto()}
-          onDescribe={() => { setPickerOpen(false); setActiveOverlay('describe'); }}
-          onLabel={() => {
-            setPickerOpen(false);
-            // Trigger native iOS picker (Photo Library / Take Photo / Files)
-            // same pattern as "Add Photo" — no intermediate overlay needed.
-            labelInputRef.current?.click();
-          }}
-          onManual={() => { setPickerOpen(false); setActiveOverlay('manual'); }}
-          heading={basket.length > 0 ? 'Add another item' : undefined}
-          onClose={basket.length > 0 ? () => setPickerOpen(false) : undefined}
+          onDescribe={() => setActiveOverlay('describe')}
+          onLabel={() => { labelInputRef.current?.click(); }}
+          onManual={() => setActiveOverlay('manual')}
         />
       )}
 
-      {/* Add another — shown when basket has items and picker is closed */}
-      {!showPicker && basket.length > 0 && (
-        <button
-          onClick={() => setPickerOpen(true)}
-          style={{ marginTop: '24px' }}
-          className="flex w-full items-center justify-center gap-2 rounded-[24px] bg-surface-sunken py-3.5 text-body font-semibold text-content active:opacity-70"
+      {/* ── Non-empty basket: "Add another item" anchor + picker ──────── */}
+      {basket.length > 0 && !editMode && (
+        <AddAnotherSection
+          open={pickerOpen}
+          onToggle={() => setPickerOpen((v) => !v)}
+          onClose={() => setPickerOpen(false)}
         >
-          <Icon name="plus" size={18} strokeWidth={2.5} />
+          <FoodPicker
+            items={items}
+            frequentItems={frequentItems}
+            onPickItem={addPantryItem}
+            onCamera={() => void handleCamera()}
+            onPhoto={() => void handlePhoto()}
+            onDescribe={() => { setPickerOpen(false); setActiveOverlay('describe'); }}
+            onLabel={() => { labelInputRef.current?.click(); }}
+            onManual={() => { setPickerOpen(false); setActiveOverlay('manual'); }}
+          />
+        </AddAnotherSection>
+      )}
+
+      {/* ── Log CTA — always last, 24px above it ─────────────────────── */}
+      {basket.length > 0 && !editMode && !activeOverlay && !analyzing && (
+        <div style={{ paddingTop: '24px' }}>
+          <Button size="lg" onClick={() => void logRef.current()}>
+            {basket.length >= 2 ? 'Log meal' : 'Log it'}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── AddAnotherSection ─────────────────────────────────────────────────────────
+// Persistent "+ Add another item" heading that stays anchored while the picker
+// content expands downward. The heading never moves on open/close.
+
+function AddAnotherSection({
+  open, onToggle, onClose, children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      {/* Heading row — fixed anchor; always at the same Y position */}
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center rounded-[24px] bg-surface-sunken px-4 py-3.5"
+      >
+        {/* X — visible when open; invisible placeholder keeps title centred when closed */}
+        <span
+          className={`flex h-6 w-6 items-center justify-center transition-opacity${open ? '' : ' opacity-0 pointer-events-none'}`}
+          onClick={(e) => { if (open) { e.stopPropagation(); onClose(); } }}
+          role="button"
+          aria-label="Close"
+        >
+          <Icon name="close" size={18} strokeWidth={2} className="text-content-muted" />
+        </span>
+        <span className="flex-1 text-center text-body font-semibold text-content">
+          <Icon name="plus" size={18} strokeWidth={2.5} className="inline mr-1 align-[-3px]" />
           Add another item
-        </button>
+        </span>
+        {/* Right spacer — mirrors X on left to keep title centred */}
+        <span className="w-6" />
+      </button>
+
+      {/* Picker content — expands below the heading */}
+      {open && (
+        <div className="mt-1">
+          {children}
+        </div>
       )}
     </div>
   );
@@ -820,10 +867,10 @@ function BasketStepper({
   );
 }
 
-/** Delete icon from design spec — 20×20, uses currentColor */
-function DeleteIcon() {
+/** Delete icon from design spec — uses currentColor; defaults to 20×20 */
+function DeleteIcon({ size = 20 }: { size?: number }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M5.75 18.1673C5.125 18.1673 4.60069 17.9555 4.17708 17.5319C3.75347 17.1083 3.54167 16.584 3.54167 15.959V4.91732C3.23611 4.91732 2.97569 4.80968 2.76042 4.5944C2.54514 4.37912 2.4375 4.11871 2.4375 3.81315C2.4375 3.5076 2.54514 3.24718 2.76042 3.0319C2.97569 2.81662 3.23611 2.70898 3.54167 2.70898H7.45833C7.45833 2.43121 7.55417 2.1951 7.74583 2.00065C7.9375 1.80621 8.175 1.70898 8.45833 1.70898H11.5833C11.8667 1.70898 12.1042 1.80482 12.2958 1.99648C12.4875 2.18815 12.5833 2.42565 12.5833 2.70898H16.5C16.8056 2.70898 17.066 2.81662 17.2813 3.0319C17.4965 3.24718 17.6042 3.5076 17.6042 3.81315C17.6042 4.11871 17.4965 4.37912 17.2813 4.5944C17.066 4.80968 16.8056 4.91732 16.5 4.91732V15.959C16.5 16.584 16.2882 17.1083 15.8646 17.5319C15.441 17.9555 14.9167 18.1673 14.2917 18.1673H5.75ZM14.2917 4.91732H5.75V15.959H14.2917V4.91732ZM8.94792 13.9486C9.16319 13.7333 9.27083 13.4729 9.27083 13.1673V7.70898C9.27083 7.40343 9.16319 7.14301 8.94792 6.92773C8.73264 6.71246 8.47222 6.60482 8.16667 6.60482C7.86111 6.60482 7.60069 6.71246 7.38542 6.92773C7.17014 7.14301 7.0625 7.40343 7.0625 7.70898V13.1673C7.0625 13.4729 7.17014 13.7333 7.38542 13.9486C7.60069 14.1638 7.86111 14.2715 8.16667 14.2715C8.47222 14.2715 8.73264 14.1638 8.94792 13.9486ZM12.6563 13.9486C12.8715 13.7333 12.9792 13.4729 12.9792 13.1673V7.70898C12.9792 7.40343 12.8715 7.14301 12.6563 6.92773C12.441 6.71246 12.1806 6.60482 11.875 6.60482C11.5694 6.60482 11.309 6.71246 11.0938 6.92773C10.8785 7.14301 10.7708 7.40343 10.7708 7.70898V13.1673C10.7708 13.4729 10.8785 13.7333 11.0938 13.9486C11.309 14.1638 11.5694 14.2715 11.875 14.2715C12.1806 14.2715 12.441 14.1638 12.6563 13.9486Z" fill="currentColor"/>
     </svg>
   );
@@ -915,7 +962,6 @@ function BasketCard({
 
 function FoodPicker({
   items, frequentItems = [], onPickItem, onCamera, onPhoto, onDescribe, onLabel, onManual,
-  heading, onClose,
 }: {
   items: FoodItem[];
   /** Pre-computed frequent items (most logged) to show in the Recent list. */
@@ -926,10 +972,6 @@ function FoodPicker({
   onDescribe: () => void;
   onLabel: () => void;
   onManual: () => void;
-  /** When set, a heading row is shown at the top of the picker (expanded state). */
-  heading?: string;
-  /** When set, an X button on the left of the heading collapses the picker. */
-  onClose?: () => void;
 }) {
   const [query, setQuery] = useState('');
 
@@ -943,25 +985,10 @@ function FoodPicker({
 
   return (
     <div className="space-y-1">
-      {/* Grey container — heading, search, and recent list */}
+      {/* Grey container — search and recent list */}
       <div className="rounded-[24px] bg-surface-sunken p-3">
-        {/* Heading row — X on left, title centred (shown when picker is expanded over a non-empty basket) */}
-        {heading && (
-          <div className="flex items-center pb-1">
-            {onClose && (
-              <button onClick={onClose} className="-m-1 p-1 text-content-muted active:opacity-70" aria-label="Close">
-                <Icon name="close" size={20} strokeWidth={2} />
-              </button>
-            )}
-            <span className="flex-1 text-center text-body font-semibold text-content pr-6">
-              <Icon name="plus" size={18} strokeWidth={2.5} className="inline mr-1 align-[-2px]" />
-              {heading}
-            </span>
-          </div>
-        )}
-
         {/* Search — pill shape guaranteed via overflow-hidden on wrapper (iOS focus resets border-radius on input) */}
-        <div className={`relative rounded-full bg-surface overflow-hidden${heading ? ' mt-2' : ''}`}>
+        <div className="relative rounded-full bg-surface overflow-hidden">
           <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-content-muted">
             <Icon name="search" size={16} strokeWidth={2} />
           </span>
@@ -1059,7 +1086,7 @@ function MethodCards({
           <button
             key={label}
             onClick={onClick}
-            className="flex h-[72px] w-[82px] shrink-0 flex-col items-center justify-center gap-[3px] rounded-[14px] bg-surface text-[12px] font-medium text-content shadow-card transition-colors active:bg-accent/5"
+            className="flex h-[72px] w-[82px] shrink-0 flex-col items-center justify-center gap-[3px] rounded-[14px] border border-border-subtle bg-surface text-[12px] font-medium text-content shadow-card transition-colors active:bg-accent/5"
           >
             {icon}
             {label}
@@ -1118,7 +1145,7 @@ function DescribeOverlay({
   onBack, onAnalyze,
 }: {
   onBack: () => void;
-  /** Async — throws on error. Overlay stays open until this resolves or rejects. */
+  /** Async — throws on error or when no food found. Overlay closes on success. */
   onAnalyze: (text: string) => Promise<void>;
 }) {
   const [text, setText] = useState('');
@@ -1126,33 +1153,27 @@ function DescribeOverlay({
   const [error, setError] = useState('');
   const hasText = text.trim().length > 0;
 
+  // No sticky footer — Analyse button is inline below the textarea
+  useOverlaySetFooter(null, []);
+
   async function handleAnalyse() {
     if (!hasText || loading) return;
     setLoading(true);
     setError('');
     try {
       await onAnalyze(text.trim());
-      // onAnalyze closes the overlay on success — no action needed here
+      // onAnalyze closes the overlay on success
     } catch (err) {
       const raw = err instanceof Error ? err.message : '';
       const isNetworkErr = /load failed|network|fetch/i.test(raw);
       setError(
         isNetworkErr
           ? 'Could not reach the AI service. Please check your connection and try again.'
-          : raw || 'Analysis failed. Please try again.',
+          : raw || 'Could not estimate nutrition. Try being more specific.',
       );
       setLoading(false);
     }
   }
-
-  useOverlaySetFooter(
-    hasText
-      ? <Button size="lg" onClick={() => void handleAnalyse()} disabled={loading}>
-          {loading ? 'Analysing…' : 'Analyse'}
-        </Button>
-      : null,
-    [hasText, loading],
-  );
 
   return (
     <div className="space-y-3 py-1">
@@ -1169,6 +1190,12 @@ function DescribeOverlay({
       <p className="text-caption text-content-secondary">
         Describe what you ate and AI will estimate the nutrition.
       </p>
+      {/* Inline Analyse button — directly below content, not sticky */}
+      {hasText && (
+        <Button size="lg" onClick={() => void handleAnalyse()} disabled={loading}>
+          {loading ? 'Analysing…' : 'Analyse'}
+        </Button>
+      )}
     </div>
   );
 }
@@ -1412,21 +1439,23 @@ function EditOverlay({
       {/* 256×256 centered square — matches ImageHero single-photo style */}
       {localPhoto ? (
         <div className="flex justify-center">
-          <div className="relative h-64 w-64 overflow-hidden rounded-[20px]">
+          <div className="h-64 w-64 rounded-[20px] shadow-card-lg">
+          <div className="relative h-full w-full overflow-hidden rounded-[20px]">
             <img src={localPhoto} alt="Food" className="h-full w-full object-cover" />
             <button
               onClick={() => { setLocalPhoto(undefined); }}
               className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
               aria-label="Remove photo"
             >
-              <Icon name="trash" size={14} strokeWidth={2} />
+              <DeleteIcon size={16} />
             </button>
             <button
               onClick={() => fileRef.current?.click()}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
             >
               Change photo
             </button>
+          </div>
           </div>
         </div>
       ) : onPhotoChange && (

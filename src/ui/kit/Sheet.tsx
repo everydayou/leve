@@ -205,7 +205,7 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
       {overlayNav && (
         <div className={`shrink-0 -mt-1 px-5 pb-3 pt-2 bg-surface${scrolled ? ' shadow-[0_1px_0_0_var(--color-border-subtle)]' : ''}`}>
           <div className="flex items-center">
-            <button onClick={overlayNav.onBack} className="-m-3 p-3 text-content-secondary active:opacity-70" aria-label="Back">
+            <button onClick={overlayNav.onBack} className="-m-3 p-3 text-content-secondary active:opacity-70 w-10 shrink-0" aria-label="Back">
               <Icon name="back" size={22} strokeWidth={2.25} />
             </button>
             <h2 className="flex-1 text-center text-headline font-semibold text-content">{overlayNav.title}</h2>
@@ -218,7 +218,7 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
         <OverlayScrolledContext.Provider value={scrolled}>
           <div
             className="flex-1 overflow-y-auto overscroll-contain px-5 pb-2"
-            style={{ touchAction: 'pan-y' }}
+            style={{ touchAction: 'pan-y', overflowX: 'hidden' }}
             onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
           >
             {rendered}
@@ -598,7 +598,7 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
     // prevent any browser default (grab-handle has its own touch-none class).
     <div
       className="fixed inset-0 z-[200] flex flex-col justify-end"
-      style={{ touchAction: 'pan-y' }}
+      style={{ touchAction: 'pan-y', overflowX: 'hidden' }}
       onTouchMove={(e) => {
         // Let scroll-area touches flow to the native pan-y handler.
         if (scrollAreaRef.current?.contains(e.target as Node)) return;

@@ -865,7 +865,7 @@ function BasketStepper({
     : `${qty % 1 === 0 ? qty : qty.toFixed(1)} srv`;
 
   const btnCls =
-    'flex h-7 w-7 items-center justify-center rounded-full bg-surface text-content border border-border-field transition-colors active:opacity-70';
+    'flex h-10 w-10 items-center justify-center rounded-full bg-surface text-content border border-border-field transition-colors active:opacity-70';
 
   return (
     // stopPropagation so tapping stepper inside a card doesn't trigger card's onEdit
@@ -882,14 +882,14 @@ function BasketStepper({
         {atThreshold ? (
           <DeleteIcon />
         ) : (
-          <Icon name="minus" size={14} strokeWidth={2} />
+          <Icon name="minus" size={20} strokeWidth={2} />
         )}
       </button>
       <span className="min-w-[54px] text-center text-subhead font-normal text-content">
         {label}
       </span>
       <button data-no-drag onClick={() => adj(step)} className={btnCls} aria-label="Increase">
-        <Icon name="plus" size={14} strokeWidth={2} />
+        <Icon name="plus" size={20} strokeWidth={2} />
       </button>
     </div>
   );
@@ -943,24 +943,24 @@ function BasketCard({
           {onCorrect && (
             <button
               onClick={(e) => { e.stopPropagation(); onCorrect(); }}
-              className="flex h-8 items-center rounded-full border border-border-field px-3 text-subhead font-medium text-content-secondary active:bg-surface-sunken"
+              className="flex h-10 items-center rounded-full border border-border-field px-3 text-subhead font-medium text-content-secondary active:bg-surface-sunken"
             >
               Change
             </button>
           )}
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-border-field bg-surface text-content active:opacity-60"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-border-field bg-surface text-content active:opacity-60"
             aria-label="Edit"
           >
-            <EditIcon size={16} />
+            <EditIcon size={20} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-border-field bg-surface text-content active:opacity-60"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-border-field bg-surface text-content active:opacity-60"
             aria-label="Remove"
           >
-            <DeleteIcon size={16} />
+            <DeleteIcon size={20} />
           </button>
         </div>
       </div>
@@ -1335,7 +1335,7 @@ function ManualOverlay({
               className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
               aria-label="Remove photo"
             >
-              <DeleteIcon size={16} />
+              <DeleteIcon size={20} />
             </button>
             <button
               onClick={() => fileRef.current?.click()}
@@ -1476,7 +1476,7 @@ function EditOverlay({
               className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
               aria-label="Remove photo"
             >
-              <DeleteIcon size={16} />
+              <DeleteIcon size={20} />
             </button>
             <button
               onClick={() => fileRef.current?.click()}

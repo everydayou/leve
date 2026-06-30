@@ -90,11 +90,11 @@ export function PantryScreen() {
                     <Thumb photo={i.photo} radius="rounded-[8px]" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-callout font-normal leading-none text-content">{i.name}</p>
-                      <p className="mt-[2px] text-subhead leading-none text-content-secondary">{i.measurementType === 'per_100g' ? 'per 100g' : 'per serving'}</p>
+                      <p className="mt-[4px] text-subhead leading-none text-content-secondary">{i.measurementType === 'per_100g' ? 'per 100g' : 'per serving'}</p>
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="text-callout font-bold leading-none text-content">{i.calories} kcal</p>
-                      <p className="mt-[2px] text-subhead leading-none text-content-secondary">{i.protein}g Protein</p>
+                      <p className="mt-[4px] text-subhead leading-none text-content-secondary">{i.protein}g Protein</p>
                     </div>
                   </button>
                 </li>

@@ -1054,17 +1054,14 @@ function FoodPicker({
                       <div className="h-11 w-11 shrink-0 rounded-[10px] bg-surface-sunken" />
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-callout leading-none text-content">{item.name}</p>
-                      <p className="mt-[2px] text-subhead leading-none text-content-secondary">
+                      <p className="truncate text-subhead leading-none text-content">{item.name}</p>
+                      <p className="mt-[4px] text-subhead leading-none text-content-secondary">
                         {item.measurementType === 'per_serving' ? 'per serving' : 'per 100g'}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-callout font-bold leading-none text-content">{Math.round(n.calories)} kcal</p>
-                      {(() => {
-                        const g = item.measurementType === 'per_100g' ? '100g' : item.referenceAmount > 1 ? `${item.referenceAmount}g` : '';
-                        return g ? <p className="mt-[2px] text-subhead leading-none text-content-secondary">{g}</p> : null;
-                      })()}
+                      <p className="text-subhead font-bold leading-none text-content">{Math.round(n.calories)} kcal</p>
+                      <p className="mt-[4px] text-subhead leading-none text-content-secondary">{Math.round(n.protein * 10) / 10}g Protein</p>
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); onPickItem(item); }}

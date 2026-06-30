@@ -1616,19 +1616,57 @@ export function LogEntrySheet({
   const pantryItem = pantryItems.find((i) => i.id === entry.foodItemId);
   const title = entry.mealData?.name ?? entry.manualName ?? pantryItem?.name ?? 'Food';
 
+  // del() is defined inside LogEntryContent (which lives in Sheet's context);
+  // we forward a stable ref so the trash button in the Sheet header can call it.
+  const delRef = useRef<() => void>(() => undefined);
+
+  const trashBtn = (
+    <button data-no-drag onClick={() => void delRef.current()} aria-label="Delete"
+      className="-m-1 p-1 text-content-secondary active:text-danger">
+      <Icon name="trash" size={20} strokeWidth={2} />
+    </button>
+  );
+
+  return (
+    <Sheet title={title} onClose={onClose} forceExpanded rightAction={trashBtn}>
+      {/* LogEntryContent is a child of Sheet so Sheet's context (overlay, footer, etc.) is available */}
+      <LogEntryContent
+        entry={entry}
+        pantryItems={pantryItems}
+        pantryItem={pantryItem ?? null}
+        onClose={onClose}
+        showToast={showToast}
+        delRef={delRef}
+      />
+    </Sheet>
+  );
+}
+
+function LogEntryContent({
+  entry, pantryItems, pantryItem, onClose, showToast, delRef,
+}: {
+  entry: FoodEntry;
+  pantryItems: FoodItem[];
+  pantryItem: FoodItem | null;
+  onClose: () => void;
+  showToast?: ShowToast;
+  delRef: React.MutableRefObject<() => void>;
+}) {
   // ── Basket — initialized once so hasChanges comparison IDs stay stable ─
   const initialBasketRef = useRef<BasketItem[]>([]);
-  // eslint-disable-next-line react-hooks/refs -- write inside initializer runs once at mount, not on re-render
+  // eslint-disable-next-line react-hooks/refs -- write inside initializer runs once at mount
   const [basket, setBasket] = useState<BasketItem[]>(() => {
     const b = entryToBasket(entry, pantryItems);
     initialBasketRef.current = b;
     return b;
   });
 
-  // ── Photos — start from stored meal photo ──────────────────────────────
-  const [localPhotos, setLocalPhotos] = useState<string[]>(
-    entry.mealData?.photo ? [entry.mealData.photo] : [],
-  );
+  // ── Photos — meal scan photo or pantry item photo ───────────────────────
+  const [localPhotos, setLocalPhotos] = useState<string[]>(() => {
+    if (entry.mealData?.photo) return [entry.mealData.photo];
+    if (pantryItem?.photo) return [pantryItem.photo];
+    return [];
+  });
 
   // ── UI state ───────────────────────────────────────────────────────────
   const [editMode, setEditMode]         = useState(false);
@@ -1648,7 +1686,7 @@ export function LogEntrySheet({
   function stripIds(b: BasketItem[]) { return JSON.stringify(b.map(({ id: _, ...r }) => r)); }
   // eslint-disable-next-line react-hooks/refs
   const hasChanges = stripIds(basket) !== stripIds(initialBasketRef.current)
-    || localPhotos.join() !== (entry.mealData?.photo ? [entry.mealData.photo] : []).join();
+    || localPhotos.join() !== (entry.mealData?.photo ? [entry.mealData.photo] : (pantryItem?.photo ? [pantryItem.photo] : [])).join();
 
   // ── Overlay back ────────────────────────────────────────────────────────
   function overlayBack() {
@@ -1828,11 +1866,9 @@ export function LogEntrySheet({
   async function save() {
     const photo = localPhotos[0];
     if (basket.length === 1 && pantryItem && basket[0].pantryItemId === pantryItem.id) {
-      // Pantry single-item — update qty only
       const b = basket[0];
       await repos.foodEntries.update({ ...entry, quantity: b.qty, snapshot: roundSnap(basketNutrition(b)) });
     } else if (basket.length > 1 || entry.mealData) {
-      // Multi-item or was a meal — save/upgrade as mealData
       const items: MealItem[] = basket.map((b, i) => {
         const orig = entry.mealData?.items[i];
         return {
@@ -1854,10 +1890,9 @@ export function LogEntrySheet({
         fiber:    Math.round(items.reduce((s, it) => s + it.fiber    * (it.qty ?? 1), 0) * 10) / 10,
         fat:      Math.round(items.reduce((s, it) => s + it.fat      * (it.qty ?? 1), 0) * 10) / 10,
       };
-      const mealName = entry.mealData?.name ?? title;
+      const mealName = entry.mealData?.name ?? 'Meal';
       await repos.foodEntries.update({ ...entry, snapshot, mealData: { name: mealName, photo, items } });
     } else {
-      // Manual single-item
       const b = basket[0];
       await repos.foodEntries.update({ ...entry, manualName: b.name, snapshot: roundSnap(basketNutrition(b)) });
     }
@@ -1865,22 +1900,16 @@ export function LogEntrySheet({
     onClose();
   }
 
-  // ── Delete ───────────────────────────────────────────────────────────────
+  // ── Delete — also registered on parent's delRef for the trash button ────
   async function del() {
     await repos.foodEntries.remove(entry.id);
     showToast?.('Removed', async () => repos.foodEntries.add(entry));
     onClose();
   }
-
-  const trashBtn = (
-    <button data-no-drag onClick={() => void del()} aria-label="Delete"
-      className="-m-1 p-1 text-content-secondary active:text-danger">
-      <Icon name="trash" size={20} strokeWidth={2} />
-    </button>
-  );
+  delRef.current = del; // eslint-disable-line react-hooks/refs
 
   return (
-    <Sheet title={title} onClose={onClose} forceExpanded rightAction={trashBtn}>
+    <>
       {/* Hidden file inputs */}
       <input
         ref={scanInputRef} type="file" accept="image/*" className="hidden"
@@ -1913,7 +1942,7 @@ export function LogEntrySheet({
 
       <div className="space-y-3 pb-4">
 
-        {/* Photos — multi-photo collage when multiple */}
+        {/* Photos — multi-photo collage */}
         {localPhotos.length > 0 && (
           <ImageHero photos={localPhotos} className="mb-1" />
         )}
@@ -1941,7 +1970,6 @@ export function LogEntrySheet({
             isEditing={editingIdx === idx}
             onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
             onRemove={() => {
-              // Last item → delete the whole entry + undo toast
               if (basket.length === 1) { void del(); return; }
               setBasket((prev) => {
                 const next = prev.filter((_, i) => i !== idx);
@@ -1971,9 +1999,11 @@ export function LogEntrySheet({
           />
         </AddAnotherSection>
 
-        {/* Save CTA — only when something changed */}
+        {/* Save CTA — 24px gap above (space-y-3=12px + pt-3=12px) */}
         {hasChanges && (
-          <Button size="lg" onClick={() => void save()}>Save</Button>
+          <div className="pt-3">
+            <Button size="lg" onClick={() => void save()}>Save</Button>
+          </div>
         )}
       </div>
 
@@ -1995,7 +2025,7 @@ export function LogEntrySheet({
           onDismiss={() => setServingModal(null)}
         />
       )}
-    </Sheet>
+    </>
   );
 }
 

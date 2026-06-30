@@ -7,20 +7,19 @@ import { repos } from '../../state/repos';
 import { useDay } from '../../state/useDay';
 import { todayISO, addDays } from '../../data/ids';
 import { getMondayOfWeek, fmtDiaryDate } from '../../lib/date';
-import { nutritionFor, effectiveNutrition, calcDigestionCalories } from '../../domain/calc';
+import { effectiveNutrition, calcDigestionCalories } from '../../domain/calc';
 import { requiredDailyDeficit, isGainGoal } from '../../domain/goal';
 import { mifflinStJeorBMR } from '../../domain/bmr';
 import { kgToLbs } from '../../domain/units';
 import { prefersReducedMotion } from '../../lib/motion';
 import {
-  Card, Badge, Button, LabeledInput, NumberField,
-  Icon, GaugeArc, Sheet, Skeleton, ProgressBar, ServingStepper, FilterPills, WheelPicker,
+  Card, Badge, Button, LabeledInput,
+  Icon, GaugeArc, Sheet, Skeleton, ProgressBar, FilterPills, WheelPicker,
   useSheetSetOverlay, useSheetSetOverlayBack, OverlayNav,
-  ImageHero,
 } from '../kit';
 import { WeightLogSheet } from '../components/WeightLogSheet';
+import { LogEntrySheet } from '../components/AddEntrySheet';
 import type { ShowToast } from '../components/Toaster';
-import type { NutritionSnapshot } from '../../domain/types';
 import type { FoodEntry, FoodItem, WeightEntry, ActivityEntry, Goal, Sex, User } from '../../domain/types';
 
 const GAUGE_RANGE = 500;
@@ -1537,195 +1536,6 @@ function BreakdownSheet({
     </Sheet>
   );
 }
-
-// ── LogEntrySheet — unified basket-style entry editor ────────────────────────
-// Replaces EditFoodSheet + MealEditSheet. Shows entry items as basket cards,
-// tracks changes, and shows a Save CTA only when something has changed.
-
-function LogEntrySheet({ entry, pantryItems, onClose, showToast, onAddMore }: {
-  entry: FoodEntry;
-  pantryItems: FoodItem[];
-  onClose: () => void;
-  showToast?: ShowToast;
-  onAddMore: () => void;
-}) {
-  const pantryItem = pantryItems.find((i) => i.id === entry.foodItemId);
-  const isMeal     = !!entry.mealData;
-  const name       = entry.mealData?.name ?? entry.manualName ?? pantryItem?.name ?? 'Food';
-
-  // ── Pantry entry state ──────────────────────────────────────────
-  const [qty, setQty] = useState(String(entry.quantity ?? (pantryItem?.measurementType === 'per_100g' ? 100 : 1)));
-  const qtyNum  = Number(qty) || 0;
-  const qtyChanged = !!pantryItem && qtyNum !== (entry.quantity ?? (pantryItem.measurementType === 'per_100g' ? 100 : 1));
-
-  // ── Manual entry state ─────────────────────────────────────────
-  const [manName, setManName] = useState(entry.manualName ?? '');
-  const [manCal,  setManCal]  = useState(String(entry.snapshot.calories));
-  const [manPro,  setManPro]  = useState(String(Math.round(entry.snapshot.protein * 10) / 10));
-  const [manCarb, setManCarb] = useState(String(Math.round(entry.snapshot.carbs * 10) / 10));
-  const [manFib,  setManFib]  = useState(String(Math.round(entry.snapshot.fiber * 10) / 10));
-  const [manFat,  setManFat]  = useState(String(Math.round(entry.snapshot.fat * 10) / 10));
-  const manChanged = !pantryItem && !isMeal && (
-    manName !== (entry.manualName ?? '') ||
-    +manCal !== entry.snapshot.calories ||
-    +manPro !== entry.snapshot.protein  ||
-    +manCarb !== entry.snapshot.carbs   ||
-    +manFib !== entry.snapshot.fiber    ||
-    +manFat !== entry.snapshot.fat
-  );
-
-  // ── Meal entry state ───────────────────────────────────────────
-  const [mealSel, setMealSel] = useState<boolean[]>(
-    () => (entry.mealData?.items ?? []).map((i) => i.selected),
-  );
-  const mealChanged = isMeal && mealSel.some((s, i) => s !== entry.mealData!.items[i].selected);
-
-  const hasChanges = qtyChanged || manChanged || mealChanged;
-
-  async function save() {
-    if (pantryItem) {
-      await repos.foodEntries.update({
-        ...entry, quantity: qtyNum, snapshot: nutritionFor(pantryItem, qtyNum),
-      });
-    } else if (isMeal) {
-      const items = entry.mealData!.items.map((item, i) => ({ ...item, selected: mealSel[i] }));
-      const selected = items.filter((i) => i.selected);
-      const snapshot: NutritionSnapshot = {
-        calories: selected.reduce((s, i) => s + i.calories, 0),
-        protein:  selected.reduce((s, i) => s + i.protein, 0),
-        carbs:    selected.reduce((s, i) => s + i.carbs, 0),
-        fiber:    selected.reduce((s, i) => s + i.fiber, 0),
-        fat:      selected.reduce((s, i) => s + i.fat, 0),
-      };
-      await repos.foodEntries.update({ ...entry, snapshot, mealData: { ...entry.mealData!, items } });
-    } else {
-      const snapshot: NutritionSnapshot = {
-        calories: +manCal || 0, protein: +manPro || 0, carbs: +manCarb || 0,
-        fiber: +manFib || 0, fat: +manFat || 0,
-      };
-      await repos.foodEntries.update({ ...entry, manualName: manName.trim() || entry.manualName, snapshot });
-    }
-    showToast?.('Saved');
-    onClose();
-  }
-
-  async function del() {
-    await repos.foodEntries.remove(entry.id);
-    showToast?.('Removed', async () => repos.foodEntries.add(entry));
-    onClose();
-  }
-
-  const trashBtn = (
-    <button data-no-drag onClick={() => void del()} aria-label="Delete"
-      className="-m-1 p-1 text-content-secondary active:text-danger">
-      <Icon name="trash" size={20} strokeWidth={2} />
-    </button>
-  );
-
-  return (
-    <Sheet title={name} onClose={onClose} forceExpanded rightAction={trashBtn}>
-      <div className="space-y-3 pb-4">
-
-        {/* ── Meal photo ── */}
-        {entry.mealData?.photo && (
-          <ImageHero photos={[entry.mealData.photo]} className="mb-1" />
-        )}
-
-        {/* ── Pantry item — basket card with stepper ── */}
-        {pantryItem && (
-          <EntryBasketCard
-            name={pantryItem.name}
-            calories={nutritionFor(pantryItem, qtyNum).calories}
-            bottom={
-              pantryItem.measurementType === 'per_serving'
-                ? <ServingStepper qty={qty} setQty={setQty} />
-                : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-caption text-content-muted">Grams</span>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={qty}
-                      onChange={(e) => setQty(e.target.value)}
-                      className="w-20 rounded-full bg-surface-sunken px-3 py-1 text-center text-body font-medium text-content outline-none"
-                    />
-                  </div>
-                )
-            }
-          />
-        )}
-
-        {/* ── Manual / scan item — editable fields in a card ── */}
-        {!pantryItem && !isMeal && (
-          <div className="rounded-[20px] bg-surface p-4 shadow-card space-y-3">
-            <LabeledInput label="Name" value={manName} onChange={(e) => setManName(e.target.value)} placeholder="Food name" />
-            <div className="grid grid-cols-2 gap-2">
-              <NumberField label="Calories" value={manCal} set={setManCal} max={5000} step={1} />
-              <NumberField label="Protein (g)" value={manPro} set={setManPro} max={500} step={1} />
-              <NumberField label="Carbs (g)" value={manCarb} set={setManCarb} max={800} step={1} />
-              <NumberField label="Fiber (g)" value={manFib} set={setManFib} max={200} step={1} />
-              <NumberField label="Fat (g)" value={manFat} set={setManFat} max={400} step={1} />
-            </div>
-          </div>
-        )}
-
-        {/* ── Meal entry — each item as a toggleable card ── */}
-        {isMeal && entry.mealData!.items.map((item, i) => (
-          <EntryBasketCard
-            key={i}
-            name={item.name}
-            calories={item.calories}
-            faded={!mealSel[i]}
-            bottom={
-              <button
-                onClick={() => setMealSel((prev) => prev.map((s, j) => j === i ? !s : s))}
-                className={`rounded-full px-3 py-1 text-caption font-medium transition-colors ${
-                  mealSel[i]
-                    ? 'bg-accent/10 text-accent'
-                    : 'bg-surface-sunken text-content-muted'
-                }`}
-              >
-                {mealSel[i] ? 'Included' : 'Excluded'}
-              </button>
-            }
-          />
-        ))}
-
-        {/* ── Add another item ── */}
-        <button
-          onClick={() => { onClose(); onAddMore(); }}
-          className="flex w-full items-center justify-center gap-2 rounded-[24px] bg-surface-sunken py-3.5 text-body font-semibold text-content active:opacity-70"
-        >
-          <Icon name="plus" size={18} strokeWidth={2.5} />
-          Add another item
-        </button>
-
-        {/* ── Save CTA — only when changed ── */}
-        {hasChanges && (
-          <Button size="lg" onClick={() => void save()}>Save</Button>
-        )}
-      </div>
-    </Sheet>
-  );
-}
-
-/** A basket-card-style display row used inside LogEntrySheet. */
-function EntryBasketCard({ name, calories, bottom, faded = false }: {
-  name: string; calories: number; bottom: React.ReactNode; faded?: boolean;
-}) {
-  return (
-    <div className={`rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card transition-opacity${faded ? ' opacity-40' : ''}`}>
-      <div className="flex items-center gap-2 mb-2.5">
-        <span className="flex-1 truncate text-body font-semibold text-content">{name}</span>
-        <span className="shrink-0 text-subhead text-content-secondary">{Math.round(calories)} kcal</span>
-      </div>
-      <div className="flex items-center">{bottom}</div>
-    </div>
-  );
-}
-
-// Meal editing is now handled by LogEntrySheet above.
-
 
 
 // ── Edit activity sheet ───────────────────────────────────────────────────────

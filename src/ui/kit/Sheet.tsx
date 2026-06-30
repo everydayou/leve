@@ -197,10 +197,15 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
         }
       }}
     >
+      {/* Grab handle — visual anchor; overlay is not draggable but the pill
+          gives users the same spatial cue as the main Sheet. */}
+      <div className="shrink-0 pt-3 px-5">
+        <div className="mx-auto mb-3 h-1.5 w-11 rounded-pill bg-border-strong" />
+      </div>
       {/* Nav bar — rendered OUTSIDE the scroll container so it stays fixed
           during rubber-band scroll on iOS (sticky inside a scroll area moves). */}
       {overlayNav && (
-        <div className={`shrink-0 px-5 pb-3 pt-3 bg-surface${scrolled ? ' shadow-[0_1px_0_0_var(--color-border-subtle)]' : ''}`}>
+        <div className={`shrink-0 -mt-1 px-5 pb-3 pt-2 bg-surface${scrolled ? ' shadow-nav' : ''}`}>
           <div className="flex items-center">
             <span className="w-10 shrink-0 flex items-center">
               <button onClick={overlayNav.onBack} className="-m-3 p-3 text-content-secondary active:opacity-70" aria-label="Back">

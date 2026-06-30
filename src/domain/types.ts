@@ -108,6 +108,8 @@ export interface MealItem {
   fat: number;
   confidence: 'high' | 'medium' | 'low';
   selected: boolean;
+  /** Current serving multiplier (default 1). Stored so LogEntrySheet can restore qty on re-open. */
+  qty?: number;
 }
 
 /** One logged food line on a day. Stores a SNAPSHOT of computed nutrition

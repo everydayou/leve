@@ -89,11 +89,11 @@ export function PantryScreen() {
                   <button onClick={() => { hapticLight(); setEditing(i); }} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-sunken">
                     <Thumb photo={i.photo} radius="rounded-[8px]" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-callout font-normal">{i.name}</p>
+                      <p className="truncate text-callout font-normal text-content">{i.name}</p>
                       <p className="text-subhead text-content-secondary">{i.measurementType === 'per_100g' ? 'per 100g' : 'per serving'}</p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-callout font-semibold">{i.calories} kcal</p>
+                      <p className="text-callout font-bold text-content">{i.calories} kcal</p>
                       <p className="text-subhead text-content-secondary">{i.protein}g P</p>
                     </div>
                   </button>
@@ -138,6 +138,11 @@ function FoodItemForm({ item, items, onClose, showToast }: {
   const [carb, setCarb] = useState(item ? String(item.carbs) : '');
   const [fib, setFib] = useState(item ? String(item.fiber) : '');
   const [fat, setFat] = useState(item ? String(item.fat) : '');
+  const [srvG, setSrvG] = useState(
+    item?.measurementType === 'per_serving' && (item?.referenceAmount ?? 1) > 1
+      ? String(item.referenceAmount)
+      : ''
+  );
   const [photo, setPhoto] = useState<string | undefined>(item?.photo);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -151,7 +156,7 @@ function FoodItemForm({ item, items, onClose, showToast }: {
     if (!name.trim() || blocked) return;
     await repos.foodItems.put({
       id: item?.id ?? newId(), name: name.trim(), measurementType: mt,
-      referenceAmount: mt === 'per_100g' ? 100 : 1,
+      referenceAmount: mt === 'per_100g' ? 100 : (+srvG || 1),
       calories: +cal || 0, protein: +pro || 0, carbs: +carb || 0, fiber: +fib || 0, fat: +fat || 0,
       photo, isArchived: item?.isArchived ?? false,
     });
@@ -216,6 +221,9 @@ function FoodItemForm({ item, items, onClose, showToast }: {
             <p className="text-caption text-danger">This name already exists in your pantry</p>
           )}
           <MeasurementTypeSelector value={mt} onChange={setMt} />
+          {mt === 'per_serving' && (
+            <NumberField label="Serving size (g)" value={srvG} set={setSrvG} centerAt={100} />
+          )}
           <div className="grid grid-cols-2 gap-2">
             <NumberField label="Calories" value={cal} set={setCal} max={5000} step={1} />
             <NumberField label="Protein (g)" value={pro} set={setPro} max={500} step={1} />

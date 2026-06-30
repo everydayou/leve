@@ -1165,8 +1165,8 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
                           className={`flex w-full items-center justify-between px-4 py-2.5 text-left active:bg-surface-sunken${!isLast ? ' border-b border-border-subtle' : ''}`}
                         >
                           <span className="flex min-w-0 items-center gap-2">
-                            <Icon name={isMealEntry ? 'scanFood' : 'foodIcon'} size={16} className="shrink-0 text-content-secondary" />
-                            <span className="truncate text-subhead text-content">
+                            <Icon name="foodIcon" size={16} className="shrink-0 text-content-secondary" />
+                            <span className="truncate text-callout text-content">
                               {entry.manualName ?? labelFor(items, entry.foodItemId)}
                               {foodItem && entry.quantity != null && (
                                 <span className="ml-1 text-content-secondary">
@@ -1175,7 +1175,7 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
                               )}
                             </span>
                           </span>
-                          <span className="shrink-0 text-subhead font-bold text-content">
+                          <span className="shrink-0 text-callout font-bold text-content">
                             {gainGoal ? '' : '−'}{effectiveNutrition(entry, day.itemsById).calories} kcal
                           </span>
                         </button>

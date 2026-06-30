@@ -15,7 +15,7 @@ import { hapticLight } from '../../lib/haptics';
 import {
   SegmentedControl, Button, LabeledInput, NumberField, WheelPicker,
   Icon, Sheet, useSheetSetFooter, useSheetSetOverlay, useOverlaySetFooter,
-  useSheetSetOverlayBack, OverlayNav, ListRow, ImageHero,
+  useSheetSetOverlayBack, OverlayNav, ImageHero,
 } from '../kit';
 import type { ShowToast } from './Toaster';
 import { findByName } from '../../domain/pantry';
@@ -951,8 +951,8 @@ function BasketCard({
         style={{ cursor: !revealed ? 'pointer' : 'default' }}
       >
         <div className="flex items-center gap-2 mb-2.5">
-          <span className="flex-1 truncate text-body font-semibold text-content">{item.name}</span>
-          <span className="shrink-0 text-subhead text-content-secondary">{nutrition.calories} kcal</span>
+          <span className="flex-1 truncate text-callout text-content">{item.name}</span>
+          <span className="shrink-0 text-callout font-bold text-content">{nutrition.calories} kcal</span>
         </div>
         {/* Bottom row: stepper (left) + Change button (right) */}
         <div className="flex items-center justify-between">
@@ -1041,30 +1041,40 @@ function FoodPicker({
               {filtered.map((item) => {
                 const n = nutritionFor(item, item.referenceAmount);
                 return (
-                  <ListRow
+                  <button
                     key={item.id}
-                    leading={
-                      item.photo ? (
-                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[10px]">
-                          <img src={item.photo} alt={item.name} className="h-full w-full object-cover" />
-                        </div>
-                      ) : (
-                        <div className="h-11 w-11 shrink-0 rounded-[10px] bg-surface-sunken" />
-                      )
-                    }
-                    title={item.name}
-                    subtitle={`${Math.round(n.calories)} kcal · ${item.measurementType === 'per_serving' ? 'per serving' : 'per 100g'}`}
-                    trailing={
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onPickItem(item); }}
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-black active:opacity-80"
-                        aria-label={`Add ${item.name}`}
-                      >
-                        <Icon name="plus" size={16} strokeWidth={2.5} />
-                      </button>
-                    }
                     onClick={() => onPickItem(item)}
-                  />
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-sunken"
+                  >
+                    {item.photo ? (
+                      <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[10px]">
+                        <img src={item.photo} alt={item.name} className="h-full w-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="h-11 w-11 shrink-0 rounded-[10px] bg-surface-sunken" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-callout text-content">{item.name}</p>
+                      <p className="text-subhead text-content-secondary">
+                        {item.measurementType === 'per_serving' ? 'per serving' : 'per 100g'}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-callout font-bold text-content">{Math.round(n.calories)} kcal</p>
+                      <p className="text-subhead text-content-secondary">
+                        {item.measurementType === 'per_100g'
+                          ? '100g'
+                          : item.referenceAmount > 1 ? `${item.referenceAmount}g` : ''}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onPickItem(item); }}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-black active:opacity-80"
+                      aria-label={`Add ${item.name}`}
+                    >
+                      <Icon name="plus" size={16} strokeWidth={2.5} />
+                    </button>
+                  </button>
                 );
               })}
             </div>
@@ -2180,7 +2190,7 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
                     className="h-5 w-5 shrink-0 accent-accent"
                     aria-label={`Include ${item.name}`}
                   />
-                  <span className="flex-1 truncate text-body font-semibold text-content">{item.name}</span>
+                  <span className="flex-1 truncate text-callout text-content">{item.name}</span>
                   <button
                     type="button"
                     onClick={() => expand(idx)}

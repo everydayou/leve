@@ -2007,7 +2007,7 @@ function LogEntryContent({
               });
             }}
             onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-            onCorrect={!item.pantryItemId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
+            onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
           />
         ))}
 

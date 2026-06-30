@@ -559,7 +559,7 @@ function FoodForm({
         item.pantryItemId ? async () => repos.foodEntries.remove(entryId) : undefined,
       );
     } else {
-      const name = mealName.trim() || 'Meal';
+      const name = mealName.trim() || timeMealName();
       const totals = basket.reduce(
         (acc, item) => {
           const n = basketNutrition(item);
@@ -591,13 +591,13 @@ function FoodForm({
         await repos.foodEntries.add({
           id: entryId, date, foodItemId, quantity: 1, isManual: false,
           snapshot: totals, createdAt: new Date().toISOString(),
-          mealData: { name, photo: primaryPhoto, items: mealItems },
+          mealData: { name, photo: primaryPhoto, photos: sourcePhotos.slice(0, 3), items: mealItems },
         });
       } else {
         await repos.foodEntries.add({
           id: entryId, date, manualName: name, isManual: true,
           snapshot: totals, createdAt: new Date().toISOString(),
-          mealData: { name, photo: primaryPhoto, items: mealItems },
+          mealData: { name, photo: primaryPhoto, photos: sourcePhotos.slice(0, 3), items: mealItems },
         });
       }
       showToast?.(`${name} logged`);
@@ -1661,21 +1661,26 @@ function LogEntryContent({
     return b;
   });
 
-  // ── Photos — meal scan photo or pantry item photo ───────────────────────
+  // ── Photos — prefer stored photos array, fall back to single photo string ─
   const [localPhotos, setLocalPhotos] = useState<string[]>(() => {
+    if (entry.mealData?.photos?.length) return entry.mealData.photos;
     if (entry.mealData?.photo) return [entry.mealData.photo];
     if (pantryItem?.photo) return [pantryItem.photo];
     return [];
   });
 
+  // ── Meal name — editable when basket has 2+ items ──────────────────────
+  const [localMealName, setLocalMealName] = useState(entry.mealData?.name ?? '');
+
   // ── UI state ───────────────────────────────────────────────────────────
-  const [editMode, setEditMode]         = useState(false);
-  const [editingIdx, setEditingIdx]     = useState<number | null>(null);
+  const [editMode, setEditMode]           = useState(false);
+  const [editingIdx, setEditingIdx]       = useState<number | null>(null);
+  const [correctingIdx, setCorrectingIdx] = useState<number | null>(null);
   const [activeOverlay, setActiveOverlay] = useState<'describe' | 'manual' | 'edit' | null>(null);
-  const [pickerOpen, setPickerOpen]     = useState(false);
-  const [analyzing, setAnalyzing]       = useState(false);
-  const [analyzeLabel, setAnalyzeLabel] = useState('Analysing…');
-  const [servingModal, setServingModal] = useState<{
+  const [pickerOpen, setPickerOpen]       = useState(false);
+  const [analyzing, setAnalyzing]         = useState(false);
+  const [analyzeLabel, setAnalyzeLabel]   = useState('Analysing…');
+  const [servingModal, setServingModal]   = useState<{
     item100: BasketItem; itemSrv: BasketItem; servingG: number;
   } | null>(null);
   const scanInputRef  = useRef<HTMLInputElement>(null);
@@ -1684,14 +1689,17 @@ function LogEntryContent({
   // ── Change detection — strip volatile IDs before comparing ─────────────
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function stripIds(b: BasketItem[]) { return JSON.stringify(b.map(({ id: _, ...r }) => r)); }
+  const initialPhotos = entry.mealData?.photos ?? (entry.mealData?.photo ? [entry.mealData.photo] : (pantryItem?.photo ? [pantryItem.photo] : []));
   // eslint-disable-next-line react-hooks/refs
   const hasChanges = stripIds(basket) !== stripIds(initialBasketRef.current)
-    || localPhotos.join() !== (entry.mealData?.photo ? [entry.mealData.photo] : (pantryItem?.photo ? [pantryItem.photo] : [])).join();
+    || localPhotos.join() !== initialPhotos.join()
+    || localMealName !== (entry.mealData?.name ?? '');
 
   // ── Overlay back ────────────────────────────────────────────────────────
   function overlayBack() {
     setActiveOverlay(null);
     setEditingIdx(null);
+    setCorrectingIdx(null);
   }
   const overlayBackRef = useRef(overlayBack);
   overlayBackRef.current = overlayBack; // eslint-disable-line react-hooks/refs
@@ -1728,7 +1736,7 @@ function LogEntryContent({
         scanResultToBasket({ ...f, name: cleanScanName(f.name) }, newId()),
       );
       setBasket((prev) => [...prev, ...newItems]);
-      setLocalPhotos((prev) => [...prev, imageDataUrl]);
+      setLocalPhotos((prev) => [...prev, imageDataUrl].slice(0, 3));
       setPickerOpen(false);
     } catch (err) {
       showToast?.(err instanceof Error ? err.message : 'Scan failed');
@@ -1773,8 +1781,18 @@ function LogEntryContent({
         carbs: f.carbs, fiber: f.fiber, fat: f.fat,
       }, newId()),
     );
-    setBasket((prev) => [...prev, ...newItems]);
-    setPickerOpen(false);
+    if (correctingIdx !== null) {
+      // Replace just the item being corrected
+      setBasket((prev) => [
+        ...prev.slice(0, correctingIdx),
+        ...newItems,
+        ...prev.slice(correctingIdx + 1),
+      ]);
+      setCorrectingIdx(null);
+    } else {
+      setBasket((prev) => [...prev, ...newItems]);
+      setPickerOpen(false);
+    }
     setActiveOverlay(null);
   }
 
@@ -1846,7 +1864,7 @@ function LogEntryContent({
       protein: e.protein, carbs: e.carbs, fiber: e.fiber, fat: e.fat,
       qty: e.measurementType === 'per_100g' ? 100 : 1,
     };
-    if (e.photo) setLocalPhotos((prev) => [...prev, e.photo!]);
+    if (e.photo) setLocalPhotos((prev) => [...prev, e.photo!].slice(0, 3));
     setBasket((prev) => [...prev, newItem]);
     setPickerOpen(false);
     setActiveOverlay(null);
@@ -1864,11 +1882,13 @@ function LogEntryContent({
   }
 
   async function save() {
-    const photo = localPhotos[0];
+    const photo  = localPhotos[0];
+    const photos = localPhotos.slice(0, 3);
     if (basket.length === 1 && pantryItem && basket[0].pantryItemId === pantryItem.id) {
       const b = basket[0];
       await repos.foodEntries.update({ ...entry, quantity: b.qty, snapshot: roundSnap(basketNutrition(b)) });
     } else if (basket.length > 1 || entry.mealData) {
+      const mealName = localMealName.trim() || timeMealName();
       const items: MealItem[] = basket.map((b, i) => {
         const orig = entry.mealData?.items[i];
         return {
@@ -1890,8 +1910,7 @@ function LogEntryContent({
         fiber:    Math.round(items.reduce((s, it) => s + it.fiber    * (it.qty ?? 1), 0) * 10) / 10,
         fat:      Math.round(items.reduce((s, it) => s + it.fat      * (it.qty ?? 1), 0) * 10) / 10,
       };
-      const mealName = entry.mealData?.name ?? 'Meal';
-      await repos.foodEntries.update({ ...entry, snapshot, mealData: { name: mealName, photo, items } });
+      await repos.foodEntries.update({ ...entry, snapshot, mealData: { name: mealName, photo, photos, items } });
     } else {
       const b = basket[0];
       await repos.foodEntries.update({ ...entry, manualName: b.name, snapshot: roundSnap(basketNutrition(b)) });
@@ -1960,6 +1979,16 @@ function LogEntryContent({
           </div>
         )}
 
+        {/* Editable meal name — shown when 2+ items, not in editMode */}
+        {basket.length >= 2 && !editMode && (
+          <LabeledInput
+            label="Meal name"
+            value={localMealName}
+            onChange={(e) => setLocalMealName(e.target.value)}
+            placeholder={timeMealName()}
+          />
+        )}
+
         {/* Basket cards */}
         {basket.map((item, idx) => (
           <BasketCard
@@ -1978,6 +2007,7 @@ function LogEntryContent({
               });
             }}
             onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+            onCorrect={!item.pantryItemId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
           />
         ))}
 

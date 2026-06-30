@@ -126,7 +126,7 @@ export interface FoodEntry {
   snapshot: NutritionSnapshot;
   createdAt: string; // ISO timestamp
   /** Present only when this entry was logged from a multi-item photo scan. */
-  mealData?: { name: string; photo?: string; items: MealItem[] };
+  mealData?: { name: string; photo?: string; photos?: string[]; items: MealItem[] };
 }
 
 export interface ActivityEntry {

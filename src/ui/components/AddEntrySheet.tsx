@@ -475,7 +475,7 @@ function FoodForm({
         snapshot: n,
         createdAt: new Date().toISOString(),
       });
-      showToast?.(`${item.name} logged`);
+      showToast?.(`${item.name} logged`, async () => repos.foodEntries.remove(entryId));
       onDone();
       return;
     }
@@ -963,7 +963,7 @@ function BasketCard({
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center">
       {/* Card doesn't translate — sibling delete icon causes flex shrink */}
       <div
         className="flex-1 rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card"
@@ -995,16 +995,19 @@ function BasketCard({
           )}
         </div>
       </div>
-      {/* Delete icon — always rendered, opacity/translateX transition */}
+      {/* Delete icon — always in DOM; collapses via width so card stays full-width */}
       <button
         onClick={(e) => { e.stopPropagation(); onRemove(); }}
-        className="shrink-0 flex items-center justify-center text-accent-hover active:opacity-60"
+        className="flex items-center justify-center text-accent-hover active:opacity-60"
         aria-label="Remove"
         style={{
           opacity: revealed ? 1 : 0,
-          transform: revealed ? 'translateX(0)' : 'translateX(12px)',
+          width: revealed ? 20 : 0,
+          marginLeft: revealed ? 12 : 0,
+          overflow: 'hidden',
+          flexShrink: 0,
           pointerEvents: revealed ? 'auto' : 'none',
-          transition: 'opacity 200ms ease, transform 200ms ease',
+          transition: 'opacity 200ms ease, width 200ms ease, margin-left 200ms ease',
         }}
       >
         <DeleteIcon />
@@ -1717,6 +1720,7 @@ function LogEntryContent({
   } | null>(null);
   const scanInputRef  = useRef<HTMLInputElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // ── Change detection — strip volatile IDs before comparing ─────────────
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -1982,6 +1986,20 @@ function LogEntryContent({
           reader.readAsDataURL(file);
         }}
       />
+      {/* Photo picker — no scan, just attach image */}
+      <input
+        ref={photoInputRef} type="file" accept="image/*" className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]; e.target.value = '';
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const url = reader.result as string;
+            setLocalPhotos((prev) => [url, ...prev].slice(0, 3));
+          };
+          reader.readAsDataURL(file);
+        }}
+      />
 
       {/* Scan spinner */}
       {analyzing && (
@@ -2005,12 +2023,28 @@ function LogEntryContent({
               <Icon name="foodIcon" size={20} className="shrink-0 text-content" />
               Meal
             </span>
-            <button
-              onClick={() => setEditMode((v) => !v)}
-              className="text-callout font-semibold text-accent-hover active:opacity-70"
-            >
-              {editMode ? 'Done' : 'Edit'}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  if (isNativeIOS()) {
+                    const photo = await captureFromLibrary();
+                    if (photo) setLocalPhotos((prev) => [photo, ...prev].slice(0, 3));
+                  } else {
+                    photoInputRef.current?.click();
+                  }
+                }}
+                className="text-content-secondary active:opacity-60"
+                aria-label="Add photo"
+              >
+                <Icon name="scanFood" size={20} strokeWidth={1.8} />
+              </button>
+              <button
+                onClick={() => setEditMode((v) => !v)}
+                className="text-callout font-semibold text-accent-hover active:opacity-70"
+              >
+                {editMode ? 'Done' : 'Edit'}
+              </button>
+            </div>
           </div>
         )}
 

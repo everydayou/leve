@@ -107,7 +107,7 @@ export function FloatingTabBar({
     setTimeout(() => {
       setFabRotated(false);
       onFabMorphComplete?.();
-    }, 400);
+    }, 260);
   }
 
   const mid   = Math.ceil(items.length / 2);

@@ -865,12 +865,12 @@ function BasketStepper({
     : `${qty % 1 === 0 ? qty : qty.toFixed(1)} srv`;
 
   const btnCls =
-    'flex h-10 w-10 items-center justify-center rounded-full bg-surface text-content border border-border-field transition-colors active:opacity-70';
+    'flex h-8 w-8 items-center justify-center rounded-full bg-surface text-content border border-border-field transition-colors active:opacity-70';
 
   return (
     // stopPropagation so tapping stepper inside a card doesn't trigger card's onEdit
     <div
-      className="inline-flex items-center gap-1 rounded-full bg-surface-sunken px-1 py-1"
+      className="inline-flex items-center gap-0 rounded-full bg-surface-sunken px-1 py-1"
       onClick={(e) => e.stopPropagation()}
     >
       <button

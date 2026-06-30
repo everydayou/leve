@@ -25,12 +25,7 @@ export function AppShell() {
   const [addEntryHideTabs, setAddEntryHideTabs] = useState(false);
   const [addEntryAutoScan, setAddEntryAutoScan] = useState(false);
   const [addEntryInitialScanPhoto, setAddEntryInitialScanPhoto] = useState<string | undefined>();
-  // FAB morph: ref that FloatingTabBar populates so we can trigger the reverse animation
-  const startFabReverseRef = useRef<(() => void) | null>(null);
-  // true when the sheet was opened by the FAB morph (vs. openAddEntry programmatic call)
-  const fabMorphOpenedSheetRef = useRef(false);
-  // Mirror of fabMorphOpenedSheetRef for use in JSX (refs can't be read during render)
-  const [fabMorphSheet, setFabMorphSheet] = useState(false);
+
   // The day currently being viewed (driven by Today's stepper/swipe). Adds go
   // to THIS day, so you can log to past/future days, not only today.
   const [viewedDate, setViewedDate] = useState(todayISO());
@@ -93,21 +88,16 @@ export function AppShell() {
     el.style.animation = '';
   }, [pathname]);
 
-  /** Called by FloatingTabBar when the forward morph completes — opens the sheet
-   *  with the segmented control visible (hideTabs=false). */
+  /** Called by FloatingTabBar when the FAB rotation completes — opens the sheet. */
   function handleFabMorphComplete() {
     setAddEntryInitialTab('food');
     setAddEntryHideTabs(false);
     setAddEntryAutoScan(false);
     setAddEntryInitialScanPhoto(undefined);
-    fabMorphOpenedSheetRef.current = true;
-    setFabMorphSheet(true);
     setSheetOpen(true);
   }
 
   function openAddEntry(tab: AddEntryTab = 'food', opts?: { hideTabs?: boolean }) {
-    fabMorphOpenedSheetRef.current = false;
-    setFabMorphSheet(false);
     setAddEntryInitialTab(tab);
     setAddEntryHideTabs(opts?.hideTabs ?? false);
     setAddEntryAutoScan(false);
@@ -135,15 +125,6 @@ export function AppShell() {
   }
 
   function handleSheetClose() {
-    if (fabMorphOpenedSheetRef.current && startFabReverseRef.current) {
-      // Sheet was opened via FAB morph — trigger reverse animation and close immediately
-      fabMorphOpenedSheetRef.current = false;
-      setFabMorphSheet(false);
-      startFabReverseRef.current();
-    } else {
-      fabMorphOpenedSheetRef.current = false;
-      setFabMorphSheet(false);
-    }
     setSheetOpen(false);
   }
 
@@ -171,7 +152,6 @@ export function AppShell() {
         <TabBar
           onAction={handleAction}
           onFabMorphComplete={handleFabMorphComplete}
-          startFabReverseRef={startFabReverseRef}
           onTodayDoubleClick={() => setViewedDate(todayISO())}
           onActiveTabDoubleTap={(k) => {
             mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -187,7 +167,6 @@ export function AppShell() {
             autoScan={addEntryAutoScan}
             initialScanPhoto={addEntryInitialScanPhoto}
             showToast={showToast}
-            noCloseAnimation={fabMorphSheet}
           />
         )}
         <Toaster toast={toast} onDismiss={dismissToast} />

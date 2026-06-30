@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon, type IconName } from './Icon';
 import { hapticLight } from '../../lib/haptics';
 import { prefersReducedMotion } from '../../lib/motion';
@@ -54,20 +54,8 @@ const ACTION_ITEMS: ActionItem[] = [
   6  morph-overlay white clip-path div + green CTA — ONLY during morph phases
 */
 
-type MorphPhase = 'idle' | 'fwd1' | 'fwd2' | 'open' | 'rev-init' | 'rev2' | 'rev1';
-
-// FAB center is 48px from the bottom of the inner pill container (including safe area).
-// Combined: safe-area-inset-bottom + PILL_H(56px) + (-top-4 offset to FAB center) = safe + 48
-// → bottom: calc(safe + 48px), and translate(−50%, 50%) keeps the centre fixed as CTA grows.
-const FAB_CENTER_BOTTOM = 'calc(max(0.75rem, env(safe-area-inset-bottom)) + 48px)';
-
-// Pill clip: shows the nav pill area (68px from bottom of container, ±1rem sides)
-const PILL_CLIP = 'inset(calc(100% - max(0.75rem, env(safe-area-inset-bottom)) - 68px) 1rem 0 1rem round 9999px)';
-// Full-screen clip: matches Sheet's rounded-t-sheet top corners (--radius-sheet = 1.5rem)
-const FULL_CLIP = 'inset(0 0 0 0 round 1.5rem 1.5rem 0 0)';
-
 export function FloatingTabBar({
-  items, active, onSelect, onAction, onFabMorphComplete, startFabReverseRef,
+  items, active, onSelect, onAction, onFabMorphComplete,
 }: {
   items: TabItem[];
   active: string;
@@ -76,9 +64,7 @@ export function FloatingTabBar({
   onAction: (type: ActionType) => void;
   /** Called at the end of the forward morph (fwd2) so AppShell can open the sheet. */
   onFabMorphComplete?: () => void;
-  /** Ref populated by FloatingTabBar with a function that AppShell can call to start
-   *  the reverse morph (sheet closing → FAB restores). */
-  startFabReverseRef?: React.MutableRefObject<(() => void) | null>;
+
 }) {
   // ── Speed-dial state (preserved, currently disconnected from FAB tap) ──────
   const [menuOpen, setMenuOpen] = useState(false);
@@ -111,42 +97,17 @@ export function FloatingTabBar({
     onAction(type);
   }
 
-  // ── Morph animation state ─────────────────────────────────────────────────
-  const [morphPhase, setMorphPhase] = useState<MorphPhase>('idle');
-  // morphEntered: triggers the opacity fade-in of the pill overlay in fwd1
-  const [morphEntered, setMorphEntered] = useState(false);
-
-  const startReverse = useCallback(() => {
-    // rev-init: immediately full screen (no transition), then transition to pill
-    setMorphPhase('rev-init');
-    requestAnimationFrame(() => {
-      setMorphPhase('rev2');
-    });
-    setTimeout(() => setMorphPhase('rev1'), 350);
-    setTimeout(() => {
-      setMorphPhase('idle');
-      setMorphEntered(false);
-    }, 580);
-  }, []);
-
-  // Expose startReverse to AppShell via ref
-  useEffect(() => {
-    if (startFabReverseRef) startFabReverseRef.current = startReverse;
-    return () => { if (startFabReverseRef) startFabReverseRef.current = null; };
-  }, [startFabReverseRef, startReverse]);
+  // ── FAB rotation state ────────────────────────────────────────────────────
+  const [fabRotated, setFabRotated] = useState(false);
 
   function startMorph() {
-    if (morphPhase !== 'idle') return;
+    if (fabRotated) return;
     hapticLight();
-    setMorphPhase('fwd1');
-    requestAnimationFrame(() => setMorphEntered(true)); // trigger opacity fade-in
-
-    setTimeout(() => setMorphPhase('fwd2'), 230); // FAB_DUR
-
+    setFabRotated(true);
     setTimeout(() => {
+      setFabRotated(false);
       onFabMorphComplete?.();
-      setMorphPhase('open');
-    }, 580); // FAB_DUR + 350
+    }, 400);
   }
 
   const mid   = Math.ceil(items.length / 2);
@@ -163,57 +124,7 @@ export function FloatingTabBar({
 
   const slotDist = (tier: 'inner' | 'outer') => (tier === 'outer' ? 128 : 68);
 
-  // ── Morph overlay computed styles ─────────────────────────────────────────
-  const isMorphing = morphPhase !== 'idle';
-  // Show the FAB button normally during idle, fwd1, rev1; hide during active morph
-  const fabHidden = morphPhase === 'fwd2' || morphPhase === 'open' || morphPhase === 'rev-init' || morphPhase === 'rev2';
-  // FAB icon rotates to × during fwd1 only
-  const fabRotated = morphPhase === 'fwd1';
-  // Nav tab opacity: normal when idle or open (sheet covers everything); 0 during all morph phases
-  const navIconOpacity = (morphPhase === 'idle' || morphPhase === 'open') ? 1 :
-    morphPhase === 'rev1' ? 1 : // fading back in
-    0;
 
-  // White overlay clip-path
-  const overlayClipPath = (() => {
-    switch (morphPhase) {
-      case 'idle': case 'fwd1': case 'rev1': return PILL_CLIP;
-      case 'fwd2': case 'open': case 'rev-init': return FULL_CLIP;
-      case 'rev2': return PILL_CLIP; // transitions FROM FULL_CLIP
-      default: return PILL_CLIP;
-    }
-  })();
-
-  // Overlay opacity: fades in during fwd1, always 1 during active morph, fades out during rev1
-  const overlayOpacity = (() => {
-    switch (morphPhase) {
-      case 'idle': return 0;
-      case 'fwd1': return morphEntered ? 1 : 0;
-      case 'rev1': return 0; // fading out
-      default: return 1;
-    }
-  })();
-
-  // CSS transition for the overlay
-  const overlayTransition = reduced ? 'none' : (() => {
-    switch (morphPhase) {
-      case 'fwd1': return `opacity ${FAB_DUR}ms ease, clip-path ${FAB_DUR}ms ease`;
-      case 'fwd2': return 'clip-path 350ms cubic-bezier(0.22, 0.65, 0.25, 1)';
-      case 'rev-init': return 'none'; // immediate snap to full-screen
-      case 'rev2': return 'clip-path 350ms cubic-bezier(0.22, 0.65, 0.25, 1)';
-      case 'rev1': return 'opacity 230ms ease';
-      default: return 'none';
-    }
-  })();
-
-  // Green CTA pill: visible and expanding during fwd2, shrinking during rev2
-  const showCTA = morphPhase === 'fwd2' || morphPhase === 'rev-init' || morphPhase === 'rev2';
-  const ctaExpanded = morphPhase === 'fwd2' || morphPhase === 'rev-init';
-  const ctaTransition = reduced ? 'none' : (() => {
-    if (morphPhase === 'fwd2') return 'width 350ms cubic-bezier(0.22, 0.65, 0.25, 1), height 350ms cubic-bezier(0.22, 0.65, 0.25, 1)';
-    if (morphPhase === 'rev2') return 'width 350ms cubic-bezier(0.22, 0.65, 0.25, 1), height 350ms cubic-bezier(0.22, 0.65, 0.25, 1)';
-    return 'none';
-  })();
 
   /* ── Tab button ────────────────────────────────────────────────────────── */
   const Tab = (t: TabItem) => {
@@ -226,10 +137,7 @@ export function FloatingTabBar({
         aria-label={t.label}
         onClick={() => { hapticLight(); onSelect(t.key); }}
         className="flex flex-1 flex-col items-center gap-0.5 py-1"
-        style={{
-          opacity: navIconOpacity,
-          transition: reduced ? 'none' : 'opacity 230ms ease',
-        }}
+
       >
         <Icon name={t.icon} size={24} filled={isActive} strokeWidth={1.85}
           className={isActive ? 'text-content' : 'text-content-secondary'} aria-hidden />
@@ -353,15 +261,10 @@ export function FloatingTabBar({
           {/* FAB button — hidden during active morph phases (fwd2 → rev2) */}
           <div
             className="pointer-events-auto absolute left-1/2 -top-4 -translate-x-1/2"
-            style={{
-              opacity: fabHidden ? 0 : 1,
-              pointerEvents: fabHidden ? 'none' : 'auto',
-              transition: reduced ? 'none' : `opacity ${fabHidden ? 150 : 200}ms ease`,
-            }}
           >
             <button
               aria-label={menuOpen ? 'Close menu' : 'Add entry'}
-              onClick={morphPhase === 'idle' ? startMorph : menuOpen ? closeMenu : undefined}
+              onClick={menuOpen ? closeMenu : startMorph}
               style={{
                 width: 48, height: 48,
                 transform: menuOpen ? 'scale(1.3333)' : 'scale(1)',
@@ -386,44 +289,7 @@ export function FloatingTabBar({
         </div>
       </div>
 
-      {/* ── Layer 6: Morph animation overlay ─────────────────────────────────
-          Rendered only when a morph phase is active. Contains:
-          (a) white surface div clipped to pill → full screen
-          (b) green CTA pill that grows from FAB size to full width           */}
-      {isMorphing && (
-        <div className="pointer-events-none absolute inset-0" aria-hidden>
-          {/* White surface — clip-path morphs between pill and full screen */}
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              backgroundColor: 'var(--color-surface)',
-              clipPath: overlayClipPath,
-              opacity: overlayOpacity,
-              transition: overlayTransition,
-            }}
-          />
 
-          {/* Green CTA pill — visible during fwd2 / rev-init / rev2 */}
-          {showCTA && (
-            <div
-              style={{
-                position: 'absolute',
-                left: '50%',
-                bottom: FAB_CENTER_BOTTOM,
-                // translate(-50%, 50%) keeps the centre fixed at FAB_CENTER_BOTTOM
-                // as the element's width/height change during animation
-                transform: 'translate(-50%, 50%)',
-                width: ctaExpanded ? 'calc(100% - 2rem)' : '48px',
-                height: ctaExpanded ? '56px' : '48px',
-                borderRadius: '9999px',
-                backgroundColor: 'var(--color-accent)',
-                transition: ctaTransition,
-              }}
-            />
-          )}
-        </div>
-      )}
 
     </div>
   );

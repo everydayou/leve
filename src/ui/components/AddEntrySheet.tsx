@@ -462,6 +462,23 @@ function FoodForm({
 
   function addPantryItem(item: FoodItem) {
     hapticLight();
+    // Fast log: basket empty → log directly without going through basket
+    if (basket.length === 0) {
+      const bi = pantryToBasket(item);
+      const n = basketNutrition(bi);
+      const entryId = newId();
+      void repos.foodEntries.add({
+        id: entryId, date,
+        foodItemId: item.id,
+        quantity: bi.qty,
+        isManual: false,
+        snapshot: n,
+        createdAt: new Date().toISOString(),
+      });
+      showToast?.(`${item.name} logged`);
+      onDone();
+      return;
+    }
     // If the same pantry item is already in the basket, increment its quantity
     const existingIdx = basket.findIndex((b) => b.pantryItemId === item.id);
     if (existingIdx !== -1) {
@@ -665,8 +682,11 @@ function FoodForm({
 
       {/* Meal header — only when basket has items */}
       {basket.length > 0 && (
-        <div className="flex items-center justify-between">
-          <span className="text-headline font-semibold text-content">Meal</span>
+        <div className="flex items-center justify-between" style={{ marginTop: '20px' }}>
+          <span className="flex items-center gap-2 text-headline font-semibold text-content">
+            <Icon name="foodIcon" size={20} className="shrink-0 text-content" />
+            Meal
+          </span>
           <button
             onClick={() => setEditMode((v) => !v)}
             className="text-callout font-semibold text-accent-hover active:opacity-70"
@@ -676,16 +696,16 @@ function FoodForm({
         </div>
       )}
 
-      {/* Meal name + save to pantry (2+ items, not in editMode) */}
-      {basket.length >= 2 && !editMode && (
-        <>
+      {/* Meal name + save to pantry (2+ items) */}
+      {basket.length >= 2 && (
+        <div className={editMode ? 'opacity-50 pointer-events-none' : ''}>
           <LabeledInput
             label="Meal name"
             value={mealName}
             onChange={(e) => setMealName(e.target.value)}
             placeholder={timeMealName()}
           />
-          <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
+          <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary mt-2">
             <input
               type="checkbox"
               checked={saveToPantry}
@@ -694,7 +714,7 @@ function FoodForm({
             />
             Save to pantry
           </label>
-        </>
+        </div>
       )}
 
       {/* Basket cards */}
@@ -744,7 +764,8 @@ function FoodForm({
       )}
 
       {/* ── Non-empty basket: "Add another item" anchor + picker ──────── */}
-      {basket.length > 0 && !editMode && (
+      {basket.length > 0 && (
+        <div className={editMode ? 'opacity-50 pointer-events-none' : ''}>
         <AddAnotherSection
           open={pickerOpen}
           onToggle={() => setPickerOpen((v) => !v)}
@@ -762,11 +783,12 @@ function FoodForm({
             onManual={() => { setPickerOpen(false); setActiveOverlay('manual'); }}
           />
         </AddAnotherSection>
+        </div>
       )}
 
       {/* ── Log CTA — always last, 24px above it ─────────────────────── */}
-      {basket.length > 0 && !editMode && !activeOverlay && !analyzing && (
-        <div style={{ paddingTop: '24px' }}>
+      {basket.length > 0 && !activeOverlay && !analyzing && (
+        <div style={{ paddingTop: '24px' }} className={editMode ? 'opacity-50 pointer-events-none' : ''}>
           <Button size="lg" onClick={() => void logRef.current()}>
             {basket.length >= 2 ? 'Log meal' : 'Log it'}
           </Button>
@@ -855,7 +877,7 @@ function BasketStepper({
     : `${qty % 1 === 0 ? qty : qty.toFixed(1)} srv`;
 
   const btnCls =
-    'flex h-7 w-7 items-center justify-center rounded-full bg-surface text-content shadow-sm transition-colors active:opacity-70';
+    'flex h-7 w-7 items-center justify-center rounded-full bg-surface text-content border border-border-field transition-colors active:opacity-70';
 
   return (
     // stopPropagation so tapping stepper inside a card doesn't trigger card's onEdit
@@ -866,7 +888,7 @@ function BasketStepper({
       <button
         data-no-drag
         onClick={() => atThreshold ? (hapticLight(), onRemove()) : adj(-step)}
-        className={btnCls}
+        className={`${btnCls}${atThreshold ? ' text-accent-hover' : ''}`}
         aria-label={atThreshold ? 'Remove item' : 'Decrease'}
       >
         {atThreshold ? (
@@ -960,7 +982,7 @@ function BasketCard({
           {onCorrect ? (
             <button
               onClick={(e) => { e.stopPropagation(); onCorrect(); }}
-              className="flex h-9 items-center gap-1 rounded-full px-3 text-subhead font-medium text-content-secondary shadow-sm active:bg-surface-sunken"
+              className="flex h-9 items-center gap-1 rounded-full border border-border-field px-3 text-subhead font-medium text-content-secondary active:bg-surface-sunken"
             >
               <Icon name="edit" size={13} strokeWidth={2} />
               Change
@@ -973,16 +995,20 @@ function BasketCard({
           )}
         </div>
       </div>
-      {/* Delete icon — no background, icon only, 20×20 black */}
-      {revealed && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onRemove(); }}
-          className="shrink-0 flex items-center justify-center text-content active:opacity-60"
-          aria-label="Remove"
-        >
-          <DeleteIcon />
-        </button>
-      )}
+      {/* Delete icon — always rendered, opacity/translateX transition */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        className="shrink-0 flex items-center justify-center text-accent-hover active:opacity-60"
+        aria-label="Remove"
+        style={{
+          opacity: revealed ? 1 : 0,
+          transform: revealed ? 'translateX(0)' : 'translateX(12px)',
+          pointerEvents: revealed ? 'auto' : 'none',
+          transition: 'opacity 200ms ease, transform 200ms ease',
+        }}
+      >
+        <DeleteIcon />
+      </button>
     </div>
   );
 }
@@ -1054,13 +1080,13 @@ function FoodPicker({
                       <div className="h-11 w-11 shrink-0 rounded-[10px] bg-surface-sunken" />
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-subhead leading-none text-content">{item.name}</p>
+                      <p className="truncate text-subhead leading-[1.2] text-content">{item.name}</p>
                       <p className="mt-[4px] text-subhead leading-none text-content-secondary">
                         {item.measurementType === 'per_serving' ? 'per serving' : 'per 100g'}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-subhead font-bold leading-none text-content">{Math.round(n.calories)} kcal</p>
+                      <p className="text-subhead font-bold leading-[1.2] text-content">{Math.round(n.calories)} kcal</p>
                       <p className="mt-[4px] text-subhead leading-none text-content-secondary">{Math.round(n.protein * 10) / 10}g Protein</p>
                     </div>
                     <button
@@ -1115,7 +1141,7 @@ function MethodCards({
     { label: 'Camera',   onClick: onCamera,   icon: <CameraMethodIcon /> },
     { label: 'Photo',    onClick: onPhoto,    icon: <PhotoMethodIcon /> },
     { label: 'Describe', onClick: onDescribe, icon: <DescribeMethodIcon /> },
-    { label: 'Label',    onClick: onLabel,    icon: <LabelMethodIcon /> },
+    { label: 'Nutri-scan', onClick: onLabel,  icon: <LabelMethodIcon /> },
     { label: 'Manual',   onClick: onManual,   icon: <ManualMethodIcon /> },
   ];
 
@@ -1629,7 +1655,7 @@ export function LogEntrySheet({
   const trashBtn = (
     <button data-no-drag onClick={() => void delRef.current()} aria-label="Delete"
       className="-m-1 p-1 text-content-secondary active:text-danger">
-      <Icon name="trash" size={20} strokeWidth={2} />
+      <DeleteIcon size={20} />
     </button>
   );
 
@@ -1974,8 +2000,11 @@ function LogEntryContent({
 
         {/* "Meal" label + Edit toggle */}
         {basket.length > 0 && (
-          <div className="flex items-center justify-between">
-            <span className="text-headline font-semibold text-content">Meal</span>
+          <div className="flex items-center justify-between" style={{ marginTop: '20px' }}>
+            <span className="flex items-center gap-2 text-headline font-semibold text-content">
+              <Icon name="foodIcon" size={20} className="shrink-0 text-content" />
+              Meal
+            </span>
             <button
               onClick={() => setEditMode((v) => !v)}
               className="text-callout font-semibold text-accent-hover active:opacity-70"
@@ -1985,14 +2014,16 @@ function LogEntryContent({
           </div>
         )}
 
-        {/* Editable meal name — shown when 2+ items, not in editMode */}
-        {basket.length >= 2 && !editMode && (
-          <LabeledInput
-            label="Meal name"
-            value={localMealName}
-            onChange={(e) => setLocalMealName(e.target.value)}
-            placeholder={timeMealName()}
-          />
+        {/* Editable meal name — shown when 2+ items */}
+        {basket.length >= 2 && (
+          <div className={editMode ? 'opacity-50 pointer-events-none' : ''}>
+            <LabeledInput
+              label="Meal name"
+              value={localMealName}
+              onChange={(e) => setLocalMealName(e.target.value)}
+              placeholder={timeMealName()}
+            />
+          </div>
         )}
 
         {/* Basket cards */}
@@ -2018,6 +2049,7 @@ function LogEntryContent({
         ))}
 
         {/* Inline add-another with full FoodPicker */}
+        <div className={editMode ? 'opacity-50 pointer-events-none' : ''}>
         <AddAnotherSection
           open={pickerOpen}
           onToggle={() => setPickerOpen((v) => !v)}
@@ -2034,10 +2066,11 @@ function LogEntryContent({
             bare
           />
         </AddAnotherSection>
+        </div>
 
         {/* Save CTA — 24px gap above (space-y-3=12px + pt-3=12px) */}
         {hasChanges && (
-          <div className="pt-3">
+          <div className={`pt-3${editMode ? ' opacity-50 pointer-events-none' : ''}`}>
             <Button size="lg" onClick={() => void save()}>Save</Button>
           </div>
         )}

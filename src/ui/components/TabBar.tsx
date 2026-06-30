@@ -13,13 +13,11 @@ const TABS: TabItem[] = [
 export function TabBar({
   onAction,
   onFabMorphComplete,
-  startFabReverseRef,
   onTodayDoubleClick,
   onActiveTabDoubleTap,
 }: {
   onAction: (type: ActionType) => void;
   onFabMorphComplete?: () => void;
-  startFabReverseRef?: React.MutableRefObject<(() => void) | null>;
   onTodayDoubleClick: () => void;
   onActiveTabDoubleTap: (key: string) => void;
 }) {
@@ -48,7 +46,6 @@ export function TabBar({
       onSelect={handleSelect}
       onAction={onAction}
       onFabMorphComplete={onFabMorphComplete}
-      startFabReverseRef={startFabReverseRef}
     />
   );
 }

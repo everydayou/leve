@@ -1044,7 +1044,7 @@ function FoodPicker({
                   <button
                     key={item.id}
                     onClick={() => onPickItem(item)}
-                    className="flex w-full items-start gap-3 px-4 py-3 text-left active:bg-surface-sunken"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-sunken"
                   >
                     {item.photo ? (
                       <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[10px]">
@@ -1055,7 +1055,7 @@ function FoodPicker({
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-callout leading-none text-content">{item.name}</p>
-                      <p className="text-subhead leading-none text-content-secondary">
+                      <p className="mt-[2px] text-subhead leading-none text-content-secondary">
                         {item.measurementType === 'per_serving' ? 'per serving' : 'per 100g'}
                       </p>
                     </div>
@@ -1063,7 +1063,7 @@ function FoodPicker({
                       <p className="text-callout font-bold leading-none text-content">{Math.round(n.calories)} kcal</p>
                       {(() => {
                         const g = item.measurementType === 'per_100g' ? '100g' : item.referenceAmount > 1 ? `${item.referenceAmount}g` : '';
-                        return g ? <p className="text-subhead leading-none text-content-secondary">{g}</p> : null;
+                        return g ? <p className="mt-[2px] text-subhead leading-none text-content-secondary">{g}</p> : null;
                       })()}
                     </div>
                     <button

@@ -1,4 +1,176 @@
 ================================================================
+ROUND 116 — OVERLAY GRAB HANDLE, CHANGE BUTTON, LOGENTRYSHEET PHOTO, SPACING (2026-06-30)
+================================================================
+Files: src/ui/kit/Sheet.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/screens/TodayScreen.tsx
+Commit: cf93c50
+
+── SHEET: OVERLAY GRAB HANDLE REMOVED ───────────────────────────────────────
+OverlayLayer previously rendered a pill/divider div at the top
+(`shrink-0 pt-3 px-5` outer + `h-1.5 w-11 rounded-pill bg-border-strong` inner)
+that created a permanent visible divider between the nav bar and content, even
+when nothing had scrolled. Removed entirely. Nav bar div changed from
+`-mt-1 px-5 pb-3 pt-2` to `px-5 pb-3 pt-3` to restore correct top clearance.
+Scroll shadow (shadow-[0_1px_0_0_var(--color-border-subtle)]) already only
+activated when scrolled — no change needed there. Applies to all overlays
+app-wide: Describe, Label, Manual, Edit, and any future overlays.
+
+── BASKETCARD: BORDER + CHANGE BUTTON SWAP ──────────────────────────────────
+Container: added `border border-border-subtle` to match Method cards style.
+
+Bottom row previously: Fix button (left) + stepper (right).
+Bottom row now: stepper (left) + Change button (right).
+
+Change button specs:
+  className="flex h-9 items-center gap-1 rounded-full border border-border-subtle
+             px-3 text-subhead font-medium text-content-secondary active:bg-surface-sunken"
+  Icon: edit, size 13, strokeWidth 2.
+  h-9 (36px) matches the BasketStepper inline-flex container height
+  (py-1 padding + h-7 inner buttons = 36px total).
+  text-subhead matches the stepper qty label font size.
+  Label changed from "Fix" to "Change".
+
+When onCorrect is not provided, the spacer div was simplified to
+`flex-1 self-stretch` (removed explicit min-h-[36px]).
+
+── ENTRYBASKETCARD: BORDER ───────────────────────────────────────────────────
+EntryBasketCard in LogEntrySheet (TodayScreen.tsx) received matching
+`border border-border-subtle` on its outer div, so logged entries look
+identical to basket cards in AddEntrySheet.
+
+── LOGENTRYSHEET: PHOTO ─────────────────────────────────────────────────────
+ImageHero added to kit barrel import in TodayScreen.tsx. When
+`entry.mealData?.photo` exists, `<ImageHero photos={[entry.mealData.photo]}
+className="mb-1" />` renders at the top of the LogEntrySheet scroll area,
+above the item cards. Single-photo path = 256×256 centred square.
+
+── ADDANOTHERSECTION + FOODPICKER SPACING ───────────────────────────────────
+AddAnotherSection button: `pb-2` → `pb-3` when open (+4px gap between the
+"+ Add another item" heading and the search bar below it).
+
+FoodPicker "Other methods" section heading: `pt-3` → `pt-2` (−4px gap
+between the "Other methods" label and the method cards below it).
+
+tsc: clean. lint: clean.
+
+================================================================
+ROUND 115 — LOGENTRYSHEET + CHANGE BUTTON + MANUAL OVERLAY + MACRO ROUNDING (2026-06-30)
+================================================================
+Files: src/ui/screens/TodayScreen.tsx, src/ui/components/AddEntrySheet.tsx
+Commit: 09199ee
+
+── LOGENTRYSHEET (NEW) ──────────────────────────────────────────────────────
+Replaced EditFoodSheet + MealEditSheet with a single LogEntrySheet component.
+All 3 entry types (pantry-linked / manual / meal) render in the same sheet.
+
+Call site unified:
+  {(editFood ?? editMeal) && (
+    <LogEntrySheet entry={(editFood ?? editMeal)!} pantryItems={items}
+      onClose={() => { setEditFood(null); setEditMeal(null); }}
+      showToast={ctx.showToast}
+      onAddMore={() => ctx.openAddEntry('food', { hideTabs: true })}
+    />
+  )}
+
+Sheet title = mealData.name ?? manualName ?? pantryItem.name ?? 'Food'.
+Trash button (top-right rightAction) deletes entry with undo toast.
+
+Pantry case: EntryBasketCard with ServingStepper or gram input in bottom row.
+Manual case: editable card with LabeledInput (name) + NumberField grid
+  (calories, protein, carbs, fiber, fat). Saved back as manualName + snapshot.
+Meal case: each mealData.item rendered as EntryBasketCard with Included/
+  Excluded toggle button. mealSel boolean[] state tracks selection changes.
+  Saving recomputes snapshot from selected items only.
+
+hasChanges gate: Save CTA only visible when qtyChanged || manChanged ||
+mealChanged. Saves then calls onClose() + showToast('Saved').
+
+EntryBasketCard: `rounded-[20px] bg-surface p-4 shadow-card` helper showing
+name (text-body semibold), kcal (text-subhead, secondary), and a bottom slot
+for controls. faded prop applies opacity-40 for excluded meal items.
+
+"+ Add another item" button: onClose() then onAddMore() — closes LogEntrySheet
+and reopens AddEntrySheet for the same day.
+
+── BASKETCARD: ONCORRECT PROP ───────────────────────────────────────────────
+New `onCorrect?: () => void` prop. When provided, renders a small "Fix" button
+(renamed "Change" in r116) in the bottom row. Used in FoodForm when a scan
+result needs re-describing.
+
+FoodForm correctingIdx state: null = append new items; number = replace that
+index. handleDescribeAnalyze slices basket array to replace or append.
+setCorrectingIdx(null) + setActiveOverlay(null) after update.
+
+── MANUALOVERLAY ─────────────────────────────────────────────────────────────
+useOverlaySetFooter(null, []) — no sticky footer.
+Button CTA inline at bottom of scroll area (full-width, lg size).
+Photo upload: 256×256 square (matching EditOverlay style). DeleteIcon for
+photo removal. keyboard scroll fix: content scrolls above keyboard via
+existing sheet keyboard inset.
+
+── MACRO ROUNDING ────────────────────────────────────────────────────────────
+All EditOverlay and ManualOverlay macro initial state values:
+  Math.round(x * 10) / 10  (max 1 decimal place)
+Totals display in FoodForm footer:
+  parseFloat(totalProtein.toFixed(1))  (trims trailing zero, e.g. 2.0 → 2)
+Applied to protein, carbs, fiber, fat throughout.
+
+tsc: clean. lint: clean.
+
+================================================================
+ROUND 114 — DESCRIBE REDESIGN + SCAN FIXES + SHEET SCROLL + NAV CENTERING (2026-06-30)
+================================================================
+Files: src/ui/components/AddEntrySheet.tsx, src/ui/kit/Sheet.tsx,
+       api/describe-food.ts (Vercel serverless)
+
+── VERCEL DESCRIBE-FOOD ENDPOINT ────────────────────────────────────────────
+Model changed from `claude-haiku-4-5-20251001` (unrecognised by deployed SDK
+version, caused "Load failed" network errors) to `claude-sonnet-4-6`.
+Prompt overhauled: enforces ≤22 char item names, rejects non-food images
+(returns { foods: [] }), clearer JSON shape instruction, improved multi-item
+detection.
+
+── SHEET SCROLL FIX ─────────────────────────────────────────────────────────
+`overflowX: 'hidden'` removed from both scroll containers in Sheet.tsx:
+· OverlayLayer flex column outer div
+· Sheet main scroll area
+On iOS WKWebView, adding overflow-x hidden to a scroll container causes the
+parent sheet to participate in lateral scroll chaining, making the whole sheet
+slide side-to-side. Removing it fixes the movement without any visual change.
+
+── OVERLAYNAVBAR CENTERING ──────────────────────────────────────────────────
+Back button wrapped in `<span className="w-10 shrink-0 flex items-center">`.
+Previously the button's -m-3 negative margin was shifting the flex layout,
+pulling the centred title off-axis. The w-10 span acts as a fixed-width anchor
+matching the right placeholder span.
+
+── ADD-ANOTHER SECTION: SINGLE CONTAINER ────────────────────────────────────
+FoodPicker gained `bare?: boolean` prop. When bare=true, the component skips
+its outer `rounded-[24px] bg-surface-sunken p-3` wrapper, so the picker
+content expands inside AddAnotherSection's own surface without creating a
+double-box. AddAnotherSection passes bare to FoodPicker. Orphan closing div
+from the removed wrapper cleaned up.
+
+tsc: clean. lint: clean.
+
+================================================================
+ROUND 113 — OVERLAYLAYER NAV FIX + STEPPER + METHOD CARDS + LABEL SCAN + DIAGONAL SCROLL + PANTRYSCREEN SYNC (2026-06-29)
+================================================================
+Files: src/ui/kit/Sheet.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/screens/PantryScreen.tsx
+
+── KEY FIXES ────────────────────────────────────────────────────────────────
+· OverlayNav: fixed layout centering issue in the nav bar flex row.
+· BasketStepper: further adjustments to step behaviour and edge cases.
+· Method cards: border/shadow polish pass.
+· Label scan picker: integration fixes.
+· Diagonal scroll: prevented unwanted sheet dismissal on diagonal touch.
+· PantryScreen: live-query sync fix so edits reflect immediately.
+· Photo sizing: single food photo display tweaks.
+
+tsc: clean. lint: clean.
+
+================================================================
 NUTRITION GOAL TRACKER — CHANGELOG
 ================================================================
 Full per-round history. Reference only — open when you need to

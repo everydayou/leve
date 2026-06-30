@@ -792,7 +792,7 @@ function AddAnotherSection({
       {/* Heading row */}
       <button
         onClick={onToggle}
-        className={`flex w-full items-center px-4 py-3.5${open ? ' pb-2' : ''}`}
+        className={`flex w-full items-center px-4 py-3.5${open ? ' pb-3' : ''}`}
       >
         {/* X — same width as right spacer to keep title centred */}
         <span className="w-6 flex items-center justify-center">
@@ -943,7 +943,7 @@ function BasketCard({
     <div className="flex items-center gap-3">
       {/* Card doesn't translate — sibling delete icon causes flex shrink */}
       <div
-        className="flex-1 rounded-[20px] bg-surface p-4 shadow-card"
+        className="flex-1 rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onClick={handleCardClick}
@@ -953,23 +953,23 @@ function BasketCard({
           <span className="flex-1 truncate text-body font-semibold text-content">{item.name}</span>
           <span className="shrink-0 text-subhead text-content-secondary">{nutrition.calories} kcal</span>
         </div>
-        {/* Bottom row: Fix button (left) + stepper (right) */}
+        {/* Bottom row: stepper (left) + Change button (right) */}
         <div className="flex items-center justify-between">
+          <BasketStepper item={item} qty={item.qty} onChange={onQtyChange} onRemove={onRemove} />
           {onCorrect ? (
             <button
               onClick={(e) => { e.stopPropagation(); onCorrect(); }}
-              className="flex items-center gap-1 rounded-full border border-border-subtle px-2.5 py-1 text-caption font-medium text-content-secondary active:bg-surface-sunken"
+              className="flex h-9 items-center gap-1 rounded-full border border-border-subtle px-3 text-subhead font-medium text-content-secondary active:bg-surface-sunken"
             >
-              <Icon name="edit" size={11} strokeWidth={2} />
-              Fix
+              <Icon name="edit" size={13} strokeWidth={2} />
+              Change
             </button>
           ) : (
             <div
-              className="flex-1 self-stretch min-h-[36px]"
+              className="flex-1 self-stretch"
               onClick={(e) => { e.stopPropagation(); if (!editMode && !swiped) onEdit(); }}
             />
           )}
-          <BasketStepper item={item} qty={item.qty} onChange={onQtyChange} onRemove={onRemove} />
         </div>
       </div>
       {/* Delete icon — no background, icon only, 20×20 black */}
@@ -1076,7 +1076,7 @@ function FoodPicker({
 
       {/* Method cards */}
       <div className={bare ? '' : 'mt-1'}>
-        <p className="px-1 pt-3 pb-2 text-callout font-semibold text-content">Other methods</p>
+        <p className="px-1 pt-2 pb-2 text-callout font-semibold text-content">Other methods</p>
         <MethodCards
           onCamera={onCamera}
           onPhoto={onPhoto}

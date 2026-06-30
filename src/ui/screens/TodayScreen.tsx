@@ -16,6 +16,7 @@ import {
   Card, Badge, Button, LabeledInput, NumberField,
   Icon, GaugeArc, Sheet, Skeleton, ProgressBar, ServingStepper, FilterPills, WheelPicker,
   useSheetSetOverlay, useSheetSetOverlayBack, OverlayNav,
+  ImageHero,
 } from '../kit';
 import { WeightLogSheet } from '../components/WeightLogSheet';
 import type { ShowToast } from '../components/Toaster';
@@ -1625,6 +1626,11 @@ function LogEntrySheet({ entry, pantryItems, onClose, showToast, onAddMore }: {
     <Sheet title={name} onClose={onClose} forceExpanded rightAction={trashBtn}>
       <div className="space-y-3 pb-4">
 
+        {/* ── Meal photo ── */}
+        {entry.mealData?.photo && (
+          <ImageHero photos={[entry.mealData.photo]} className="mb-1" />
+        )}
+
         {/* ── Pantry item — basket card with stepper ── */}
         {pantryItem && (
           <EntryBasketCard
@@ -1708,7 +1714,7 @@ function EntryBasketCard({ name, calories, bottom, faded = false }: {
   name: string; calories: number; bottom: React.ReactNode; faded?: boolean;
 }) {
   return (
-    <div className={`rounded-[20px] bg-surface p-4 shadow-card transition-opacity${faded ? ' opacity-40' : ''}`}>
+    <div className={`rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card transition-opacity${faded ? ' opacity-40' : ''}`}>
       <div className="flex items-center gap-2 mb-2.5">
         <span className="flex-1 truncate text-body font-semibold text-content">{name}</span>
         <span className="shrink-0 text-subhead text-content-secondary">{Math.round(calories)} kcal</span>

@@ -97,17 +97,10 @@ export function FloatingTabBar({
     onAction(type);
   }
 
-  // ── FAB rotation state ────────────────────────────────────────────────────
-  const [fabRotated, setFabRotated] = useState(false);
-
+  // ── FAB tap ───────────────────────────────────────────────────────────────
   function startMorph() {
-    if (fabRotated) return;
     hapticLight();
-    setFabRotated(true);
-    setTimeout(() => {
-      setFabRotated(false);
-      onFabMorphComplete?.();
-    }, 260);
+    onFabMorphComplete?.();
   }
 
   const mid   = Math.ceil(items.length / 2);
@@ -273,17 +266,7 @@ export function FloatingTabBar({
               }}
               className="flex items-center justify-center rounded-pill bg-accent text-on-accent shadow-lg active:bg-accent-hover"
             >
-              <span
-                style={{
-                  display: 'inline-flex',
-                  transform: (menuOpen || fabRotated) ? 'rotate(45deg)' : 'rotate(0deg)',
-                  transition: reduced
-                    ? 'none'
-                    : `transform ${FAB_DUR}ms ${springEase}`,
-                }}
-              >
-                <Icon name="plus" size={26} strokeWidth={2.25} />
-              </span>
+              <Icon name="plus" size={26} strokeWidth={2.25} />
             </button>
           </div>
         </div>

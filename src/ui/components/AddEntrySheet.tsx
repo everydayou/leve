@@ -252,7 +252,6 @@ function FoodForm({
   const [sources, setSources]           = useState<SourceGroup[]>([]);
   const [mealName, setMealName]         = useState('');
   const [saveToPantry, setSaveToPantry] = useState(false);
-  const [editMode, setEditMode]         = useState(false);
   const [pickerOpen, setPickerOpen]     = useState(false);
   const [activeOverlay, setActiveOverlay] = useState<OverlayKey | null>(null);
   const [editingIdx, setEditingIdx]     = useState<number | null>(null);
@@ -505,7 +504,6 @@ function FoodForm({
     if (item.sourceId && !remaining.some((b) => b.sourceId === item.sourceId)) {
       setSources((prev) => prev.filter((s) => s.id !== item.sourceId));
     }
-    if (remaining.length === 0) setEditMode(false);
   }
 
   function updateQty(idx: number, qty: number) {
@@ -682,23 +680,17 @@ function FoodForm({
 
       {/* Meal header — only when basket has items */}
       {basket.length > 0 && (
-        <div className="flex items-center justify-between" style={{ marginTop: '20px' }}>
+        <div className="flex items-center" style={{ marginTop: '20px' }}>
           <span className="flex items-center gap-2 text-headline font-semibold text-content">
             <Icon name="foodIcon" size={20} className="shrink-0 text-content" />
             Meal
           </span>
-          <button
-            onClick={() => setEditMode((v) => !v)}
-            className="text-callout font-semibold text-accent-hover active:opacity-70"
-          >
-            {editMode ? 'Done' : 'Edit'}
-          </button>
         </div>
       )}
 
       {/* Meal name + save to pantry (2+ items) */}
       {basket.length >= 2 && (
-        <div className={editMode ? 'opacity-50 pointer-events-none' : ''}>
+        <div>
           <LabeledInput
             label="Meal name"
             value={mealName}
@@ -723,8 +715,6 @@ function FoodForm({
           key={item.id}
           item={item}
           nutrition={basketNutrition(item)}
-          editMode={editMode}
-          isEditing={editingIdx === idx}
           onQtyChange={(qty) => updateQty(idx, qty)}
           onRemove={() => removeItem(idx)}
           onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
@@ -765,7 +755,6 @@ function FoodForm({
 
       {/* ── Non-empty basket: "Add another item" anchor + picker ──────── */}
       {basket.length > 0 && (
-        <div className={editMode ? 'opacity-50 pointer-events-none' : ''}>
         <AddAnotherSection
           open={pickerOpen}
           onToggle={() => setPickerOpen((v) => !v)}
@@ -783,12 +772,11 @@ function FoodForm({
             onManual={() => { setPickerOpen(false); setActiveOverlay('manual'); }}
           />
         </AddAnotherSection>
-        </div>
       )}
 
       {/* ── Log CTA — always last, 24px above it ─────────────────────── */}
       {basket.length > 0 && !activeOverlay && !analyzing && (
-        <div style={{ paddingTop: '24px' }} className={editMode ? 'opacity-50 pointer-events-none' : ''}>
+        <div style={{ paddingTop: '24px' }}>
           <Button size="lg" onClick={() => void logRef.current()}>
             {basket.length >= 2 ? 'Log meal' : 'Log it'}
           </Button>
@@ -919,99 +907,54 @@ function DeleteIcon({ size = 20 }: { size?: number }) {
 // ── BasketCard ────────────────────────────────────────────────────────────────
 
 function BasketCard({
-  item, nutrition, editMode, isEditing, onQtyChange, onRemove, onEdit, onCorrect,
+  item, nutrition, onQtyChange, onRemove, onEdit, onCorrect,
 }: {
   item: BasketItem;
   nutrition: NutritionSnapshot;
-  editMode: boolean;
-  /** True when this card's edit overlay is currently open — used to reset swipe state on return. */
-  isEditing?: boolean;
   onQtyChange: (v: number) => void;
   onRemove: () => void;
   onEdit: () => void;
-  /** When provided, shows a small "Fix" button so user can re-describe this item. */
+  /** When provided, shows a "Change" button (scanned items). */
   onCorrect?: () => void;
 }) {
-  const [swiped, setSwiped] = useState(false);
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
-
-  // Reset swipe state when the edit overlay closes (isEditing: true → false)
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: resets local swipe state when overlay closes
-    if (!isEditing) setSwiped(false);
-  }, [isEditing]);
-
-  const revealed = editMode || swiped;
-
-  function handleTouchStart(e: React.TouchEvent) {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-  }
-
-  function handleTouchEnd(e: React.TouchEvent) {
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
-    if (Math.abs(dx) < 6) return; // treat as tap, not swipe
-    if (dx < -50 && dy < Math.abs(dx)) setSwiped(true);  // swipe left → reveal
-    if (dx > 30 && swiped) setSwiped(false);             // swipe right → dismiss
-  }
-
-  function handleCardClick() {
-    if (swiped) { setSwiped(false); return; } // dismiss swipe state on tap
-    if (!editMode) onEdit();                  // tap in normal mode → edit overlay
-  }
-
   return (
-    <div className="flex items-center">
-      {/* Card doesn't translate — sibling delete icon causes flex shrink */}
-      <div
-        className="flex-1 rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onClick={handleCardClick}
-        style={{ cursor: !revealed ? 'pointer' : 'default' }}
-      >
-        <div className="flex items-center gap-2 mb-2.5">
-          <span className="flex-1 truncate text-callout text-content">{item.name}</span>
-          <span className="shrink-0 text-callout font-bold text-content">{nutrition.calories} kcal</span>
-        </div>
-        {/* Bottom row: stepper (left) + Change button (right) */}
-        <div className="flex items-center justify-between">
-          <BasketStepper item={item} qty={item.qty} onChange={onQtyChange} onRemove={onRemove} />
-          {onCorrect ? (
+    <div
+      className="rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card"
+      onClick={onEdit}
+      style={{ cursor: 'pointer' }}
+    >
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="flex-1 truncate text-callout text-content">{item.name}</span>
+        <span className="shrink-0 text-callout font-bold text-content">{nutrition.calories} kcal</span>
+      </div>
+      {/* Bottom row: stepper (left) + action buttons (right) */}
+      <div className="flex items-center justify-between">
+        <BasketStepper item={item} qty={item.qty} onChange={onQtyChange} onRemove={onRemove} />
+        <div className="flex items-center gap-1.5">
+          {onCorrect && (
             <button
               onClick={(e) => { e.stopPropagation(); onCorrect(); }}
-              className="flex h-9 items-center gap-1 rounded-full border border-border-field px-3 text-subhead font-medium text-content-secondary active:bg-surface-sunken"
+              className="flex h-8 items-center rounded-full border border-border-field px-3 text-subhead font-medium text-content-secondary active:bg-surface-sunken"
             >
-              <Icon name="edit" size={13} strokeWidth={2} />
               Change
             </button>
-          ) : (
-            <div
-              className="flex-1 self-stretch"
-              onClick={(e) => { e.stopPropagation(); if (!editMode && !swiped) onEdit(); }}
-            />
           )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-border-field bg-surface text-content active:opacity-60"
+            aria-label="Edit"
+          >
+            <Icon name="edit" size={14} strokeWidth={2} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-border-field bg-surface text-content active:opacity-60"
+            aria-label="Remove"
+          >
+            <DeleteIcon size={16} />
+          </button>
         </div>
       </div>
-      {/* Delete icon — always in DOM; collapses via width so card stays full-width */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onRemove(); }}
-        className="flex items-center justify-center text-accent-hover active:opacity-60"
-        aria-label="Remove"
-        style={{
-          opacity: revealed ? 1 : 0,
-          width: revealed ? 20 : 0,
-          marginLeft: revealed ? 12 : 0,
-          overflow: 'hidden',
-          flexShrink: 0,
-          pointerEvents: revealed ? 'auto' : 'none',
-          transition: 'opacity 200ms ease, width 200ms ease, margin-left 200ms ease',
-        }}
-      >
-        <DeleteIcon />
-      </button>
     </div>
   );
 }
@@ -1708,7 +1651,6 @@ function LogEntryContent({
   const [localMealName, setLocalMealName] = useState(entry.mealData?.name ?? '');
 
   // ── UI state ───────────────────────────────────────────────────────────
-  const [editMode, setEditMode]           = useState(false);
   const [editingIdx, setEditingIdx]       = useState<number | null>(null);
   const [correctingIdx, setCorrectingIdx] = useState<number | null>(null);
   const [activeOverlay, setActiveOverlay] = useState<'describe' | 'manual' | 'edit' | null>(null);
@@ -1751,10 +1693,14 @@ function LogEntryContent({
     ) : editItem ? (
       <EditOverlay
         item={editItem}
+        currentPhoto={localPhotos[0]}
         onBack={overlayBack}
         onSave={(patch) => {
           setBasket((prev) => prev.map((b, i) => i === editingIdx ? { ...b, ...patch } : b));
           overlayBack();
+        }}
+        onPhotoChange={(dataUrl) => {
+          setLocalPhotos((prev) => [dataUrl, ...prev.filter((p) => p !== localPhotos[0])].slice(0, 3));
         }}
       />
     ) : null,
@@ -2016,48 +1962,24 @@ function LogEntryContent({
           <ImageHero photos={localPhotos} className="mb-1" />
         )}
 
-        {/* "Meal" label + Edit toggle */}
+        {/* "Meal" label */}
         {basket.length > 0 && (
-          <div className="flex items-center justify-between" style={{ marginTop: '20px' }}>
+          <div className="flex items-center" style={{ marginTop: '20px' }}>
             <span className="flex items-center gap-2 text-headline font-semibold text-content">
               <Icon name="foodIcon" size={20} className="shrink-0 text-content" />
               Meal
             </span>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={async () => {
-                  if (isNativeIOS()) {
-                    const photo = await captureFromLibrary();
-                    if (photo) setLocalPhotos((prev) => [photo, ...prev].slice(0, 3));
-                  } else {
-                    photoInputRef.current?.click();
-                  }
-                }}
-                className="text-content-secondary active:opacity-60"
-                aria-label="Add photo"
-              >
-                <Icon name="scanFood" size={20} strokeWidth={1.8} />
-              </button>
-              <button
-                onClick={() => setEditMode((v) => !v)}
-                className="text-callout font-semibold text-accent-hover active:opacity-70"
-              >
-                {editMode ? 'Done' : 'Edit'}
-              </button>
-            </div>
           </div>
         )}
 
         {/* Editable meal name — shown when 2+ items */}
         {basket.length >= 2 && (
-          <div className={editMode ? 'opacity-50 pointer-events-none' : ''}>
-            <LabeledInput
-              label="Meal name"
-              value={localMealName}
-              onChange={(e) => setLocalMealName(e.target.value)}
-              placeholder={timeMealName()}
-            />
-          </div>
+          <LabeledInput
+            label="Meal name"
+            value={localMealName}
+            onChange={(e) => setLocalMealName(e.target.value)}
+            placeholder={timeMealName()}
+          />
         )}
 
         {/* Basket cards */}
@@ -2066,16 +1988,10 @@ function LogEntryContent({
             key={item.id}
             item={item}
             nutrition={basketNutrition(item)}
-            editMode={editMode}
-            isEditing={editingIdx === idx}
             onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
             onRemove={() => {
               if (basket.length === 1) { void del(); return; }
-              setBasket((prev) => {
-                const next = prev.filter((_, i) => i !== idx);
-                if (next.length === 0) setEditMode(false);
-                return next;
-              });
+              setBasket((prev) => prev.filter((_, i) => i !== idx));
             }}
             onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
             onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
@@ -2083,7 +1999,6 @@ function LogEntryContent({
         ))}
 
         {/* Inline add-another with full FoodPicker */}
-        <div className={editMode ? 'opacity-50 pointer-events-none' : ''}>
         <AddAnotherSection
           open={pickerOpen}
           onToggle={() => setPickerOpen((v) => !v)}
@@ -2100,11 +2015,10 @@ function LogEntryContent({
             bare
           />
         </AddAnotherSection>
-        </div>
 
         {/* Save CTA — 24px gap above (space-y-3=12px + pt-3=12px) */}
         {hasChanges && (
-          <div className={`pt-3${editMode ? ' opacity-50 pointer-events-none' : ''}`}>
+          <div className="pt-3">
             <Button size="lg" onClick={() => void save()}>Save</Button>
           </div>
         )}

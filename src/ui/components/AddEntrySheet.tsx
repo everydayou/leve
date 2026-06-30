@@ -1044,7 +1044,7 @@ function FoodPicker({
                   <button
                     key={item.id}
                     onClick={() => onPickItem(item)}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-sunken"
+                    className="flex w-full items-start gap-3 px-4 py-3 text-left active:bg-surface-sunken"
                   >
                     {item.photo ? (
                       <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[10px]">
@@ -1054,18 +1054,17 @@ function FoodPicker({
                       <div className="h-11 w-11 shrink-0 rounded-[10px] bg-surface-sunken" />
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-callout text-content">{item.name}</p>
-                      <p className="text-subhead text-content-secondary">
+                      <p className="truncate text-callout leading-none text-content">{item.name}</p>
+                      <p className="text-subhead leading-none text-content-secondary">
                         {item.measurementType === 'per_serving' ? 'per serving' : 'per 100g'}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-callout font-bold text-content">{Math.round(n.calories)} kcal</p>
-                      <p className="text-subhead text-content-secondary">
-                        {item.measurementType === 'per_100g'
-                          ? '100g'
-                          : item.referenceAmount > 1 ? `${item.referenceAmount}g` : ''}
-                      </p>
+                      <p className="text-callout font-bold leading-none text-content">{Math.round(n.calories)} kcal</p>
+                      {(() => {
+                        const g = item.measurementType === 'per_100g' ? '100g' : item.referenceAmount > 1 ? `${item.referenceAmount}g` : '';
+                        return g ? <p className="text-subhead leading-none text-content-secondary">{g}</p> : null;
+                      })()}
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); onPickItem(item); }}

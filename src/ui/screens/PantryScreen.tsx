@@ -94,7 +94,7 @@ export function PantryScreen() {
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="text-callout font-bold text-content">{i.calories} kcal</p>
-                      <p className="text-subhead text-content-secondary">{i.protein}g P</p>
+                      <p className="text-subhead text-content-secondary">{i.protein}g</p>
                     </div>
                   </button>
                 </li>

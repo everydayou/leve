@@ -1235,7 +1235,6 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
           pantryItems={items}
           onClose={() => { setEditFood(null); setEditMeal(null); }}
           showToast={ctx.showToast}
-          onAddMore={() => ctx.openAddEntry('food', { hideTabs: true })}
         />
       )}
       {editActivity && <EditActivitySheet entry={editActivity} onClose={() => setEditActivity(null)} showToast={ctx.showToast} />}

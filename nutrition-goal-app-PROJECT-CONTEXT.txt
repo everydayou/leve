@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-30 — Round 116 (Overlay grab handle, BasketCard Change btn, LogEntrySheet photo, spacing fixes)
+Last updated: 2026-06-30 — Round 119 (LogEntrySheet multi-photo, meal name field, Change button scoped to scan items)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -113,21 +113,23 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 116, 2026-06-30)
+7. CURRENT STATUS (as of round 119, 2026-06-30)
 ----------------------------------------------------------------
-All V1 features shipped and running on device. Rounds 113–116 delivered
-on-device bug fixes, the Describe food endpoint, LogEntrySheet basket view,
-and a comprehensive visual polish pass:
-- Round 113: OverlayNav fix, stepper, method cards, label scan, diagonal scroll,
-  PantryScreen sync, photo size.
-- Round 114 (2026-06-30): Describe overlay redesign, add-another anchor,
-  log meal order, nav centering, method cards border, sheet scroll fix,
-  Vercel describe-food endpoint (sonnet-4-6).
-- Round 115 (2026-06-30): LogEntrySheet basket-style view, Fix/Change button
-  on BasketCard, ManualOverlay inline CTA/photo, macro rounding max 1 decimal.
-- Round 116 (2026-06-30): Overlay grab handle removed, Change button right/
-  stepper left, BasketCard + EntryBasketCard border, LogEntrySheet photo,
-  AddAnotherSection +4px / Other methods −4px spacing.
+All V1 features shipped and running on device. Rounds 117–119 completed the
+LogEntrySheet overhaul: it is now a full basket clone with overlays, inline
+FoodPicker, multi-photo collage, editable meal name, and correct Change button
+scoping. FoodForm meal name fallback also fixed.
+- Round 117 (2026-06-30): OverlayLayer grab handle restored + soft scroll
+  shadow; Change button border-border-strong + shadow-sm; Other methods pb-1.
+- Round 118 (2026-06-30): Change button border removed (shadow-sm only);
+  AddAnotherSection overflow-hidden; ServingModal createPortal + grab handle +
+  safe-area 34px; LogEntrySheet full rewrite: hasChanges fix, Meal header
+  always, stepper-delete=del(), inline FoodPicker, multi-photo collage;
+  onAddMore prop removed; LogEntryContent extracted as Sheet child.
+- Round 119 (2026-06-30): mealData.photos[] type added; FoodForm saves all
+  scan photos + timeMealName() fallback (not 'Meal'); LogEntryContent: init
+  from photos[], editable meal name field (2+ items), onCorrect scoped to
+  item.sourceId (freshly-scanned items only).
 - .env.local: gitignored, must be recreated if folder is deleted.
   VITE_FOOD_SCAN_API_URL=https://food-scan-api-delta.vercel.app
 - tsc: clean. lint: clean.
@@ -188,6 +190,28 @@ LOW:
 - ProfileSetupSheet height select always shows cm. Users set to lbs see no
   ft/in option. Low priority until imperial height preference is added.
 - Estimated BMR (weight-only) assumes pop-avg 170 cm / 35 yr / neutral sex.
+
+DONE (r119):
+- ✓ mealData.photos?: string[] added to FoodEntry type (backward-compat alongside photo?).
+- ✓ FoodForm logBasket: saves photos: sourcePhotos.slice(0,3); fallback 'Meal'→timeMealName().
+- ✓ LogEntryContent: localPhotos init from photos[]→photo→pantryItem.photo chain.
+- ✓ LogEntryContent: editable "Meal name" LabeledInput shown when basket.length≥2 && !editMode.
+- ✓ LogEntryContent: save() uses localMealName.trim()||timeMealName(); writes photos[].
+- ✓ LogEntryContent: onCorrect scoped to item.sourceId (freshly-scanned items only).
+- ✓ LogEntryContent: correctingIdx state + handleDescribeAnalyze replaces single item.
+
+DONE (r118):
+- ✓ BasketCard Change button: border removed entirely (shadow-sm only).
+- ✓ AddAnotherSection outer div: overflow-hidden (Figma Crop equivalent).
+- ✓ ServingModal: createPortal to document.body; grab handle pill; safe-area 0px→34px.
+- ✓ LogEntrySheet/LogEntryContent: split so hooks run inside Sheet context
+    (overlay, overlayBack now work correctly).
+- ✓ LogEntrySheet: hasChanges bug fixed (entryToBasket called once; IDs stripped).
+- ✓ LogEntrySheet: section header always "Meal".
+- ✓ LogEntrySheet: stepper delete when last item → del() FoodEntry + undo toast.
+- ✓ LogEntrySheet: inline AddAnotherSection + FoodPicker (camera/photo/describe/label/manual).
+- ✓ LogEntrySheet: onAddMore prop removed; TodayScreen updated.
+- ✓ LogEntrySheet: pantryItem photo shown; multi-photo collage via localPhotos[].
 
 DONE (r116):
 - ✓ OverlayLayer grab handle/pill removed; nav bar top padding corrected.
@@ -257,56 +281,57 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
-ROUND 116 — OVERLAY GRAB HANDLE, CHANGE BUTTON, LOGENTRYSHEET PHOTO, SPACING (2026-06-30)
-Files: src/ui/kit/Sheet.tsx, src/ui/components/AddEntrySheet.tsx,
-       src/ui/screens/TodayScreen.tsx
-Commit: cf93c50
-- Sheet.tsx: Removed grab handle pill from OverlayLayer. Nav bar top padding
-  changed from -mt-1 pt-2 to pt-3 (no visual divider at rest; shadow still
-  appears on scroll).
-- AddEntrySheet BasketCard: container gains border border-border-subtle.
-  Bottom row swapped: stepper LEFT, "Change" button RIGHT. Change button:
-  h-9 height, text-subhead font, rounded-full, border border-border-subtle —
-  matches stepper scale exactly. Icon stays (edit, 13px).
-- AddEntrySheet spacing: AddAnotherSection button pb-2 → pb-3 (+4px between
-  heading and search bar). FoodPicker "Other methods" heading pt-3 → pt-2
-  (−4px gap to method cards).
-- TodayScreen EntryBasketCard: border border-border-subtle added. ImageHero
-  imported from kit barrel; shown at top of LogEntrySheet when
-  entry.mealData.photo exists.
+ROUND 119 — MULTI-PHOTO, MEAL NAME FIELD, CHANGE BUTTON SCOPING (2026-06-30)
+Files: src/domain/types.ts, src/ui/components/AddEntrySheet.tsx
+Commits: d76f30e, 31c818c
+- types.ts: mealData gains photos?: string[] (backward-compat alongside photo?).
+- FoodForm logBasket: saves photos: sourcePhotos.slice(0,3) on every meal log.
+  Fallback name 'Meal' → timeMealName() so entries are never saved as "Meal".
+- LogEntryContent: localPhotos initialises from mealData.photos[] first, then
+  photo string, then pantryItem.photo. Scan photos capped at 3.
+- LogEntryContent: localMealName state (pre-filled from entry.mealData.name).
+  LabeledInput "Meal name" shown when basket.length≥2 && !editMode, same
+  position and style as FoodForm. save() uses localMealName.trim()||timeMealName().
+  Writes photos[] back to mealData on save.
+- LogEntryContent: onCorrect now uses item.sourceId (not !item.pantryItemId).
+  Only items freshly scanned in the current session get the "Change" button.
+  Pre-existing meal items and manual items are unaffected.
+- correctingIdx state + handleDescribeAnalyze splice logic: replacing a single
+  basket item when correcting, same as FoodForm.
 - tsc: clean. lint: clean.
 
-ROUND 115 — LOGENTRYSHEET + CHANGE BUTTON + MANUAL OVERLAY + MACRO ROUNDING (2026-06-30)
-Files: src/ui/screens/TodayScreen.tsx, src/ui/components/AddEntrySheet.tsx
-Commit: 09199ee
-- TodayScreen: new LogEntrySheet replaces EditFoodSheet + MealEditSheet.
-  Unified basket-style view for all 3 entry types (pantry item / manual /
-  meal). EntryBasketCard helper shows name + kcal + swappable bottom row.
-  Meal items togglable Included/Excluded. hasChanges gate on Save CTA.
-  Trash button always visible (top-right of Sheet). "+ Add another item"
-  button closes and re-opens AddEntrySheet.
-- AddEntrySheet BasketCard: onCorrect prop → shows "Fix" button (later renamed
-  "Change" in r116). handleDescribeAnalyze replaces or appends based on
-  correctingIdx state.
-- ManualOverlay: inline Button CTA (no sticky footer), 256×256 photo style,
-  DeleteIcon, keyboard scroll fix via useOverlaySetFooter(null, []).
-- Macro rounding: Math.round(x * 10) / 10 for all macro display values;
-  parseFloat(x.toFixed(1)) trims trailing zero in totals display.
+ROUND 118 — LOGENTRYSHEET OVERHAUL + SERVINGMODAL + QUICK FIXES (2026-06-30)
+Files: src/ui/components/AddEntrySheet.tsx, src/ui/screens/TodayScreen.tsx
+Commits: f0ea0f6, c40aaa3
+- BasketCard Change button: border removed (shadow-sm only, no border).
+- AddAnotherSection outer div: overflow-hidden added (clips card shadow bleed).
+- ServingModal: createPortal → document.body (z-index over FloatingTabBar
+  fixed); grab handle pill added at top; safe-area fallback 0px → 34px.
+- LogEntrySheet split into LogEntrySheet (Sheet header shell) + LogEntryContent
+  (Sheet child, has Sheet context for overlay hooks). Root cause fix: hooks
+  useSheetSetOverlay / useSheetSetOverlayBack must run inside Sheet's context
+  tree; previously they ran in the parent, getting null context.
+- LogEntryContent: hasChanges bug fixed (entryToBasket called once; IDs
+  stripped before JSON comparison). Section header always "Meal".
+  Stepper delete of last item → del() FoodEntry + undo toast.
+  Inline AddAnotherSection + full FoodPicker (camera/photo/describe/label/
+  manual). localPhotos[] state with ImageHero multi-photo collage.
+  Save button 24px gap (space-y-3 + pt-3).
+- onAddMore prop removed from LogEntrySheet; TodayScreen updated.
 - tsc: clean. lint: clean.
 
-ROUND 114 — DESCRIBE REDESIGN + SCAN FIXES + SHEET SCROLL + NAV CENTERING (2026-06-30)
-Files: src/ui/components/AddEntrySheet.tsx, src/ui/kit/Sheet.tsx,
-       api/describe-food.ts (Vercel)
-Commit: (pre-115 batch)
-- Vercel describe-food endpoint: model changed from claude-haiku-4-5-20251001
-  to claude-sonnet-4-6. Prompt improved: ≤22 char name rules, non-food
-  rejection, clear JSON shape.
-- Sheet.tsx: removed overflowX: hidden from both OverlayLayer and Sheet outer
-  scroll areas (caused whole-sheet movement on iOS WKWebView scroll chaining).
-- OverlayNav centering: back button wrapped in w-10 shrink-0 span so title
-  stays centred regardless of right slot content.
-- AddEntrySheet: AddAnotherSection single-container pattern — FoodPicker gains
-  bare prop that skips its own grey container wrapper.
+ROUND 117 — OVERLAY GRAB HANDLE RESTORE, CHANGE BUTTON BORDER, SPACING (2026-06-30)
+Files: src/ui/kit/Sheet.tsx, src/ui/components/AddEntrySheet.tsx
+Commit: 0d0cc3f
+- Sheet.tsx OverlayLayer: grab handle pill restored (was mistakenly removed in
+  r116). Scroll shadow changed to shadow-nav (soft 0 2px 8px −2px blur).
+- BasketCard Change button: border-border-strong + shadow-sm (refined from r116).
+- AddAnotherSection "Other methods" heading: pb-2 → pb-1 (−4px).
+- types.ts: MealItem gains qty?: number for LogEntrySheet qty tracking.
+- LogEntrySheet: rewritten as basket clone inside AddEntrySheet.tsx
+  (BasketCard, BasketStepper, EditOverlay, ImageHero, Meal+Edit/Done header).
+- TodayScreen: old LogEntrySheet + EntryBasketCard removed; imports
+  LogEntrySheet from AddEntrySheet.
 - tsc: clean. lint: clean.
 
 

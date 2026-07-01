@@ -15,14 +15,14 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
 
   // 2–3 photos: stacked collage inside a 256×256 container, per design spec.
   const cfg2 = [
-    { width: 145, height: 145, left: 1,  top: 1,  rotate:  10, zIndex: 1 },
-    { width: 174, height: 174, left: 65, top: 65, rotate:  -5, zIndex: 2 },
+    { width: 145, height: 145, left: 1,  top: 1,  rotate: -10, zIndex: 1 },
+    { width: 174, height: 174, left: 65, top: 65, rotate:   5, zIndex: 2 },
   ];
 
   const cfg3 = [
-    { width: 120, height: 120, left: 24, top: 5,  rotate:  10, zIndex: 1 },
-    { width: 144, height: 144, left: 92, top: 28, rotate:  -5, zIndex: 2 },
-    { width: 150, height: 150, left: 19, top: 79, rotate:   4, zIndex: 3 },
+    { width: 120, height: 120, left: 24, top: 5,  rotate: -10, zIndex: 1 },
+    { width: 144, height: 144, left: 92, top: 28, rotate:   5, zIndex: 2 },
+    { width: 150, height: 150, left: 19, top: 79, rotate:  -4, zIndex: 3 },
   ];
 
   const cfg = photos.length === 2 ? cfg2 : cfg3;

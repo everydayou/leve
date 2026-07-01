@@ -281,7 +281,7 @@ function FoodForm({
         if (pi?.photo && !photos.includes(pi.photo)) photos.push(pi.photo);
       }
     }
-    return photos.slice(0, 3); // max 3 in collage
+    return photos.slice(0, 4); // max 4 in collage
   })();
 
   // ── Log CTA ref (called by inline button in main basket view) ────────────
@@ -459,10 +459,10 @@ function FoodForm({
 
   // ── Basket mutations ──────────────────────────────────────────────────────
 
-  function addPantryItem(item: FoodItem) {
+  function addPantryItem(item: FoodItem, fromSearch?: boolean) {
     hapticLight();
-    // Fast log: basket empty → log directly without going through basket
-    if (basket.length === 0) {
+    // Fast log: basket empty → log directly without going through basket (skip if user searched)
+    if (basket.length === 0 && !fromSearch) {
       const bi = pantryToBasket(item);
       const n = basketNutrition(bi);
       const entryId = newId();
@@ -606,13 +606,13 @@ function FoodForm({
         await repos.foodEntries.add({
           id: entryId, date, foodItemId, quantity: 1, isManual: false,
           snapshot: totals, createdAt: new Date().toISOString(),
-          mealData: { name, photo: primaryPhoto, photos: sourcePhotos.slice(0, 3), items: mealItems },
+          mealData: { name, photo: primaryPhoto, photos: sourcePhotos.slice(0, 4), items: mealItems },
         });
       } else {
         await repos.foodEntries.add({
           id: entryId, date, manualName: name, isManual: true,
           snapshot: totals, createdAt: new Date().toISOString(),
-          mealData: { name, photo: primaryPhoto, photos: sourcePhotos.slice(0, 3), items: mealItems },
+          mealData: { name, photo: primaryPhoto, photos: sourcePhotos.slice(0, 4), items: mealItems },
         });
       }
       showToast?.(`${name} logged`);
@@ -977,7 +977,7 @@ function FoodPicker({
   items: FoodItem[];
   /** Pre-computed frequent items (most logged) to show in the Recent list. */
   frequentItems?: FoodItem[];
-  onPickItem: (item: FoodItem) => void;
+  onPickItem: (item: FoodItem, fromSearch?: boolean) => void;
   onCamera: () => void;
   onPhoto: () => void;
   onDescribe: () => void;
@@ -1024,7 +1024,7 @@ function FoodPicker({
                 return (
                   <button
                     key={item.id}
-                    onClick={() => onPickItem(item)}
+                    onClick={() => onPickItem(item, query.trim().length > 0)}
                     className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-sunken"
                   >
                     {item.photo ? (
@@ -1045,7 +1045,7 @@ function FoodPicker({
                       <p className="mt-[4px] text-subhead leading-none text-content-secondary">{Math.round(n.protein * 10) / 10}g Protein</p>
                     </div>
                     <button
-                      onClick={(e) => { e.stopPropagation(); onPickItem(item); }}
+                      onClick={(e) => { e.stopPropagation(); onPickItem(item, query.trim().length > 0); }}
                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-black active:opacity-80"
                       aria-label={`Add ${item.name}`}
                     >
@@ -1659,6 +1659,11 @@ function LogEntryContent({
   // ── Meal name — editable when basket has 2+ items ──────────────────────
   const [localMealName, setLocalMealName] = useState(entry.mealData?.name ?? '');
 
+  const _freqIds = useLive(() => repos.foodEntries.frequentItemIds(4, 3), []) ?? [];
+  const frequentItems = _freqIds
+    .map((id) => pantryItems.find((p) => p.id === id))
+    .filter((p): p is FoodItem => p != null && !p.isArchived);
+
   // ── UI state ───────────────────────────────────────────────────────────
   const [editingIdx, setEditingIdx]       = useState<number | null>(null);
   const [correctingIdx, setCorrectingIdx] = useState<number | null>(null);
@@ -1709,7 +1714,7 @@ function LogEntryContent({
           overlayBack();
         }}
         onPhotoChange={(dataUrl) => {
-          setLocalPhotos((prev) => [dataUrl, ...prev.filter((p) => p !== localPhotos[0])].slice(0, 3));
+          setLocalPhotos((prev) => [dataUrl, ...prev.filter((p) => p !== localPhotos[0])].slice(0, 4));
         }}
       />
     ) : null,
@@ -1727,7 +1732,7 @@ function LogEntryContent({
         scanResultToBasket({ ...f, name: cleanScanName(f.name) }, newId()),
       );
       setBasket((prev) => [...prev, ...newItems]);
-      setLocalPhotos((prev) => [...prev, imageDataUrl].slice(0, 3));
+      setLocalPhotos((prev) => [...prev, imageDataUrl].slice(0, 4));
       setPickerOpen(false);
     } catch (err) {
       showToast?.(err instanceof Error ? err.message : 'Scan failed');
@@ -1832,6 +1837,7 @@ function LogEntryContent({
       return;
     }
     setBasket((prev) => [...prev, pantryToBasket(item)]);
+    if (item.photo) setLocalPhotos((prev) => [...prev, item.photo!].slice(0, 4));
     setPickerOpen(false);
   }
 
@@ -1855,7 +1861,7 @@ function LogEntryContent({
       protein: e.protein, carbs: e.carbs, fiber: e.fiber, fat: e.fat,
       qty: e.measurementType === 'per_100g' ? 100 : 1,
     };
-    if (e.photo) setLocalPhotos((prev) => [...prev, e.photo!].slice(0, 3));
+    if (e.photo) setLocalPhotos((prev) => [...prev, e.photo!].slice(0, 4));
     setBasket((prev) => [...prev, newItem]);
     setPickerOpen(false);
     setActiveOverlay(null);
@@ -1874,7 +1880,7 @@ function LogEntryContent({
 
   async function save() {
     const photo  = localPhotos[0];
-    const photos = localPhotos.slice(0, 3);
+    const photos = localPhotos.slice(0, 4);
     if (basket.length === 1 && pantryItem && basket[0].pantryItemId === pantryItem.id) {
       const b = basket[0];
       await repos.foodEntries.update({ ...entry, quantity: b.qty, snapshot: roundSnap(basketNutrition(b)) });
@@ -1950,7 +1956,7 @@ function LogEntryContent({
           const reader = new FileReader();
           reader.onload = () => {
             const url = reader.result as string;
-            setLocalPhotos((prev) => [url, ...prev].slice(0, 3));
+            setLocalPhotos((prev) => [url, ...prev].slice(0, 4));
           };
           reader.readAsDataURL(file);
         }}
@@ -2000,7 +2006,20 @@ function LogEntryContent({
             onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
             onRemove={() => {
               if (basket.length === 1) { void del(); return; }
+              const removedItem = basket[idx];
               setBasket((prev) => prev.filter((_, i) => i !== idx));
+              // Remove photo from localPhotos if no other basket item uses the same pantry photo
+              if (removedItem.pantryItemId) {
+                const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
+                if (pantryPhoto) {
+                  const stillReferenced = basket
+                    .filter((_, i) => i !== idx)
+                    .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
+                  if (!stillReferenced) {
+                    setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+                  }
+                }
+              }
             }}
             onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
             onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
@@ -2015,6 +2034,7 @@ function LogEntryContent({
         >
           <FoodPicker
             items={pantryItems}
+            frequentItems={frequentItems}
             onPickItem={addPantryItem}
             onCamera={() => void handleCamera()}
             onPhoto={() => void handlePhoto()}

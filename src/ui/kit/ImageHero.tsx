@@ -42,7 +42,7 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
   return (
     <div className={`flex justify-center ${className ?? ''}`}>
       <div className="relative" style={{ width: 256, height: 256 }}>
-        {photos.slice(0, 3).map((photo, i) => {
+        {photos.slice(0, 4).map((photo, i) => {
           const c = cfg[i];
           return (
             <div

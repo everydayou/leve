@@ -1,5 +1,9 @@
 /** Displays 1 photo as a wide hero, or 2–3 photos as a rotating collage.
- *  Renders nothing when the array is empty. */
+ *  Renders nothing when the array is empty.
+ *
+ *  Figma x/y values are bounding-box positions (top-left of the axis-aligned
+ *  rect around the rotated element). CSS left/top is the unrotated box position,
+ *  so each coordinate is offset inward by (bbox_size − image_size) / 2. */
 export function ImageHero({ photos, className }: { photos: string[]; className?: string }) {
   if (photos.length === 0) return null;
 
@@ -13,16 +17,17 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
     );
   }
 
-  // 2–3 photos: stacked collage inside a 256×256 container, per design spec.
+  // 2–3 photos: stacked collage inside a 256×256 container.
+  // left/top are CSS positions (bounding-box-corrected from Figma spec).
   const cfg2 = [
-    { width: 145, height: 145, left: 1,  top: 1,  rotate: -10, zIndex: 1 },
-    { width: 174, height: 174, left: 65, top: 65, rotate:   5, zIndex: 2 },
+    { w: 145, h: 145, left: 12, top: 12, rotate: -10, z: 1 },
+    { w: 174, h: 174, left: 72, top: 72, rotate:   5, z: 2 },
   ];
 
   const cfg3 = [
-    { width: 120, height: 120, left: 24, top: 5,  rotate: -10, zIndex: 1 },
-    { width: 144, height: 144, left: 92, top: 28, rotate:   5, zIndex: 2 },
-    { width: 150, height: 150, left: 19, top: 79, rotate:  -4, zIndex: 3 },
+    { w: 120, h: 120, left:  34, top: 15, rotate: -10, z: 1 },
+    { w: 144, h: 144, left:  98, top: 34, rotate:   5, z: 2 },
+    { w: 150, h: 150, left:  24, top: 84, rotate:  -4, z: 3 },
   ];
 
   const cfg = photos.length === 2 ? cfg2 : cfg3;
@@ -37,12 +42,12 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
               key={i}
               className="absolute overflow-hidden rounded-[20px] shadow-card-lg"
               style={{
-                width: c.width,
-                height: c.height,
+                width: c.w,
+                height: c.h,
                 left: c.left,
                 top: c.top,
                 transform: `rotate(${c.rotate}deg)`,
-                zIndex: c.zIndex,
+                zIndex: c.z,
               }}
             >
               <img src={photo} alt={`Photo ${i + 1}`} className="h-full w-full object-cover" />

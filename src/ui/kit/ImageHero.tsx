@@ -30,7 +30,14 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
     { w: 150, h: 150, left:  24, top: 84, rotate:  -4, z: 3 },
   ];
 
-  const cfg = photos.length === 2 ? cfg2 : cfg3;
+  const cfg4 = [
+    { w: 120, h: 120, left:  34, top: 15, rotate: -10, z: 1 },
+    { w: 144, h: 144, left:  98, top: 34, rotate:   5, z: 2 },
+    { w: 144, h: 144, left:  24, top: 57, rotate:  -4, z: 3 },
+    { w: 150, h: 150, left:  74, top: 97, rotate:   3, z: 4 },
+  ];
+
+  const cfg = photos.length === 2 ? cfg2 : photos.length === 4 ? cfg4 : cfg3;
 
   return (
     <div className={`flex justify-center ${className ?? ''}`}>

@@ -18,8 +18,9 @@ import {
   useSheetSetOverlayBack, OverlayNav, ImageHero,
 } from '../kit';
 import type { ShowToast } from './Toaster';
-import { findByName } from '../../domain/pantry';
 import type { FoodItem, FoodEntry, MealItem, NutritionSnapshot } from '../../domain/types';
+import { FoodItemFormContent } from './FoodItemForm';
+import type { FoodItemFormValues } from './FoodItemForm';
 
 const SCAN_ENABLED = !!(import.meta.env.VITE_FOOD_SCAN_API_URL as string | undefined);
 
@@ -312,6 +313,7 @@ function FoodForm({
         onBack={overlayBack}
         onSave={(patch) => { updateItem(editingIdx!, patch); overlayBack(); }}
         onPhotoChange={(dataUrl) => {
+          if (!dataUrl) return; // photo removed — source stays (cleared via basket remove)
           const srcId = newId();
           setSources((prev) => [...prev, { id: srcId, photo: dataUrl }]);
           updateItem(editingIdx!, { sourceId: srcId });
@@ -718,7 +720,6 @@ function FoodForm({
           onQtyChange={(qty) => updateQty(idx, qty)}
           onRemove={() => removeItem(idx)}
           onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-          onCorrect={!item.pantryItemId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
         />
       ))}
 
@@ -1276,132 +1277,28 @@ function ManualOverlay({
     photo?: string;
   }) => void;
 }) {
-  const [name, setName]         = useState('');
-  const [cal, setCal]           = useState('');
-  const [pro, setPro]           = useState('');
-  const [carb, setCarb]         = useState('');
-  const [fib, setFib]           = useState('');
-  const [fat, setFat]           = useState('');
-  const [save, setSave]         = useState(false);
-  const [mType, setMType]       = useState<'per_100g' | 'per_serving'>('per_100g');
-  const [srvG, setSrvG]         = useState('');
-  const [localPhoto, setLocalPhoto] = useState<string | undefined>(undefined);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const duplicate = findByName(items, name);
-  const blocked   = save && !!duplicate;
-  const canAdd    = name.trim().length > 0 && !blocked;
-
-  const addRef = useRef<() => void>(() => undefined);
-  addRef.current = () => { // eslint-disable-line react-hooks/refs
-    if (!canAdd) return;
-    const refAmount = mType === 'per_serving' ? (+srvG || 100) : 100;
-    onAdd({
-      name: name.trim(),
-      calories: +cal || 0, protein: +pro || 0, carbs: +carb || 0,
-      fiber: +fib || 0, fat: +fat || 0, saveToPantry: save,
-      measurementType: mType, referenceAmount: refAmount,
-      photo: localPhoto,
-    });
-  };
-
-  // No sticky footer — CTA is inline below content
   useOverlaySetFooter(null, []);
-
-  const calLabel = mType === 'per_serving' ? 'Calories (kcal)' : 'Calories (kcal · per 100g)';
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    const reader = new FileReader();
-    reader.onload = () => setLocalPhoto(reader.result as string);
-    reader.readAsDataURL(file);
-  }
 
   return (
     <div className="space-y-3 py-1">
       <OverlayNav title="Add manually" onBack={onBack} />
-
-      {/* Photo upload — same pattern as EditOverlay */}
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-      {localPhoto ? (
-        <div className="flex justify-center">
-          <div className="h-64 w-64 rounded-[20px] shadow-card-lg">
-          <div className="relative h-full w-full overflow-hidden rounded-[20px]">
-            <img src={localPhoto} alt="Food" className="h-full w-full object-cover" />
-            <button
-              onClick={() => setLocalPhoto(undefined)}
-              className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
-              aria-label="Remove photo"
-            >
-              <DeleteIcon size={20} />
-            </button>
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
-            >
-              Change photo
-            </button>
-          </div>
-          </div>
-        </div>
-      ) : (
-        <button
-          onClick={() => fileRef.current?.click()}
-          className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-border-field py-4 text-subhead font-medium text-content-secondary active:border-accent active:text-accent"
-        >
-          <Icon name="camera" size={18} strokeWidth={1.8} />
-          Add photo
-        </button>
-      )}
-
-      <LabeledInput
-        label="Food name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="e.g. Homemade granola"
-        invalid={blocked}
+      <FoodItemFormContent
+        mode="basket-manual"
+        existingItems={items}
+        onSave={(values: FoodItemFormValues) => onAdd({
+          name:            values.name,
+          calories:        values.calories,
+          protein:         values.protein,
+          carbs:           values.carbs,
+          fiber:           values.fiber,
+          fat:             values.fat,
+          saveToPantry:    values.saveToPantry,
+          measurementType: values.measurementType,
+          referenceAmount: values.referenceAmount,
+          photo:           values.photo,
+        })}
+        onCancel={onBack}
       />
-      {blocked && (
-        <p className="text-caption text-danger">This name already exists in your pantry</p>
-      )}
-
-      <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
-        <input
-          type="checkbox"
-          checked={save}
-          onChange={(e) => setSave(e.target.checked)}
-          className="h-4 w-4 accent-accent"
-        />
-        Save to pantry
-      </label>
-
-      {/* Measurement type */}
-      <SegmentedControl
-        options={[
-          { value: 'per_100g',    label: 'Per 100g' },
-          { value: 'per_serving', label: 'Per serving' },
-        ]}
-        value={mType}
-        onChange={(v) => setMType(v as 'per_100g' | 'per_serving')}
-      />
-
-      {mType === 'per_serving' && (
-        <NumberField label="Serving size (g)" value={srvG} set={setSrvG} centerAt={100} />
-      )}
-
-      <div className="grid grid-cols-2 gap-2">
-        <NumberField label={calLabel} value={cal} set={setCal} max={5000} step={1} centerAt={350} />
-        <NumberField label="Protein (g)" value={pro} set={setPro} max={500} step={1} centerAt={25} />
-        <NumberField label="Carbs (g)" value={carb} set={setCarb} max={800} step={1} centerAt={30} />
-        <NumberField label="Fiber (g)" value={fib} set={setFib} max={200} step={1} centerAt={5} />
-        <NumberField label="Fat (g)" value={fat} set={setFat} max={400} step={1} centerAt={12} />
-      </div>
-      {/* Inline CTA */}
-      <Button size="lg" onClick={() => addRef.current()} disabled={!canAdd}>
-        Add to meal
-      </Button>
     </div>
   );
 }
@@ -1415,122 +1312,38 @@ function EditOverlay({
   currentPhoto?: string;
   onBack: () => void;
   onSave: (patch: Partial<BasketItem>) => void;
-  onPhotoChange?: (dataUrl: string) => void;
+  onPhotoChange?: (dataUrl: string | undefined) => void;
 }) {
-  const isSrv  = item.measurementType === 'per_serving';
-  const [name, setName] = useState(item.name);
-  const [cal, setCal]   = useState(String(Math.round(item.calories)));
-  const [pro, setPro]   = useState(String(Math.round(item.protein * 10) / 10));
-  const [carb, setCarb] = useState(String(Math.round(item.carbs * 10) / 10));
-  const [fib, setFib]   = useState(String(Math.round(item.fiber * 10) / 10));
-  const [fat, setFat]   = useState(String(Math.round(item.fat * 10) / 10));
-  const [srvG, setSrvG] = useState(isSrv ? String(item.referenceAmount) : '');
-  const [localPhoto, setLocalPhoto] = useState(currentPhoto);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const saveRef = useRef<() => void>(() => undefined);
-  saveRef.current = () => { // eslint-disable-line react-hooks/refs
-    const patch: Partial<BasketItem> = {
-      name: name.trim() || item.name,
-      calories: +cal || item.calories,
-      protein:  +pro  || item.protein,
-      carbs:    +carb || item.carbs,
-      fiber:    +fib  || item.fiber,
-      fat:      +fat  || item.fat,
-    };
-    if (isSrv && srvG) patch.referenceAmount = +srvG || item.referenceAmount;
-    onSave(patch);
-  };
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setLocalPhoto(dataUrl);
-      onPhotoChange?.(dataUrl);
-    };
-    reader.readAsDataURL(file);
-  }
-
-  // No sticky footer — Save + Cancel are inline in the scroll area
-  // (useOverlaySetFooter removed by design)
-
   return (
     <div className="space-y-3 py-1">
-      {/* Sticky nav — back arrow (= cancel) left, centred title, no right action */}
       <OverlayNav title="Edit" onBack={onBack} />
-
-      {/* Photo — trash top-right to delete; "Change photo" as white-border button */}
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-      {/* 256×256 centered square — matches ImageHero single-photo style */}
-      {localPhoto ? (
-        <div className="flex justify-center">
-          <div className="h-64 w-64 rounded-[20px] shadow-card-lg">
-          <div className="relative h-full w-full overflow-hidden rounded-[20px]">
-            <img src={localPhoto} alt="Food" className="h-full w-full object-cover" />
-            <button
-              onClick={() => { setLocalPhoto(undefined); }}
-              className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
-              aria-label="Remove photo"
-            >
-              <DeleteIcon size={20} />
-            </button>
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
-            >
-              Change photo
-            </button>
-          </div>
-          </div>
-        </div>
-      ) : onPhotoChange && (
-        <button
-          onClick={() => fileRef.current?.click()}
-          className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-border-field py-4 text-subhead font-medium text-content-secondary active:border-accent active:text-accent"
-        >
-          <Icon name="camera" size={18} strokeWidth={1.8} />
-          Add photo
-        </button>
-      )}
-
-      <LabeledInput label="Name" value={name} onChange={(e) => setName(e.target.value)} />
-
-      {isSrv ? (
-        <div className="grid grid-cols-2 gap-2">
-          <NumberField label="Serving size (g)" value={srvG} set={setSrvG} centerAt={100} />
-          <NumberField label="Calories (kcal)" value={cal} set={setCal} centerAt={350} />
-        </div>
-      ) : (
-        <NumberField label="Calories (kcal · per 100g)" value={cal} set={setCal} centerAt={350} />
-      )}
-
-      <div className="grid grid-cols-2 gap-2">
-        <NumberField label="Protein (g)" value={pro} set={setPro} centerAt={25} />
-        <NumberField label="Carbs (g)" value={carb} set={setCarb} centerAt={30} />
-        <NumberField label="Fat (g)" value={fat} set={setFat} centerAt={12} />
-        <NumberField label="Fiber (g)" value={fib} set={setFib} centerAt={5} />
-      </div>
-
-      <p className="text-caption text-content-secondary">
-        {isSrv
-          ? 'Values are per serving. Adjust quantity in the basket.'
-          : 'Values are per 100g. Adjust grams in the basket.'}
-      </p>
-
-      {/* Non-sticky Save + Cancel */}
-      <div className="space-y-2 pt-2 pb-4">
-        <Button size="lg" onClick={() => saveRef.current()}>Save</Button>
-        <button
-          onClick={onBack}
-          className="w-full py-3 text-body font-semibold text-content active:opacity-70"
-        >
-          Cancel
-        </button>
-      </div>
+      <FoodItemFormContent
+        mode="basket-edit"
+        initial={{
+          name:            item.name,
+          measurementType: item.measurementType,
+          referenceAmount: item.referenceAmount,
+          calories:        item.calories,
+          protein:         item.protein,
+          carbs:           item.carbs,
+          fiber:           item.fiber,
+          fat:             item.fat,
+          photo:           currentPhoto,
+          pantryItemId:    item.pantryItemId,
+        }}
+        onSave={(values: FoodItemFormValues) => onSave({
+          name:            values.name,
+          calories:        values.calories,
+          protein:         values.protein,
+          carbs:           values.carbs,
+          fiber:           values.fiber,
+          fat:             values.fat,
+          measurementType: values.measurementType,
+          referenceAmount: values.referenceAmount,
+        })}
+        onCancel={onBack}
+        onPhotoChange={onPhotoChange}
+      />
     </div>
   );
 }
@@ -1714,7 +1527,8 @@ function LogEntryContent({
           overlayBack();
         }}
         onPhotoChange={(dataUrl) => {
-          setLocalPhotos((prev) => [dataUrl, ...prev.filter((p) => p !== localPhotos[0])].slice(0, 4));
+          if (dataUrl) setLocalPhotos((prev) => [dataUrl, ...prev.filter((p) => p !== localPhotos[0])].slice(0, 4));
+          else setLocalPhotos((prev) => prev.filter((p) => p !== localPhotos[0]));
         }}
       />
     ) : null,

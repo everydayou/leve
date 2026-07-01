@@ -1,24 +1,20 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
-import { findByName } from '../../domain/pantry';
-import { Button, LabeledInput, NumberField, Icon, FilterPills, Sheet, EmptyState, MeasurementTypeSelector } from '../kit';
+
+import { Button, FilterPills, Sheet, EmptyState, Icon } from '../kit';
 import { Thumb } from '../components/PhotoPicker';
+import { FoodItemFormContent } from '../components/FoodItemForm';
+import type { FoodItemFormValues } from '../components/FoodItemForm';
+
 import { hapticLight } from '../../lib/haptics';
 import type { DayContext } from '../AppShell';
 import type { ShowToast } from '../components/Toaster';
 import type { FoodItem, MeasurementType } from '../../domain/types';
 
-/** Custom delete/trash icon from design spec — uses currentColor */
-function DeleteIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M3.5 5.5H16.5M8.5 9V14M11.5 9V14M5.5 5.5L6.5 16.5H13.5L14.5 5.5M8 5.5V3.5H12V5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
-}
+
 
 export function PantryScreen() {
   const { showToast } = useOutletContext<DayContext>();
@@ -124,45 +120,33 @@ export function PantryScreen() {
   );
 }
 
-/** Add (no item) or edit (item provided) a pantry food. */
+/** Add (no item) or edit (item provided) a pantry food — uses shared FoodItemFormContent. */
 function FoodItemForm({ item, items, onClose, showToast }: {
   item?: FoodItem;
   items: FoodItem[];
   onClose: () => void;
   showToast?: ShowToast;
 }) {
-  const [name, setName] = useState(item?.name ?? '');
-  const [mt, setMt] = useState<MeasurementType>(item?.measurementType ?? 'per_100g');
-  const [cal, setCal] = useState(item ? String(item.calories) : '');
-  const [pro, setPro] = useState(item ? String(item.protein) : '');
-  const [carb, setCarb] = useState(item ? String(item.carbs) : '');
-  const [fib, setFib] = useState(item ? String(item.fiber) : '');
-  const [fat, setFat] = useState(item ? String(item.fat) : '');
-  const [srvG, setSrvG] = useState(
-    item?.measurementType === 'per_serving' && (item?.referenceAmount ?? 1) > 1
-      ? String(item.referenceAmount)
-      : ''
-  );
-  const [photo, setPhoto] = useState<string | undefined>(item?.photo);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
-  // Block a name that already belongs to a DIFFERENT pantry item (so renaming
-  // an item to its own current name is fine).
-  const duplicate = findByName(items, name, item?.id);
-  const blocked = !!duplicate;
-
-  async function save() {
-    if (!name.trim() || blocked) return;
+  async function handleSave(values: FoodItemFormValues) {
     await repos.foodItems.put({
-      id: item?.id ?? newId(), name: name.trim(), measurementType: mt,
-      referenceAmount: mt === 'per_100g' ? 100 : (+srvG || 1),
-      calories: +cal || 0, protein: +pro || 0, carbs: +carb || 0, fiber: +fib || 0, fat: +fat || 0,
-      photo, isArchived: item?.isArchived ?? false,
+      id: item?.id ?? newId(),
+      name: values.name,
+      measurementType: values.measurementType,
+      referenceAmount: values.referenceAmount,
+      calories: values.calories,
+      protein:  values.protein,
+      carbs:    values.carbs,
+      fiber:    values.fiber,
+      fat:      values.fat,
+      photo:    values.photo,
+      isArchived: item?.isArchived ?? false,
     });
     onClose();
   }
-  async function doDelete() {
+
+  async function handleDelete() {
     if (!item) return;
     const snapshot = item;
     await repos.foodItems.remove(snapshot.id);
@@ -170,82 +154,28 @@ function FoodItemForm({ item, items, onClose, showToast }: {
     onClose();
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    const reader = new FileReader();
-    reader.onload = () => setPhoto(reader.result as string);
-    reader.readAsDataURL(file);
-  }
-
   return (
     <>
       <Sheet title={item ? 'Edit food item' : 'New food item'} onClose={onClose} forceExpanded>
-        <div className="space-y-3 pb-4">
-          {/* Photo — full-width with trash + "Change photo" overlay, matching EditOverlay style */}
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-          {photo ? (
-            <div className="flex justify-center"> {/* 256×256 centered square — matches EditOverlay style */}
-              <div className="h-64 w-64 rounded-[20px] shadow-card-lg">
-              <div className="relative h-full w-full overflow-hidden rounded-[20px]">
-                <img src={photo} alt="Food" className="h-full w-full object-cover" />
-                <button
-                  onClick={() => setPhoto(undefined)}
-                  className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white active:bg-black/70"
-                  aria-label="Remove photo"
-                >
-                  <DeleteIcon size={16} />
-                </button>
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20 active:bg-black/40"
-                >
-                  Change photo
-                </button>
-              </div>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-border-field py-4 text-subhead font-medium text-content-secondary active:border-accent active:text-accent"
-            >
-              <Icon name="camera" size={18} strokeWidth={1.8} />
-              Add photo
-            </button>
-          )}
-
-          <LabeledInput label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Homemade granola" invalid={blocked} />
-          {blocked && (
-            <p className="text-caption text-danger">This name already exists in your pantry</p>
-          )}
-          <MeasurementTypeSelector value={mt} onChange={setMt} />
-          {mt === 'per_serving' && (
-            <NumberField label="Serving size (g)" value={srvG} set={setSrvG} centerAt={100} />
-          )}
-          <div className="grid grid-cols-2 gap-2">
-            <NumberField label="Calories" value={cal} set={setCal} max={5000} step={1} />
-            <NumberField label="Protein (g)" value={pro} set={setPro} max={500} step={1} />
-            <NumberField label="Carbs (g)" value={carb} set={setCarb} max={800} step={1} />
-            <NumberField label="Fiber (g)" value={fib} set={setFib} max={200} step={1} />
-            <NumberField label="Fat (g)" value={fat} set={setFat} max={400} step={1} />
-          </div>
-
-          {/* Non-sticky Save + Cancel (cancel = Sheet's × button, but inline for clarity) */}
-          <Button size="lg" onClick={save} disabled={!name.trim() || blocked}>
-            {item ? 'Save changes' : 'Save to pantry'}
-          </Button>
-          {item && (
-            <Button variant="outline" onClick={() => setConfirmingDelete(true)}>Delete food</Button>
-          )}
-          <button
-            onClick={onClose}
-            className="w-full py-3 text-body font-semibold text-content active:opacity-70"
-          >
-            Cancel
-          </button>
-        </div>
+        <FoodItemFormContent
+          mode={item ? 'pantry-edit' : 'pantry-new'}
+          initial={item ? {
+            name:              item.name,
+            measurementType:   item.measurementType,
+            referenceAmount:   item.referenceAmount,
+            calories:          item.calories,
+            protein:           item.protein,
+            carbs:             item.carbs,
+            fiber:             item.fiber,
+            fat:               item.fat,
+            photo:             item.photo,
+          } : undefined}
+          existingItems={items}
+          existingItemId={item?.id}
+          onSave={handleSave}
+          onCancel={onClose}
+          onDelete={item ? () => setConfirmingDelete(true) : undefined}
+        />
       </Sheet>
       {confirmingDelete && item && (
         <Sheet title="Delete food?" onClose={() => setConfirmingDelete(false)}>
@@ -253,7 +183,7 @@ function FoodItemForm({ item, items, onClose, showToast }: {
             <p className="text-subhead text-content-secondary">
               <span className="font-medium text-content">"{item.name}"</span> will be removed from your pantry. Existing log entries won't be affected.
             </p>
-            <Button variant="destructive" onClick={doDelete}>Delete</Button>
+            <Button variant="destructive" onClick={handleDelete}>Delete</Button>
             <Button variant="outline" onClick={() => setConfirmingDelete(false)}>Cancel</Button>
           </div>
         </Sheet>

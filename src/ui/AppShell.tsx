@@ -4,6 +4,8 @@ import { TabBar, type ActionType } from './components/TabBar';
 import { AddEntrySheet, type AddEntryTab } from './components/AddEntrySheet';
 import { Toaster, useToast, type ShowToast } from './components/Toaster';
 import { todayISO } from '../data/ids';
+import { PREVIEW } from '../state/repos';
+import { runMealsMigrationIfNeeded } from '../data/mealsMigration';
 
 /** Shape shared with screens via the Outlet context. Today reads/sets the
  *  viewed date here so the + Add-entry sheet logs to the day being viewed
@@ -30,6 +32,14 @@ export function AppShell() {
   // to THIS day, so you can log to past/future days, not only today.
   const [viewedDate, setViewedDate] = useState(todayISO());
   const { toast, showToast, dismissToast } = useToast();
+
+  // One-time data migrations against the real (Dexie) store — round 123's
+  // "Meals in Pantry" foundation. Runs once per device via a localStorage
+  // flag; the preview build boots a fresh in-memory store every load, so
+  // there's nothing to migrate there.
+  useEffect(() => {
+    if (!PREVIEW) void runMealsMigrationIfNeeded();
+  }, []);
   const mainRef = useRef<HTMLElement>(null);
   const fadeRef = useRef<HTMLDivElement>(null);
   // Per-tab scroll position memory: save on scroll, restore on route change.

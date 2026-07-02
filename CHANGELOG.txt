@@ -1,4 +1,135 @@
 ================================================================
+ROUND 123 — MEALS IN PANTRY: FOUNDATION (DATA MODEL, MIGRATION, PANTRY UI) (2026-07-02)
+================================================================
+Files: src/domain/types.ts, src/domain/calc.ts, src/data/repositories.ts,
+       src/data/db.ts, src/data/dexieRepositories.ts, src/data/memoryRepositories.ts,
+       src/data/mealsMigration.ts (NEW), src/data/mealsMigration.test.ts (NEW),
+       src/domain/calc.test.ts, src/state/repos.ts, src/ui/AppShell.tsx,
+       src/ui/kit/MacroSummaryLine.tsx (NEW), src/ui/kit/index.ts,
+       src/ui/components/PantryItemCard.tsx (NEW),
+       src/ui/components/PantryFoodItemDetail.tsx (NEW),
+       src/ui/components/PantryMealDetail.tsx (NEW),
+       src/ui/components/FoodItemForm.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/screens/PantryScreen.tsx
+
+Kickoff of the "meals in pantry" work — a longer, multi-round project scoped
+from Marco's taxonomy doc + detail spec doc + Figma flow exports (Food & meals/
+folder). This round lays the Pantry-side foundation; Day's-log integration
+(logging a Meal, converting an existing Food entry into a Meal, camera/photo/
+describe methods in the meal builder) is intentionally deferred to a follow-up
+round rather than risking a rushed change to the daily-use logging flow.
+
+── DOMAIN MODEL: MEAL AS A REAL PANTRY ENTITY ───────────────────────────────
+Previously "meal" only existed as FoodEntry.mealData — a display-only snapshot
+attached to ONE Day's-log entry, never a reusable Pantry object. Added:
+  - Meal { id, name, photo?, items: MealFoodItem[], isArchived } — new type.
+  - MealFoodItem { id, foodItemId, quantity } — one ingredient's amount inside
+    a Meal, same unit-basis convention as FoodEntry.quantity.
+  - MealItem gains foodItemId? — lets a Day's-log Meal item link back to its
+    Pantry Food item (previous mealData items were always frozen snapshots
+    with no link back, even when originally picked from the Pantry).
+  - FoodEntry gains mealId? — linked/local distinction for Meal entries,
+    mirroring foodItemId's role for plain Food entries.
+A Meal never stores its own macros: calc.ts's new mealNutritionFor(meal,
+itemsById) always sums live from the current Food items, so editing an
+ingredient's macros anywhere instantly updates every Meal (and, once an item
+carries foodItemId, every Meal entry) that uses it — same philosophy as
+effectiveNutrition() already applied to plain Food entries.
+effectiveNutrition() extended: Meal entries (mealData present) now recompute
+per-item — items with foodItemId pull live from the current pantry item;
+items without one (local/unlinked, or the pantry item was later deleted) fall
+back to their own stored macro values. Existing local meal entries are
+numerically unaffected (verified via new calc.test.ts cases): they simply sum
+the same stored per-item values that used to sit frozen in entry.snapshot.
+
+── REPOSITORIES / DB ────────────────────────────────────────────────────────
+MealRepo interface (all/put/remove) added to Repositories + ExportBundle.
+Dexie schema bumped to v2, adding a `meals` table and a `mealId` index on
+foodEntries. memoryRepositories gets the same shape for the preview build.
+
+── LEGACY DATA MIGRATION (src/data/mealsMigration.ts, NEW) ──────────────────
+Before Meals existed, logging 2+ basket items together and ticking "Save to
+pantry" collapsed the whole group into a single per-serving Food item holding
+the SUMMED macros (see round ≤122's logBasket). One-time migration, gated by
+a localStorage flag, run once from AppShell's mount effect (real/Dexie store
+only — the preview build boots a fresh store every load, nothing to migrate):
+  - Finds Food items shaped like a collapsed meal (per_serving, referenceAmount
+    1) that are referenced by a FoodEntry carrying mealData with >=2 items.
+  - Creates one real Food item per recovered ingredient (dedup by name against
+    existing pantry items), combines them into a new Meal, re-points every
+    owning entry at the Meal (mealId set, per-item foodItemId stamped), and
+    ARCHIVES (never deletes) the old collapsed Food item so nothing referencing
+    it by id can break.
+  - Conservative by design: if fewer than 2 ingredients can be recovered from
+    mealData, the Food item is left exactly as it was.
+Covered by src/data/mealsMigration.test.ts against memoryRepositories
+(migration function takes an injectable Repositories, defaulting to the real
+app repos, specifically so it's unit-testable without a live IndexedDB).
+
+── PANTRY UI ─────────────────────────────────────────────────────────────────
+PantryScreen: the All / per 100g / per serving filter pills are replaced with
+Food items / Meals — the meaningful split now is what KIND of reusable object
+something is, not its serving-unit setup (per Marco's call — simpler than a
+separate Items/Meals tab). Meal rows show live totals via mealNutritionFor().
+Tapping a Food item no longer jumps straight to the edit form — it now opens
+a new Food item detail sheet (PantryFoodItemDetail.tsx): photo, name/kcal,
+macro line, a permanently-disabled serving stepper (Pantry defines properties,
+never consumed quantity — spec §10), edit pencil, top-right delete, and a
+"Create a meal" module. The Manual method is fully wired (opens "Add item to
+meal", creates the second Food item, creates the Meal, hands off to Meal
+detail); Camera/Photo/Describe are visually present but show a "coming soon"
+toast — wiring them up reuses scan/describe infra that currently lives
+un-exported inside AddEntrySheet.tsx, left for a follow-up round.
+New PantryMealDetail.tsx: editable meal name, one card per Food item (via the
+new shared PantryItemCard), "+ Add a new food item", card-level remove (hidden
+when only one item remains — a Meal can never have zero items), and a
+top-right delete for the whole Meal. Removing an item / deleting a Meal both
+show an undo toast; editing an item's Food item goes through the same
+confirm-before-update flow as Food item detail.
+
+── EDIT-CONFIRMATION ON PANTRY FOOD ITEM UPDATES ────────────────────────────
+Editing an existing Food item (from either Food item detail or a Meal's
+per-item edit) now shows a sheet-on-sheet confirmation — "This will update all
+records using this food item." / Update food item / Cancel — before the write
+actually happens, per the spec's disclaimer copy. FoodItemFormContent's own
+CTA copy updated to match the spec's copy tables: pantry-new "Save food"
+(was "Save to pantry"), pantry-edit "Update food item" (was "Save changes").
+Added mode 'meal-add-item' ("Save & add to meal" / loading "Saving & adding to
+meal") for the new-item-inside-a-meal form. onSave may now return a Promise;
+the form shows its own saving/loading label while awaiting it.
+
+── SHARED COMPONENTS ────────────────────────────────────────────────────────
+MacroSummaryLine (new kit atom): the "Protein 3.5g · Carbs 30g · Fibre 1g ·
+Fat 6g" pill, one formatting rule shared by Day's-log basket cards AND the new
+Pantry cards. BasketCard (AddEntrySheet.tsx, used by both the fresh-log basket
+and LogEntrySheet's edit-existing-entry basket) now shows this macro line
+between the name/kcal row and the stepper row, so a card's full nutrition is
+visible without opening its editor (Marco's screenshot ask, this round).
+PantryItemCard (new): the Pantry-side "Food item card" (spec §9). Deliberately
+NOT a forced unification with Day's-log's BasketCard — the two surfaces have
+opposite stepper rules (Pantry always disabled; Day's log always enabled) and
+different trash semantics (remove-from-meal vs delete-whole-object vs
+remove-from-basket). They share macro-line formatting and Icon affordances;
+a fuller "one basket-view component, many touch points" unification (Marco's
+point re: FoodItemForm's own multi-surface pattern) is a good candidate for a
+dedicated follow-up round rather than a side-effect of this one, given
+BasketCard is Marco's live daily-use surface with no device in the loop here.
+
+── KNOWN GAPS AFTER THIS ROUND (see PROJECT-CONTEXT.txt) ────────────────────
+Day's-log integration: logBasket's "Save to pantry" for a multi-item basket
+still collapses into one Food item rather than creating a real linked Meal;
+"Save changes" vs "Log meal" CTA + existing-entry-to-Meal conversion need
+wiring to mealId once this lands. Meal nutrition summary (dedicated macro
+breakdown, not just per-item cards) — noted as a TODO, not built. Camera/
+Photo/Describe methods in the Pantry meal builder — deferred.
+
+tsc: clean. lint: clean. vitest: 30 passed, 8 skipped (pre-existing skips,
+unrelated to this round). `npm run build` (vite) also verified clean in the
+Cowork sandbox this round, despite the earlier ENV NOTE about rollup — still
+run the full `npm install && npm test && npm run build && npm run ios:sync`
+verification on your Mac before trusting this on-device, per usual.
+
+================================================================
 ROUND 122 — UNIFIED FOOD ITEM FORM, BASKET POLISH & COLLAGE FIXES (2026-07-02)
 ================================================================
 Files: src/ui/components/AddEntrySheet.tsx,

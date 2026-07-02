@@ -86,6 +86,29 @@ export interface FoodItem {
   isArchived: boolean;
 }
 
+/** One Food item's quantity inside a reusable Pantry Meal.
+ *  Quantity is in the SAME unit basis as the referenced FoodItem's
+ *  referenceAmount (grams for per_100g, servings for per_serving) — same
+ *  convention as FoodEntry.quantity. */
+export interface MealFoodItem {
+  id: string;
+  foodItemId: string;
+  quantity: number;
+}
+
+/** A reusable combination of Food items, saved in the Pantry (round 123+).
+ *  Meal = reusable source object, mirrors FoodItem's role for single foods.
+ *  Nutrition is never stored here — it's always computed live from the
+ *  current Food items via mealNutritionFor(), so editing an ingredient's
+ *  macros instantly updates every Meal (and every Meal entry) that uses it. */
+export interface Meal {
+  id: string;
+  name: string;
+  photo?: string;
+  items: MealFoodItem[];
+  isArchived: boolean;
+}
+
 export interface NutritionSnapshot {
   calories: number;
   protein: number;
@@ -110,6 +133,10 @@ export interface MealItem {
   selected: boolean;
   /** Current serving multiplier (default 1). Stored so LogEntrySheet can restore qty on re-open. */
   qty?: number;
+  /** Present when this item is linked to a reusable Pantry Food item (round 123+).
+   *  Lets a Day's-log Meal entry live-recompute from the current Food item macros,
+   *  same as a plain Food entry does via effectiveNutrition(). Absent = local/unlinked item. */
+  foodItemId?: string;
 }
 
 /** One logged food line on a day. Stores a SNAPSHOT of computed nutrition
@@ -125,8 +152,13 @@ export interface FoodEntry {
   isManual: boolean;
   snapshot: NutritionSnapshot;
   createdAt: string; // ISO timestamp
-  /** Present only when this entry was logged from a multi-item photo scan. */
+  /** Present when this entry groups multiple food items (multi-item photo scan,
+   *  or a logged/converted Meal). */
   mealData?: { name: string; photo?: string; photos?: string[]; items: MealItem[] };
+  /** Present when this Meal entry is linked to a reusable Pantry Meal (round 123+).
+   *  Mirrors foodItemId's linked/local distinction, but for Meals: a linked Meal
+   *  entry's items can each live-recompute from their current Pantry Food item. */
+  mealId?: string;
 }
 
 export interface ActivityEntry {

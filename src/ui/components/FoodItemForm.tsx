@@ -27,7 +27,7 @@ function DeletePhotoIcon() {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type FoodItemFormMode = 'pantry-new' | 'pantry-edit' | 'basket-edit' | 'basket-manual';
+export type FoodItemFormMode = 'pantry-new' | 'pantry-edit' | 'basket-edit' | 'basket-manual' | 'meal-add-item';
 
 export type FoodItemFormValues = {
   name: string;
@@ -73,7 +73,7 @@ export function FoodItemFormContent({
   initial?: FoodItemFormInitial;
   existingItems?: FoodItem[];
   existingItemId?: string;
-  onSave: (values: FoodItemFormValues) => void;
+  onSave: (values: FoodItemFormValues) => void | Promise<void>;
   onCancel: () => void;
   onDelete?: () => void;
   onPhotoChange?: (url: string | undefined) => void;
@@ -92,10 +92,11 @@ export function FoodItemFormContent({
   const [fat, setFat]   = useState(initial.fat      != null ? String(Math.round(initial.fat      * 10) / 10) : '');
   const [photo, setPhoto]           = useState<string | undefined>(initial.photo);
   const [saveToPantry, setSaveToPantry] = useState(false);
+  const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const isSrv        = mType === 'per_serving';
-  const isPantryMode = mode === 'pantry-new' || mode === 'pantry-edit';
+  const isPantryMode = mode === 'pantry-new' || mode === 'pantry-edit' || mode === 'meal-add-item';
   const isBasketEdit = mode === 'basket-edit';
 
   const showSaveToPantry =
@@ -105,13 +106,21 @@ export function FoodItemFormContent({
     isPantryMode || ((mode === 'basket-manual' || isBasketEdit) && saveToPantry);
   const duplicate = checkDuplicate ? findByName(existingItems, name, existingItemId) : undefined;
   const blocked   = !!duplicate;
-  const canSave   = name.trim().length > 0 && !blocked;
+  const canSave   = name.trim().length > 0 && !blocked && !saving;
 
-  const ctaLabel =
-    mode === 'pantry-new'  ? 'Save to pantry' :
-    mode === 'pantry-edit' ? 'Save changes'   :
-    mode === 'basket-edit' ? 'Save'            :
-    /* basket-manual */      'Add to meal';
+  const ctaLabel = saving ? (
+    mode === 'pantry-new'     ? 'Saving food'            :
+    mode === 'pantry-edit'    ? 'Updating food item'     :
+    mode === 'meal-add-item'  ? 'Saving & adding to meal' :
+    mode === 'basket-edit'    ? 'Saving'                  :
+    /* basket-manual */         'Adding'
+  ) : (
+    mode === 'pantry-new'     ? 'Save food'              :
+    mode === 'pantry-edit'    ? 'Update food item'        :
+    mode === 'meal-add-item'  ? 'Save & add to meal'      :
+    mode === 'basket-edit'    ? 'Save'                    :
+    /* basket-manual */         'Add to meal'
+  );
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -131,20 +140,25 @@ export function FoodItemFormContent({
     onPhotoChange?.(undefined);
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!canSave) return;
-    onSave({
-      name: name.trim(),
-      measurementType: mType,
-      referenceAmount: isSrv ? (+srvG || 1) : 100,
-      calories: +cal  || 0,
-      protein:  +pro  || 0,
-      carbs:    +carb || 0,
-      fiber:    +fib  || 0,
-      fat:      +fat  || 0,
-      photo,
-      saveToPantry: showSaveToPantry ? saveToPantry : false,
-    });
+    setSaving(true);
+    try {
+      await onSave({
+        name: name.trim(),
+        measurementType: mType,
+        referenceAmount: isSrv ? (+srvG || 1) : 100,
+        calories: +cal  || 0,
+        protein:  +pro  || 0,
+        carbs:    +carb || 0,
+        fiber:    +fib  || 0,
+        fat:      +fat  || 0,
+        photo,
+        saveToPantry: showSaveToPantry ? saveToPantry : false,
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

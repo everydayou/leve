@@ -1,5 +1,5 @@
 import type {
-  FoodItem, FoodEntry, ActivityEntry, NutritionSnapshot,
+  FoodItem, FoodEntry, ActivityEntry, NutritionSnapshot, Meal,
 } from './types';
 
 /** Atwater-style constant: ~7700 kcal per kg of body mass. */
@@ -21,12 +21,43 @@ export function nutritionFor(item: FoodItem, quantity: number): NutritionSnapsho
   };
 }
 
+/** Sum of NutritionSnapshots — used for Meal totals. */
+function sumSnapshots(list: NutritionSnapshot[]): NutritionSnapshot {
+  return list.reduce(
+    (acc, n) => ({
+      calories: round(acc.calories + n.calories),
+      protein: round((acc.protein + n.protein) * 10) / 10,
+      carbs: round((acc.carbs + n.carbs) * 10) / 10,
+      fiber: round((acc.fiber + n.fiber) * 10) / 10,
+      fat: round((acc.fat + n.fat) * 10) / 10,
+    }),
+    { calories: 0, protein: 0, carbs: 0, fiber: 0, fat: 0 },
+  );
+}
+
+/** A reusable Pantry Meal's total nutrition, computed LIVE from its current
+ *  Food items — a Meal never stores its own macros (round 123+). If a
+ *  referenced Food item is missing (deleted), that item contributes 0. */
+export function mealNutritionFor(meal: Meal, itemsById: Map<string, FoodItem>): NutritionSnapshot {
+  return sumSnapshots(
+    meal.items.map((mi) => {
+      const item = itemsById.get(mi.foodItemId);
+      return item ? nutritionFor(item, mi.quantity) : { calories: 0, protein: 0, carbs: 0, fiber: 0, fat: 0 };
+    }),
+  );
+}
+
 /** The nutrition a FoodEntry actually contributes right now.
  *
  *  Pantry-backed entries (have a foodItemId + quantity) are recomputed LIVE
  *  from the CURRENT pantry item, so editing a pantry food's macros instantly
  *  reflects everywhere it was logged. Manual entries (no pantry item) keep
  *  their stored snapshot — there's nothing live to recompute them from.
+ *
+ *  Meal entries (mealData present) recompute per-item: any item carrying a
+ *  foodItemId is pulled live from the current pantry item; items without one
+ *  (local/unlinked, or the pantry item was later deleted) fall back to their
+ *  own stored macro values within mealData.
  *
  *  `itemsById` maps FoodItem.id → FoodItem. If an entry's item is missing
  *  (e.g. deleted from the pantry) we fall back to the stored snapshot so the
@@ -35,6 +66,24 @@ export function effectiveNutrition(
   entry: FoodEntry,
   itemsById?: Map<string, FoodItem>,
 ): NutritionSnapshot {
+  if (entry.mealData && itemsById) {
+    return sumSnapshots(
+      entry.mealData.items.map((mi) => {
+        const qty = mi.qty ?? 1;
+        if (mi.foodItemId) {
+          const item = itemsById.get(mi.foodItemId);
+          if (item) return nutritionFor(item, qty);
+        }
+        return {
+          calories: round(mi.calories * qty),
+          protein: round(mi.protein * qty * 10) / 10,
+          carbs: round(mi.carbs * qty * 10) / 10,
+          fiber: round(mi.fiber * qty * 10) / 10,
+          fat: round(mi.fat * qty * 10) / 10,
+        };
+      }),
+    );
+  }
   if (entry.foodItemId && entry.quantity != null && itemsById) {
     const item = itemsById.get(entry.foodItemId);
     if (item) return nutritionFor(item, entry.quantity);

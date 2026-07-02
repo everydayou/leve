@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { nutritionFor, summarizeDay, calcDigestionCalories, KCAL_PER_KG } from './calc';
-import type { FoodItem, FoodEntry, ActivityEntry } from './types';
+import { nutritionFor, effectiveNutrition, mealNutritionFor, itemsByIdMap, summarizeDay, calcDigestionCalories, KCAL_PER_KG } from './calc';
+import type { FoodItem, FoodEntry, ActivityEntry, Meal } from './types';
 
 const chicken: FoodItem = {
   id: 'c', name: 'Chicken breast', measurementType: 'per_100g', referenceAmount: 100,
@@ -76,4 +76,70 @@ describe('calcDigestionCalories', () => {
 
 it('KCAL_PER_KG is the 7700 constant', () => {
   expect(KCAL_PER_KG).toBe(7700);
+});
+
+describe('mealNutritionFor', () => {
+  it('sums a Meal\'s current Food items live', () => {
+    const items = itemsByIdMap([chicken, bar]);
+    const meal: Meal = {
+      id: 'm', name: 'Chicken + bar', isArchived: false,
+      items: [
+        { id: 'mi1', foodItemId: 'c', quantity: 200 }, // 330 kcal, 62g protein
+        { id: 'mi2', foodItemId: 'b', quantity: 1 },   // 210 kcal, 20g protein
+      ],
+    };
+    const n = mealNutritionFor(meal, items);
+    expect(n.calories).toBe(540);
+    expect(n.protein).toBe(82);
+  });
+
+  it('treats a missing (deleted) Food item as zero, not a crash', () => {
+    const items = itemsByIdMap([chicken]);
+    const meal: Meal = {
+      id: 'm', name: 'Chicken + ???', isArchived: false,
+      items: [
+        { id: 'mi1', foodItemId: 'c', quantity: 100 },
+        { id: 'mi2', foodItemId: 'missing', quantity: 1 },
+      ],
+    };
+    expect(mealNutritionFor(meal, items).calories).toBe(165);
+  });
+});
+
+describe('effectiveNutrition — Meal entries (round 123)', () => {
+  it('recomputes a linked Meal item live from the current Food item', () => {
+    const items = itemsByIdMap([chicken, bar]);
+    const entry: FoodEntry = {
+      id: 'e1', date: '2026-07-02', isManual: false, createdAt: '',
+      snapshot: { calories: 999, protein: 999, carbs: 999, fiber: 999, fat: 999 }, // stale on purpose
+      mealId: 'm',
+      mealData: {
+        name: 'Chicken + bar',
+        items: [
+          { name: 'Chicken breast', estimatedGrams: 200, calories: 330, protein: 62, carbs: 0, fiber: 0, fat: 7.2, confidence: 'high', selected: true, foodItemId: 'c', qty: 200 },
+          { name: 'Protein bar', estimatedGrams: 1, calories: 210, protein: 20, carbs: 24, fiber: 9, fat: 7, confidence: 'high', selected: true, foodItemId: 'b', qty: 1 },
+        ],
+      },
+    };
+    const n = effectiveNutrition(entry, items);
+    // Recomputed from current pantry macros, NOT the stale stored snapshot.
+    expect(n.calories).toBe(540);
+    expect(n.protein).toBe(82);
+  });
+
+  it('falls back to each item\'s own stored macros when unlinked (local Meal item)', () => {
+    const entry: FoodEntry = {
+      id: 'e2', date: '2026-07-02', isManual: true, createdAt: '',
+      snapshot: { calories: 100, protein: 1, carbs: 1, fiber: 1, fat: 1 },
+      mealData: {
+        name: 'One-off combo',
+        items: [
+          { name: 'Homemade thing', estimatedGrams: 1, calories: 250, protein: 10, carbs: 20, fiber: 2, fat: 8, confidence: 'high', selected: true },
+        ],
+      },
+    };
+    const n = effectiveNutrition(entry, itemsByIdMap([]));
+    expect(n.calories).toBe(250);
+    expect(n.protein).toBe(10);
+  });
 });

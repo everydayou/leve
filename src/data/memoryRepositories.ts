@@ -7,7 +7,7 @@
 // opt-in via seedMemoryDemo() — used by tests, not by the shipped demo.
 import type { Repositories, ExportBundle } from './repositories';
 import type {
-  User, Goal, FoodItem, FoodEntry, ActivityEntry, WeightEntry,
+  User, Goal, FoodItem, FoodEntry, ActivityEntry, WeightEntry, Meal,
 } from '../domain/types';
 import { nutritionFor } from '../domain/calc';
 import { newId, todayISO, addDays } from './ids';
@@ -24,6 +24,7 @@ interface Store {
   user: User | undefined;
   goals: Goal[];
   foodItems: FoodItem[];
+  meals: Meal[];
   foodEntries: FoodEntry[];
   activities: ActivityEntry[];
   weights: WeightEntry[];
@@ -33,6 +34,7 @@ const store: Store = {
   user: undefined,
   goals: [],
   foodItems: [],
+  meals: [],
   foodEntries: [],
   activities: [],
   weights: [],
@@ -43,6 +45,7 @@ export function resetMemory(): void {
   store.user = { id: 'me', heightCm: 0, units: 'kg', bmr: 0 };
   store.goals = [];
   store.foodItems = [];
+  store.meals = [];
   store.foodEntries = [];
   store.activities = [];
   store.weights = [];
@@ -117,6 +120,13 @@ export const memoryRepositories: Repositories = {
     put: (i) => { store.foodItems = [...store.foodItems.filter((x) => x.id !== i.id), i]; return done(); },
     remove: (id) => { store.foodItems = store.foodItems.filter((x) => x.id !== id); return done(); },
   },
+  meals: {
+    all: (inc = false) => Promise.resolve(
+      store.meals.filter((m) => inc || !m.isArchived).sort((a, b) => a.name.localeCompare(b.name)),
+    ),
+    put: (m) => { store.meals = [...store.meals.filter((x) => x.id !== m.id), m]; return done(); },
+    remove: (id) => { store.meals = store.meals.filter((x) => x.id !== id); return done(); },
+  },
   foodEntries: {
     byDate: (d) => Promise.resolve(store.foodEntries.filter((e) => e.date === d)),
     byDateRange: (start, end) => Promise.resolve(store.foodEntries.filter((e) => e.date >= start && e.date <= end)),
@@ -153,7 +163,7 @@ export const memoryRepositories: Repositories = {
   },
   exportAll: (): Promise<ExportBundle> => Promise.resolve({
     version: 1, exportedAt: new Date().toISOString(),
-    user: store.user, goals: store.goals, foodItems: store.foodItems,
+    user: store.user, goals: store.goals, foodItems: store.foodItems, meals: store.meals,
     foodEntries: store.foodEntries, activityEntries: store.activities, weightEntries: store.weights,
   }),
 };

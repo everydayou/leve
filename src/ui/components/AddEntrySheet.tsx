@@ -15,7 +15,7 @@ import { hapticLight } from '../../lib/haptics';
 import {
   SegmentedControl, Button, LabeledInput, NumberField, WheelPicker,
   Icon, Sheet, useSheetSetFooter, useSheetSetOverlay, useOverlaySetFooter,
-  useSheetSetOverlayBack, OverlayNav, ImageHero,
+  useSheetSetOverlayBack, OverlayNav, ImageHero, MacroSummaryLine,
 } from '../kit';
 import type { ShowToast } from './Toaster';
 import type { FoodItem, FoodEntry, MealItem, NutritionSnapshot } from '../../domain/types';
@@ -953,10 +953,11 @@ function BasketCard({
       onClick={onEdit}
       style={{ cursor: 'pointer' }}
     >
-      <div className="flex items-center gap-2 mb-2.5">
+      <div className="flex items-center gap-2 mb-2">
         <span className="flex-1 truncate text-callout text-content">{item.name}</span>
         <span className="shrink-0 text-callout font-bold text-content">{nutrition.calories} kcal</span>
       </div>
+      <MacroSummaryLine nutrition={nutrition} className="mb-2.5" />
       {/* Bottom row: stepper (left) + action buttons (right) */}
       <div className="flex items-center justify-between">
         <BasketStepper item={item} qty={item.qty} onChange={onQtyChange} onRemove={onRemove} />

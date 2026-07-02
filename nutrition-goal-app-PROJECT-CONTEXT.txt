@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-02 — Round 122 (Unified FoodItemForm, basket polish, save-to-pantry wiring, collage fixes)
+Last updated: 2026-07-02 — Round 123 (Meals in Pantry — foundational data model, migration, and Pantry UI; Day's-log integration still to come)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -163,9 +163,15 @@ changes, on the Mac: `npm install` → `npm test` → `npm run build` →
 KNOWN GAPS
 ----------------------------------------------------------------
 HIGH:
-- MEALS IN PANTRY (DEFERRED): Marco wants meals saveable to pantry as a new
-  entity type, with pantry split into Items/Meals tabs. Discussed r122;
-  deferred pending design decisions (data model, logging behaviour, edit UX).
+- MEALS IN PANTRY — DAY'S-LOG INTEGRATION (round 123 landed the foundation:
+  Meal type, MealRepo, live mealNutritionFor(), legacy-data migration, and
+  full Pantry UI — Food item detail w/ Create-a-meal, Meal detail. Still to
+  do: logBasket's "Save to pantry" for a multi-item basket should create a
+  real linked Meal instead of collapsing into one Food item; "Log meal" /
+  "Save changes" CTAs + existing-Food-entry-to-Meal conversion need wiring to
+  FoodEntry.mealId; Camera/Photo/Describe methods in the Pantry meal builder
+  (Manual-only for now) need the scan/describe helpers currently un-exported
+  inside AddEntrySheet.tsx pulled out and shared).
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
 
@@ -274,6 +280,41 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 123 — MEALS IN PANTRY: FOUNDATION (2026-07-02)
+Files: src/domain/types.ts, src/domain/calc.ts, src/data/repositories.ts,
+       src/data/db.ts, src/data/{dexie,memory}Repositories.ts,
+       src/data/mealsMigration.ts (new), src/state/repos.ts, src/ui/AppShell.tsx,
+       src/ui/kit/MacroSummaryLine.tsx (new), src/ui/components/PantryItemCard.tsx
+       (new), src/ui/components/Pantry{FoodItemDetail,MealDetail}.tsx (new),
+       src/ui/components/FoodItemForm.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/screens/PantryScreen.tsx
+- Meal is now a real Pantry entity: Meal { id, name, photo?, items:
+  MealFoodItem[], isArchived }, MealRepo, Dexie v2 (`meals` table). Nutrition
+  is never stored on a Meal — mealNutritionFor() always sums live from the
+  current Food items, same philosophy as effectiveNutrition() for Food
+  entries. effectiveNutrition() extended to recompute linked Meal-entry items
+  live too (MealItem.foodItemId is new); unlinked/local items keep falling
+  back to their own stored macros — verified numerically unchanged for all
+  existing meal entries via new calc.test.ts cases.
+- One-time migration (mealsMigration.ts): converts legacy "collapsed
+  meal-as-single-Food-item" Pantry entries (from pre-123 Save-to-pantry) into
+  real Meals with proper linked ingredients; archives (never deletes) the old
+  collapsed item; conservative — leaves anything it can't recover >=2
+  ingredients for untouched. Covered by mealsMigration.test.ts.
+- PantryScreen: All/per100g/perserving pills replaced with Food items/Meals.
+  New PantryFoodItemDetail (photo/macros/disabled stepper/edit-with-confirm/
+  delete/Create-a-meal module) and PantryMealDetail (item cards, add/remove
+  item, rename, delete whole meal) sheets. Edit-confirmation dialog
+  ("This will update all records using this food item.") added before any
+  Pantry Food item update commits.
+- BasketCard (Day's-log basket, both fresh-log and edit-existing-entry) now
+  shows a macro-line row via new shared MacroSummaryLine kit atom.
+- Day's-log integration (logging/converting to a real linked Meal, Camera/
+  Photo/Describe in the Pantry meal builder) intentionally deferred to a
+  follow-up round — see Known Gaps.
+- tsc: clean. lint: clean. vitest: 30 passed (8 pre-existing skips). `npm run
+  build` also verified clean in the Cowork sandbox this round.
+
 ROUND 122 — UNIFIED FOOD ITEM FORM, BASKET POLISH & COLLAGE FIXES (2026-07-02)
 Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/FoodItemForm.tsx (new),
        src/ui/screens/PantryScreen.tsx, src/ui/kit/ImageHero.tsx
@@ -303,19 +344,26 @@ Files: src/ui/components/AddEntrySheet.tsx, src/ui/kit/FloatingTabBar.tsx,
 - PantryScreen: descender fix (leading-[1.2]).
 - tsc: clean. lint: clean.
 
-ROUND 119 — MULTI-PHOTO, MEAL NAME FIELD, CHANGE BUTTON SCOPING (2026-06-30)
-Files: src/domain/types.ts, src/ui/components/AddEntrySheet.tsx
-Commits: d76f30e, 31c818c
-- types.ts: mealData gains photos?: string[] (backward-compat).
-- FoodForm logBasket: saves photos[]; fallback 'Meal'→timeMealName().
-- LogEntryContent: localPhotos init chain (photos[]→photo→pantryItem.photo);
-  editable meal name (basket≥2); onCorrect scoped to item.sourceId only.
-- tsc: clean. lint: clean.
-
 
 ================================================================
 TODO / FUTURE WORK
 ================================================================
+- MEAL NUTRITION SUMMARY: Meal detail (and the Day's-log Meal review, once
+  that's wired) currently only shows per-item cards — no dedicated
+  total-macro breakdown for the Meal as a whole. Marco flagged this as
+  missing (round 123); needs a design pass (where it sits relative to the
+  per-item cards, whether it matches the existing macro-line style or the
+  Diary's fuller gauge/breakdown treatment).
+- BASKET-VIEW UNIFICATION: FoodItemForm.tsx already unifies the 4 food-item
+  entry/edit surfaces behind one component. The analogous "basket view"
+  (BasketCard/basket rendering in AddEntrySheet.tsx, used across the fresh-log
+  flow and LogEntrySheet's edit-existing-entry flow) is ALREADY shared between
+  those two touch points. The new Pantry-side item card (PantryItemCard,
+  round 123) is intentionally a separate component rather than forced into
+  the same one — opposite stepper rules (Pantry disabled vs Day's-log
+  enabled) and different trash semantics. Worth a dedicated round to decide
+  how far a real "one card, many contexts" unification should go, rather than
+  doing it as a side-effect of an unrelated change.
 - KEYBOARD TOOLBAR (accessory bar): Add a prev/next field navigation bar +
   dismiss button above the keyboard when number/text inputs are focused inside
   sheets. Capacitor InputAccessoryView plugin or a custom UIToolbar injected

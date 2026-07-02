@@ -2,7 +2,7 @@
 // Today: Dexie (IndexedDB). Later: Capacitor SQLite / Withings / HealthKit
 // can implement the same interfaces with zero changes to logic or screens.
 import type {
-  User, Goal, FoodItem, FoodEntry, ActivityEntry, WeightEntry,
+  User, Goal, FoodItem, FoodEntry, ActivityEntry, WeightEntry, Meal,
 } from '../domain/types';
 
 export interface UserRepo {
@@ -18,6 +18,11 @@ export interface GoalRepo {
 export interface FoodItemRepo {
   all(includeArchived?: boolean): Promise<FoodItem[]>;
   put(item: FoodItem): Promise<void>;
+  remove(id: string): Promise<void>;
+}
+export interface MealRepo {
+  all(includeArchived?: boolean): Promise<Meal[]>;
+  put(meal: Meal): Promise<void>;
   remove(id: string): Promise<void>;
 }
 export interface FoodEntryRepo {
@@ -56,6 +61,7 @@ export interface Repositories {
   user: UserRepo;
   goals: GoalRepo;
   foodItems: FoodItemRepo;
+  meals: MealRepo;
   foodEntries: FoodEntryRepo;
   activities: ActivityEntryRepo;
   weights: WeightEntryRepo;
@@ -68,6 +74,7 @@ export interface ExportBundle {
   user: User | undefined;
   goals: Goal[];
   foodItems: FoodItem[];
+  meals: Meal[];
   foodEntries: FoodEntry[];
   activityEntries: ActivityEntry[];
   weightEntries: WeightEntry[];

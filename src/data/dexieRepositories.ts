@@ -21,6 +21,15 @@ export const dexieRepositories: Repositories = {
     put: async (i) => { await db.foodItems.put(i); },
     remove: async (id) => { await db.foodItems.delete(id); },
   },
+  meals: {
+    all: async (includeArchived = false) => {
+      const meals = await db.meals.toArray();
+      const visible = includeArchived ? meals : meals.filter((m) => !m.isArchived);
+      return visible.sort((a, b) => a.name.localeCompare(b.name));
+    },
+    put: async (m) => { await db.meals.put(m); },
+    remove: async (id) => { await db.meals.delete(id); },
+  },
   foodEntries: {
     byDate: (date) => db.foodEntries.where('date').equals(date).toArray(),
     byDateRange: (start, end) => db.foodEntries.where('date').between(start, end, true, true).toArray(),
@@ -63,6 +72,7 @@ export const dexieRepositories: Repositories = {
     user: await db.users.toCollection().first(),
     goals: await db.goals.toArray(),
     foodItems: await db.foodItems.toArray(),
+    meals: await db.meals.toArray(),
     foodEntries: await db.foodEntries.toArray(),
     activityEntries: await db.activityEntries.toArray(),
     weightEntries: await db.weightEntries.toArray(),

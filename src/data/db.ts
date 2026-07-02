@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type {
-  User, Goal, FoodItem, FoodEntry, ActivityEntry, WeightEntry,
+  User, Goal, FoodItem, FoodEntry, ActivityEntry, WeightEntry, Meal,
 } from '../domain/types';
 
 export const PROFILE_KEY = 'ngt-active-profile';
@@ -21,6 +21,7 @@ export class NgtDatabase extends Dexie {
   users!: Table<User, string>;
   goals!: Table<Goal, string>;
   foodItems!: Table<FoodItem, string>;
+  meals!: Table<Meal, string>;
   foodEntries!: Table<FoodEntry, string>;
   activityEntries!: Table<ActivityEntry, string>;
   weightEntries!: Table<WeightEntry, string>;
@@ -32,6 +33,16 @@ export class NgtDatabase extends Dexie {
       goals: 'id, status',
       foodItems: 'id, isArchived, name',
       foodEntries: 'id, date, foodItemId',
+      activityEntries: 'id, date',
+      weightEntries: 'id, date',
+    });
+    // v2 (round 123): Meals — reusable Pantry combinations of Food items.
+    this.version(2).stores({
+      users: 'id',
+      goals: 'id, status',
+      foodItems: 'id, isArchived, name',
+      meals: 'id, isArchived, name',
+      foodEntries: 'id, date, foodItemId, mealId',
       activityEntries: 'id, date',
       weightEntries: 'id, date',
     });

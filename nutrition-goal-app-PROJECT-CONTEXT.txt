@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-02 — Round 126 (Meals in Pantry — photo collage via ImageHero, X-to-discard on new-item overlays, card polish; Day's-log integration + Camera/Photo/Describe still to come)
+Last updated: 2026-07-02 — Round 127 (Meals in Pantry — Day's-log integration landed: logging/saving a Meal now creates a real linked Meal; only Camera/Photo/Describe for the Pantry meal-builder still to come)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -163,15 +163,15 @@ changes, on the Mac: `npm install` → `npm test` → `npm run build` →
 KNOWN GAPS
 ----------------------------------------------------------------
 HIGH:
-- MEALS IN PANTRY — DAY'S-LOG INTEGRATION (round 123 landed the foundation:
-  Meal type, MealRepo, live mealNutritionFor(), legacy-data migration, and
-  full Pantry UI — Food item detail w/ Create-a-meal, Meal detail. Still to
-  do: logBasket's "Save to pantry" for a multi-item basket should create a
-  real linked Meal instead of collapsing into one Food item; "Log meal" /
-  "Save changes" CTAs + existing-Food-entry-to-Meal conversion need wiring to
-  FoodEntry.mealId; Camera/Photo/Describe methods in the Pantry meal builder
-  (Manual-only for now) need the scan/describe helpers currently un-exported
-  inside AddEntrySheet.tsx pulled out and shared).
+- MEALS IN PANTRY — CAMERA/PHOTO/DESCRIBE FOR THE PANTRY MEAL BUILDER: the
+  only piece left from the original meals-in-pantry scope. Round 127 landed
+  Day's-log integration (logBasket + LogEntryContent.save() both create/
+  maintain real linked Meals now). Manual + "Add from pantry" are fully
+  wired in the Pantry meal-builder; Camera/Photo/Describe still toast
+  "coming soon" — needs the scan/describe helpers (captureFromCamera/
+  captureFromLibrary/scanFood/describeFood, DescribeOverlay, runScan)
+  extracted out of AddEntrySheet.tsx, where they're currently coupled to the
+  Day's-log basket's BasketItem[]/sources data model.
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
 
@@ -280,6 +280,28 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 127 — MEALS IN PANTRY: DAY'S-LOG INTEGRATION (2026-07-02)
+Files: src/ui/components/AddEntrySheet.tsx
+- logBasket (fresh log): basket items resolve to real Food item ids —
+  pantry-linked items keep that link regardless of the "Save to pantry"
+  checkbox (previously always dropped once grouped into a meal); new/manual
+  items only get a real Food item created when saved to pantry. Checking
+  "Save to pantry" now creates a real Meal (MealFoodItem entries) + sets
+  FoodEntry.mealId, instead of the old collapsed-single-Food-item behaviour.
+- LogEntryContent.save() (existing entry → Meal): this screen never had a
+  "Save to pantry" option before (spec §8 wasn't wired up) — added, with
+  create-vs-update Meal logic (re-saving an already-linked entry updates the
+  SAME Meal by id, doesn't duplicate) and un-link-without-delete when
+  unchecked. CTA renamed "Save" → "Save changes" per spec.
+- Bugfix: shrinking a meal entry back to 1 item now clears mealId/mealData
+  (previously left stale — pre-existing issue, fixed while in this code).
+- No new automated tests — this is procedural DB-writing UI code, not domain
+  logic; app.preview.test.tsx (which could exercise it end-to-end) is
+  currently skipped in this sandbox. On-device verification matters most
+  for this round.
+- tsc: clean. lint: clean. vitest: 35 passed (unchanged; pre-existing
+  skips). `npm run build` verified clean.
+
 ROUND 126 — MEALS IN PANTRY: PHOTO COLLAGE, X-TO-DISCARD, CARD POLISH (2026-07-02)
 Files: src/ui/kit/Sheet.tsx, src/ui/components/FoodItemForm.tsx,
        MethodCards.tsx, PantryItemCard.tsx, PantryFoodItemDetail.tsx,
@@ -320,28 +342,6 @@ Files: src/domain/calc.ts, src/ui/components/MethodCards.tsx,
   Day's-log basket's BasketItem[]/sources model, needs those helpers
   extracted from AddEntrySheet.tsx first. Follow-up round.
 - tsc: clean. lint: clean. vitest: 33 passed (8 pre-existing skips). `npm run
-  build` verified clean.
-
-ROUND 124 — MEALS IN PANTRY: COMPONENT REUSE & CONSISTENCY PASS (2026-07-02)
-Files: src/ui/components/icons.tsx (new), src/ui/components/MethodCards.tsx
-       (new), src/ui/components/AddEntrySheet.tsx, PantryItemCard.tsx,
-       PantryFoodItemDetail.tsx, PantryMealDetail.tsx, src/ui/screens/PantryScreen.tsx
-- Real component reuse, not just shared styling: DeleteIcon/EditIcon and
-  AddAnotherSection/MethodCards (the Day's-log basket's "+Add another item"
-  chrome + Camera/Photo/Describe/Nutri-scan/Manual row) extracted out of
-  AddEntrySheet.tsx into shared files. Pantry's "Create a meal" / "Add a new
-  food item" now render the ACTUAL shared components (no search/recents, just
-  a "Pantry" methods card) instead of a one-off button grid.
-- PantryItemCard: tap-anywhere-on-card now opens edit, matching BasketCard;
-  uses the same custom Delete/Edit icons as the basket.
-- Editing a Food item from Pantry now slides in right-to-left (useSheetSetOverlay
-  + OverlayNav), same mechanism as the Day's-log basket's EditOverlay, instead
-  of stacking a second bottom Sheet. Confirm-before-update dialog unchanged
-  (separate Sheet-on-Sheet).
-- PantryScreen: All/Food items/Meals pills (All default); row subtitle now
-  "Food item"/"Meal" instead of per-100g/per-serving; "All" merges both into
-  one alphabetical list.
-- tsc: clean. lint: clean. vitest: 30 passed (8 pre-existing skips). `npm run
   build` verified clean.
 
 ================================================================

@@ -18,7 +18,7 @@ import {
   useSheetSetOverlayBack, OverlayNav, ImageHero, MacroSummaryLine,
 } from '../kit';
 import type { ShowToast } from './Toaster';
-import type { FoodItem, FoodEntry, MealItem, NutritionSnapshot } from '../../domain/types';
+import type { FoodItem, FoodEntry, Meal, MealFoodItem, MealItem, NutritionSnapshot } from '../../domain/types';
 import { FoodItemFormContent } from './FoodItemForm';
 import type { FoodItemFormValues } from './FoodItemForm';
 import { DeleteIcon, EditIcon } from './icons';
@@ -612,23 +612,49 @@ function FoodForm({
         },
         { calories: 0, protein: 0, carbs: 0, fiber: 0, fat: 0 } as NutritionSnapshot,
       );
-      const mealItems: MealItem[] = basket.map((item) => {
+      // Resolve each basket item to a real Pantry Food item id where possible:
+      // items already pantry-linked keep that link regardless of the "Save to
+      // pantry" checkbox below (this is what lets even a LOCAL meal entry
+      // live-recompute its pantry-linked items); brand-new items only get a
+      // real Food item created for them when the whole Meal is being saved
+      // (spec §4: unsaved items inside a saved Meal get saved internally too —
+      // we don't want to silently pollute the Pantry with items the user
+      // never asked to save).
+      const resolvedFoodItemIds: (string | undefined)[] = [];
+      for (const item of basket) {
+        if (item.pantryItemId) {
+          resolvedFoodItemIds.push(item.pantryItemId);
+        } else if (saveToPantry) {
+          const newFoodItemId = newId();
+          await repos.foodItems.put({
+            id: newFoodItemId, name: item.name,
+            measurementType: item.measurementType, referenceAmount: item.referenceAmount,
+            calories: item.calories, protein: item.protein, carbs: item.carbs,
+            fiber: item.fiber, fat: item.fat, isArchived: false,
+          });
+          resolvedFoodItemIds.push(newFoodItemId);
+        } else {
+          resolvedFoodItemIds.push(undefined);
+        }
+      }
+
+      const mealItems: MealItem[] = basket.map((item, i) => {
         const n = basketNutrition(item);
         return { name: item.name, estimatedGrams: item.qty, calories: n.calories,
           protein: n.protein, carbs: n.carbs, fiber: n.fiber, fat: n.fat,
-          confidence: 'high' as const, selected: true };
+          confidence: 'high' as const, selected: true, foodItemId: resolvedFoodItemIds[i] };
       });
       const entryId = newId();
 
       if (saveToPantry) {
-        const foodItemId = newId();
-        await repos.foodItems.put({
-          id: foodItemId, name, measurementType: 'per_serving', referenceAmount: 1,
-          calories: totals.calories, protein: totals.protein, carbs: totals.carbs,
-          fiber: totals.fiber, fat: totals.fat, photo: primaryPhoto, isArchived: false,
-        });
+        const mealFoodItems: MealFoodItem[] = basket.map((item, i) => ({
+          id: newId(), foodItemId: resolvedFoodItemIds[i]!, quantity: item.qty,
+        }));
+        const mealId = newId();
+        const meal: Meal = { id: mealId, name, photo: primaryPhoto, items: mealFoodItems, isArchived: false };
+        await repos.meals.put(meal);
         await repos.foodEntries.add({
-          id: entryId, date, foodItemId, quantity: 1, isManual: false,
+          id: entryId, date, mealId, isManual: false,
           snapshot: totals, createdAt: new Date().toISOString(),
           mealData: { name, photo: primaryPhoto, photos: sourcePhotos.slice(0, 4), items: mealItems },
         });
@@ -1356,6 +1382,8 @@ function LogEntryContent({
 
   // ── Meal name — editable when basket has 2+ items ──────────────────────
   const [localMealName, setLocalMealName] = useState(entry.mealData?.name ?? '');
+  // Pre-checked when this entry is already linked to a real Pantry Meal.
+  const [saveToPantry, setSaveToPantry] = useState(!!entry.mealId);
 
   const _freqIds = useLive(() => repos.foodEntries.frequentItemIds(4, 3), []) ?? [];
   const frequentItems = _freqIds
@@ -1383,7 +1411,8 @@ function LogEntryContent({
   // eslint-disable-next-line react-hooks/refs
   const hasChanges = stripIds(basket) !== stripIds(initialBasketRef.current)
     || localPhotos.join() !== initialPhotos.join()
-    || localMealName !== (entry.mealData?.name ?? '');
+    || localMealName !== (entry.mealData?.name ?? '')
+    || saveToPantry !== !!entry.mealId;
 
   // ── Overlay back ────────────────────────────────────────────────────────
   function overlayBack() {
@@ -1607,9 +1636,38 @@ function LogEntryContent({
     const photos = localPhotos.slice(0, 4);
     if (basket.length === 1 && pantryItem && basket[0].pantryItemId === pantryItem.id) {
       const b = basket[0];
-      await repos.foodEntries.update({ ...entry, quantity: b.qty, snapshot: roundSnap(basketNutrition(b)) });
+      // Shrunk back to a single pantry-linked item — no longer a Meal (the
+      // Meal object, if one existed, is left alone in Pantry, not deleted).
+      await repos.foodEntries.update({
+        ...entry, quantity: b.qty, snapshot: roundSnap(basketNutrition(b)),
+        mealId: undefined, mealData: undefined,
+      });
     } else if (basket.length > 1 || entry.mealData) {
       const mealName = localMealName.trim() || timeMealName();
+
+      // Resolve each basket item to a real Pantry Food item id where
+      // possible — same rule as fresh logging (logBasket): already-linked
+      // items keep their link regardless of the checkbox below; brand-new
+      // items only get a real Food item created when the whole Meal is
+      // being saved to Pantry.
+      const resolvedFoodItemIds: (string | undefined)[] = [];
+      for (const b of basket) {
+        if (b.pantryItemId) {
+          resolvedFoodItemIds.push(b.pantryItemId);
+        } else if (saveToPantry) {
+          const newFoodItemId = newId();
+          await repos.foodItems.put({
+            id: newFoodItemId, name: b.name,
+            measurementType: b.measurementType, referenceAmount: b.referenceAmount,
+            calories: b.calories, protein: b.protein, carbs: b.carbs,
+            fiber: b.fiber, fat: b.fat, isArchived: false,
+          });
+          resolvedFoodItemIds.push(newFoodItemId);
+        } else {
+          resolvedFoodItemIds.push(undefined);
+        }
+      }
+
       const items: MealItem[] = basket.map((b, i) => {
         const orig = entry.mealData?.items[i];
         return {
@@ -1622,6 +1680,7 @@ function LogEntryContent({
           confidence: orig?.confidence ?? 'high',
           selected: orig?.selected ?? true,
           qty: b.qty,
+          foodItemId: resolvedFoodItemIds[i],
         };
       });
       const snapshot: NutritionSnapshot = {
@@ -1631,10 +1690,28 @@ function LogEntryContent({
         fiber:    Math.round(items.reduce((s, it) => s + it.fiber    * (it.qty ?? 1), 0) * 10) / 10,
         fat:      Math.round(items.reduce((s, it) => s + it.fat      * (it.qty ?? 1), 0) * 10) / 10,
       };
-      await repos.foodEntries.update({ ...entry, snapshot, mealData: { name: mealName, photo, photos, items } });
+
+      // Create (first time) or update (already linked) the real Meal when
+      // saved to pantry; unchecking just un-links this entry — the Meal
+      // object, if one already existed, is left alone in Pantry, never
+      // deleted as a side effect of editing a Day's-log entry.
+      let mealId: string | undefined;
+      if (saveToPantry) {
+        const mealFoodItems: MealFoodItem[] = basket.map((b, i) => ({
+          id: newId(), foodItemId: resolvedFoodItemIds[i]!, quantity: b.qty,
+        }));
+        mealId = entry.mealId ?? newId();
+        await repos.meals.put({ id: mealId, name: mealName, photo, items: mealFoodItems, isArchived: false });
+      }
+
+      await repos.foodEntries.update({ ...entry, mealId, snapshot, mealData: { name: mealName, photo, photos, items } });
     } else {
       const b = basket[0];
-      await repos.foodEntries.update({ ...entry, manualName: b.name, snapshot: roundSnap(basketNutrition(b)) });
+      // Shrunk back to a single manual item — same as above, no longer a Meal.
+      await repos.foodEntries.update({
+        ...entry, manualName: b.name, snapshot: roundSnap(basketNutrition(b)),
+        mealId: undefined, mealData: undefined,
+      });
     }
     showToast?.('Saved');
     onClose();
@@ -1713,12 +1790,23 @@ function LogEntryContent({
 
         {/* Editable meal name — shown when 2+ items */}
         {basket.length >= 2 && (
-          <LabeledInput
-            label="Meal name"
-            value={localMealName}
-            onChange={(e) => setLocalMealName(e.target.value)}
-            placeholder={timeMealName()}
-          />
+          <div>
+            <LabeledInput
+              label="Meal name"
+              value={localMealName}
+              onChange={(e) => setLocalMealName(e.target.value)}
+              placeholder={timeMealName()}
+            />
+            <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary mt-2">
+              <input
+                type="checkbox"
+                checked={saveToPantry}
+                onChange={(e) => setSaveToPantry(e.target.checked)}
+                className="h-4 w-4 accent-accent"
+              />
+              Save to pantry
+            </label>
+          </div>
         )}
 
         {/* Basket cards */}
@@ -1772,7 +1860,7 @@ function LogEntryContent({
         {/* Save CTA — 24px gap above (space-y-3=12px + pt-3=12px) */}
         {hasChanges && (
           <div className="pt-3">
-            <Button size="lg" onClick={() => void save()}>Save</Button>
+            <Button size="lg" onClick={() => void save()}>Save changes</Button>
           </div>
         )}
       </div>

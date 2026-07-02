@@ -1,4 +1,89 @@
 ================================================================
+ROUND 122 — UNIFIED FOOD ITEM FORM, BASKET POLISH & COLLAGE FIXES (2026-07-02)
+================================================================
+Files: src/ui/components/AddEntrySheet.tsx,
+       src/ui/components/FoodItemForm.tsx (NEW),
+       src/ui/screens/PantryScreen.tsx,
+       src/ui/kit/ImageHero.tsx
+
+── FOODITEMFORM.TSX — SHARED FORM COMPONENT (NEW FILE) ─────────────────────
+Created src/ui/components/FoodItemForm.tsx as single source of truth for all
+4 food-item entry/edit surfaces. Eliminates divergence between:
+  pantry-new    Pantry › +Add food › New food item
+  pantry-edit   Pantry › card › Edit food item
+  basket-edit   Basket › card › Edit
+  basket-manual Basket › Other methods › Add manually
+All field logic (photo, name, measurement type selector, macros, save-to-pantry
+checkbox, CTA label, delete button) lives here; callers own only the navigation
+header (Sheet title or OverlayNav).
+Mode-specific behaviour:
+  - pantry-new:    empty fields, CTA "Save to pantry", no checkbox, no delete
+  - pantry-edit:   pre-filled, CTA "Save changes", no checkbox, delete button
+  - basket-edit:   pre-filled, CTA "Save", "Save to pantry" checkbox when
+                   pantryItemId absent; "Saved to pantry" (checked+disabled)
+                   when already linked
+  - basket-manual: empty, CTA "Add to meal", "Save to pantry" checkbox
+Duplicate-name check: always in pantry modes; in basket modes only when the
+"Save to pantry" checkbox is ticked.
+Photo: standardised 256×256 hero with overlay trash + "Change photo" button;
+"Add photo" button when empty. onPhotoChange callback for basket-edit to keep
+external localPhotos/sources in sync.
+
+── PANTRYSCREEN.TSX — REPLACED LOCAL FOODITEMFORM ──────────────────────────
+Local FoodItemForm function replaced with a thin wrapper around
+FoodItemFormContent (Sheet title + delete confirmation Sheet). All field state
+removed from PantryScreen. Delete icon updated to new filled design (matches
+AddEntrySheet icon).
+
+── ADDENTRYSHEET.TSX — EDITOVERLAY + MANUALOVERLAY REPLACED ────────────────
+EditOverlay: was ~80 lines of duplicated state + JSX; now 15 lines (OverlayNav
++ FoodItemFormContent mode="basket-edit"). pantryItemId passed as
+initial.pantryItemId so "Save to pantry" logic is correct.
+ManualOverlay: was ~90 lines; now 20 lines (OverlayNav + FoodItemFormContent
+mode="basket-manual"). useOverlaySetFooter(null,[]) preserved at wrapper level.
+MeasurementTypeSelector added to kit import; findByName import removed.
+
+── SAVE TO PANTRY — FULL WIRING ─────────────────────────────────────────────
+Previously "Save to pantry" in basket-edit was cosmetic — checkbox state was
+never acted on. Full fix:
+1. EditOverlay.onSave now passes (patch, saveToPantry, photo) — photo comes
+   from values.photo (form-authoritative) rather than inferred from sources.
+2. FoodForm call site: creates pantryId = newId() first; calls
+   repos.foodItems.put with that id + the form photo; calls updateItem to stamp
+   pantryItemId onto the basket item so logBasket() links the entry correctly.
+3. LogEntryContent call site: same pantryId flow; additionally calls
+   repos.foodEntries.update to persist foodItemId + isManual:false to DB so
+   reopening the LogEntrySheet shows the correct state.
+4. addManualItem (both FoodForm and LogEntryContent): pantry id computed before
+   the basket item is created; stamped onto basket item's pantryItemId field.
+
+── IMAGEHERO.TSX — COLLAGE POSITION TWEAKS ──────────────────────────────────
+Photo cap raised from 3 → 4 everywhere (slice, ImageHero map, mealData saves).
+cfg3 (3-photo layout): image 3 left 24 → 6.
+cfg4 (4-photo layout): image 3 left 24 → 3.
+cfg4 entry added (was missing).
+
+── NUTRI-SCAN "CHANGE" BUTTON REMOVED ──────────────────────────────────────
+onCorrect removed from FoodForm's BasketCard renders — "Change" button no
+longer appears on scanned basket cards.
+
+── EARLIER IN THE ROUND (122a) — PENDING FIXES FROM ROUND 121 ───────────────
+Photo cap 3 → 4: all .slice(0,3) → .slice(0,4) in FoodForm sourcePhotos,
+  logBasket mealData, LogEntryContent onPhotoChange/addManualItem/save,
+  photo input handler, ImageHero.
+LogEntryContent frequentItems: useLive(frequentItemIds) added inside
+  LogEntryContent; frequentItems computed from pantryItems; passed to add-
+  another FoodPicker (was A-Z only; now shows most-used like FoodForm).
+Delete item photo cleanup: onRemove in LogEntryContent now removes the pantry
+  photo from localPhotos if no other basket item still references it.
+addPantryItem photo (LogEntryContent): after setBasket, if item.photo exists,
+  appends to localPhotos.slice(0,4).
+Fast-log bypass on search: FoodPicker.onPickItem now receives fromSearch flag
+  (query.trim().length > 0); FoodForm.addPantryItem skips fast-log when
+  fromSearch=true, keeping the sheet open after a search-pick.
+
+tsc: clean. lint: clean.
+================================================================
 ROUND 119 — MULTI-PHOTO COLLAGE, MEAL NAME FIELD, CHANGE BUTTON SCOPING (2026-06-30)
 ================================================================
 Files: src/domain/types.ts, src/ui/components/AddEntrySheet.tsx

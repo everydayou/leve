@@ -102,7 +102,7 @@ export function FoodItemFormContent({
     mode === 'basket-manual' || (isBasketEdit && !initial.pantryItemId);
 
   const checkDuplicate =
-    isPantryMode || (mode === 'basket-manual' && saveToPantry);
+    isPantryMode || ((mode === 'basket-manual' || isBasketEdit) && saveToPantry);
   const duplicate = checkDuplicate ? findByName(existingItems, name, existingItemId) : undefined;
   const blocked   = !!duplicate;
   const canSave   = name.trim().length > 0 && !blocked;
@@ -196,7 +196,12 @@ export function FoodItemFormContent({
       )}
 
       {/* ── Save to pantry ────────────────────────────────────────────────── */}
-      {showSaveToPantry && (
+      {isBasketEdit && initial.pantryItemId ? (
+        <label className="flex select-none items-center gap-2 text-subhead text-content-muted">
+          <input type="checkbox" checked disabled className="h-4 w-4 accent-accent opacity-60" />
+          Saved to pantry
+        </label>
+      ) : showSaveToPantry ? (
         <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
           <input
             type="checkbox"
@@ -206,7 +211,7 @@ export function FoodItemFormContent({
           />
           Save to pantry
         </label>
-      )}
+      ) : null}
 
       {/* ── Measurement type ──────────────────────────────────────────────── */}
       <MeasurementTypeSelector value={mType} onChange={setMType} />

@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-06-30 — Round 119 (LogEntrySheet multi-photo, meal name field, Change button scoped to scan items)
+Last updated: 2026-07-02 — Round 122 (Unified FoodItemForm, basket polish, save-to-pantry wiring, collage fixes)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -113,23 +113,24 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 119, 2026-06-30)
+7. CURRENT STATUS (as of round 122, 2026-07-02)
 ----------------------------------------------------------------
-All V1 features shipped and running on device. Rounds 117–119 completed the
-LogEntrySheet overhaul: it is now a full basket clone with overlays, inline
-FoodPicker, multi-photo collage, editable meal name, and correct Change button
-scoping. FoodForm meal name fallback also fixed.
-- Round 117 (2026-06-30): OverlayLayer grab handle restored + soft scroll
-  shadow; Change button border-border-strong + shadow-sm; Other methods pb-1.
-- Round 118 (2026-06-30): Change button border removed (shadow-sm only);
-  AddAnotherSection overflow-hidden; ServingModal createPortal + grab handle +
-  safe-area 34px; LogEntrySheet full rewrite: hasChanges fix, Meal header
-  always, stepper-delete=del(), inline FoodPicker, multi-photo collage;
-  onAddMore prop removed; LogEntryContent extracted as Sheet child.
+All V1 features shipped and running on device. Round 122 introduced a unified
+FoodItemForm component (single source of truth for all 4 food-item edit
+surfaces), fully wired "Save to pantry" flow from basket-edit (including DB
+persistence), collage photo cap raised to 4, and multiple basket polish fixes.
+- Round 122 (2026-07-02): FoodItemForm.tsx (new shared component); PantryScreen
+  + EditOverlay + ManualOverlay replaced with thin wrappers; "Save to pantry"
+  fully wired (pantryItemId stamped on basket item, DB entry updated);
+  photo cap 3→4; frequentItems in LogEntryContent; delete-item photo cleanup;
+  fast-log bypass on search; collage position tweaks; nutri-scan "Change"
+  button removed.
+- Round 121 (2026-06-30): FAB de-animated; BasketCard always-visible edit+trash
+  buttons; EditIcon custom SVG; stepper 40px container; ImageHero collage
+  layouts for 2/3/4 photos with Figma-corrected coordinates.
 - Round 119 (2026-06-30): mealData.photos[] type added; FoodForm saves all
-  scan photos + timeMealName() fallback (not 'Meal'); LogEntryContent: init
-  from photos[], editable meal name field (2+ items), onCorrect scoped to
-  item.sourceId (freshly-scanned items only).
+  scan photos + timeMealName() fallback; LogEntryContent: init from photos[],
+  editable meal name, onCorrect scoped to item.sourceId.
 - .env.local: gitignored, must be recreated if folder is deleted.
   VITE_FOOD_SCAN_API_URL=https://food-scan-api-delta.vercel.app
 - tsc: clean. lint: clean.
@@ -162,18 +163,13 @@ changes, on the Mac: `npm install` → `npm test` → `npm run build` →
 KNOWN GAPS
 ----------------------------------------------------------------
 HIGH:
-- REVERSE MORPH NEEDS ON-DEVICE REVIEW: first time testing the clip-path
-  morph animation on a real device. Timing, easing, and colour accuracy
-  (esp. overlay white vs Sheet white) may need tweaking after seeing it live.
+- MEALS IN PANTRY (DEFERRED): Marco wants meals saveable to pantry as a new
+  entity type, with pantry split into Items/Meals tabs. Discussed r122;
+  deferred pending design decisions (data model, logging behaviour, edit UX).
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
-- LOGENTRYSHEET PANTRY/MANUAL STEPPER: pantry item uses a raw input for grams
-  and ServingStepper for per-serving. Consider matching the full BasketStepper
-  widget so all three LogEntrySheet cases look identical.
 
 MED:
-- COLLAGE PHOTO SIZING: 2–3 photo collage in ImageHero still uses the old
-  160×120 card fan layout. Needs its own review/redesign pass (deferred).
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
   entries. (Goal actions confirm via Sheet; entry deletes are immediate.)
 - ACCOUNT IA: layout still growing — grouping pass worthwhile when more
@@ -187,41 +183,38 @@ LOW:
   PastGoalsPortal is portal-based). Safe to remove eventually.
 - ACTIVITY TEACHING MOMENT (§9 first-open spec): deferred.
 - GoalForkScreen (/goal-fork): built but not device-reviewed.
-- ProfileSetupSheet height select always shows cm. Users set to lbs see no
-  ft/in option. Low priority until imperial height preference is added.
+- ProfileSetupSheet height select always shows cm. Low priority.
 - Estimated BMR (weight-only) assumes pop-avg 170 cm / 35 yr / neutral sex.
 
+DONE (r122):
+- ✓ FoodItemForm.tsx: unified shared form for all 4 food-item surfaces.
+- ✓ PantryScreen: thin wrapper around FoodItemFormContent; delete icon updated.
+- ✓ EditOverlay + ManualOverlay: replaced with FoodItemFormContent wrappers.
+- ✓ "Save to pantry" from basket-edit: pantryItemId stamped on basket item;
+    DB entry updated (foodItemId + isManual:false); photo forwarded correctly.
+- ✓ addManualItem (both contexts): pantry id shared with basket item.
+- ✓ "Saved to pantry" shows checked+disabled when item already linked.
+- ✓ Photo cap 3 → 4 everywhere; ImageHero cfg3/cfg4 position tweaks.
+- ✓ LogEntryContent frequentItems via useLive(frequentItemIds).
+- ✓ Delete-item photo cleanup in LogEntryContent.
+- ✓ addPantryItem photo wiring in LogEntryContent.
+- ✓ Fast-log bypass when fromSearch=true (FoodPicker → FoodForm).
+- ✓ Nutri-scan "Change" button removed from BasketCard.
+- ✓ MeasurementTypeSelector in EditOverlay + ManualOverlay.
+- ✓ PantryScreen delete icon updated to new filled design.
+
+DONE (r121):
+- ✓ FAB fully de-animated (hapticLight + onFabMorphComplete directly).
+- ✓ BasketCard: always-visible edit+trash circular buttons (no swipe/editMode).
+- ✓ EditIcon: custom SVG from design spec (16×16 fill path).
+- ✓ All buttons + stepper container: h-10 (40px), icons 20px, stepper gap-0.
+- ✓ ImageHero: 2/3/4-photo collage with Figma-corrected bounding-box coords.
+
 DONE (r119):
-- ✓ mealData.photos?: string[] added to FoodEntry type (backward-compat alongside photo?).
-- ✓ FoodForm logBasket: saves photos: sourcePhotos.slice(0,3); fallback 'Meal'→timeMealName().
-- ✓ LogEntryContent: localPhotos init from photos[]→photo→pantryItem.photo chain.
-- ✓ LogEntryContent: editable "Meal name" LabeledInput shown when basket.length≥2 && !editMode.
-- ✓ LogEntryContent: save() uses localMealName.trim()||timeMealName(); writes photos[].
-- ✓ LogEntryContent: onCorrect scoped to item.sourceId (freshly-scanned items only).
-- ✓ LogEntryContent: correctingIdx state + handleDescribeAnalyze replaces single item.
-
-DONE (r118):
-- ✓ BasketCard Change button: border removed entirely (shadow-sm only).
-- ✓ AddAnotherSection outer div: overflow-hidden (Figma Crop equivalent).
-- ✓ ServingModal: createPortal to document.body; grab handle pill; safe-area 0px→34px.
-- ✓ LogEntrySheet/LogEntryContent: split so hooks run inside Sheet context
-    (overlay, overlayBack now work correctly).
-- ✓ LogEntrySheet: hasChanges bug fixed (entryToBasket called once; IDs stripped).
-- ✓ LogEntrySheet: section header always "Meal".
-- ✓ LogEntrySheet: stepper delete when last item → del() FoodEntry + undo toast.
-- ✓ LogEntrySheet: inline AddAnotherSection + FoodPicker (camera/photo/describe/label/manual).
-- ✓ LogEntrySheet: onAddMore prop removed; TodayScreen updated.
-- ✓ LogEntrySheet: pantryItem photo shown; multi-photo collage via localPhotos[].
-
-DONE (r116):
-- ✓ OverlayLayer grab handle/pill removed; nav bar top padding corrected.
-- ✓ BasketCard: border border-border-subtle added; "Fix" → "Change" button
-    moved to RIGHT, stepper to LEFT; Change button height h-9 + text-subhead
-    to match stepper scale.
-- ✓ EntryBasketCard (LogEntrySheet): border border-border-subtle added.
-- ✓ LogEntrySheet: ImageHero photo shown when entry.mealData.photo exists.
-- ✓ AddAnotherSection: +4px between heading and search (pb-2 → pb-3).
-- ✓ FoodPicker "Other methods" heading: −4px to cards (pt-3 → pt-2).
+- ✓ mealData.photos?: string[] added to FoodEntry type.
+- ✓ FoodForm logBasket: saves photos[]; fallback 'Meal'→timeMealName().
+- ✓ LogEntryContent: localPhotos init chain, editable meal name, onCorrect
+    scoped to item.sourceId, correctingIdx state.
 
 DONE (r115):
 - ✓ LogEntrySheet: unified basket-style entry editor replacing EditFoodSheet
@@ -281,57 +274,42 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 122 — UNIFIED FOOD ITEM FORM, BASKET POLISH & COLLAGE FIXES (2026-07-02)
+Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/FoodItemForm.tsx (new),
+       src/ui/screens/PantryScreen.tsx, src/ui/kit/ImageHero.tsx
+- FoodItemForm.tsx: new shared component (single source of truth for all 4
+  food-item surfaces). PantryScreen + EditOverlay + ManualOverlay replaced with
+  thin wrappers. MeasurementTypeSelector now consistent everywhere.
+- "Save to pantry" from basket-edit fully wired: pantryItemId stamped on basket
+  item; DB entry updated; photo forwarded from form (not inferred from sources).
+  addManualItem (both contexts): pantry id shared with basket item.
+  "Saved to pantry" shows checked+disabled when item already linked.
+- Photo cap 3→4 everywhere; ImageHero cfg3 img3 left 24→6, cfg4 img3 left 24→3.
+- LogEntryContent: frequentItems via useLive; delete-item photo cleanup;
+  addPantryItem photo wiring; fast-log bypass when fromSearch=true.
+- Nutri-scan "Change" button removed; PantryScreen delete icon updated.
+- tsc: clean. lint: clean.
+
+ROUND 121 — FAB SIMPLIFICATION, BASKET CARD REDESIGN, IMAGE COLLAGE (2026-06-30)
+Files: src/ui/components/AddEntrySheet.tsx, src/ui/kit/FloatingTabBar.tsx,
+       src/ui/AppShell.tsx, src/ui/components/TabBar.tsx,
+       src/ui/kit/ImageHero.tsx, src/ui/screens/PantryScreen.tsx
+- FAB de-animated: hapticLight() + onFabMorphComplete() directly, no rotation/
+  morph phases.
+- BasketCard: always-visible edit+trash circular buttons (h-10 w-10); no swipe,
+  no editMode; EditIcon custom SVG (16×16 fill); stepper gap-0, container 40px.
+- ImageHero: 2/3/4-photo collage with Figma bounding-box-corrected coordinates;
+  rotations sign-flipped vs Figma; 256×256 container.
+- PantryScreen: descender fix (leading-[1.2]).
+- tsc: clean. lint: clean.
+
 ROUND 119 — MULTI-PHOTO, MEAL NAME FIELD, CHANGE BUTTON SCOPING (2026-06-30)
 Files: src/domain/types.ts, src/ui/components/AddEntrySheet.tsx
 Commits: d76f30e, 31c818c
-- types.ts: mealData gains photos?: string[] (backward-compat alongside photo?).
-- FoodForm logBasket: saves photos: sourcePhotos.slice(0,3) on every meal log.
-  Fallback name 'Meal' → timeMealName() so entries are never saved as "Meal".
-- LogEntryContent: localPhotos initialises from mealData.photos[] first, then
-  photo string, then pantryItem.photo. Scan photos capped at 3.
-- LogEntryContent: localMealName state (pre-filled from entry.mealData.name).
-  LabeledInput "Meal name" shown when basket.length≥2 && !editMode, same
-  position and style as FoodForm. save() uses localMealName.trim()||timeMealName().
-  Writes photos[] back to mealData on save.
-- LogEntryContent: onCorrect now uses item.sourceId (not !item.pantryItemId).
-  Only items freshly scanned in the current session get the "Change" button.
-  Pre-existing meal items and manual items are unaffected.
-- correctingIdx state + handleDescribeAnalyze splice logic: replacing a single
-  basket item when correcting, same as FoodForm.
-- tsc: clean. lint: clean.
-
-ROUND 118 — LOGENTRYSHEET OVERHAUL + SERVINGMODAL + QUICK FIXES (2026-06-30)
-Files: src/ui/components/AddEntrySheet.tsx, src/ui/screens/TodayScreen.tsx
-Commits: f0ea0f6, c40aaa3
-- BasketCard Change button: border removed (shadow-sm only, no border).
-- AddAnotherSection outer div: overflow-hidden added (clips card shadow bleed).
-- ServingModal: createPortal → document.body (z-index over FloatingTabBar
-  fixed); grab handle pill added at top; safe-area fallback 0px → 34px.
-- LogEntrySheet split into LogEntrySheet (Sheet header shell) + LogEntryContent
-  (Sheet child, has Sheet context for overlay hooks). Root cause fix: hooks
-  useSheetSetOverlay / useSheetSetOverlayBack must run inside Sheet's context
-  tree; previously they ran in the parent, getting null context.
-- LogEntryContent: hasChanges bug fixed (entryToBasket called once; IDs
-  stripped before JSON comparison). Section header always "Meal".
-  Stepper delete of last item → del() FoodEntry + undo toast.
-  Inline AddAnotherSection + full FoodPicker (camera/photo/describe/label/
-  manual). localPhotos[] state with ImageHero multi-photo collage.
-  Save button 24px gap (space-y-3 + pt-3).
-- onAddMore prop removed from LogEntrySheet; TodayScreen updated.
-- tsc: clean. lint: clean.
-
-ROUND 117 — OVERLAY GRAB HANDLE RESTORE, CHANGE BUTTON BORDER, SPACING (2026-06-30)
-Files: src/ui/kit/Sheet.tsx, src/ui/components/AddEntrySheet.tsx
-Commit: 0d0cc3f
-- Sheet.tsx OverlayLayer: grab handle pill restored (was mistakenly removed in
-  r116). Scroll shadow changed to shadow-nav (soft 0 2px 8px −2px blur).
-- BasketCard Change button: border-border-strong + shadow-sm (refined from r116).
-- AddAnotherSection "Other methods" heading: pb-2 → pb-1 (−4px).
-- types.ts: MealItem gains qty?: number for LogEntrySheet qty tracking.
-- LogEntrySheet: rewritten as basket clone inside AddEntrySheet.tsx
-  (BasketCard, BasketStepper, EditOverlay, ImageHero, Meal+Edit/Done header).
-- TodayScreen: old LogEntrySheet + EntryBasketCard removed; imports
-  LogEntrySheet from AddEntrySheet.
+- types.ts: mealData gains photos?: string[] (backward-compat).
+- FoodForm logBasket: saves photos[]; fallback 'Meal'→timeMealName().
+- LogEntryContent: localPhotos init chain (photos[]→photo→pantryItem.photo);
+  editable meal name (basket≥2); onCorrect scoped to item.sourceId only.
 - tsc: clean. lint: clean.
 
 

@@ -311,7 +311,25 @@ function FoodForm({
         item={editItem}
         currentPhoto={sources.find((s) => s.id === editItem.sourceId)?.photo}
         onBack={overlayBack}
-        onSave={(patch) => { updateItem(editingIdx!, patch); overlayBack(); }}
+        existingItems={items}
+        onSave={(patch, saveToPantry, photo) => {
+          const pantryItemId = saveToPantry && editItem ? newId() : undefined;
+          updateItem(editingIdx!, { ...patch, ...(pantryItemId ? { pantryItemId } : {}) });
+          if (pantryItemId && editItem) {
+            void repos.foodItems.put({
+              id: pantryItemId, name: patch.name ?? editItem.name,
+              measurementType: patch.measurementType ?? editItem.measurementType,
+              referenceAmount: patch.referenceAmount ?? editItem.referenceAmount,
+              calories: patch.calories ?? editItem.calories,
+              protein:  patch.protein  ?? editItem.protein,
+              carbs:    patch.carbs    ?? editItem.carbs,
+              fiber:    patch.fiber    ?? editItem.fiber,
+              fat:      patch.fat      ?? editItem.fat,
+              photo, isArchived: false,
+            });
+          }
+          overlayBack();
+        }}
         onPhotoChange={(dataUrl) => {
           if (!dataUrl) return; // photo removed — source stays (cleared via basket remove)
           const srcId = newId();
@@ -526,6 +544,16 @@ function FoodForm({
     if (sourceId && entry.photo) {
       setSources((prev) => [...prev, { id: sourceId, photo: entry.photo! }]);
     }
+    const pantryId = entry.saveToPantry ? newId() : undefined;
+    if (pantryId) {
+      void repos.foodItems.put({
+        id: pantryId, name: entry.name,
+        measurementType: entry.measurementType,
+        referenceAmount: entry.referenceAmount,
+        calories: entry.calories, protein: entry.protein, carbs: entry.carbs,
+        fiber: entry.fiber, fat: entry.fat, photo: entry.photo, isArchived: false,
+      });
+    }
     const newItem: BasketItem = {
       id: newId(), name: entry.name,
       measurementType: entry.measurementType,
@@ -534,16 +562,8 @@ function FoodForm({
       carbs: entry.carbs, fiber: entry.fiber, fat: entry.fat,
       qty: entry.measurementType === 'per_100g' ? 100 : 1,
       sourceId,
+      ...(pantryId ? { pantryItemId: pantryId } : {}),
     };
-    if (entry.saveToPantry) {
-      void repos.foodItems.put({
-        id: newId(), name: entry.name,
-        measurementType: entry.measurementType,
-        referenceAmount: entry.referenceAmount,
-        calories: entry.calories, protein: entry.protein, carbs: entry.carbs,
-        fiber: entry.fiber, fat: entry.fat, photo: entry.photo, isArchived: false,
-      });
-    }
     setBasket((prev) => [...prev, newItem]);
     setActiveOverlay(null);
     setPickerOpen(false);
@@ -1306,13 +1326,14 @@ function ManualOverlay({
 // ── EditOverlay ───────────────────────────────────────────────────────────────
 
 function EditOverlay({
-  item, currentPhoto, onBack, onSave, onPhotoChange,
+  item, currentPhoto, onBack, onSave, onPhotoChange, existingItems,
 }: {
   item: BasketItem;
   currentPhoto?: string;
   onBack: () => void;
-  onSave: (patch: Partial<BasketItem>) => void;
+  onSave: (patch: Partial<BasketItem>, saveToPantry: boolean, photo: string | undefined) => void;
   onPhotoChange?: (dataUrl: string | undefined) => void;
+  existingItems?: FoodItem[];
 }) {
   return (
     <div className="space-y-3 py-1">
@@ -1331,6 +1352,7 @@ function EditOverlay({
           photo:           currentPhoto,
           pantryItemId:    item.pantryItemId,
         }}
+        existingItems={existingItems}
         onSave={(values: FoodItemFormValues) => onSave({
           name:            values.name,
           calories:        values.calories,
@@ -1340,7 +1362,7 @@ function EditOverlay({
           fat:             values.fat,
           measurementType: values.measurementType,
           referenceAmount: values.referenceAmount,
-        })}
+        }, values.saveToPantry, values.photo)}
         onCancel={onBack}
         onPhotoChange={onPhotoChange}
       />
@@ -1522,8 +1544,31 @@ function LogEntryContent({
         item={editItem}
         currentPhoto={localPhotos[0]}
         onBack={overlayBack}
-        onSave={(patch) => {
-          setBasket((prev) => prev.map((b, i) => i === editingIdx ? { ...b, ...patch } : b));
+        existingItems={pantryItems}
+        onSave={(patch, saveToPantry, photo) => {
+          const pantryItemId = saveToPantry && editItem ? newId() : undefined;
+          setBasket((prev) => prev.map((b, i) =>
+            i === editingIdx ? { ...b, ...patch, ...(pantryItemId ? { pantryItemId } : {}) } : b));
+          if (pantryItemId && editItem) {
+            void repos.foodItems.put({
+              id: pantryItemId, name: patch.name ?? editItem.name,
+              measurementType: patch.measurementType ?? editItem.measurementType,
+              referenceAmount: patch.referenceAmount ?? editItem.referenceAmount,
+              calories: patch.calories ?? editItem.calories,
+              protein:  patch.protein  ?? editItem.protein,
+              carbs:    patch.carbs    ?? editItem.carbs,
+              fiber:    patch.fiber    ?? editItem.fiber,
+              fat:      patch.fat      ?? editItem.fat,
+              photo, isArchived: false,
+            });
+            // Persist the pantry link so re-opening the sheet reflects the new state
+            void repos.foodEntries.update({
+              ...entry,
+              foodItemId: pantryItemId,
+              isManual: false,
+              manualName: undefined,
+            });
+          }
           overlayBack();
         }}
         onPhotoChange={(dataUrl) => {
@@ -1661,9 +1706,10 @@ function LogEntryContent({
     measurementType: 'per_100g' | 'per_serving'; referenceAmount: number;
     photo?: string;
   }) {
-    if (e.saveToPantry) {
+    const pantryId = e.saveToPantry ? newId() : undefined;
+    if (pantryId) {
       void repos.foodItems.put({
-        id: newId(), name: e.name, measurementType: e.measurementType,
+        id: pantryId, name: e.name, measurementType: e.measurementType,
         referenceAmount: e.referenceAmount, calories: e.calories,
         protein: e.protein, carbs: e.carbs, fiber: e.fiber, fat: e.fat,
         photo: e.photo, isArchived: false,
@@ -1674,6 +1720,7 @@ function LogEntryContent({
       referenceAmount: e.referenceAmount, calories: e.calories,
       protein: e.protein, carbs: e.carbs, fiber: e.fiber, fat: e.fat,
       qty: e.measurementType === 'per_100g' ? 100 : 1,
+      ...(pantryId ? { pantryItemId: pantryId } : {}),
     };
     if (e.photo) setLocalPhotos((prev) => [...prev, e.photo!].slice(0, 4));
     setBasket((prev) => [...prev, newItem]);

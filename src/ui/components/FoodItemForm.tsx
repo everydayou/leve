@@ -69,6 +69,7 @@ export function FoodItemFormContent({
   onDelete,
   onPhotoChange,
   onDirtyChange,
+  soleItem = false,
 }: {
   mode: FoodItemFormMode;
   initial?: FoodItemFormInitial;
@@ -82,6 +83,10 @@ export function FoodItemFormContent({
    *  with an X/close affordance (rather than Cancel) confirm before
    *  discarding instead of losing typed content silently. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** basket-manual only: true when the basket is currently empty, so this
+   *  entry will be the ONLY food item rather than one of several in a meal
+   *  — CTA reads "Save food" instead of "Add to meal". */
+  soleItem?: boolean;
 }) {
   const [name, setName]   = useState(initial.name ?? '');
   const [mType, setMType] = useState<MeasurementType>(initial.measurementType ?? 'per_100g');
@@ -124,13 +129,13 @@ export function FoodItemFormContent({
     mode === 'pantry-edit'    ? 'Updating food item'     :
     mode === 'meal-add-item'  ? 'Saving & adding to meal' :
     mode === 'basket-edit'    ? 'Saving'                  :
-    /* basket-manual */         'Adding'
+    /* basket-manual */         (soleItem ? 'Saving food' : 'Adding')
   ) : (
     mode === 'pantry-new'     ? 'Save food'              :
     mode === 'pantry-edit'    ? 'Update food item'        :
     mode === 'meal-add-item'  ? 'Save & add to meal'      :
     mode === 'basket-edit'    ? 'Save'                    :
-    /* basket-manual */         'Add to meal'
+    /* basket-manual */         (soleItem ? 'Save food' : 'Add to meal')
   );
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {

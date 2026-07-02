@@ -289,7 +289,7 @@ function FoodForm({
 
   // ── Log CTA ref (called by inline button in main basket view) ────────────
   const logRef = useRef<() => Promise<void>>(() => Promise.resolve());
-  // Footer is null — Log it is rendered inline (non-sticky) after basket content
+  // Footer is null — Log food/Log meal is rendered inline (non-sticky) after basket content
   useSheetSetFooter(null, []);
 
   // Register overlayBack so swipe-right on any overlay dismisses it.
@@ -307,7 +307,7 @@ function FoodForm({
     activeOverlay === 'describe' ? (
       <DescribeOverlay onBack={overlayBack} onAnalyze={handleDescribeAnalyze} />
     ) : activeOverlay === 'manual' ? (
-      <ManualOverlay items={items} onBack={overlayBack} onAdd={addManualItem} />
+      <ManualOverlay items={items} onBack={overlayBack} onAdd={addManualItem} soleItem={basket.length === 0} />
     ) : editItem ? (
       <EditOverlay
         item={editItem}
@@ -728,16 +728,6 @@ function FoodForm({
       {/* Photo collage */}
       {sourcePhotos.length > 0 && <ImageHero photos={sourcePhotos} />}
 
-      {/* Meal header — only when basket has items */}
-      {basket.length > 0 && (
-        <div className="flex items-center" style={{ marginTop: '20px' }}>
-          <span className="flex items-center gap-2 text-headline font-semibold text-content">
-            <Icon name="foodIcon" size={20} className="shrink-0 text-content" />
-            Meal
-          </span>
-        </div>
-      )}
-
       {/* Meal name + save to pantry (2+ items) */}
       {basket.length >= 2 && (
         <div>
@@ -803,8 +793,13 @@ function FoodForm({
       )}
 
       {/* ── Non-empty basket: "Add another item" anchor + picker ──────── */}
+      {/* Copy matches Pantry's own module: "Create a meal" while this is
+          still a single item (about to become one), "Add a new food item"
+          once it already is one (spec §6/§12). */}
       {basket.length > 0 && (
         <AddAnotherSection
+          label={basket.length >= 2 ? 'Add a new food item' : 'Create a meal'}
+          helperText={basket.length >= 2 ? undefined : 'Add another item'}
           open={pickerOpen}
           onToggle={() => setPickerOpen((v) => !v)}
           onClose={() => setPickerOpen(false)}
@@ -827,7 +822,7 @@ function FoodForm({
       {basket.length > 0 && !activeOverlay && !analyzing && (
         <div style={{ paddingTop: '24px' }}>
           <Button size="lg" onClick={() => void logRef.current()}>
-            {basket.length >= 2 ? 'Log meal' : 'Log it'}
+            {basket.length >= 2 ? 'Log meal' : 'Log food'}
           </Button>
         </div>
       )}
@@ -1175,7 +1170,7 @@ function ServingModal({
 // ── ManualOverlay ─────────────────────────────────────────────────────────────
 
 function ManualOverlay({
-  items, onBack, onAdd,
+  items, onBack, onAdd, soleItem = false,
 }: {
   items: FoodItem[];
   onBack: () => void;
@@ -1185,6 +1180,10 @@ function ManualOverlay({
     measurementType: 'per_100g' | 'per_serving'; referenceAmount: number;
     photo?: string;
   }) => void;
+  /** True when the basket is currently empty — this manual entry will be
+   *  the ONLY food item, not one of several in a meal, so the CTA reads
+   *  "Save food" rather than "Add to meal". */
+  soleItem?: boolean;
 }) {
   useOverlaySetFooter(null, []);
 
@@ -1193,6 +1192,7 @@ function ManualOverlay({
       <OverlayNav title="Add manually" onBack={onBack} />
       <FoodItemFormContent
         mode="basket-manual"
+        soleItem={soleItem}
         existingItems={items}
         onSave={(values: FoodItemFormValues) => onAdd({
           name:            values.name,
@@ -1430,7 +1430,7 @@ function LogEntryContent({
     activeOverlay === 'describe' ? (
       <DescribeOverlay onBack={overlayBack} onAnalyze={handleDescribeAnalyze} />
     ) : activeOverlay === 'manual' ? (
-      <ManualOverlay items={pantryItems} onBack={overlayBack} onAdd={addManualItem} />
+      <ManualOverlay items={pantryItems} onBack={overlayBack} onAdd={addManualItem} soleItem={basket.length === 0} />
     ) : editItem ? (
       <EditOverlay
         item={editItem}
@@ -1778,16 +1778,6 @@ function LogEntryContent({
           <ImageHero photos={localPhotos} className="mb-1" />
         )}
 
-        {/* "Meal" label */}
-        {basket.length > 0 && (
-          <div className="flex items-center" style={{ marginTop: '20px' }}>
-            <span className="flex items-center gap-2 text-headline font-semibold text-content">
-              <Icon name="foodIcon" size={20} className="shrink-0 text-content" />
-              Meal
-            </span>
-          </div>
-        )}
-
         {/* Editable meal name — shown when 2+ items */}
         {basket.length >= 2 && (
           <div>
@@ -1838,8 +1828,12 @@ function LogEntryContent({
           />
         ))}
 
-        {/* Inline add-another with full FoodPicker */}
+        {/* Inline add-another with full FoodPicker — same copy rule as
+            FoodForm: "Create a meal" while still a single item, "Add a new
+            food item" once it already is one. */}
         <AddAnotherSection
+          label={basket.length >= 2 ? 'Add a new food item' : 'Create a meal'}
+          helperText={basket.length >= 2 ? undefined : 'Add another item'}
           open={pickerOpen}
           onToggle={() => setPickerOpen((v) => !v)}
           onClose={() => setPickerOpen(false)}

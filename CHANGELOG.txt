@@ -1,4 +1,41 @@
 ================================================================
+ROUND 128 — MEALS IN PANTRY: BASKET VIEW CATCHES UP TO SPEC (2026-07-02)
+================================================================
+Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/FoodItemForm.tsx
+
+Marco flagged that the Day's-log basket screens themselves ("Basket view")
+still looked pre-spec even after rounds 123-127 brought Pantry and the
+underlying data model up to date. Fixed against his "Day's log / Add flow →
+Log food" Figma reference specifically:
+
+- Removed the inline "Meal" heading (food icon + "Meal" text) shown above
+  the basket cards in both FoodForm (fresh log) and LogEntryContent (editing
+  an existing entry) — not in the reference mockup at all; the basket cards
+  speak for themselves.
+- "+Add another item" module copy now matches Pantry's own wording AND
+  switches based on basket size, in both FoodForm and LogEntryContent:
+  while there's still only 1 item, "Create a meal" / "Add another item"
+  (title + helper, same two-line style as Pantry); once there are already
+  2+ items, "Add a new food item" (single line — matches the reference
+  mockup's third frame exactly).
+- Fixed CTA copy: single-item log button was "Log it", now "Log food" (spec
+  copy table + mockup both say "Log food"; "Log meal" for 2+ items was
+  already correct).
+- FoodItemFormContent (mode="basket-manual") now takes a soleItem prop: when
+  the basket is empty and this manual entry will be the ONLY food item (not
+  one of several in a meal), the CTA reads "Save food" instead of "Add to
+  meal". Threaded through ManualOverlay in both FoodForm and LogEntryContent
+  (soleItem={basket.length === 0}).
+
+Deliberately NOT changed: the Day's-log picker's "Recent" list (still Food
+items only, "per serving"/"per 100g" subtitle) — confirmed against the same
+mockup reference, which shows this list unchanged from its current form; no
+Meals-picking added there. Sheet title also stays static "Add" throughout
+(not a dynamic "Food item"/"Meal" title) — the mockup confirms this too.
+
+tsc: clean. lint: clean. vitest: 35 passed (unchanged). `npm run build`
+verified clean.
+
 ROUND 127 — MEALS IN PANTRY: DAY'S-LOG INTEGRATION (2026-07-02)
 ================================================================
 Files: src/ui/components/AddEntrySheet.tsx

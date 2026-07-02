@@ -1,11 +1,19 @@
 // Pantry → Food item detail (meals-in-pantry spec §2) + Pantry → Food item →
 // Create a meal (spec §4). Stepper is always disabled here — Pantry defines
 // a Food item's properties, it doesn't log a consumed quantity (spec §10).
-import { useState } from 'react';
+//
+// Edit uses the SAME right-to-left overlay mechanism as the Day's-log
+// basket's EditOverlay (useSheetSetOverlay + OverlayNav) rather than
+// stacking a second bottom Sheet — split into an outer Sheet wrapper and an
+// inner content component so the content is a true child of Sheet's context
+// (same split as AddEntrySheet's LogEntrySheet/LogEntryContent).
+import { useRef, useState } from 'react';
 import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
-import { Button, Icon, Sheet } from '../kit';
+import { Button, Sheet, OverlayNav, useSheetSetOverlay } from '../kit';
 import { PantryItemCard } from './PantryItemCard';
+import { AddAnotherSection, MethodCards } from './MethodCards';
+import { DeleteIcon } from './icons';
 import { FoodItemFormContent } from './FoodItemForm';
 import type { FoodItemFormValues } from './FoodItemForm';
 import type { ShowToast } from './Toaster';
@@ -19,24 +27,82 @@ export function PantryFoodItemDetail({
   item, items, onClose, onDeleted, onMealCreated, showToast,
 }: {
   item: FoodItem;
-  /** All pantry Food items — used for duplicate-name checks in the edit/add-item forms. */
   items: FoodItem[];
   onClose: () => void;
   onDeleted: () => void;
-  /** Called once the "Create a meal" flow produces a real Meal — parent
-   *  swaps this detail sheet for the new Meal's detail sheet. */
   onMealCreated: (meal: Meal) => void;
   showToast?: ShowToast;
 }) {
+  // The delete button lives in the Sheet header (outer), but the actual
+  // confirm-delete flow lives in the content (inner, a child of Sheet) —
+  // forward a stable ref so the header button can trigger it.
+  const deleteRef = useRef<() => void>(() => undefined);
+
+  return (
+    <Sheet
+      title="Food item"
+      onClose={onClose}
+      forceExpanded
+      rightAction={
+        <button data-no-drag onClick={() => deleteRef.current()} aria-label="Delete food item" className="-m-1 p-1 text-content-secondary active:text-danger">
+          <DeleteIcon size={20} />
+        </button>
+      }
+    >
+      <PantryFoodItemDetailContent
+        item={item} items={items} onClose={onClose} onDeleted={onDeleted}
+        onMealCreated={onMealCreated} showToast={showToast} deleteRef={deleteRef}
+      />
+    </Sheet>
+  );
+}
+
+function PantryFoodItemDetailContent({
+  item, items, onClose, onDeleted, onMealCreated, showToast, deleteRef,
+}: {
+  item: FoodItem;
+  items: FoodItem[];
+  onClose: () => void;
+  onDeleted: () => void;
+  onMealCreated: (meal: Meal) => void;
+  showToast?: ShowToast;
+  deleteRef: React.MutableRefObject<() => void>;
+}) {
   const [editing, setEditing] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState<FoodItemFormValues | null>(null);
+  const [updating, setUpdating] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [addingMealItem, setAddingMealItem] = useState(false);
-  const [updating, setUpdating] = useState(false);
+  const [mealSectionOpen, setMealSectionOpen] = useState(false);
 
   const nutrition = {
     calories: item.calories, protein: item.protein, carbs: item.carbs, fiber: item.fiber, fat: item.fat,
   };
+
+  // ── Right-to-left "Edit food item" overlay — covers this Sheet's header,
+  //    same mechanism as the Day's-log basket's EditOverlay. ────────────────
+  useSheetSetOverlay(
+    editing ? (
+      <div className="space-y-3 py-1">
+        <OverlayNav title="Edit food item" onBack={() => setEditing(false)} />
+        <FoodItemFormContent
+          mode="pantry-edit"
+          initial={{
+            name: item.name, measurementType: item.measurementType, referenceAmount: item.referenceAmount,
+            calories: item.calories, protein: item.protein, carbs: item.carbs, fiber: item.fiber, fat: item.fat,
+            photo: item.photo,
+          }}
+          existingItems={items}
+          existingItemId={item.id}
+          onSave={(values) => setPendingUpdate(values)}
+          onCancel={() => setEditing(false)}
+        />
+      </div>
+    ) : null,
+    [editing, item, items],
+  );
+
+  deleteRef.current = () => setConfirmingDelete(true); // eslint-disable-line react-hooks/refs
 
   async function handleDelete() {
     await repos.foodItems.remove(item.id);
@@ -93,87 +159,44 @@ export function PantryFoodItemDetail({
 
   return (
     <>
-      <Sheet
-        title="Food item"
-        onClose={onClose}
-        forceExpanded
-        rightAction={
-          <button onClick={() => setConfirmingDelete(true)} aria-label="Delete food item" className="text-content active:opacity-60">
-            <Icon name="trash" size={20} />
-          </button>
-        }
-      >
-        <div className="space-y-4 pb-2">
-          {item.photo ? (
-            <div className="flex justify-center">
-              <div className="h-64 w-64 overflow-hidden rounded-[20px] shadow-card-lg">
-                <img src={item.photo} alt={item.name} className="h-full w-full object-cover" />
-              </div>
-            </div>
-          ) : null}
-
-          <PantryItemCard
-            name={item.name}
-            nutrition={nutrition}
-            servingLabel={servingLabelFor(item)}
-            onEdit={() => setEditing(true)}
-          />
-
-          <div className="rounded-[20px] border border-border-subtle bg-surface p-4">
-            <p className="text-callout font-semibold text-content">Create a meal</p>
-            <p className="mt-0.5 text-subhead text-content-secondary">Add another food item to turn this into a meal</p>
-            <div className="mt-3 grid grid-cols-4 gap-2">
-              <button
-                onClick={() => setAddingMealItem(true)}
-                className="flex flex-col items-center gap-1.5 rounded-[14px] border border-border-field py-3 text-caption font-medium text-content-secondary active:bg-surface-sunken"
-              >
-                <Icon name="edit" size={18} />
-                Manual
-              </button>
-              <button
-                onClick={() => showToast?.('Coming soon — camera/photo/describe for meals are next')}
-                className="flex flex-col items-center gap-1.5 rounded-[14px] border border-border-field py-3 text-caption font-medium text-content-muted active:bg-surface-sunken"
-              >
-                <Icon name="camera" size={18} />
-                Camera
-              </button>
-              <button
-                onClick={() => showToast?.('Coming soon — camera/photo/describe for meals are next')}
-                className="flex flex-col items-center gap-1.5 rounded-[14px] border border-border-field py-3 text-caption font-medium text-content-muted active:bg-surface-sunken"
-              >
-                <Icon name="search" size={18} />
-                Photo
-              </button>
-              <button
-                onClick={() => showToast?.('Coming soon — camera/photo/describe for meals are next')}
-                className="flex flex-col items-center gap-1.5 rounded-[14px] border border-border-field py-3 text-caption font-medium text-content-muted active:bg-surface-sunken"
-              >
-                <Icon name="check" size={18} />
-                Describe
-              </button>
+      <div className="space-y-4 pb-2">
+        {item.photo ? (
+          <div className="flex justify-center">
+            <div className="h-64 w-64 overflow-hidden rounded-[20px] shadow-card-lg">
+              <img src={item.photo} alt={item.name} className="h-full w-full object-cover" />
             </div>
           </div>
+        ) : null}
 
-          <Button size="lg" variant="outline" onClick={onClose}>Close</Button>
-        </div>
-      </Sheet>
+        <PantryItemCard
+          name={item.name}
+          nutrition={nutrition}
+          servingLabel={servingLabelFor(item)}
+          onEdit={() => setEditing(true)}
+        />
 
-      {editing && (
-        <Sheet title="Edit food item" onClose={() => setEditing(false)} forceExpanded>
-          <FoodItemFormContent
-            mode="pantry-edit"
-            initial={{
-              name: item.name, measurementType: item.measurementType, referenceAmount: item.referenceAmount,
-              calories: item.calories, protein: item.protein, carbs: item.carbs, fiber: item.fiber, fat: item.fat,
-              photo: item.photo,
-            }}
-            existingItems={items}
-            existingItemId={item.id}
-            onSave={(values) => setPendingUpdate(values)}
-            onCancel={() => setEditing(false)}
-          />
-        </Sheet>
-      )}
+        {/* Same collapsible module as the Day's-log basket's "+ Add another
+            item" — just without the search bar / recents, since Pantry isn't
+            picking an EXISTING logged item, it's building a new Meal. */}
+        <AddAnotherSection
+          label="Create a meal"
+          open={mealSectionOpen}
+          onToggle={() => setMealSectionOpen((o) => !o)}
+          onClose={() => setMealSectionOpen(false)}
+        >
+          <div className="space-y-1">
+            <p className="px-1 pt-2 pb-1 text-callout font-semibold text-content">Pantry</p>
+            <MethodCards
+              onCamera={() => showToast?.('Coming soon — camera for meals is next')}
+              onPhoto={() => showToast?.('Coming soon — photo for meals is next')}
+              onDescribe={() => showToast?.('Coming soon — describe for meals is next')}
+              onManual={() => { setMealSectionOpen(false); setAddingMealItem(true); }}
+            />
+          </div>
+        </AddAnotherSection>
+
+        <Button size="lg" variant="outline" onClick={onClose}>Close</Button>
+      </div>
 
       {pendingUpdate && (
         <Sheet title="Update food item?" onClose={() => setPendingUpdate(null)}>

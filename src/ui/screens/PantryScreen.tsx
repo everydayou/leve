@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
-import { itemsByIdMap, mealNutritionFor } from '../../domain/calc';
+import { itemsByIdMap, mealNutritionFor, nutritionFor } from '../../domain/calc';
 
 import { Button, FilterPills, Sheet, EmptyState, Icon } from '../kit';
 import { Thumb } from '../components/PhotoPicker';
@@ -14,13 +14,17 @@ import { PantryMealDetail } from '../components/PantryMealDetail';
 
 import { hapticLight } from '../../lib/haptics';
 import type { DayContext } from '../AppShell';
+import type { FoodItem, Meal, NutritionSnapshot } from '../../domain/types';
 
-type PantryFilter = 'items' | 'meals';
+type PantryFilter = 'all' | 'items' | 'meals';
+type PantryRow =
+  | { type: 'item'; id: string; name: string; photo?: string; nutrition: NutritionSnapshot }
+  | { type: 'meal'; id: string; name: string; photo?: string; nutrition: NutritionSnapshot };
 
 export function PantryScreen() {
   const { showToast } = useOutletContext<DayContext>();
   const [q, setQ] = useState('');
-  const [filter, setFilter] = useState<PantryFilter>('items');
+  const [filter, setFilter] = useState<PantryFilter>('all');
   const [adding, setAdding] = useState(false);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
   const [openMealId, setOpenMealId] = useState<string | null>(null);
@@ -34,9 +38,19 @@ export function PantryScreen() {
   const itemsById = itemsByIdMap(items);
   const loading = rawItems == null || rawMeals == null;
 
-  const filteredItems = items.filter((i) => i.name.toLowerCase().includes(q.toLowerCase()));
-  const filteredMeals = meals.filter((m) => m.name.toLowerCase().includes(q.toLowerCase()));
+  const itemRows: PantryRow[] = items.map((i: FoodItem) => ({
+    type: 'item', id: i.id, name: i.name, photo: i.photo,
+    nutrition: nutritionFor(i, i.measurementType === 'per_100g' ? i.referenceAmount : 1),
+  }));
+  const mealRows: PantryRow[] = meals.map((m: Meal) => ({
+    type: 'meal', id: m.id, name: m.name, photo: m.photo, nutrition: mealNutritionFor(m, itemsById),
+  }));
+  const allRows = [...itemRows, ...mealRows].sort((a, b) => a.name.localeCompare(b.name));
+  const rowsForFilter = filter === 'items' ? itemRows : filter === 'meals' ? mealRows : allRows;
+  const rows = rowsForFilter.filter((r) => r.name.toLowerCase().includes(q.toLowerCase()));
+
   const openItem = openItemId ? items.find((i) => i.id === openItemId) : undefined;
+  const isEmpty = items.length === 0 && meals.length === 0;
 
   async function handleCreateFood(values: FoodItemFormValues) {
     const id = newId();
@@ -47,6 +61,12 @@ export function PantryScreen() {
     });
     setAdding(false);
     setOpenItemId(id); // land on Food item detail (spec §3)
+  }
+
+  function openRow(row: PantryRow) {
+    hapticLight();
+    if (row.type === 'item') setOpenItemId(row.id);
+    else setOpenMealId(row.id);
   }
 
   return (
@@ -78,43 +98,44 @@ export function PantryScreen() {
             </button>
           )}
         </div>
-        {/* Food items / Meals — replaces the old All/per100g/perServing pills
-            (round 123): the meaningful split in Pantry is now what KIND of
-            reusable object something is, not its serving-unit setup. */}
+        {/* All / Food items / Meals — replaces the old All/per100g/perServing
+            pills (round 123): the meaningful split in Pantry is now what KIND
+            of reusable object something is, not its serving-unit setup. */}
         <FilterPills<PantryFilter>
           className="mt-3"
           value={filter}
           onChange={setFilter}
           options={[
+            { value: 'all', label: 'All' },
             { value: 'items', label: 'Food items' },
             { value: 'meals', label: 'Meals' },
           ]}
         />
       </div>
 
-      {!loading && filter === 'items' && (
+      {!loading && (
         <>
-          <p className="px-6 pt-4 text-callout font-bold text-content">{filteredItems.length} items</p>
+          <p className="px-6 pt-4 text-callout font-bold text-content">{rows.length} {filter === 'meals' ? 'meals' : 'items'}</p>
           <div className="mx-6 mt-1 overflow-hidden rounded-card border border-border-subtle bg-surface">
             <ul className="divide-y divide-border-subtle">
-              {filteredItems.map((i) => (
-                <li key={i.id}>
-                  <button onClick={() => { hapticLight(); setOpenItemId(i.id); }} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-sunken">
-                    <Thumb photo={i.photo} radius="rounded-[8px]" />
+              {rows.map((row) => (
+                <li key={`${row.type}-${row.id}`}>
+                  <button onClick={() => openRow(row)} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-sunken">
+                    <Thumb photo={row.photo} radius="rounded-[8px]" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-callout font-normal leading-[1.2] text-content">{i.name}</p>
-                      <p className="mt-[4px] text-subhead leading-none text-content-secondary">{i.measurementType === 'per_100g' ? 'per 100g' : 'per serving'}</p>
+                      <p className="truncate text-callout font-normal leading-[1.2] text-content">{row.name}</p>
+                      <p className="mt-[4px] text-subhead leading-none text-content-secondary">{row.type === 'item' ? 'Food item' : 'Meal'}</p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-callout font-bold leading-[1.2] text-content">{i.calories} kcal</p>
-                      <p className="mt-[4px] text-subhead leading-none text-content-secondary">{i.protein}g Protein</p>
+                      <p className="text-callout font-bold leading-[1.2] text-content">{row.nutrition.calories} kcal</p>
+                      <p className="mt-[4px] text-subhead leading-none text-content-secondary">{row.nutrition.protein}g Protein</p>
                     </div>
                   </button>
                 </li>
               ))}
-              {filteredItems.length === 0 && (
+              {rows.length === 0 && (
                 <li>
-                  {items.length === 0 ? (
+                  {isEmpty ? (
                     <EmptyState
                       icon="foodIcon"
                       title="Your pantry is empty"
@@ -122,48 +143,7 @@ export function PantryScreen() {
                       action={<Button icon="plus" onClick={() => setAdding(true)}>New food</Button>}
                     />
                   ) : (
-                    <p className="px-6 py-10 text-center text-subhead text-content-muted">No foods match.</p>
-                  )}
-                </li>
-              )}
-            </ul>
-          </div>
-        </>
-      )}
-
-      {!loading && filter === 'meals' && (
-        <>
-          <p className="px-6 pt-4 text-callout font-bold text-content">{filteredMeals.length} meals</p>
-          <div className="mx-6 mt-1 overflow-hidden rounded-card border border-border-subtle bg-surface">
-            <ul className="divide-y divide-border-subtle">
-              {filteredMeals.map((m) => {
-                const n = mealNutritionFor(m, itemsById);
-                return (
-                  <li key={m.id}>
-                    <button onClick={() => { hapticLight(); setOpenMealId(m.id); }} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-sunken">
-                      <Thumb photo={m.photo} radius="rounded-[8px]" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-callout font-normal leading-[1.2] text-content">{m.name}</p>
-                        <p className="mt-[4px] text-subhead leading-none text-content-secondary">{m.items.length} food items</p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-callout font-bold leading-[1.2] text-content">{n.calories} kcal</p>
-                        <p className="mt-[4px] text-subhead leading-none text-content-secondary">{n.protein}g Protein</p>
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
-              {filteredMeals.length === 0 && (
-                <li>
-                  {meals.length === 0 ? (
-                    <EmptyState
-                      icon="foodIcon"
-                      title="No meals yet"
-                      description="Open a Food item and use “Create a meal” to combine it with another one."
-                    />
-                  ) : (
-                    <p className="px-6 py-10 text-center text-subhead text-content-muted">No meals match.</p>
+                    <p className="px-6 py-10 text-center text-subhead text-content-muted">No {filter === 'meals' ? 'meals' : filter === 'items' ? 'foods' : 'results'} match.</p>
                   )}
                 </li>
               )}

@@ -1,4 +1,65 @@
 ================================================================
+ROUND 124 — MEALS IN PANTRY: COMPONENT REUSE & CONSISTENCY PASS (2026-07-02)
+================================================================
+Files: src/ui/components/icons.tsx (NEW), src/ui/components/MethodCards.tsx
+       (NEW), src/ui/components/AddEntrySheet.tsx, src/ui/components/PantryItemCard.tsx,
+       src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryMealDetail.tsx,
+       src/ui/screens/PantryScreen.tsx
+
+Follow-up to round 123, addressing Marco's review before any device sync of
+that build had happened — same round of work, just tightened up for
+consistency rather than shipped as a separate feature slice.
+
+── REAL COMPONENT REUSE (NOT JUST SHARED STYLING) ───────────────────────────
+DeleteIcon + EditIcon (Figma-matched custom SVGs, previously private to
+AddEntrySheet.tsx) extracted to icons.tsx. AddAnotherSection + MethodCards
+(the Day's-log basket's collapsible "+ Add another item" chrome and its
+Camera/Photo/Describe/Nutri-scan/Manual button row) extracted to
+MethodCards.tsx, with AddAnotherSection gaining an optional `label` prop and
+MethodCards' `onLabel` (Nutri-scan) made optional. AddEntrySheet.tsx now
+imports all four from the shared files instead of defining them locally —
+one visual change to any of them now lands on the Day's-log basket AND every
+Pantry surface at once, which was the whole point of Marco's "same template"
+callout on round 123.
+Pantry's "Create a meal" (Food item detail) and "Add a new food item" (Meal
+detail) now render the ACTUAL AddAnotherSection + MethodCards components —
+same collapsible "+ <label>" toggle, same method-button row — instead of a
+one-off 4-icon grid. Difference from the Day's-log version is intent, not
+component: no search bar / recent-items list (Pantry isn't picking an
+already-logged item), just a "Pantry" methods card. Manual is wired; Camera/
+Photo/Describe still toast "coming soon" (unchanged from round 123).
+PantryItemCard now uses the same DeleteIcon/EditIcon as BasketCard.
+
+── PANTRYITEMCARD: TAP-ANYWHERE-TO-EDIT ─────────────────────────────────────
+Matches BasketCard exactly: the whole card is clickable (onEdit), not just
+the pencil button. Stepper and action buttons stopPropagation so they don't
+also fire the card tap.
+
+── RIGHT-TO-LEFT OVERLAY FOR EDITING (NOT A STACKED SHEET) ──────────────────
+PantryFoodItemDetail and PantryMealDetail were both split into an outer
+component (owns the Sheet + header delete button, forwarding a ref so the
+header can trigger the confirm-delete flow that actually lives below) and an
+inner "Content" component that is a true child of Sheet — same split
+AddEntrySheet.tsx already uses for LogEntrySheet/LogEntryContent. The inner
+component calls useSheetSetOverlay + OverlayNav to slide the "Edit food item"
+form in from the right, covering the Sheet's own header — the exact same
+mechanism as the Day's-log basket's EditOverlay — instead of stacking a
+second bottom Sheet on top. The edit-confirmation dialog ("This will update
+all records...") stays a small Sheet-on-Sheet, layered independently of
+whichever overlay state the edit form is in.
+
+── PANTRYSCREEN: ALL PILL + UNIFIED ROW MODEL ───────────────────────────────
+Filter pills are now All / Food items / Meals, with All selected by default.
+Row subtitle changed from "per 100g" / "per serving" to "Food item" / "Meal"
+— the meaningful distinction in a combined list is WHAT the row is, not its
+serving-unit setup. "All" merges Food items + Meals into one alphabetically
+sorted list (PantryRow union type), each row still opening the correct
+detail sheet.
+
+tsc: clean. lint: clean. vitest: 30 passed (8 pre-existing skips). `npm run
+build` verified clean.
+
+================================================================
 ROUND 123 — MEALS IN PANTRY: FOUNDATION (DATA MODEL, MIGRATION, PANTRY UI) (2026-07-02)
 ================================================================
 Files: src/domain/types.ts, src/domain/calc.ts, src/data/repositories.ts,

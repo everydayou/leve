@@ -6,10 +6,12 @@
 // definition; Day's log = always enabled, logging a consumed quantity) and
 // different trash semantics (Pantry: remove-from-meal vs delete-whole-object;
 // Day's log: remove-from-basket). They DO share the same macro-line
-// formatting via <MacroSummaryLine>, and reuse the same <Icon> affordances.
+// formatting via <MacroSummaryLine>, and the same DeleteIcon/EditIcon glyphs
+// as BasketCard — one icon change reflects on every card, everywhere.
 import { Icon, MacroSummaryLine } from '../kit';
 import type { NutritionSnapshot } from '../../domain/types';
 import { Thumb } from './PhotoPicker';
+import { DeleteIcon, EditIcon } from './icons';
 
 export function PantryItemCard({
   name, nutrition, servingLabel, photo, onEdit, onRemove,
@@ -21,6 +23,7 @@ export function PantryItemCard({
    *  quantity (spec §10). */
   servingLabel: string;
   photo?: string;
+  /** Tapping ANYWHERE on the card opens edit — same convention as BasketCard. */
   onEdit: () => void;
   /** When provided, shows a card-level trash button ("remove this Food item
    *  from the Meal" — spec §11). Omit for a single Food item's own detail
@@ -28,7 +31,11 @@ export function PantryItemCard({
   onRemove?: () => void;
 }) {
   return (
-    <div className="rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card">
+    <div
+      className="rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card"
+      onClick={onEdit}
+      style={{ cursor: 'pointer' }}
+    >
       <div className="mb-2 flex items-center gap-3">
         {photo && <Thumb photo={photo} radius="rounded-[10px]" />}
         <span className="flex-1 truncate text-callout text-content">{name}</span>
@@ -37,7 +44,10 @@ export function PantryItemCard({
       <MacroSummaryLine nutrition={nutrition} className="mb-2.5" />
       <div className="flex items-center justify-between">
         {/* Disabled stepper — Pantry defines properties, never consumed quantity. */}
-        <div className="inline-flex items-center gap-0 rounded-full bg-surface-sunken px-1 py-1 opacity-50">
+        <div
+          className="inline-flex items-center gap-0 rounded-full bg-surface-sunken px-1 py-1 opacity-50"
+          onClick={(e) => e.stopPropagation()}
+        >
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface text-content border border-border-field">
             <Icon name="minus" size={20} strokeWidth={2} />
           </span>
@@ -46,13 +56,13 @@ export function PantryItemCard({
             <Icon name="plus" size={20} strokeWidth={2} />
           </span>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={onEdit}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-border-field bg-surface text-content active:opacity-60"
             aria-label="Edit"
           >
-            <Icon name="edit" size={18} />
+            <EditIcon size={20} />
           </button>
           {onRemove && (
             <button
@@ -60,7 +70,7 @@ export function PantryItemCard({
               className="flex h-10 w-10 items-center justify-center rounded-full border border-border-field bg-surface text-content active:opacity-60"
               aria-label="Remove from meal"
             >
-              <Icon name="trash" size={18} />
+              <DeleteIcon size={20} />
             </button>
           )}
         </div>

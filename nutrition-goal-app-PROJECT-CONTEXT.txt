@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-02 — Round 123 (Meals in Pantry — foundational data model, migration, and Pantry UI; Day's-log integration still to come)
+Last updated: 2026-07-02 — Round 124 (Meals in Pantry — component reuse & consistency pass on top of round 123's foundation; Day's-log integration still to come)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,28 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 124 — MEALS IN PANTRY: COMPONENT REUSE & CONSISTENCY PASS (2026-07-02)
+Files: src/ui/components/icons.tsx (new), src/ui/components/MethodCards.tsx
+       (new), src/ui/components/AddEntrySheet.tsx, PantryItemCard.tsx,
+       PantryFoodItemDetail.tsx, PantryMealDetail.tsx, src/ui/screens/PantryScreen.tsx
+- Real component reuse, not just shared styling: DeleteIcon/EditIcon and
+  AddAnotherSection/MethodCards (the Day's-log basket's "+Add another item"
+  chrome + Camera/Photo/Describe/Nutri-scan/Manual row) extracted out of
+  AddEntrySheet.tsx into shared files. Pantry's "Create a meal" / "Add a new
+  food item" now render the ACTUAL shared components (no search/recents, just
+  a "Pantry" methods card) instead of a one-off button grid.
+- PantryItemCard: tap-anywhere-on-card now opens edit, matching BasketCard;
+  uses the same custom Delete/Edit icons as the basket.
+- Editing a Food item from Pantry now slides in right-to-left (useSheetSetOverlay
+  + OverlayNav), same mechanism as the Day's-log basket's EditOverlay, instead
+  of stacking a second bottom Sheet. Confirm-before-update dialog unchanged
+  (separate Sheet-on-Sheet).
+- PantryScreen: All/Food items/Meals pills (All default); row subtitle now
+  "Food item"/"Meal" instead of per-100g/per-serving; "All" merges both into
+  one alphabetical list.
+- tsc: clean. lint: clean. vitest: 30 passed (8 pre-existing skips). `npm run
+  build` verified clean.
+
 ROUND 123 — MEALS IN PANTRY: FOUNDATION (2026-07-02)
 Files: src/domain/types.ts, src/domain/calc.ts, src/data/repositories.ts,
        src/data/db.ts, src/data/{dexie,memory}Repositories.ts,
@@ -331,20 +353,6 @@ Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/FoodItemForm.tsx (
 - Nutri-scan "Change" button removed; PantryScreen delete icon updated.
 - tsc: clean. lint: clean.
 
-ROUND 121 — FAB SIMPLIFICATION, BASKET CARD REDESIGN, IMAGE COLLAGE (2026-06-30)
-Files: src/ui/components/AddEntrySheet.tsx, src/ui/kit/FloatingTabBar.tsx,
-       src/ui/AppShell.tsx, src/ui/components/TabBar.tsx,
-       src/ui/kit/ImageHero.tsx, src/ui/screens/PantryScreen.tsx
-- FAB de-animated: hapticLight() + onFabMorphComplete() directly, no rotation/
-  morph phases.
-- BasketCard: always-visible edit+trash circular buttons (h-10 w-10); no swipe,
-  no editMode; EditIcon custom SVG (16×16 fill); stepper gap-0, container 40px.
-- ImageHero: 2/3/4-photo collage with Figma bounding-box-corrected coordinates;
-  rotations sign-flipped vs Figma; 256×256 container.
-- PantryScreen: descender fix (leading-[1.2]).
-- tsc: clean. lint: clean.
-
-
 ================================================================
 TODO / FUTURE WORK
 ================================================================
@@ -354,16 +362,15 @@ TODO / FUTURE WORK
   missing (round 123); needs a design pass (where it sits relative to the
   per-item cards, whether it matches the existing macro-line style or the
   Diary's fuller gauge/breakdown treatment).
-- BASKET-VIEW UNIFICATION: FoodItemForm.tsx already unifies the 4 food-item
-  entry/edit surfaces behind one component. The analogous "basket view"
-  (BasketCard/basket rendering in AddEntrySheet.tsx, used across the fresh-log
-  flow and LogEntrySheet's edit-existing-entry flow) is ALREADY shared between
-  those two touch points. The new Pantry-side item card (PantryItemCard,
-  round 123) is intentionally a separate component rather than forced into
-  the same one — opposite stepper rules (Pantry disabled vs Day's-log
-  enabled) and different trash semantics. Worth a dedicated round to decide
-  how far a real "one card, many contexts" unification should go, rather than
-  doing it as a side-effect of an unrelated change.
+- BASKET-VIEW UNIFICATION (partially done, round 124): DeleteIcon/EditIcon and
+  AddAnotherSection/MethodCards are now genuinely shared (icons.tsx,
+  MethodCards.tsx) between the Day's-log basket and every Pantry surface —
+  one change to either reflects everywhere. Still intentionally NOT unified:
+  PantryItemCard vs BasketCard themselves stay separate components (opposite
+  stepper rules — Pantry disabled vs Day's-log enabled — and different trash
+  semantics). Worth a dedicated round to decide how far a full "one card,
+  many contexts" unification should go, rather than doing it as a side-effect
+  of an unrelated change.
 - KEYBOARD TOOLBAR (accessory bar): Add a prev/next field navigation bar +
   dismiss button above the keyboard when number/text inputs are focused inside
   sheets. Capacitor InputAccessoryView plugin or a custom UIToolbar injected

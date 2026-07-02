@@ -1,4 +1,44 @@
 ================================================================
+ROUND 129 — MEALS IN PANTRY: LOG A SAVED MEAL DIRECTLY (2026-07-02)
+================================================================
+Files: src/ui/components/AddEntrySheet.tsx
+
+Marco corrected round 128's call: the Day's-log picker's "per serving"/
+"per 100g" subtitle should have become "Food item"/"Meal" too, same as
+everywhere else — and since that label is only meaningful if Meals are
+actually pickable, this round makes them pickable, not just relabeled.
+
+── FOODPICKER: MEALS ALONGSIDE FOOD ITEMS ───────────────────────────────────
+FoodPicker (the search/recent picker used by both FoodForm's fresh-log flow
+and LogEntryContent's edit flow) takes a new `meals` prop and optional
+onPickMeal. Row subtitle changed from "per serving"/"per 100g" to "Food
+item"/"Meal". Search results now include matching Meals (via
+mealNutritionFor/mealPhotoFor for their kcal/photo) alongside Food items,
+sorted together alphabetically. "Recent" stays Food-item-only — there's no
+frequentMealIds tracking yet, so nothing to rank there.
+
+── PICKING A MEAL: FAST-LOG PATH (FRESH LOGGING) ────────────────────────────
+FoodForm gets addPantryMeal(). Basket empty + pick a Meal (not from search)
+→ the basket is populated directly from that Meal's own items/quantities,
+the meal name field is prefilled, "Save to pantry" defaults to checked (it's
+already in Pantry), and a new loggingExistingMealId is remembered. logBasket()
+uses this to UPDATE that same Meal on save rather than creating a duplicate
+— the exact bug this mechanism exists to avoid. Clears automatically if the
+basket is emptied back out (starting fresh). Basket already has something,
+or picked via search → the Meal's items flatten into the current basket
+instead (spec §5/§18 — never nest a Meal inside a Meal), with the
+"Added N items from X" toast.
+
+── PICKING A MEAL WHILE EDITING AN EXISTING ENTRY ───────────────────────────
+LogEntryContent gets the same addPantryMeal(), always flattening (its basket
+is never empty — it's editing something that already exists). Photos from
+the picked Meal's Food items merge into localPhotos (deduped, capped at 4).
+No new "loggingExistingMealId" concept needed here — the create-vs-update
+Meal logic already added in round 127 (entry.mealId ?? newId()) covers it.
+
+tsc: clean. lint: clean. vitest: 35 passed (unchanged). `npm run build`
+verified clean.
+
 ROUND 128 — MEALS IN PANTRY: BASKET VIEW CATCHES UP TO SPEC (2026-07-02)
 ================================================================
 Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/FoodItemForm.tsx

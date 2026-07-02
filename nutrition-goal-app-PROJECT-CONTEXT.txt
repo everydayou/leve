@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-02 — Round 128 (Meals in Pantry — Day's-log basket screens brought up to the same copy/layout spec as Pantry; only Camera/Photo/Describe for the Pantry meal-builder still to come)
+Last updated: 2026-07-02 — Round 129 (Meals in Pantry — you can now log a saved Meal directly from the Day's-log picker, not just individual Food items; only Camera/Photo/Describe for the Pantry meal-builder still to come)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,24 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 129 — MEALS IN PANTRY: LOG A SAVED MEAL DIRECTLY (2026-07-02)
+Files: src/ui/components/AddEntrySheet.tsx
+- FoodPicker (Day's-log search/recent, used by both FoodForm and
+  LogEntryContent) now lists Meals alongside Food items, subtitle "Food
+  item"/"Meal" (was "per serving"/"per 100g" — Marco's correction to round
+  128). Recent stays Food-item-only (no frequentMealIds tracking yet).
+- FoodForm: picking a Meal with an empty basket fast-populates it from that
+  Meal's own items/quantities, prefills the name, defaults "Save to pantry"
+  on, and remembers the Meal's id (loggingExistingMealId) so logBasket()
+  UPDATES that Meal on save instead of duplicating it. Picking one into an
+  already-non-empty basket (or via search) flattens its items in instead —
+  never nests a Meal inside a Meal.
+- LogEntryContent: same Meal-picking, always flattens (its basket is never
+  empty) — the existing entry.mealId create-vs-update logic from round 127
+  already handles the rest.
+- tsc: clean. lint: clean. vitest: 35 passed (unchanged). `npm run build`
+  verified clean.
+
 ROUND 128 — MEALS IN PANTRY: BASKET VIEW CATCHES UP TO SPEC (2026-07-02)
 Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/FoodItemForm.tsx
 - Removed the inline "Meal" heading (icon + text) above the Day's-log basket
@@ -319,25 +337,6 @@ Files: src/ui/components/AddEntrySheet.tsx
   for this round.
 - tsc: clean. lint: clean. vitest: 35 passed (unchanged; pre-existing
   skips). `npm run build` verified clean.
-
-ROUND 126 — MEALS IN PANTRY: PHOTO COLLAGE, X-TO-DISCARD, CARD POLISH (2026-07-02)
-Files: src/ui/kit/Sheet.tsx, src/ui/components/FoodItemForm.tsx,
-       MethodCards.tsx, PantryItemCard.tsx, PantryFoodItemDetail.tsx,
-       PantryMealDetail.tsx, src/domain/calc.ts
-- PantryItemCard: removed the per-item photo thumbnail (matches BasketCard,
-  which never had one). New mealPhotosFor() collects Meal photo + every
-  ingredient's photo (dedup, cap 4) into the same <ImageHero> collage the
-  Day's-log basket already uses for multi-item scans; Food item detail's own
-  photo also now goes through ImageHero for consistency.
-- OverlayNav gains icon:'back'|'close'. Pantry's "Add item to meal" (Manual)
-  and "Add from pantry" now show X, not a back arrow — cancels the whole
-  flow. FoodItemFormContent gains onDirtyChange; Manual's X confirms
-  ("Discard this item?") only when something was actually typed.
-- AddAnotherSection gains helperText (muted line under the label, collapsed
-  only) — Pantry's two modules now show "Add another item" per spec copy.
-  Nutri-scan (onLabel) wired into both Pantry method rows too.
-- tsc: clean. lint: clean. vitest: 35 passed (8 pre-existing skips). `npm run
-  build` verified clean.
 
 ================================================================
 TODO / FUTURE WORK

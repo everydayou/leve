@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
 import { newId, todayISO } from '../../data/ids';
-import { nutritionFor } from '../../domain/calc';
+import { nutritionFor, mealNutritionFor, mealPhotoFor, itemsByIdMap } from '../../domain/calc';
 import { currentWeightKg } from '../../domain/goal';
 import { kgToLbs, lbsToKg } from '../../domain/units';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
@@ -175,6 +175,7 @@ export function AddEntrySheet({
 }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const items = useLive(() => repos.foodItems.all(), []) ?? [];
+  const meals = useLive(() => repos.meals.all(), []) ?? [];
   const freqIds = useLive(() => repos.foodEntries.frequentItemIds(4, 3), []) ?? [];
   const frequentItems = freqIds
     .map((id) => items.find((i) => i.id === id))
@@ -223,6 +224,7 @@ export function AddEntrySheet({
         <FoodForm
           date={date}
           items={items}
+          meals={meals}
           frequentItems={frequentItems}
           onDone={onClose}
           autoScan={autoScan}
@@ -241,10 +243,11 @@ export function AddEntrySheet({
 type OverlayKey = 'describe' | 'manual' | 'edit';
 
 function FoodForm({
-  date, items, frequentItems = [], onDone, autoScan = false, initialScanPhoto, showToast,
+  date, items, meals = [], frequentItems = [], onDone, autoScan = false, initialScanPhoto, showToast,
 }: {
   date: string;
   items: FoodItem[];
+  meals?: Meal[];
   frequentItems?: FoodItem[];
   onDone: () => void;
   autoScan?: boolean;
@@ -255,6 +258,10 @@ function FoodForm({
   const [sources, setSources]           = useState<SourceGroup[]>([]);
   const [mealName, setMealName]         = useState('');
   const [saveToPantry, setSaveToPantry] = useState(false);
+  // Set when the basket was fast-populated by picking an EXISTING pantry
+  // Meal directly (round 129) — lets logBasket() update that same Meal
+  // instead of spawning a duplicate when "Save to pantry" is checked.
+  const [loggingExistingMealId, setLoggingExistingMealId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen]     = useState(false);
   const [activeOverlay, setActiveOverlay] = useState<OverlayKey | null>(null);
   const [editingIdx, setEditingIdx]     = useState<number | null>(null);
@@ -517,6 +524,39 @@ function FoodForm({
     setPickerOpen(false);
   }
 
+  function addPantryMeal(meal: Meal, fromSearch?: boolean) {
+    hapticLight();
+    const mealBasketItems: BasketItem[] = meal.items
+      .map((mi) => {
+        const item = items.find((i) => i.id === mi.foodItemId);
+        if (!item) return null;
+        const sourceId = item.photo ? newId() : undefined;
+        if (sourceId && item.photo) setSources((prev) => [...prev, { id: sourceId, photo: item.photo! }]);
+        return { ...pantryToBasket(item, sourceId), qty: mi.quantity };
+      })
+      .filter((b): b is BasketItem => b != null);
+    if (mealBasketItems.length === 0) {
+      showToast?.('Could not load that meal — its food items may have been removed');
+      return;
+    }
+    // Fast path: basket empty and not searching → populate directly from
+    // this Meal's own items/quantities, ready to review and log. Remember
+    // its id so logBasket() updates the SAME Meal rather than duplicating it.
+    if (basket.length === 0 && !fromSearch) {
+      setBasket(mealBasketItems);
+      setMealName(meal.name);
+      setSaveToPantry(true); // it's already in Pantry — default to keeping it linked
+      setLoggingExistingMealId(meal.id);
+      setPickerOpen(false);
+      return;
+    }
+    // Already building something — flatten this Meal's items in rather than
+    // nesting one meal inside another (spec §5/§18).
+    setBasket((prev) => [...prev, ...mealBasketItems]);
+    setPickerOpen(false);
+    showToast?.(`Added ${mealBasketItems.length} items from ${meal.name}`);
+  }
+
   function removeItem(idx: number) {
     hapticLight();
     const item = basket[idx];
@@ -526,6 +566,8 @@ function FoodForm({
     if (item.sourceId && !remaining.some((b) => b.sourceId === item.sourceId)) {
       setSources((prev) => prev.filter((s) => s.id !== item.sourceId));
     }
+    // Basket emptied out — no longer "logging that existing Meal", starting fresh.
+    if (remaining.length === 0) setLoggingExistingMealId(null);
   }
 
   function updateQty(idx: number, qty: number) {
@@ -650,8 +692,14 @@ function FoodForm({
         const mealFoodItems: MealFoodItem[] = basket.map((item, i) => ({
           id: newId(), foodItemId: resolvedFoodItemIds[i]!, quantity: item.qty,
         }));
-        const mealId = newId();
-        const meal: Meal = { id: mealId, name, photo: primaryPhoto, items: mealFoodItems, isArchived: false };
+        // Reuse the same Meal (update, not duplicate) when this basket was
+        // fast-populated by picking an existing pantry Meal directly.
+        const mealId = loggingExistingMealId ?? newId();
+        const existingMeal = loggingExistingMealId ? meals.find((m) => m.id === loggingExistingMealId) : undefined;
+        const meal: Meal = {
+          id: mealId, name, photo: primaryPhoto ?? existingMeal?.photo,
+          items: mealFoodItems, isArchived: false,
+        };
         await repos.meals.put(meal);
         await repos.foodEntries.add({
           id: entryId, date, mealId, isManual: false,
@@ -782,8 +830,10 @@ function FoodForm({
       {basket.length === 0 && (
         <FoodPicker
           items={items}
+          meals={meals}
           frequentItems={frequentItems}
           onPickItem={addPantryItem}
+          onPickMeal={addPantryMeal}
           onCamera={() => void handleCamera()}
           onPhoto={() => void handlePhoto()}
           onDescribe={() => setActiveOverlay('describe')}
@@ -807,8 +857,10 @@ function FoodForm({
           <FoodPicker
             bare
             items={items}
+            meals={meals}
             frequentItems={frequentItems}
             onPickItem={addPantryItem}
+            onPickMeal={addPantryMeal}
             onCamera={() => void handleCamera()}
             onPhoto={() => void handlePhoto()}
             onDescribe={() => { setPickerOpen(false); setActiveOverlay('describe'); }}
@@ -953,14 +1005,22 @@ function BasketCard({
 
 // ── FoodPicker ────────────────────────────────────────────────────────────────
 
+type PickerRow =
+  | { type: 'item'; id: string; name: string; photo?: string; calories: number; protein: number }
+  | { type: 'meal'; id: string; name: string; photo?: string; calories: number; protein: number };
+
 function FoodPicker({
-  items, frequentItems = [], onPickItem, onCamera, onPhoto, onDescribe, onLabel, onManual,
+  items, meals = [], frequentItems = [], onPickItem, onPickMeal, onCamera, onPhoto, onDescribe, onLabel, onManual,
   bare = false,
 }: {
   items: FoodItem[];
+  /** Reusable Pantry Meals — searchable alongside Food items (round 129).
+   *  Recent stays Food-item-only (no "recently logged meal" tracking yet). */
+  meals?: Meal[];
   /** Pre-computed frequent items (most logged) to show in the Recent list. */
   frequentItems?: FoodItem[];
   onPickItem: (item: FoodItem, fromSearch?: boolean) => void;
+  onPickMeal?: (meal: Meal, fromSearch?: boolean) => void;
   onCamera: () => void;
   onPhoto: () => void;
   onDescribe: () => void;
@@ -970,14 +1030,40 @@ function FoodPicker({
   bare?: boolean;
 }) {
   const [query, setQuery] = useState('');
+  const itemsById = itemsByIdMap(items);
 
   // Recent = frequently logged items; fall back to newest pantry items if none logged yet
   const recent = frequentItems.length > 0
     ? frequentItems
     : items.filter((i) => !i.isArchived).slice(0, 4);
-  const filtered = query.trim()
-    ? items.filter((i) => !i.isArchived && i.name.toLowerCase().includes(query.toLowerCase()))
-    : recent;
+  const q = query.trim().toLowerCase();
+
+  const rows: PickerRow[] = q
+    ? [
+        ...items.filter((i) => !i.isArchived && i.name.toLowerCase().includes(q)).map((item): PickerRow => {
+          const n = nutritionFor(item, item.referenceAmount);
+          return { type: 'item', id: item.id, name: item.name, photo: item.photo, calories: Math.round(n.calories), protein: Math.round(n.protein * 10) / 10 };
+        }),
+        ...meals.filter((m) => !m.isArchived && m.name.toLowerCase().includes(q)).map((meal): PickerRow => {
+          const n = mealNutritionFor(meal, itemsById);
+          return { type: 'meal', id: meal.id, name: meal.name, photo: mealPhotoFor(meal, itemsById), calories: Math.round(n.calories), protein: Math.round(n.protein * 10) / 10 };
+        }),
+      ].sort((a, b) => a.name.localeCompare(b.name))
+    : recent.map((item): PickerRow => {
+        const n = nutritionFor(item, item.referenceAmount);
+        return { type: 'item', id: item.id, name: item.name, photo: item.photo, calories: Math.round(n.calories), protein: Math.round(n.protein * 10) / 10 };
+      });
+
+  function pickRow(row: PickerRow) {
+    const fromSearch = q.length > 0;
+    if (row.type === 'item') {
+      const item = items.find((i) => i.id === row.id);
+      if (item) onPickItem(item, fromSearch);
+    } else {
+      const meal = meals.find((m) => m.id === row.id);
+      if (meal) onPickMeal?.(meal, fromSearch);
+    }
+  }
 
   const inner = (
     <>
@@ -998,50 +1084,47 @@ function FoodPicker({
         </div>
 
         {/* List */}
-        {filtered.length > 0 && (
+        {rows.length > 0 && (
           <div>
-            <p className="px-1 pt-3 pb-2 text-callout font-semibold text-content">{query.trim() ? 'Results' : 'Recent'}</p>
+            <p className="px-1 pt-3 pb-2 text-callout font-semibold text-content">{q ? 'Results' : 'Recent'}</p>
             <div className="overflow-hidden rounded-[16px] bg-surface divide-y divide-border-subtle">
-              {filtered.map((item) => {
-                const n = nutritionFor(item, item.referenceAmount);
-                return (
+              {rows.map((row) => (
+                <button
+                  key={`${row.type}-${row.id}`}
+                  onClick={() => pickRow(row)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-sunken"
+                >
+                  {row.photo ? (
+                    <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[10px]">
+                      <img src={row.photo} alt={row.name} className="h-full w-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="h-11 w-11 shrink-0 rounded-[10px] bg-surface-sunken" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-subhead leading-[1.2] text-content">{row.name}</p>
+                    <p className="mt-[4px] text-subhead leading-none text-content-secondary">
+                      {row.type === 'item' ? 'Food item' : 'Meal'}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-subhead font-bold leading-[1.2] text-content">{row.calories} kcal</p>
+                    <p className="mt-[4px] text-subhead leading-none text-content-secondary">{row.protein}g Protein</p>
+                  </div>
                   <button
-                    key={item.id}
-                    onClick={() => onPickItem(item, query.trim().length > 0)}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-sunken"
+                    onClick={(e) => { e.stopPropagation(); pickRow(row); }}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-black active:opacity-80"
+                    aria-label={`Add ${row.name}`}
                   >
-                    {item.photo ? (
-                      <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[10px]">
-                        <img src={item.photo} alt={item.name} className="h-full w-full object-cover" />
-                      </div>
-                    ) : (
-                      <div className="h-11 w-11 shrink-0 rounded-[10px] bg-surface-sunken" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-subhead leading-[1.2] text-content">{item.name}</p>
-                      <p className="mt-[4px] text-subhead leading-none text-content-secondary">
-                        {item.measurementType === 'per_serving' ? 'per serving' : 'per 100g'}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-subhead font-bold leading-[1.2] text-content">{Math.round(n.calories)} kcal</p>
-                      <p className="mt-[4px] text-subhead leading-none text-content-secondary">{Math.round(n.protein * 10) / 10}g Protein</p>
-                    </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onPickItem(item, query.trim().length > 0); }}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-black active:opacity-80"
-                      aria-label={`Add ${item.name}`}
-                    >
-                      <Icon name="plus" size={16} strokeWidth={2.5} />
-                    </button>
+                    <Icon name="plus" size={16} strokeWidth={2.5} />
                   </button>
-                );
-              })}
+                </button>
+              ))}
             </div>
           </div>
         )}
 
-        {filtered.length === 0 && query.trim() && (
+        {rows.length === 0 && q && (
           <p className="py-4 text-center text-subhead text-content-secondary">No results</p>
         )}
 
@@ -1363,6 +1446,8 @@ function LogEntryContent({
   showToast?: ShowToast;
   delRef: React.MutableRefObject<() => void>;
 }) {
+  const meals = useLive(() => repos.meals.all(), []) ?? [];
+
   // ── Basket — initialized once so hasChanges comparison IDs stay stable ─
   const initialBasketRef = useRef<BasketItem[]>([]);
   // eslint-disable-next-line react-hooks/refs -- write inside initializer runs once at mount
@@ -1590,6 +1675,30 @@ function LogEntryContent({
     setBasket((prev) => [...prev, pantryToBasket(item)]);
     if (item.photo) setLocalPhotos((prev) => [...prev, item.photo!].slice(0, 4));
     setPickerOpen(false);
+  }
+
+  function addPantryMeal(meal: Meal) {
+    hapticLight();
+    const photos: string[] = [];
+    const mealBasketItems: BasketItem[] = meal.items
+      .map((mi) => {
+        const item = pantryItems.find((i) => i.id === mi.foodItemId);
+        if (!item) return null;
+        if (item.photo) photos.push(item.photo);
+        return { ...pantryToBasket(item), qty: mi.quantity };
+      })
+      .filter((b): b is BasketItem => b != null);
+    if (mealBasketItems.length === 0) {
+      showToast?.('Could not load that meal — its food items may have been removed');
+      return;
+    }
+    // Always flattens into the existing basket here (never a "fast path" —
+    // this entry already exists) — no nesting one meal inside another
+    // (spec §5/§18).
+    setBasket((prev) => [...prev, ...mealBasketItems]);
+    if (photos.length > 0) setLocalPhotos((prev) => Array.from(new Set([...prev, ...photos])).slice(0, 4));
+    setPickerOpen(false);
+    showToast?.(`Added ${mealBasketItems.length} items from ${meal.name}`);
   }
 
   function addManualItem(e: {
@@ -1840,8 +1949,10 @@ function LogEntryContent({
         >
           <FoodPicker
             items={pantryItems}
+            meals={meals}
             frequentItems={frequentItems}
             onPickItem={addPantryItem}
+            onPickMeal={addPantryMeal}
             onCamera={() => void handleCamera()}
             onPhoto={() => void handlePhoto()}
             onDescribe={() => setActiveOverlay('describe')}

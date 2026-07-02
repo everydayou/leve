@@ -254,6 +254,10 @@ function FoodForm({
   initialScanPhoto?: string;
   showToast?: ShowToast;
 }) {
+  // Full set (includeArchived) — needed to resolve a picked Meal's own
+  // ingredients even when some are hidden from Pantry (round 130: Food
+  // items created purely to complete a meal default to hidden).
+  const allItems = useLive(() => repos.foodItems.all(true), []) ?? [];
   const [basket, setBasket]             = useState<BasketItem[]>([]);
   const [sources, setSources]           = useState<SourceGroup[]>([]);
   const [mealName, setMealName]         = useState('');
@@ -528,7 +532,7 @@ function FoodForm({
     hapticLight();
     const mealBasketItems: BasketItem[] = meal.items
       .map((mi) => {
-        const item = items.find((i) => i.id === mi.foodItemId);
+        const item = allItems.find((i) => i.id === mi.foodItemId);
         if (!item) return null;
         const sourceId = item.photo ? newId() : undefined;
         if (sourceId && item.photo) setSources((prev) => [...prev, { id: sourceId, photo: item.photo! }]);
@@ -830,6 +834,7 @@ function FoodForm({
       {basket.length === 0 && (
         <FoodPicker
           items={items}
+          allItems={allItems}
           meals={meals}
           frequentItems={frequentItems}
           onPickItem={addPantryItem}
@@ -857,6 +862,7 @@ function FoodForm({
           <FoodPicker
             bare
             items={items}
+            allItems={allItems}
             meals={meals}
             frequentItems={frequentItems}
             onPickItem={addPantryItem}
@@ -1010,10 +1016,16 @@ type PickerRow =
   | { type: 'meal'; id: string; name: string; photo?: string; calories: number; protein: number };
 
 function FoodPicker({
-  items, meals = [], frequentItems = [], onPickItem, onPickMeal, onCamera, onPhoto, onDescribe, onLabel, onManual,
+  items, allItems, meals = [], frequentItems = [], onPickItem, onPickMeal, onCamera, onPhoto, onDescribe, onLabel, onManual,
   bare = false,
 }: {
+  /** VISIBLE Food items — the ones offered as pickable rows. */
   items: FoodItem[];
+  /** ALL Food items, including ones hidden from Pantry because they only
+   *  exist to complete some other meal (round 130). Needed to correctly
+   *  compute a listed Meal's own nutrition/photo, whose ingredients might
+   *  include hidden ones. Defaults to `items` if not given. */
+  allItems?: FoodItem[];
   /** Reusable Pantry Meals — searchable alongside Food items (round 129).
    *  Recent stays Food-item-only (no "recently logged meal" tracking yet). */
   meals?: Meal[];
@@ -1030,7 +1042,7 @@ function FoodPicker({
   bare?: boolean;
 }) {
   const [query, setQuery] = useState('');
-  const itemsById = itemsByIdMap(items);
+  const itemsById = itemsByIdMap(allItems ?? items);
 
   // Recent = frequently logged items; fall back to newest pantry items if none logged yet
   const recent = frequentItems.length > 0
@@ -1447,6 +1459,10 @@ function LogEntryContent({
   delRef: React.MutableRefObject<() => void>;
 }) {
   const meals = useLive(() => repos.meals.all(), []) ?? [];
+  // Full set (includeArchived) — same reasoning as FoodForm's allItems:
+  // resolves a picked Meal's ingredients even when some are hidden from
+  // Pantry (round 130).
+  const allItems = useLive(() => repos.foodItems.all(true), []) ?? [];
 
   // ── Basket — initialized once so hasChanges comparison IDs stay stable ─
   const initialBasketRef = useRef<BasketItem[]>([]);
@@ -1682,7 +1698,7 @@ function LogEntryContent({
     const photos: string[] = [];
     const mealBasketItems: BasketItem[] = meal.items
       .map((mi) => {
-        const item = pantryItems.find((i) => i.id === mi.foodItemId);
+        const item = allItems.find((i) => i.id === mi.foodItemId);
         if (!item) return null;
         if (item.photo) photos.push(item.photo);
         return { ...pantryToBasket(item), qty: mi.quantity };
@@ -1949,6 +1965,7 @@ function LogEntryContent({
         >
           <FoodPicker
             items={pantryItems}
+            allItems={allItems}
             meals={meals}
             frequentItems={frequentItems}
             onPickItem={addPantryItem}

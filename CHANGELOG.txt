@@ -1,4 +1,69 @@
 ================================================================
+ROUND 130 — MEALS IN PANTRY: NEW INGREDIENTS DON'T POLLUTE THE PANTRY (2026-07-02)
+================================================================
+Files: src/ui/screens/PantryScreen.tsx, src/ui/components/PantryFoodItemDetail.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/components/PantryPicker.tsx,
+       src/ui/components/FoodItemForm.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/data/mealsMigration.ts, src/data/mealsMigration.test.ts
+
+Marco's call after testing: Food items created purely to complete a meal in
+the Pantry meal-builder shouldn't show up in the main Pantry list by
+default. They "live only in the meal" — visible/editable from inside it, but
+not cluttering the Food-items tab — unless the user explicitly opts one in
+from its own edit view.
+
+── NEW MEAL-ONLY INGREDIENTS DEFAULT TO isArchived: true ────────────────────
+PantryFoodItemDetail.handleAddMealItem and PantryMealDetail.handleAddItem
+(both create a brand-new Food item via Manual) now create it with
+isArchived: true instead of false. Reused the existing isArchived flag
+rather than adding a new field — it already does exactly the right thing at
+the repo layer (foodItems.all() excludes it by default, foodItems.all(true)
+includes it), and round 123's migration already established the precedent
+of "archived but still resolvable" for exactly this kind of hidden-but-real
+item. mealsMigration.ts's recovered ingredient items get the same treatment
+now — legacy meals won't suddenly dump a pile of previously-invisible
+ingredients into Marco's real Pantry list once this ships.
+Explicitly NOT affected: the Meal itself (always visible when created), and
+any Food item picked via "Add from pantry" (it was already a real,
+consciously-saved pantry item before being added to this meal).
+
+── RIPPLE FIX: MEAL CALCULATIONS MUST RESOLVE HIDDEN INGREDIENTS TOO ────────
+Hiding these items from `foodItems.all()` means every place that builds an
+itemsById map to compute a Meal's live nutrition/photo (mealNutritionFor,
+mealPhotoFor, mealPhotosFor) would otherwise silently treat a hidden
+ingredient as "missing" and contribute 0 — breaking the very meal it belongs
+to. Fixed everywhere a Meal's own ingredients get resolved, by threading an
+additional `allItems` (foodItems.all(true)) alongside the existing
+visible-only `items`:
+  - PantryScreen: fetches the full set once, filters visible for its own
+    Food-items list, builds itemsById from the full set for Meal rows.
+  - PantryMealDetail / PantryFoodItemDetail: take a new `allItems` prop,
+    used for resolving the current Meal's items and passed through to
+    PantryPicker (whose own listed Meal rows have the same problem).
+  - PantryPicker / Day's-log FoodPicker: new optional `allItems` prop,
+    defaults to `items`, used only for itemsById.
+  - Day's-log addPantryMeal (both FoodForm and LogEntryContent): now
+    resolves a picked Meal's ingredients from the full set — previously a
+    hidden ingredient would have been silently DROPPED when logging a saved
+    meal that contained one.
+Everywhere else (duplicate-name checks, "New food" creation, what's offered
+as pickable in Add-from-pantry) still correctly uses the visible-only set —
+hidden items shouldn't appear as legitimate standalone pantry entries.
+
+── OPT-IN: "SAVE TO PANTRY" ON A HIDDEN ITEM'S OWN EDIT VIEW ────────────────
+FoodItemFormContent's pantry-edit mode now shows the "Save to pantry"
+checkbox when editing a currently-hidden item (initial.isArchived === true).
+Checking it and saving flips isArchived → false (visible → hidden is not
+offered here — that's what deleting the item is for). Wired in
+PantryMealDetail's confirmUpdate; toast reads "Saved to pantry" instead of
+the generic "Food item updated" when this happens. (Not wired in
+PantryFoodItemDetail — items reached through that screen are always already
+visible, since hidden ones never appear in the list you'd tap into it from.)
+
+tsc: clean. lint: clean. vitest: 35 passed (unchanged count; mealsMigration
+test cases extended to assert the new isArchived default). `npm run build`
+verified clean.
+
 ROUND 129 — MEALS IN PANTRY: LOG A SAVED MEAL DIRECTLY (2026-07-02)
 ================================================================
 Files: src/ui/components/AddEntrySheet.tsx

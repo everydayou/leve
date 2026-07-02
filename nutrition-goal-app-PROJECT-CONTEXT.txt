@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-02 — Round 129 (Meals in Pantry — you can now log a saved Meal directly from the Day's-log picker, not just individual Food items; only Camera/Photo/Describe for the Pantry meal-builder still to come)
+Last updated: 2026-07-02 — Round 130 (Meals in Pantry — new Food items created inside the meal-builder no longer clutter the main Pantry list by default; only Camera/Photo/Describe for the Pantry meal-builder still to come)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,30 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 130 — MEALS IN PANTRY: NEW INGREDIENTS DON'T POLLUTE THE PANTRY (2026-07-02)
+Files: src/ui/screens/PantryScreen.tsx, PantryFoodItemDetail.tsx,
+       PantryMealDetail.tsx, PantryPicker.tsx, FoodItemForm.tsx,
+       src/ui/components/AddEntrySheet.tsx, src/data/mealsMigration.ts(+test)
+- Food items created via Manual purely to complete a meal (Pantry meal-
+  builder) now default to isArchived: true — hidden from the main Food-items
+  list, "living only in the meal" per Marco's call, until the user
+  explicitly ticks "Save to pantry" from that item's own edit view.
+  mealsMigration.ts's recovered ingredients get the same treatment.
+- Ripple fix: every place that builds an itemsById map to resolve a Meal's
+  live nutrition/photo now uses the FULL item set (foodItems.all(true)), not
+  just visible items — otherwise a hidden ingredient would silently drop out
+  of its own Meal's totals, or get dropped entirely when logging a saved
+  meal from the Day's-log picker. New `allItems` prop threaded through
+  PantryScreen → PantryFoodItemDetail/PantryMealDetail → PantryPicker, and
+  independently fetched inside FoodForm/LogEntryContent for addPantryMeal.
+  Everywhere a human PICKS from pantry (duplicate-name checks, Add-from-
+  pantry, Day's-log Recent/Search) still correctly uses visible-only items.
+- FoodItemFormContent's pantry-edit mode shows "Save to pantry" when editing
+  a currently-hidden item; checking it flips isArchived → false. Wired in
+  PantryMealDetail's confirmUpdate (toast: "Saved to pantry").
+- tsc: clean. lint: clean. vitest: 35 passed (mealsMigration tests extended).
+  `npm run build` verified clean.
+
 ROUND 129 — MEALS IN PANTRY: LOG A SAVED MEAL DIRECTLY (2026-07-02)
 Files: src/ui/components/AddEntrySheet.tsx
 - FoodPicker (Day's-log search/recent, used by both FoodForm and
@@ -315,28 +339,6 @@ Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/FoodItemForm.tsx
   Sheet title stays static "Add", not a dynamic "Food item"/"Meal" title.
 - tsc: clean. lint: clean. vitest: 35 passed (unchanged). `npm run build`
   verified clean.
-
-ROUND 127 — MEALS IN PANTRY: DAY'S-LOG INTEGRATION (2026-07-02)
-Files: src/ui/components/AddEntrySheet.tsx
-- logBasket (fresh log): basket items resolve to real Food item ids —
-  pantry-linked items keep that link regardless of the "Save to pantry"
-  checkbox (previously always dropped once grouped into a meal); new/manual
-  items only get a real Food item created when saved to pantry. Checking
-  "Save to pantry" now creates a real Meal (MealFoodItem entries) + sets
-  FoodEntry.mealId, instead of the old collapsed-single-Food-item behaviour.
-- LogEntryContent.save() (existing entry → Meal): this screen never had a
-  "Save to pantry" option before (spec §8 wasn't wired up) — added, with
-  create-vs-update Meal logic (re-saving an already-linked entry updates the
-  SAME Meal by id, doesn't duplicate) and un-link-without-delete when
-  unchecked. CTA renamed "Save" → "Save changes" per spec.
-- Bugfix: shrinking a meal entry back to 1 item now clears mealId/mealData
-  (previously left stale — pre-existing issue, fixed while in this code).
-- No new automated tests — this is procedural DB-writing UI code, not domain
-  logic; app.preview.test.tsx (which could exercise it end-to-end) is
-  currently skipped in this sandbox. On-device verification matters most
-  for this round.
-- tsc: clean. lint: clean. vitest: 35 passed (unchanged; pre-existing
-  skips). `npm run build` verified clean.
 
 ================================================================
 TODO / FUTURE WORK

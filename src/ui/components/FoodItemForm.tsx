@@ -55,6 +55,10 @@ export type FoodItemFormInitial = {
   photo?: string;
   /** basket-edit only: when set, hides the "Save to pantry" checkbox */
   pantryItemId?: string;
+  /** pantry-edit only: true when this Food item is currently hidden from
+   *  the Pantry list (round 130 — created purely to complete a meal). Shows
+   *  a "Save to pantry" checkbox so the user can opt it in explicitly. */
+  isArchived?: boolean;
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -116,7 +120,9 @@ export function FoodItemFormContent({
   const isBasketEdit = mode === 'basket-edit';
 
   const showSaveToPantry =
-    mode === 'basket-manual' || (isBasketEdit && !initial.pantryItemId);
+    mode === 'basket-manual'
+    || (isBasketEdit && !initial.pantryItemId)
+    || (mode === 'pantry-edit' && initial.isArchived === true);
 
   const checkDuplicate =
     isPantryMode || ((mode === 'basket-manual' || isBasketEdit) && saveToPantry);

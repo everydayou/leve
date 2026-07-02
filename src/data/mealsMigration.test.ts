@@ -40,6 +40,10 @@ describe('runMealsMigration', () => {
     const salad = items.find((i) => i.name === 'Salad');
     expect(couscous?.calories).toBe(130);
     expect(salad?.calories).toBe(65);
+    // Hidden from the Pantry's own Food-items list by default (round 130) —
+    // they never existed as something the user consciously saved on their own.
+    expect(couscous?.isArchived).toBe(true);
+    expect(salad?.isArchived).toBe(true);
 
     // Old collapsed item archived, not deleted.
     const stillThere = items.find((i) => i.id === collapsedId);

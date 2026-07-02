@@ -66,10 +66,15 @@ export async function runMealsMigration(repositories: Repositories = repos): Pro
           foodItemId = existing.id;
         } else {
           foodItemId = newId();
+          // Hidden from the Pantry's own Food-items list by default (round
+          // 130, same rule as the live meal-builder): this ingredient never
+          // existed as something the user consciously saved to Pantry on its
+          // own — it was always just a component of this meal. They can
+          // explicitly "Save to pantry" from its own edit view if they want.
           const newItem: FoodItem = {
             id: foodItemId, name: mi.name, measurementType: 'per_serving', referenceAmount: 1,
             calories: mi.calories, protein: mi.protein, carbs: mi.carbs, fiber: mi.fiber, fat: mi.fat,
-            isArchived: false,
+            isArchived: true,
           };
           await repositories.foodItems.put(newItem);
           byNameLower.set(key, newItem);

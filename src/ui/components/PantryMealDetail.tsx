@@ -32,12 +32,19 @@ function servingLabelFor(item: FoodItem, quantity: number): string {
 type OverlayKey = 'edit' | 'add-manual' | 'add-pantry';
 
 export function PantryMealDetail({
-  mealId, meals, items, onClose, showToast,
+  mealId, meals, items, allItems, onClose, showToast,
 }: {
   mealId: string;
   /** Live meals list from the parent — keeps this sheet in sync with edits. */
   meals: Meal[];
+  /** VISIBLE Food items only — used for duplicate-name checks and the
+   *  "Add from pantry" picker's own list. */
   items: FoodItem[];
+  /** ALL Food items, including ones hidden from Pantry because they only
+   *  exist to complete a meal (round 130). Needed to resolve THIS meal's own
+   *  ingredients regardless of visibility — otherwise a meal-only item would
+   *  silently drop out of its own Meal's nutrition/photo. */
+  allItems: FoodItem[];
   onClose: () => void;
   showToast?: ShowToast;
 }) {
@@ -48,7 +55,7 @@ export function PantryMealDetail({
   useEffect(() => { if (!meal) onClose(); }, [meal, onClose]);
   if (!meal) return null;
 
-  const itemsById = itemsByIdMap(items);
+  const itemsById = itemsByIdMap(allItems);
 
   return (
     <Sheet
@@ -62,7 +69,7 @@ export function PantryMealDetail({
       }
     >
       <PantryMealDetailContent
-        meal={meal} items={items} meals={meals} photos={mealPhotosFor(meal, itemsById)}
+        meal={meal} items={items} allItems={allItems} meals={meals} photos={mealPhotosFor(meal, itemsById)}
         onClose={onClose} showToast={showToast} deleteRef={deleteRef}
       />
     </Sheet>
@@ -70,10 +77,11 @@ export function PantryMealDetail({
 }
 
 function PantryMealDetailContent({
-  meal, items, meals, photos, onClose, showToast, deleteRef,
+  meal, items, allItems, meals, photos, onClose, showToast, deleteRef,
 }: {
   meal: Meal;
   items: FoodItem[];
+  allItems: FoodItem[];
   meals: Meal[];
   /** Live hero photos (own photo + every ingredient's) — computed by the parent. */
   photos: string[];
@@ -91,7 +99,10 @@ function PantryMealDetailContent({
   const [manualDirty, setManualDirty] = useState(false);
   const [confirmingDiscardManual, setConfirmingDiscardManual] = useState(false);
 
-  const itemsById = new Map(items.map((i) => [i.id, i]));
+  // Resolve this Meal's OWN items from the full set (allItems) — some may be
+  // hidden from Pantry (isArchived, meal-only). Everything else (duplicate
+  // checks, Add-from-pantry) uses the visible-only `items`.
+  const itemsById = new Map(allItems.map((i) => [i.id, i]));
   const editingItem = activeOverlay === 'edit' && editingItemId ? itemsById.get(editingItemId) : undefined;
   const memberItemIds = meal.items.map((mi) => mi.foodItemId);
 
@@ -102,10 +113,13 @@ function PantryMealDetailContent({
 
   async function handleAddItem(values: FoodItemFormValues) {
     const newItemId = newId();
+    // Hidden from the Pantry's own Food-items list by default (round 130) —
+    // this Food item exists purely to complete this meal. The user can
+    // explicitly "Save to pantry" from its own edit view later.
     await repos.foodItems.put({
       id: newItemId, name: values.name, measurementType: values.measurementType,
       referenceAmount: values.referenceAmount, calories: values.calories, protein: values.protein,
-      carbs: values.carbs, fiber: values.fiber, fat: values.fat, photo: values.photo, isArchived: false,
+      carbs: values.carbs, fiber: values.fiber, fat: values.fat, photo: values.photo, isArchived: true,
     });
     await repos.meals.put({
       ...meal,
@@ -166,6 +180,10 @@ function PantryMealDetailContent({
     if (!pendingUpdate || !editingItem) return;
     setUpdating(true);
     try {
+      // A hidden (meal-only) item can only go hidden → visible here, via the
+      // "Save to pantry" checkbox — never the other way around (that's what
+      // deleting the item is for).
+      const nowSavingToPantry = editingItem.isArchived && pendingUpdate.saveToPantry;
       await repos.foodItems.put({
         ...editingItem,
         name: pendingUpdate.name,
@@ -177,10 +195,11 @@ function PantryMealDetailContent({
         fiber: pendingUpdate.fiber,
         fat: pendingUpdate.fat,
         photo: pendingUpdate.photo,
+        isArchived: editingItem.isArchived ? !pendingUpdate.saveToPantry : editingItem.isArchived,
       });
       setPendingUpdate(null);
       setActiveOverlay(null);
-      showToast?.('Food item updated');
+      showToast?.(nowSavingToPantry ? 'Saved to pantry' : 'Food item updated');
     } finally {
       setUpdating(false);
     }
@@ -198,6 +217,7 @@ function PantryMealDetailContent({
             name: editingItem.name, measurementType: editingItem.measurementType, referenceAmount: editingItem.referenceAmount,
             calories: editingItem.calories, protein: editingItem.protein, carbs: editingItem.carbs,
             fiber: editingItem.fiber, fat: editingItem.fat, photo: editingItem.photo,
+            isArchived: editingItem.isArchived,
           }}
           existingItems={items}
           existingItemId={editingItem.id}
@@ -221,6 +241,7 @@ function PantryMealDetailContent({
         <OverlayNav title="Add from pantry" onBack={() => setActiveOverlay(null)} icon="close" />
         <PantryPicker
           items={items}
+          allItems={allItems}
           meals={meals}
           excludeItemIds={memberItemIds}
           excludeMealIds={[meal.id]}
@@ -229,7 +250,7 @@ function PantryMealDetailContent({
         />
       </div>
     ) : null,
-    [activeOverlay, editingItem, items, meals, memberItemIds, manualDirty],
+    [activeOverlay, editingItem, items, allItems, meals, memberItemIds, manualDirty],
   );
 
   deleteRef.current = () => setConfirmingDeleteMeal(true); // eslint-disable-line react-hooks/refs

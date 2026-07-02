@@ -31,11 +31,22 @@ export function PantryScreen() {
 
   // rawItems/rawMeals are null while IndexedDB is still loading; [] means truly empty.
   // Keep them separate so we never flash the EmptyState before data arrives.
-  const rawItems = useLive(() => repos.foodItems.all(), []);
+  //
+  // rawItems is the FULL set (includeArchived) — a Meal's ingredients can
+  // include Food items created purely to complete that meal (round 130:
+  // these default to isArchived:true, hidden from the Pantry list until the
+  // user explicitly opts them in from their own edit view). Nutrition/photo
+  // lookups for Meals must resolve against the full set, or a meal-only
+  // ingredient would silently vanish from its own Meal's totals. The visible
+  // Food-items list, and everything downstream that lets the user pick an
+  // "existing pantry item" (new-food duplicate check, Add-from-pantry),
+  // filters archived ones back out.
+  const rawItems = useLive(() => repos.foodItems.all(true), []);
   const rawMeals = useLive(() => repos.meals.all(), []);
-  const items = rawItems ?? [];
+  const allItems = rawItems ?? [];
+  const items = allItems.filter((i) => !i.isArchived);
   const meals = rawMeals ?? [];
-  const itemsById = itemsByIdMap(items);
+  const itemsById = itemsByIdMap(allItems);
   const loading = rawItems == null || rawMeals == null;
 
   const itemRows: PantryRow[] = items.map((i: FoodItem) => ({
@@ -167,6 +178,7 @@ export function PantryScreen() {
         <PantryFoodItemDetail
           item={openItem}
           items={items}
+          allItems={allItems}
           meals={meals}
           onClose={() => setOpenItemId(null)}
           onDeleted={() => setOpenItemId(null)}
@@ -180,6 +192,7 @@ export function PantryScreen() {
           mealId={openMealId}
           meals={meals}
           items={items}
+          allItems={allItems}
           onClose={() => setOpenMealId(null)}
           showToast={showToast}
         />

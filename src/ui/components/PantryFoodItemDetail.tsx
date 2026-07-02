@@ -28,10 +28,16 @@ function servingLabelFor(item: FoodItem): string {
 type OverlayKey = 'edit' | 'add-manual' | 'add-pantry';
 
 export function PantryFoodItemDetail({
-  item, items, meals, onClose, onDeleted, onMealCreated, showToast,
+  item, items, allItems, meals, onClose, onDeleted, onMealCreated, showToast,
 }: {
   item: FoodItem;
+  /** VISIBLE Food items — for duplicate-name checks and the "Add from
+   *  pantry" picker's own list. */
   items: FoodItem[];
+  /** ALL Food items, including ones hidden from Pantry (round 130) — needed
+   *  so the "Add from pantry" picker can correctly total a listed Meal's
+   *  nutrition/photo even when some of its ingredients are hidden. */
+  allItems: FoodItem[];
   meals: Meal[];
   onClose: () => void;
   onDeleted: () => void;
@@ -55,7 +61,7 @@ export function PantryFoodItemDetail({
       }
     >
       <PantryFoodItemDetailContent
-        item={item} items={items} meals={meals} onClose={onClose} onDeleted={onDeleted}
+        item={item} items={items} allItems={allItems} meals={meals} onClose={onClose} onDeleted={onDeleted}
         onMealCreated={onMealCreated} showToast={showToast} deleteRef={deleteRef}
       />
     </Sheet>
@@ -63,10 +69,11 @@ export function PantryFoodItemDetail({
 }
 
 function PantryFoodItemDetailContent({
-  item, items, meals, onClose, onDeleted, onMealCreated, showToast, deleteRef,
+  item, items, allItems, meals, onClose, onDeleted, onMealCreated, showToast, deleteRef,
 }: {
   item: FoodItem;
   items: FoodItem[];
+  allItems: FoodItem[];
   meals: Meal[];
   onClose: () => void;
   onDeleted: () => void;
@@ -99,10 +106,13 @@ function PantryFoodItemDetailContent({
 
   async function handleAddMealItem(values: FoodItemFormValues) {
     const newItemId = newId();
+    // Hidden from the Pantry's own Food-items list by default (round 130) —
+    // this Food item exists purely to complete the meal being built. The
+    // user can explicitly "Save to pantry" from its own edit view later.
     await repos.foodItems.put({
       id: newItemId, name: values.name, measurementType: values.measurementType,
       referenceAmount: values.referenceAmount, calories: values.calories, protein: values.protein,
-      carbs: values.carbs, fiber: values.fiber, fat: values.fat, photo: values.photo, isArchived: false,
+      carbs: values.carbs, fiber: values.fiber, fat: values.fat, photo: values.photo, isArchived: true,
     });
     const meal: Meal = {
       id: newId(), name: item.name, isArchived: false,
@@ -179,6 +189,7 @@ function PantryFoodItemDetailContent({
         <OverlayNav title="Add from pantry" onBack={() => setActiveOverlay(null)} icon="close" />
         <PantryPicker
           items={items}
+          allItems={allItems}
           meals={meals}
           excludeItemIds={[item.id]}
           onPickItem={(picked) => void handlePickExistingItem(picked)}
@@ -186,7 +197,7 @@ function PantryFoodItemDetailContent({
         />
       </div>
     ) : null,
-    [activeOverlay, item, items, meals, manualDirty],
+    [activeOverlay, item, items, allItems, meals, manualDirty],
   );
 
   deleteRef.current = () => setConfirmingDelete(true); // eslint-disable-line react-hooks/refs

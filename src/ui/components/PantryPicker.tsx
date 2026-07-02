@@ -15,9 +15,15 @@ type PantryRow =
   | { type: 'meal'; id: string; name: string; photo?: string; nutrition: NutritionSnapshot };
 
 export function PantryPicker({
-  items, meals, excludeItemIds = [], excludeMealIds = [], onPickItem, onPickMeal,
+  items, allItems, meals, excludeItemIds = [], excludeMealIds = [], onPickItem, onPickMeal,
 }: {
+  /** VISIBLE Food items — the ones offered as pickable rows. */
   items: FoodItem[];
+  /** ALL Food items, including ones hidden from Pantry because they only
+   *  exist to complete some other meal (round 130). A listed Meal's own
+   *  nutrition/photo needs to resolve against this, or a hidden ingredient
+   *  would silently drop out of that Meal's totals. Defaults to `items`. */
+  allItems?: FoodItem[];
   meals: Meal[];
   /** Food items already in the meal being built — hidden to avoid confusing duplicates. */
   excludeItemIds?: string[];
@@ -28,7 +34,7 @@ export function PantryPicker({
 }) {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<PantryFilter>('all');
-  const itemsById = itemsByIdMap(items);
+  const itemsById = itemsByIdMap(allItems ?? items);
 
   const visibleItems = items.filter((i) => !excludeItemIds.includes(i.id));
   const visibleMeals = meals.filter((m) => !excludeMealIds.includes(m.id));

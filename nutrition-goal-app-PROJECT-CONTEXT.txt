@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-02 — Round 125 (Meals in Pantry — Add-from-pantry picker, right-to-left overlay for Manual, live meal-photo fallback; Day's-log integration + Camera/Photo/Describe still to come)
+Last updated: 2026-07-02 — Round 126 (Meals in Pantry — photo collage via ImageHero, X-to-discard on new-item overlays, card polish; Day's-log integration + Camera/Photo/Describe still to come)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,25 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 126 — MEALS IN PANTRY: PHOTO COLLAGE, X-TO-DISCARD, CARD POLISH (2026-07-02)
+Files: src/ui/kit/Sheet.tsx, src/ui/components/FoodItemForm.tsx,
+       MethodCards.tsx, PantryItemCard.tsx, PantryFoodItemDetail.tsx,
+       PantryMealDetail.tsx, src/domain/calc.ts
+- PantryItemCard: removed the per-item photo thumbnail (matches BasketCard,
+  which never had one). New mealPhotosFor() collects Meal photo + every
+  ingredient's photo (dedup, cap 4) into the same <ImageHero> collage the
+  Day's-log basket already uses for multi-item scans; Food item detail's own
+  photo also now goes through ImageHero for consistency.
+- OverlayNav gains icon:'back'|'close'. Pantry's "Add item to meal" (Manual)
+  and "Add from pantry" now show X, not a back arrow — cancels the whole
+  flow. FoodItemFormContent gains onDirtyChange; Manual's X confirms
+  ("Discard this item?") only when something was actually typed.
+- AddAnotherSection gains helperText (muted line under the label, collapsed
+  only) — Pantry's two modules now show "Add another item" per spec copy.
+  Nutri-scan (onLabel) wired into both Pantry method rows too.
+- tsc: clean. lint: clean. vitest: 35 passed (8 pre-existing skips). `npm run
+  build` verified clean.
+
 ROUND 125 — MEALS IN PANTRY: ADD-FROM-PANTRY PICKER, OVERLAY, PHOTO FALLBACK (2026-07-02)
 Files: src/domain/calc.ts, src/ui/components/MethodCards.tsx,
        src/ui/components/PantryPicker.tsx (new), PantryFoodItemDetail.tsx,
@@ -324,41 +343,6 @@ Files: src/ui/components/icons.tsx (new), src/ui/components/MethodCards.tsx
   one alphabetical list.
 - tsc: clean. lint: clean. vitest: 30 passed (8 pre-existing skips). `npm run
   build` verified clean.
-
-ROUND 123 — MEALS IN PANTRY: FOUNDATION (2026-07-02)
-Files: src/domain/types.ts, src/domain/calc.ts, src/data/repositories.ts,
-       src/data/db.ts, src/data/{dexie,memory}Repositories.ts,
-       src/data/mealsMigration.ts (new), src/state/repos.ts, src/ui/AppShell.tsx,
-       src/ui/kit/MacroSummaryLine.tsx (new), src/ui/components/PantryItemCard.tsx
-       (new), src/ui/components/Pantry{FoodItemDetail,MealDetail}.tsx (new),
-       src/ui/components/FoodItemForm.tsx, src/ui/components/AddEntrySheet.tsx,
-       src/ui/screens/PantryScreen.tsx
-- Meal is now a real Pantry entity: Meal { id, name, photo?, items:
-  MealFoodItem[], isArchived }, MealRepo, Dexie v2 (`meals` table). Nutrition
-  is never stored on a Meal — mealNutritionFor() always sums live from the
-  current Food items, same philosophy as effectiveNutrition() for Food
-  entries. effectiveNutrition() extended to recompute linked Meal-entry items
-  live too (MealItem.foodItemId is new); unlinked/local items keep falling
-  back to their own stored macros — verified numerically unchanged for all
-  existing meal entries via new calc.test.ts cases.
-- One-time migration (mealsMigration.ts): converts legacy "collapsed
-  meal-as-single-Food-item" Pantry entries (from pre-123 Save-to-pantry) into
-  real Meals with proper linked ingredients; archives (never deletes) the old
-  collapsed item; conservative — leaves anything it can't recover >=2
-  ingredients for untouched. Covered by mealsMigration.test.ts.
-- PantryScreen: All/per100g/perserving pills replaced with Food items/Meals.
-  New PantryFoodItemDetail (photo/macros/disabled stepper/edit-with-confirm/
-  delete/Create-a-meal module) and PantryMealDetail (item cards, add/remove
-  item, rename, delete whole meal) sheets. Edit-confirmation dialog
-  ("This will update all records using this food item.") added before any
-  Pantry Food item update commits.
-- BasketCard (Day's-log basket, both fresh-log and edit-existing-entry) now
-  shows a macro-line row via new shared MacroSummaryLine kit atom.
-- Day's-log integration (logging/converting to a real linked Meal, Camera/
-  Photo/Describe in the Pantry meal builder) intentionally deferred to a
-  follow-up round — see Known Gaps.
-- tsc: clean. lint: clean. vitest: 30 passed (8 pre-existing skips). `npm run
-  build` also verified clean in the Cowork sandbox this round.
 
 ================================================================
 TODO / FUTURE WORK

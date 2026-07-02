@@ -61,6 +61,19 @@ export function mealPhotoFor(meal: Meal, itemsById: Map<string, FoodItem>): stri
   return undefined;
 }
 
+/** All distinct photos available for a Meal — its own explicit photo (if
+ *  any) plus every current ingredient's photo, deduplicated, capped at 4 to
+ *  match ImageHero's collage limit (round 124/125's single-photo
+ *  mealPhotoFor stays for contexts that only have room for one, like a list
+ *  row thumbnail). */
+export function mealPhotosFor(meal: Meal, itemsById: Map<string, FoodItem>): string[] {
+  const photos = [
+    meal.photo,
+    ...meal.items.map((mi) => itemsById.get(mi.foodItemId)?.photo),
+  ].filter((p): p is string => !!p);
+  return Array.from(new Set(photos)).slice(0, 4);
+}
+
 /** The nutrition a FoodEntry actually contributes right now.
  *
  *  Pantry-backed entries (have a foodItemId + quantity) are recomputed LIVE

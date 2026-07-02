@@ -1,4 +1,47 @@
 ================================================================
+ROUND 126 — MEALS IN PANTRY: PHOTO COLLAGE, X-TO-DISCARD, CARD POLISH (2026-07-02)
+================================================================
+Files: src/ui/kit/Sheet.tsx, src/ui/components/FoodItemForm.tsx,
+       src/ui/components/MethodCards.tsx, src/ui/components/PantryItemCard.tsx,
+       src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryMealDetail.tsx,
+       src/domain/calc.ts, src/domain/calc.test.ts
+
+Third follow-up to round 123's foundation, from Marco's review of round 125.
+
+── PHOTOS: COLLAGE, NOT A REPEATED THUMBNAIL ────────────────────────────────
+PantryItemCard no longer shows a per-item photo thumbnail — matches
+BasketCard exactly, which never had one either; photos belong in the
+aggregated hero, not repeated on every card. New mealPhotosFor(meal,
+itemsById) in calc.ts collects the Meal's own photo (if any) + every current
+ingredient's photo, deduplicated, capped at 4, fed straight into the
+existing <ImageHero> (same 1-photo/2-4-photo collage component the Day's-log
+basket already uses for multi-item scans). Meal detail's hero is now this
+collage; Food item detail's own photo now also renders via ImageHero instead
+of a hand-rolled block, for consistency. mealPhotoFor (single photo, round
+125) stays as-is for contexts that only have room for one — list row
+thumbnails in PantryScreen/PantryPicker.
+
+── X TO DISMISS, WITH A DISCARD CONFIRM WHEN THERE'S CONTENT ────────────────
+OverlayNav gains an icon prop ('back' | 'close'). Pantry's "Add item to
+meal" (Manual) and "Add from pantry" overlays now use icon="close" (X)
+instead of a back arrow — cancelling the whole thing, not stepping back one
+level, since there's no multi-step flow here. FoodItemFormContent gains
+onDirtyChange(dirty) — fires whenever the form has any typed name/macro/
+photo. Manual's X checks this: untouched → closes immediately; anything
+typed → a small "Discard this item?" confirm sheet first. Add-from-pantry's
+X always closes immediately (it's a picker, nothing to lose).
+
+── ADDANOTHERSECTION: HELPER SUBTITLE + NUTRI-SCAN IN PANTRY ────────────────
+New optional helperText prop — a muted line under the label, shown only
+while collapsed. Pantry's "Create a meal" / "Add a new food item" now pass
+"Add another item" here, matching the spec's two-line collapsed copy.
+MethodCards' onLabel (Nutri-scan) is now wired in both Pantry call sites too
+(same "coming soon" toast as Camera/Photo/Describe) — Marco asked for it
+included rather than Day's-log-exclusive as originally scoped.
+
+tsc: clean. lint: clean. vitest: 35 passed (8 pre-existing skips, +5 new
+calc.test.ts cases for mealPhotosFor). `npm run build` verified clean.
+
 ROUND 125 — MEALS IN PANTRY: ADD-FROM-PANTRY PICKER, OVERLAY FOR MANUAL, PHOTO FALLBACK (2026-07-02)
 ================================================================
 Files: src/domain/calc.ts, src/domain/calc.test.ts, src/ui/components/MethodCards.tsx,

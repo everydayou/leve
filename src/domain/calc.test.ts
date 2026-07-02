@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nutritionFor, effectiveNutrition, mealNutritionFor, mealPhotoFor, itemsByIdMap, summarizeDay, calcDigestionCalories, KCAL_PER_KG } from './calc';
+import { nutritionFor, effectiveNutrition, mealNutritionFor, mealPhotoFor, mealPhotosFor, itemsByIdMap, summarizeDay, calcDigestionCalories, KCAL_PER_KG } from './calc';
 import type { FoodItem, FoodEntry, ActivityEntry, Meal } from './types';
 
 const chicken: FoodItem = {
@@ -164,5 +164,28 @@ describe('mealPhotoFor', () => {
     const items = itemsByIdMap([bar]);
     const meal: Meal = { id: 'm', name: 'M', isArchived: false, items: [{ id: 'mi', foodItemId: 'b', quantity: 1 }] };
     expect(mealPhotoFor(meal, items)).toBeUndefined();
+  });
+});
+
+describe('mealPhotosFor', () => {
+  it('collects the meal photo plus every distinct ingredient photo, capped at 4', () => {
+    const items = itemsByIdMap([
+      { ...chicken, id: 'c1', photo: 'a.jpg' },
+      { ...chicken, id: 'c2', photo: 'b.jpg' },
+      { ...chicken, id: 'c3', photo: 'a.jpg' }, // duplicate of c1's photo
+      { ...chicken, id: 'c4', photo: undefined },
+      { ...chicken, id: 'c5', photo: 'c.jpg' },
+    ]);
+    const meal: Meal = {
+      id: 'm', name: 'M', isArchived: false,
+      items: [1, 2, 3, 4, 5].map((n) => ({ id: `mi${n}`, foodItemId: `c${n}`, quantity: 100 })),
+    };
+    expect(mealPhotosFor(meal, items)).toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
+  });
+
+  it('returns an empty array when nothing has a photo', () => {
+    const items = itemsByIdMap([bar]);
+    const meal: Meal = { id: 'm', name: 'M', isArchived: false, items: [{ id: 'mi', foodItemId: 'b', quantity: 1 }] };
+    expect(mealPhotosFor(meal, items)).toEqual([]);
   });
 });

@@ -10,11 +10,10 @@
 // as BasketCard — one icon change reflects on every card, everywhere.
 import { Icon, MacroSummaryLine } from '../kit';
 import type { NutritionSnapshot } from '../../domain/types';
-import { Thumb } from './PhotoPicker';
 import { DeleteIcon, EditIcon } from './icons';
 
 export function PantryItemCard({
-  name, nutrition, servingLabel, photo, onEdit, onRemove,
+  name, nutrition, servingLabel, onEdit, onRemove,
 }: {
   name: string;
   nutrition: NutritionSnapshot;
@@ -22,8 +21,10 @@ export function PantryItemCard({
    *  shown in a disabled stepper: Pantry manages definitions, not consumed
    *  quantity (spec §10). */
   servingLabel: string;
-  photo?: string;
-  /** Tapping ANYWHERE on the card opens edit — same convention as BasketCard. */
+  /** Tapping ANYWHERE on the card opens edit — same convention as BasketCard.
+   *  No photo thumbnail here, by design — matches BasketCard exactly, which
+   *  never shows one either. Photos live in the aggregated hero/collage at
+   *  the top of the sheet, not repeated per card. */
   onEdit: () => void;
   /** When provided, shows a card-level trash button ("remove this Food item
    *  from the Meal" — spec §11). Omit for a single Food item's own detail
@@ -37,7 +38,6 @@ export function PantryItemCard({
       style={{ cursor: 'pointer' }}
     >
       <div className="mb-2 flex items-center gap-3">
-        {photo && <Thumb photo={photo} radius="rounded-[10px]" />}
         <span className="flex-1 truncate text-callout text-content">{name}</span>
         <span className="shrink-0 text-callout font-bold text-content">{nutrition.calories} kcal</span>
       </div>

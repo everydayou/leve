@@ -25,7 +25,7 @@ const SheetOverlaySetContext = createContext<((node: ReactNode) => void) | null>
 const OverlayFooterSetContext = createContext<((node: ReactNode) => void) | null>(null);
 
 /** Shape of the nav bar registered by OverlayNav via OverlayNavSetContext. */
-type OverlayNavValue = { title: string; onBack: () => void; right?: ReactNode };
+type OverlayNavValue = { title: string; onBack: () => void; right?: ReactNode; icon: 'back' | 'close' };
 
 /** Internal context — OverlayNav calls `set` to register its props with
  *  OverlayLayer so the nav bar renders ABOVE the scroll area (truly fixed,
@@ -64,11 +64,16 @@ export function useOverlayScrolled(): boolean { return useContext(OverlayScrolle
  *  so the nav bar is rendered ABOVE the scroll area — fully fixed, immune to
  *  rubber-band scroll on iOS. This component renders nothing in the tree. */
 export function OverlayNav({
-  title, onBack, right,
+  title, onBack, right, icon = 'back',
 }: {
   title: string;
   onBack: () => void;
   right?: ReactNode;
+  /** 'back' (default) for drill-down navigation within a flow; 'close' (X)
+   *  for a flow that isn't a "previous step" — e.g. Pantry's "Add item to
+   *  meal" / "Add from pantry", which cancel the whole thing rather than
+   *  stepping back. */
+  icon?: 'back' | 'close';
 }) {
   const set = useContext(OverlayNavSetContext);
   // Keep a ref so the stable callback wrapper always calls the latest onBack.
@@ -83,9 +88,10 @@ export function OverlayNav({
       // so it always invokes the freshest onBack even if the parent re-rendered.
       onBack: () => propsRef.current.onBack(),
       right: propsRef.current.right,
+      icon,
     });
     return () => set?.(null);
-  }, [set, title]);
+  }, [set, title, icon]);
 
   // Renders nothing — the nav bar is drawn by OverlayLayer above the scroll area.
   return null;
@@ -208,8 +214,8 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
         <div className={`shrink-0 -mt-1 px-5 pb-3 pt-2 bg-surface${scrolled ? ' shadow-nav' : ''}`}>
           <div className="flex items-center">
             <span className="w-10 shrink-0 flex items-center">
-              <button onClick={overlayNav.onBack} className="-m-3 p-3 text-content-secondary active:opacity-70" aria-label="Back">
-                <Icon name="back" size={22} strokeWidth={2.25} />
+              <button onClick={overlayNav.onBack} className="-m-3 p-3 text-content-secondary active:opacity-70" aria-label={overlayNav.icon === 'close' ? 'Close' : 'Back'}>
+                <Icon name={overlayNav.icon === 'close' ? 'close' : 'back'} size={overlayNav.icon === 'close' ? 20 : 22} strokeWidth={2.25} />
               </button>
             </span>
             <h2 className="flex-1 text-center text-headline font-semibold text-content">{overlayNav.title}</h2>

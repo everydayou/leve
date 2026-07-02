@@ -11,7 +11,7 @@ import { Icon } from '../kit';
  *  inside the same rounded sunken surface. Used both for "+ Add another item"
  *  (Day's-log basket) and "+ Create a meal" / "+ Add a new food item" (Pantry). */
 export function AddAnotherSection({
-  open, onToggle, onClose, children, label = 'Add another item',
+  open, onToggle, onClose, children, label = 'Add another item', helperText,
 }: {
   open: boolean;
   onToggle: () => void;
@@ -19,6 +19,10 @@ export function AddAnotherSection({
   children: React.ReactNode;
   /** Defaults to the Day's-log basket copy; Pantry surfaces pass their own. */
   label?: string;
+  /** Small muted line under the label, shown only while collapsed. Pantry
+   *  surfaces pass "Add another item" here (round 126) so the collapsed pill
+   *  reads e.g. "+ Create a meal" / "Add another item", matching spec copy. */
+  helperText?: string;
 }) {
   return (
     <div className="rounded-[24px] bg-surface-sunken overflow-hidden">
@@ -40,9 +44,14 @@ export function AddAnotherSection({
             </span>
           )}
         </span>
-        <span className="flex-1 text-center text-body font-semibold text-content">
-          <Icon name="plus" size={18} strokeWidth={2.5} className="inline mr-1 align-[-3px]" />
-          {label}
+        <span className="flex-1 flex flex-col items-center text-center">
+          <span className="text-body font-semibold text-content">
+            <Icon name="plus" size={18} strokeWidth={2.5} className="inline mr-1 align-[-3px]" />
+            {label}
+          </span>
+          {!open && helperText && (
+            <span className="mt-0.5 text-subhead text-content-secondary">{helperText}</span>
+          )}
         </span>
         <span className="w-6" />
       </button>

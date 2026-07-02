@@ -10,7 +10,7 @@
  * This component renders only the scrollable form content, from photo through CTAs.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { findByName } from '../../domain/pantry';
 import { Button, Icon, LabeledInput, MeasurementTypeSelector, NumberField } from '../kit';
 import type { FoodItem, MeasurementType } from '../../domain/types';
@@ -68,6 +68,7 @@ export function FoodItemFormContent({
   onCancel,
   onDelete,
   onPhotoChange,
+  onDirtyChange,
 }: {
   mode: FoodItemFormMode;
   initial?: FoodItemFormInitial;
@@ -77,6 +78,10 @@ export function FoodItemFormContent({
   onCancel: () => void;
   onDelete?: () => void;
   onPhotoChange?: (url: string | undefined) => void;
+  /** Fires whenever "has the user entered anything" changes — lets a caller
+   *  with an X/close affordance (rather than Cancel) confirm before
+   *  discarding instead of losing typed content silently. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [name, setName]   = useState(initial.name ?? '');
   const [mType, setMType] = useState<MeasurementType>(initial.measurementType ?? 'per_100g');
@@ -94,6 +99,12 @@ export function FoodItemFormContent({
   const [saveToPantry, setSaveToPantry] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const dirty = name.trim().length > 0 || !!photo
+    || [cal, pro, carb, fib, fat].some((v) => v.trim().length > 0);
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  onDirtyChangeRef.current = onDirtyChange; // eslint-disable-line react-hooks/refs
+  useEffect(() => { onDirtyChangeRef.current?.(dirty); }, [dirty]);
 
   const isSrv        = mType === 'per_serving';
   const isPantryMode = mode === 'pantry-new' || mode === 'pantry-edit' || mode === 'meal-add-item';

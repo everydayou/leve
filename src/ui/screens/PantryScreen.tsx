@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
-import { itemsByIdMap, mealNutritionFor, nutritionFor } from '../../domain/calc';
+import { itemsByIdMap, mealNutritionFor, mealPhotoFor, nutritionFor } from '../../domain/calc';
 
 import { Button, FilterPills, Sheet, EmptyState, Icon } from '../kit';
 import { Thumb } from '../components/PhotoPicker';
@@ -43,7 +43,7 @@ export function PantryScreen() {
     nutrition: nutritionFor(i, i.measurementType === 'per_100g' ? i.referenceAmount : 1),
   }));
   const mealRows: PantryRow[] = meals.map((m: Meal) => ({
-    type: 'meal', id: m.id, name: m.name, photo: m.photo, nutrition: mealNutritionFor(m, itemsById),
+    type: 'meal', id: m.id, name: m.name, photo: mealPhotoFor(m, itemsById), nutrition: mealNutritionFor(m, itemsById),
   }));
   const allRows = [...itemRows, ...mealRows].sort((a, b) => a.name.localeCompare(b.name));
   const rowsForFilter = filter === 'items' ? itemRows : filter === 'meals' ? mealRows : allRows;
@@ -167,6 +167,7 @@ export function PantryScreen() {
         <PantryFoodItemDetail
           item={openItem}
           items={items}
+          meals={meals}
           onClose={() => setOpenItemId(null)}
           onDeleted={() => setOpenItemId(null)}
           onMealCreated={(meal) => { setOpenItemId(null); setOpenMealId(meal.id); }}

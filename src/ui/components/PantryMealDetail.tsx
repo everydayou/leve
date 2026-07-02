@@ -1,18 +1,22 @@
 // Pantry → Meal detail (meals-in-pantry spec §5). A Meal never stores its
-// own macros — nutrition for every item (and, later, the whole Meal) is
-// always computed live from the current Food items via mealNutritionFor(),
-// so editing an ingredient elsewhere instantly reflects here too.
+// own macros — nutrition for every item is always computed live from the
+// current Food items via mealNutritionFor(); its display photo works the
+// same way via mealPhotoFor() (round 124) — falls back to the first
+// ingredient with a photo when the Meal itself has none.
 //
-// Per-item edit uses the same right-to-left overlay as Food item detail /
-// the Day's-log basket's EditOverlay — split into an outer Sheet wrapper +
-// inner content component so the content is a true child of Sheet's context.
+// Per-item edit / add-manual / add-from-pantry all slide in right-to-left
+// over this Sheet's own header — one activeOverlay state + one
+// useSheetSetOverlay ternary, same pattern as Food item detail and
+// AddEntrySheet's FoodForm. Split into an outer Sheet wrapper + inner
+// content component so the content is a true child of Sheet's context.
 import { useEffect, useRef, useState } from 'react';
 import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
-import { nutritionFor } from '../../domain/calc';
+import { itemsByIdMap, mealPhotoFor, nutritionFor } from '../../domain/calc';
 import { Button, LabeledInput, Sheet, OverlayNav, useSheetSetOverlay } from '../kit';
 import { PantryItemCard } from './PantryItemCard';
 import { AddAnotherSection, MethodCards } from './MethodCards';
+import { PantryPicker } from './PantryPicker';
 import { DeleteIcon } from './icons';
 import { FoodItemFormContent } from './FoodItemForm';
 import type { FoodItemFormValues } from './FoodItemForm';
@@ -22,6 +26,8 @@ import type { FoodItem, Meal } from '../../domain/types';
 function servingLabelFor(item: FoodItem, quantity: number): string {
   return item.measurementType === 'per_100g' ? `${quantity}g` : `${quantity} Srv`;
 }
+
+type OverlayKey = 'edit' | 'add-manual' | 'add-pantry';
 
 export function PantryMealDetail({
   mealId, meals, items, onClose, showToast,
@@ -40,6 +46,8 @@ export function PantryMealDetail({
   useEffect(() => { if (!meal) onClose(); }, [meal, onClose]);
   if (!meal) return null;
 
+  const itemsById = itemsByIdMap(items);
+
   return (
     <Sheet
       title="Meal"
@@ -52,61 +60,36 @@ export function PantryMealDetail({
       }
     >
       <PantryMealDetailContent
-        meal={meal} items={items} onClose={onClose} showToast={showToast} deleteRef={deleteRef}
+        meal={meal} items={items} meals={meals} photo={mealPhotoFor(meal, itemsById)}
+        onClose={onClose} showToast={showToast} deleteRef={deleteRef}
       />
     </Sheet>
   );
 }
 
 function PantryMealDetailContent({
-  meal, items, onClose, showToast, deleteRef,
+  meal, items, meals, photo, onClose, showToast, deleteRef,
 }: {
   meal: Meal;
   items: FoodItem[];
+  meals: Meal[];
+  /** Live display photo (own photo, or first ingredient's) — computed by the parent. */
+  photo?: string;
   onClose: () => void;
   showToast?: ShowToast;
   deleteRef: React.MutableRefObject<() => void>;
 }) {
   const [name, setName] = useState(meal.name);
+  const [activeOverlay, setActiveOverlay] = useState<OverlayKey | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [pendingUpdate, setPendingUpdate] = useState<FoodItemFormValues | null>(null);
   const [updating, setUpdating] = useState(false);
   const [addSectionOpen, setAddSectionOpen] = useState(false);
-  const [addingItem, setAddingItem] = useState(false);
   const [confirmingDeleteMeal, setConfirmingDeleteMeal] = useState(false);
 
   const itemsById = new Map(items.map((i) => [i.id, i]));
-  const editingItem = editingItemId ? itemsById.get(editingItemId) : undefined;
-
-  // ── Right-to-left "Edit food item" overlay for whichever item card was
-  //    tapped — same mechanism as Food item detail / the basket's EditOverlay. ─
-  useSheetSetOverlay(
-    editingItem ? (
-      <div className="space-y-3 py-1">
-        <OverlayNav title="Edit food item" onBack={() => setEditingItemId(null)} />
-        <FoodItemFormContent
-          mode="pantry-edit"
-          initial={{
-            name: editingItem.name, measurementType: editingItem.measurementType, referenceAmount: editingItem.referenceAmount,
-            calories: editingItem.calories, protein: editingItem.protein, carbs: editingItem.carbs,
-            fiber: editingItem.fiber, fat: editingItem.fat, photo: editingItem.photo,
-          }}
-          existingItems={items}
-          existingItemId={editingItem.id}
-          onSave={(values) => setPendingUpdate(values)}
-          onCancel={() => setEditingItemId(null)}
-        />
-      </div>
-    ) : null,
-    [editingItem, items],
-  );
-
-  deleteRef.current = () => setConfirmingDeleteMeal(true); // eslint-disable-line react-hooks/refs
-
-  async function saveName(next: string) {
-    if (next.trim() === meal.name) return;
-    await repos.meals.put({ ...meal, name: next.trim() || meal.name });
-  }
+  const editingItem = activeOverlay === 'edit' && editingItemId ? itemsById.get(editingItemId) : undefined;
+  const memberItemIds = meal.items.map((mi) => mi.foodItemId);
 
   async function handleAddItem(values: FoodItemFormValues) {
     const newItemId = newId();
@@ -122,8 +105,34 @@ function PantryMealDetailContent({
         { id: newId(), foodItemId: newItemId, quantity: values.measurementType === 'per_100g' ? values.referenceAmount : 1 },
       ],
     });
-    setAddingItem(false);
+    setActiveOverlay(null);
     showToast?.('Added to meal');
+  }
+
+  async function handlePickExistingItem(picked: FoodItem) {
+    await repos.meals.put({
+      ...meal,
+      items: [
+        ...meal.items,
+        { id: newId(), foodItemId: picked.id, quantity: picked.measurementType === 'per_100g' ? picked.referenceAmount : 1 },
+      ],
+    });
+    setActiveOverlay(null);
+    showToast?.('Added to meal');
+  }
+
+  async function handlePickExistingMeal(picked: Meal) {
+    await repos.meals.put({
+      ...meal,
+      // Meals can be added to Meals, but only as their individual Food
+      // items — never nested (spec §5/§18).
+      items: [
+        ...meal.items,
+        ...picked.items.map((mi) => ({ id: newId(), foodItemId: mi.foodItemId, quantity: mi.quantity })),
+      ],
+    });
+    setActiveOverlay(null);
+    showToast?.(`Added ${picked.items.length} items from ${picked.name}`);
   }
 
   async function handleRemoveItem(mealFoodItemId: string) {
@@ -137,6 +146,11 @@ function PantryMealDetailContent({
     await repos.meals.remove(meal.id);
     showToast?.('Meal deleted', async () => repos.meals.put(meal));
     onClose();
+  }
+
+  async function saveName(next: string) {
+    if (next.trim() === meal.name) return;
+    await repos.meals.put({ ...meal, name: next.trim() || meal.name });
   }
 
   async function confirmUpdate() {
@@ -156,20 +170,67 @@ function PantryMealDetailContent({
         photo: pendingUpdate.photo,
       });
       setPendingUpdate(null);
-      setEditingItemId(null);
+      setActiveOverlay(null);
       showToast?.('Food item updated');
     } finally {
       setUpdating(false);
     }
   }
 
+  // ── Right-to-left overlays — same mechanism as Food item detail / the
+  //    Day's-log basket's EditOverlay/ManualOverlay. ────────────────────────
+  useSheetSetOverlay(
+    editingItem ? (
+      <div className="space-y-3 py-1">
+        <OverlayNav title="Edit food item" onBack={() => setActiveOverlay(null)} />
+        <FoodItemFormContent
+          mode="pantry-edit"
+          initial={{
+            name: editingItem.name, measurementType: editingItem.measurementType, referenceAmount: editingItem.referenceAmount,
+            calories: editingItem.calories, protein: editingItem.protein, carbs: editingItem.carbs,
+            fiber: editingItem.fiber, fat: editingItem.fat, photo: editingItem.photo,
+          }}
+          existingItems={items}
+          existingItemId={editingItem.id}
+          onSave={(values) => setPendingUpdate(values)}
+          onCancel={() => setActiveOverlay(null)}
+        />
+      </div>
+    ) : activeOverlay === 'add-manual' ? (
+      <div className="space-y-3 py-1">
+        <OverlayNav title="Add item to meal" onBack={() => setActiveOverlay(null)} />
+        <FoodItemFormContent
+          mode="meal-add-item"
+          existingItems={items}
+          onSave={handleAddItem}
+          onCancel={() => setActiveOverlay(null)}
+        />
+      </div>
+    ) : activeOverlay === 'add-pantry' ? (
+      <div className="space-y-3 py-1">
+        <OverlayNav title="Add from pantry" onBack={() => setActiveOverlay(null)} />
+        <PantryPicker
+          items={items}
+          meals={meals}
+          excludeItemIds={memberItemIds}
+          excludeMealIds={[meal.id]}
+          onPickItem={(picked) => void handlePickExistingItem(picked)}
+          onPickMeal={(picked) => void handlePickExistingMeal(picked)}
+        />
+      </div>
+    ) : null,
+    [activeOverlay, editingItem, items, meals, memberItemIds],
+  );
+
+  deleteRef.current = () => setConfirmingDeleteMeal(true); // eslint-disable-line react-hooks/refs
+
   return (
     <>
       <div className="space-y-4 pb-2">
-        {meal.photo ? (
+        {photo ? (
           <div className="flex justify-center">
             <div className="h-64 w-64 overflow-hidden rounded-[20px] shadow-card-lg">
-              <img src={meal.photo} alt={meal.name} className="h-full w-full object-cover" />
+              <img src={photo} alt={meal.name} className="h-full w-full object-cover" />
             </div>
           </div>
         ) : null}
@@ -191,30 +252,27 @@ function PantryMealDetailContent({
               photo={item.photo}
               nutrition={nutritionFor(item, mi.quantity)}
               servingLabel={servingLabelFor(item, mi.quantity)}
-              onEdit={() => setEditingItemId(item.id)}
+              onEdit={() => { setEditingItemId(item.id); setActiveOverlay('edit'); }}
               onRemove={meal.items.length > 1 ? () => void handleRemoveItem(mi.id) : undefined}
             />
           );
         })}
 
         {/* Same collapsible module as Food item detail's "Create a meal" and
-            the Day's-log basket's "+ Add another item" — just the Pantry
-            methods card, no search/recents. */}
+            the Day's-log basket's "+ Add another item". */}
         <AddAnotherSection
           label="Add a new food item"
           open={addSectionOpen}
           onToggle={() => setAddSectionOpen((o) => !o)}
           onClose={() => setAddSectionOpen(false)}
         >
-          <div className="space-y-1">
-            <p className="px-1 pt-2 pb-1 text-callout font-semibold text-content">Pantry</p>
-            <MethodCards
-              onCamera={() => showToast?.('Coming soon — camera for meals is next')}
-              onPhoto={() => showToast?.('Coming soon — photo for meals is next')}
-              onDescribe={() => showToast?.('Coming soon — describe for meals is next')}
-              onManual={() => { setAddSectionOpen(false); setAddingItem(true); }}
-            />
-          </div>
+          <MethodCards
+            onPantry={() => { setAddSectionOpen(false); setActiveOverlay('add-pantry'); }}
+            onCamera={() => showToast?.('Coming soon — camera for meals is next')}
+            onPhoto={() => showToast?.('Coming soon — photo for meals is next')}
+            onDescribe={() => showToast?.('Coming soon — describe for meals is next')}
+            onManual={() => { setAddSectionOpen(false); setActiveOverlay('add-manual'); }}
+          />
         </AddAnotherSection>
 
         <Button size="lg" variant="outline" onClick={() => { void saveName(name); onClose(); }}>Close</Button>
@@ -229,17 +287,6 @@ function PantryMealDetailContent({
             </Button>
             <Button variant="outline" onClick={() => setPendingUpdate(null)} disabled={updating}>Cancel</Button>
           </div>
-        </Sheet>
-      )}
-
-      {addingItem && (
-        <Sheet title="Add item to meal" onClose={() => setAddingItem(false)} forceExpanded>
-          <FoodItemFormContent
-            mode="meal-add-item"
-            existingItems={items}
-            onSave={handleAddItem}
-            onCancel={() => setAddingItem(false)}
-          />
         </Sheet>
       )}
 

@@ -60,14 +60,18 @@ export function AddAnotherSection({
 // ── MethodCards ───────────────────────────────────────────────────────────────
 
 export function MethodCards({
-  onCamera, onPhoto, onDescribe, onLabel, onManual,
+  onCamera, onPhoto, onDescribe, onLabel, onPantry, onManual,
 }: {
   onCamera: () => void; onPhoto: () => void; onDescribe: () => void;
   /** Nutri-scan (barcode/label) — Day's-log only per spec §12; omit in Pantry contexts. */
   onLabel?: () => void;
+  /** "Add from pantry" — Pantry meal-builder only; omit in the Day's-log
+   *  basket, which already has its own search+recents picker. */
+  onPantry?: () => void;
   onManual: () => void;
 }) {
   const methods = [
+    ...(onPantry ? [{ label: 'Pantry', onClick: onPantry, icon: <PantryMethodIcon /> }] : []),
     { label: 'Camera',   onClick: onCamera,   icon: <CameraMethodIcon /> },
     { label: 'Photo',    onClick: onPhoto,    icon: <PhotoMethodIcon /> },
     { label: 'Describe', onClick: onDescribe, icon: <DescribeMethodIcon /> },
@@ -92,6 +96,14 @@ export function MethodCards({
         ))}
       </div>
     </div>
+  );
+}
+
+function PantryMethodIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M4 3a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H4Zm1 4V5h14v2H5Zm1 2h12v9H6V9Zm3 2a1 1 0 0 0 0 2h6a1 1 0 1 0 0-2H9Z" />
+    </svg>
   );
 }
 

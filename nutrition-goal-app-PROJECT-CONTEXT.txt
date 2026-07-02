@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-02 — Round 124 (Meals in Pantry — component reuse & consistency pass on top of round 123's foundation; Day's-log integration still to come)
+Last updated: 2026-07-02 — Round 125 (Meals in Pantry — Add-from-pantry picker, right-to-left overlay for Manual, live meal-photo fallback; Day's-log integration + Camera/Photo/Describe still to come)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,29 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 125 — MEALS IN PANTRY: ADD-FROM-PANTRY PICKER, OVERLAY, PHOTO FALLBACK (2026-07-02)
+Files: src/domain/calc.ts, src/ui/components/MethodCards.tsx,
+       src/ui/components/PantryPicker.tsx (new), PantryFoodItemDetail.tsx,
+       PantryMealDetail.tsx, src/ui/screens/PantryScreen.tsx
+- "Pantry" is now a real method card (not a label) in the Create-a-meal / Add-
+  item method row. Tapping it opens a new "Add from pantry" overlay
+  (PantryPicker.tsx) — same search + All/Food items/Meal pills + row shape as
+  PantryScreen's own list — for picking an EXISTING Food item or Meal into
+  the meal being built. Picking an existing Meal flattens its items in
+  (never nests), with the spec's "Added N items from X" toast.
+- Manual + Add-from-pantry now slide in right-to-left with an OverlayNav back
+  arrow (one activeOverlay state + one useSheetSetOverlay ternary, same
+  pattern as FoodForm), instead of stacking a bottom Sheet.
+- Bug fix: mealPhotoFor(meal, itemsById) — a Meal's display photo now falls
+  back live to the first ingredient with a photo when the Meal itself has
+  none. Previously a photo added to an item inside a photo-less Meal only
+  ever showed on that item's own card, never at the Meal level.
+- Camera/Photo/Describe for meals still deferred — genuinely coupled to the
+  Day's-log basket's BasketItem[]/sources model, needs those helpers
+  extracted from AddEntrySheet.tsx first. Follow-up round.
+- tsc: clean. lint: clean. vitest: 33 passed (8 pre-existing skips). `npm run
+  build` verified clean.
+
 ROUND 124 — MEALS IN PANTRY: COMPONENT REUSE & CONSISTENCY PASS (2026-07-02)
 Files: src/ui/components/icons.tsx (new), src/ui/components/MethodCards.tsx
        (new), src/ui/components/AddEntrySheet.tsx, PantryItemCard.tsx,
@@ -336,22 +359,6 @@ Files: src/domain/types.ts, src/domain/calc.ts, src/data/repositories.ts,
   follow-up round — see Known Gaps.
 - tsc: clean. lint: clean. vitest: 30 passed (8 pre-existing skips). `npm run
   build` also verified clean in the Cowork sandbox this round.
-
-ROUND 122 — UNIFIED FOOD ITEM FORM, BASKET POLISH & COLLAGE FIXES (2026-07-02)
-Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/FoodItemForm.tsx (new),
-       src/ui/screens/PantryScreen.tsx, src/ui/kit/ImageHero.tsx
-- FoodItemForm.tsx: new shared component (single source of truth for all 4
-  food-item surfaces). PantryScreen + EditOverlay + ManualOverlay replaced with
-  thin wrappers. MeasurementTypeSelector now consistent everywhere.
-- "Save to pantry" from basket-edit fully wired: pantryItemId stamped on basket
-  item; DB entry updated; photo forwarded from form (not inferred from sources).
-  addManualItem (both contexts): pantry id shared with basket item.
-  "Saved to pantry" shows checked+disabled when item already linked.
-- Photo cap 3→4 everywhere; ImageHero cfg3 img3 left 24→6, cfg4 img3 left 24→3.
-- LogEntryContent: frequentItems via useLive; delete-item photo cleanup;
-  addPantryItem photo wiring; fast-log bypass when fromSearch=true.
-- Nutri-scan "Change" button removed; PantryScreen delete icon updated.
-- tsc: clean. lint: clean.
 
 ================================================================
 TODO / FUTURE WORK

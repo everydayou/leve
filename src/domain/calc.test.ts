@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nutritionFor, effectiveNutrition, mealNutritionFor, itemsByIdMap, summarizeDay, calcDigestionCalories, KCAL_PER_KG } from './calc';
+import { nutritionFor, effectiveNutrition, mealNutritionFor, mealPhotoFor, itemsByIdMap, summarizeDay, calcDigestionCalories, KCAL_PER_KG } from './calc';
 import type { FoodItem, FoodEntry, ActivityEntry, Meal } from './types';
 
 const chicken: FoodItem = {
@@ -141,5 +141,28 @@ describe('effectiveNutrition — Meal entries (round 123)', () => {
     const n = effectiveNutrition(entry, itemsByIdMap([]));
     expect(n.calories).toBe(250);
     expect(n.protein).toBe(10);
+  });
+});
+
+describe('mealPhotoFor', () => {
+  it('uses the Meal\'s own photo when set', () => {
+    const items = itemsByIdMap([{ ...chicken, photo: 'chicken.jpg' }]);
+    const meal: Meal = { id: 'm', name: 'M', photo: 'meal.jpg', isArchived: false, items: [{ id: 'mi', foodItemId: 'c', quantity: 100 }] };
+    expect(mealPhotoFor(meal, items)).toBe('meal.jpg');
+  });
+
+  it('falls back to the first ingredient with a photo when the Meal has none', () => {
+    const items = itemsByIdMap([bar, { ...chicken, photo: 'chicken.jpg' }]);
+    const meal: Meal = {
+      id: 'm', name: 'M', isArchived: false,
+      items: [{ id: 'mi1', foodItemId: 'b', quantity: 1 }, { id: 'mi2', foodItemId: 'c', quantity: 100 }],
+    };
+    expect(mealPhotoFor(meal, items)).toBe('chicken.jpg');
+  });
+
+  it('returns undefined when neither the Meal nor any item has a photo', () => {
+    const items = itemsByIdMap([bar]);
+    const meal: Meal = { id: 'm', name: 'M', isArchived: false, items: [{ id: 'mi', foodItemId: 'b', quantity: 1 }] };
+    expect(mealPhotoFor(meal, items)).toBeUndefined();
   });
 });

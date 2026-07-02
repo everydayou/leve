@@ -1,4 +1,55 @@
 ================================================================
+ROUND 125 — MEALS IN PANTRY: ADD-FROM-PANTRY PICKER, OVERLAY FOR MANUAL, PHOTO FALLBACK (2026-07-02)
+================================================================
+Files: src/domain/calc.ts, src/domain/calc.test.ts, src/ui/components/MethodCards.tsx,
+       src/ui/components/PantryPicker.tsx (NEW), src/ui/components/PantryFoodItemDetail.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/screens/PantryScreen.tsx
+
+Second follow-up to round 123's foundation, from Marco's review of round 124.
+
+── "PANTRY" IS NOW A REAL METHOD CARD, NOT A LABEL ──────────────────────────
+MethodCards gains an optional onPantry — when provided, a "Pantry" card
+(new PantryMethodIcon) appears first in the method row. Tapping it opens a
+new "Add from pantry" overlay (PantryPicker.tsx): search + All/Food items/
+Meal pills + the same row shape as PantryScreen's own list, for picking an
+EXISTING Food item or Meal to add into the meal being built — previously
+"Create a meal" only offered creation methods (Manual/Camera/Photo/Describe),
+never "pick something you already have saved." Picking an existing Meal
+flattens its items into the meal being built rather than nesting (spec §5/
+§18), with the "Added N items from X" toast the spec calls for.
+
+── MANUAL NOW SLIDES IN RIGHT-TO-LEFT TOO ───────────────────────────────────
+PantryFoodItemDetailContent and PantryMealDetailContent were refactored from
+several independent boolean flags + stacked bottom Sheets into ONE
+activeOverlay state ('edit' | 'add-manual' | 'add-pantry' | null) driving a
+single useSheetSetOverlay ternary — the exact pattern AddEntrySheet's
+FoodForm already uses for its own overlays. "Add item to meal" (Manual) and
+"Add from pantry" now both slide in from the right with an OverlayNav back
+arrow, consistent with editing a Food item and with the Day's-log basket's
+own overlays. No more stacked bottom Sheets for these two flows.
+
+── MEAL PHOTO: LIVE FALLBACK TO FIRST INGREDIENT'S PHOTO ────────────────────
+Bug fix: adding a photo to a Food item inside a photo-less Meal wasn't
+reflected at the Meal level — the photo only ever showed on that item's own
+card. New mealPhotoFor(meal, itemsById) in calc.ts: returns the Meal's own
+photo if set, otherwise the first current ingredient that has one — same
+"never store what can be derived live" philosophy as mealNutritionFor().
+Used for the Meal detail hero image, the Pantry list's Meal row thumbnail,
+and PantryPicker's Meal rows. Covered by 3 new calc.test.ts cases.
+
+── STILL DEFERRED: CAMERA / PHOTO / DESCRIBE FOR MEALS ──────────────────────
+These stay "coming soon" toasts. Not a quick reuse: the Day's-log basket's
+camera/photo/describe flows (captureFromCamera/captureFromLibrary/scanFood/
+describeFood, DescribeOverlay, runScan) are coupled to the basket's
+multi-item BasketItem[]/sources data model. Wiring them into the Pantry
+meal-builder (which only ever needs a single resulting Food item) needs
+those helpers extracted from AddEntrySheet.tsx first — real work, not a
+find-replace, left for a dedicated follow-up round now flagged in
+PROJECT-CONTEXT.
+
+tsc: clean. lint: clean. vitest: 33 passed (8 pre-existing skips). `npm run
+build` verified clean.
+
 ROUND 124 — MEALS IN PANTRY: COMPONENT REUSE & CONSISTENCY PASS (2026-07-02)
 ================================================================
 Files: src/ui/components/icons.tsx (NEW), src/ui/components/MethodCards.tsx

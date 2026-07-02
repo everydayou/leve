@@ -47,6 +47,20 @@ export function mealNutritionFor(meal: Meal, itemsById: Map<string, FoodItem>): 
   );
 }
 
+/** A Meal's display photo — its own explicit photo if set, otherwise the
+ *  first current ingredient that has one (round 124). Meals rarely get an
+ *  explicit photo of their own (there's no "set meal photo" step); this
+ *  keeps the Meal's photo live and consistent with how its nutrition is
+ *  never stored, always derived from the current Food items. */
+export function mealPhotoFor(meal: Meal, itemsById: Map<string, FoodItem>): string | undefined {
+  if (meal.photo) return meal.photo;
+  for (const mi of meal.items) {
+    const photo = itemsById.get(mi.foodItemId)?.photo;
+    if (photo) return photo;
+  }
+  return undefined;
+}
+
 /** The nutrition a FoodEntry actually contributes right now.
  *
  *  Pantry-backed entries (have a foodItemId + quantity) are recomputed LIVE

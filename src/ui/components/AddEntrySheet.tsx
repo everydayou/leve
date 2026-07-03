@@ -325,19 +325,30 @@ function FoodForm({
         currentPhoto={sources.find((s) => s.id === editItem.sourceId)?.photo}
         onBack={overlayBack}
         existingItems={items}
-        onSave={(patch, saveToPantry, photo) => {
-          const pantryItemId = saveToPantry && editItem ? newId() : undefined;
-          updateItem(editingIdx!, { ...patch, ...(pantryItemId ? { pantryItemId } : {}) });
-          if (pantryItemId && editItem) {
+        onSave={(patch, saveToPantryChecked, photo) => {
+          if (!editItem) { overlayBack(); return; }
+          // Switching units (per_100g <-> per_serving) makes the OLD raw qty
+          // number mean something completely different (grams vs servings)
+          // — reset it to a sane default rather than silently reinterpreting it.
+          const qtyReset = patch.measurementType && patch.measurementType !== editItem.measurementType
+            ? (patch.measurementType === 'per_100g' ? 100 : 1)
+            : undefined;
+          const fullPatch = { ...patch, ...(qtyReset != null ? { qty: qtyReset } : {}) };
+          const merged = { ...editItem, ...fullPatch };
+          // Already linked → this is an update, not a fresh "save to pantry"
+          // opt-in; only actually NEW items need the checkbox to be checked.
+          const isNewLink = saveToPantryChecked && !editItem.pantryItemId;
+          const pantryItemId = isNewLink ? newId() : editItem.pantryItemId;
+          updateItem(editingIdx!, { ...fullPatch, ...(pantryItemId ? { pantryItemId } : {}) });
+          if (pantryItemId) {
+            // Write through whenever this item IS or BECOMES pantry-linked —
+            // previously this only fired for brand-new links, so editing an
+            // already-linked item's macros silently never reached the Pantry.
             void repos.foodItems.put({
-              id: pantryItemId, name: patch.name ?? editItem.name,
-              measurementType: patch.measurementType ?? editItem.measurementType,
-              referenceAmount: patch.referenceAmount ?? editItem.referenceAmount,
-              calories: patch.calories ?? editItem.calories,
-              protein:  patch.protein  ?? editItem.protein,
-              carbs:    patch.carbs    ?? editItem.carbs,
-              fiber:    patch.fiber    ?? editItem.fiber,
-              fat:      patch.fat      ?? editItem.fat,
+              id: pantryItemId, name: merged.name,
+              measurementType: merged.measurementType, referenceAmount: merged.referenceAmount,
+              calories: merged.calories, protein: merged.protein, carbs: merged.carbs,
+              fiber: merged.fiber, fat: merged.fat,
               photo, isArchived: false,
             });
           }
@@ -1420,7 +1431,12 @@ export function LogEntrySheet({
   showToast?: ShowToast;
 }) {
   const pantryItem = pantryItems.find((i) => i.id === entry.foodItemId);
-  const title = entry.mealData?.name ?? entry.manualName ?? pantryItem?.name ?? 'Food';
+  // Generic "Food item" / "Meal" — not the item's own name (matches the
+  // Pantry's own detail screens). Reactive to the LIVE basket size while
+  // editing: LogEntryContent reports up via onTitleChange as items are
+  // added/removed, so converting a Food entry into a Meal mid-edit flips
+  // the header immediately, before the user even taps Save.
+  const [title, setTitle] = useState(entry.mealData ? 'Meal' : 'Food item');
 
   // del() is defined inside LogEntryContent (which lives in Sheet's context);
   // we forward a stable ref so the trash button in the Sheet header can call it.
@@ -1443,13 +1459,14 @@ export function LogEntrySheet({
         onClose={onClose}
         showToast={showToast}
         delRef={delRef}
+        onTitleChange={setTitle}
       />
     </Sheet>
   );
 }
 
 function LogEntryContent({
-  entry, pantryItems, pantryItem, onClose, showToast, delRef,
+  entry, pantryItems, pantryItem, onClose, showToast, delRef, onTitleChange,
 }: {
   entry: FoodEntry;
   pantryItems: FoodItem[];
@@ -1457,6 +1474,9 @@ function LogEntryContent({
   onClose: () => void;
   showToast?: ShowToast;
   delRef: React.MutableRefObject<() => void>;
+  /** Reports the Sheet's header title live as the basket grows/shrinks —
+   *  "Food item" for 1, "Meal" for 2+ (round 131). */
+  onTitleChange: (title: string) => void;
 }) {
   const meals = useLive(() => repos.meals.all(), []) ?? [];
   // Full set (includeArchived) — same reasoning as FoodForm's allItems:
@@ -1466,12 +1486,17 @@ function LogEntryContent({
 
   // ── Basket — initialized once so hasChanges comparison IDs stay stable ─
   const initialBasketRef = useRef<BasketItem[]>([]);
-  // eslint-disable-next-line react-hooks/refs -- write inside initializer runs once at mount
   const [basket, setBasket] = useState<BasketItem[]>(() => {
     const b = entryToBasket(entry, pantryItems);
     initialBasketRef.current = b;
     return b;
   });
+
+  const onTitleChangeRef = useRef(onTitleChange);
+  onTitleChangeRef.current = onTitleChange;
+  useEffect(() => {
+    onTitleChangeRef.current(basket.length >= 2 ? 'Meal' : 'Food item');
+  }, [basket.length]);
 
   // ── Photos — prefer stored photos array, fall back to single photo string ─
   const [localPhotos, setLocalPhotos] = useState<string[]>(() => {
@@ -1509,7 +1534,6 @@ function LogEntryContent({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function stripIds(b: BasketItem[]) { return JSON.stringify(b.map(({ id: _, ...r }) => r)); }
   const initialPhotos = entry.mealData?.photos ?? (entry.mealData?.photo ? [entry.mealData.photo] : (pantryItem?.photo ? [pantryItem.photo] : []));
-  // eslint-disable-next-line react-hooks/refs
   const hasChanges = stripIds(basket) !== stripIds(initialBasketRef.current)
     || localPhotos.join() !== initialPhotos.join()
     || localMealName !== (entry.mealData?.name ?? '')
@@ -1522,7 +1546,7 @@ function LogEntryContent({
     setCorrectingIdx(null);
   }
   const overlayBackRef = useRef(overlayBack);
-  overlayBackRef.current = overlayBack; // eslint-disable-line react-hooks/refs
+  overlayBackRef.current = overlayBack;
   useSheetSetOverlayBack(() => overlayBackRef.current());
 
   // ── Overlay content ─────────────────────────────────────────────────────
@@ -1538,28 +1562,44 @@ function LogEntryContent({
         currentPhoto={localPhotos[0]}
         onBack={overlayBack}
         existingItems={pantryItems}
-        onSave={(patch, saveToPantry, photo) => {
-          const pantryItemId = saveToPantry && editItem ? newId() : undefined;
+        onSave={(patch, saveToPantryChecked, photo) => {
+          if (!editItem) { overlayBack(); return; }
+          // Switching units (per_100g <-> per_serving) makes the OLD raw qty
+          // number mean something completely different (grams vs servings)
+          // — reset it to a sane default rather than silently reinterpreting it.
+          const qtyReset = patch.measurementType && patch.measurementType !== editItem.measurementType
+            ? (patch.measurementType === 'per_100g' ? 100 : 1)
+            : undefined;
+          const fullPatch = { ...patch, ...(qtyReset != null ? { qty: qtyReset } : {}) };
+          const merged = { ...editItem, ...fullPatch };
+          // Already linked → this is an update, not a fresh "save to pantry"
+          // opt-in; only actually NEW items need the checkbox to be checked.
+          const isNewLink = saveToPantryChecked && !editItem.pantryItemId;
+          const pantryItemId = isNewLink ? newId() : editItem.pantryItemId;
           setBasket((prev) => prev.map((b, i) =>
-            i === editingIdx ? { ...b, ...patch, ...(pantryItemId ? { pantryItemId } : {}) } : b));
-          if (pantryItemId && editItem) {
+            i === editingIdx ? { ...b, ...fullPatch, ...(pantryItemId ? { pantryItemId } : {}) } : b));
+          if (pantryItemId) {
+            // Write through whenever this item IS or BECOMES pantry-linked —
+            // previously this only fired for brand-new links, so editing an
+            // already-linked item's macros silently never reached the Pantry.
             void repos.foodItems.put({
-              id: pantryItemId, name: patch.name ?? editItem.name,
-              measurementType: patch.measurementType ?? editItem.measurementType,
-              referenceAmount: patch.referenceAmount ?? editItem.referenceAmount,
-              calories: patch.calories ?? editItem.calories,
-              protein:  patch.protein  ?? editItem.protein,
-              carbs:    patch.carbs    ?? editItem.carbs,
-              fiber:    patch.fiber    ?? editItem.fiber,
-              fat:      patch.fat      ?? editItem.fat,
+              id: pantryItemId, name: merged.name,
+              measurementType: merged.measurementType, referenceAmount: merged.referenceAmount,
+              calories: merged.calories, protein: merged.protein, carbs: merged.carbs,
+              fiber: merged.fiber, fat: merged.fat,
               photo, isArchived: false,
             });
-            // Persist the pantry link so re-opening the sheet reflects the new state
+            // Keep this entry's own record in sync too — foodItemId AND
+            // quantity are both required for effectiveNutrition() to live-
+            // recompute; previously quantity was never set here, so a
+            // freshly-linked entry stayed frozen on its old snapshot forever.
             void repos.foodEntries.update({
               ...entry,
               foodItemId: pantryItemId,
+              quantity: merged.qty,
               isManual: false,
               manualName: undefined,
+              snapshot: roundSnap(basketNutrition(merged)),
             });
           }
           overlayBack();
@@ -1759,12 +1799,18 @@ function LogEntryContent({
   async function save() {
     const photo  = localPhotos[0];
     const photos = localPhotos.slice(0, 4);
-    if (basket.length === 1 && pantryItem && basket[0].pantryItemId === pantryItem.id) {
+    // Checks basket[0].pantryItemId directly rather than comparing against
+    // the `pantryItem` prop (resolved once, at mount, from entry.foodItemId)
+    // — that stale comparison missed a link created mid-session (e.g. via
+    // the edit overlay's "Save to pantry"), which could silently fall
+    // through to the manual-entry branch below and drop the new link.
+    if (basket.length === 1 && basket[0].pantryItemId) {
       const b = basket[0];
       // Shrunk back to a single pantry-linked item — no longer a Meal (the
       // Meal object, if one existed, is left alone in Pantry, not deleted).
       await repos.foodEntries.update({
-        ...entry, quantity: b.qty, snapshot: roundSnap(basketNutrition(b)),
+        ...entry, foodItemId: b.pantryItemId, quantity: b.qty, isManual: false, manualName: undefined,
+        snapshot: roundSnap(basketNutrition(b)),
         mealId: undefined, mealData: undefined,
       });
     } else if (basket.length > 1 || entry.mealData) {
@@ -1848,7 +1894,7 @@ function LogEntryContent({
     showToast?.('Removed', async () => repos.foodEntries.add(entry));
     onClose();
   }
-  delRef.current = del; // eslint-disable-line react-hooks/refs
+  delRef.current = del;
 
   return (
     <>

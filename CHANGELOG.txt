@@ -1,4 +1,75 @@
 ================================================================
+ROUND 131 — DAY'S-LOG EDIT FLOW: LIVE-LINK BUGS (2026-07-02)
+================================================================
+Files: src/ui/components/AddEntrySheet.tsx
+
+Marco's testing surfaced several real, pre-existing bugs in the Day's-log
+basket edit flow (not introduced by the meals-in-pantry work, but found
+while stress-testing it) — all in how editing a basket item talks to the
+Pantry.
+
+── ROOT CAUSE: "SAVE TO PANTRY" GATED A WRITE THAT SHOULDN'T HAVE BEEN GATED ─
+FoodItemFormContent only returns saveToPantry: true when its checkbox is
+actually shown, and the checkbox is hidden once an item is ALREADY
+pantry-linked (shown as "Saved to pantry", checked+disabled, instead). Both
+EditOverlay onSave handlers (FoodForm's fresh-log basket AND
+LogEntryContent's edit-existing-entry basket) used that boolean to decide
+whether to write to repos.foodItems at all — so editing an ALREADY-linked
+item's macros updated the in-memory basket row (looked fine in the moment)
+but never reached the actual Food item record. Reopen the entry, or view it
+anywhere else that reads live, and the edit was gone.
+Fixed by decoupling "is this item pantry-linked" from "did the user just
+check a box": both onSave handlers now write through to repos.foodItems
+whenever the item IS or BECOMES linked, only using the checkbox to decide
+whether a brand-new item gets linked in the first place.
+
+── A SECOND BUG THIS SAME GATE WAS HIDING ───────────────────────────────────
+LogEntryContent's version of this handler, when a manual entry got newly
+linked to a pantry item, set entry.foodItemId but never entry.quantity.
+effectiveNutrition() requires BOTH to be present to live-recompute — with
+quantity missing, the entry looked linked but stayed frozen on its original
+snapshot forever. This is exactly Marco's "Wednesday's entry never updated"
+report: today's entry (added via search, which sets quantity correctly)
+updated fine; Wednesday's entry (retrofitted via edit → save to pantry,
+missing quantity) never did. Fixed as part of the same rewrite — quantity
+and a fresh snapshot are now always included.
+
+── THIRD: OUTER "SAVE CHANGES" USED A STALE REFERENCE ───────────────────────
+LogEntryContent.save()'s single-item branch compared basket[0].pantryItemId
+against the `pantryItem` prop — resolved ONCE from entry.foodItemId at
+mount. A link created mid-session (via the edit overlay) wouldn't match that
+stale prop, risking the save falling through to the manual-entry branch and
+losing the new link. Now checks basket[0].pantryItemId directly.
+
+── FOURTH: SWITCHING UNITS DIDN'T RESET QUANTITY ────────────────────────────
+Editing a basket item's measurementType (per_100g ↔ per_serving) kept the
+old raw qty number as-is — a value that meant "grams" suddenly meant
+"servings" (or vice versa) with no conversion, producing wildly wrong totals
+and a stepper stuck on odd values (Marco's screenshot: 8.9g became "8.9
+srv"). Now resets qty to a sensible default (100 / 1) whenever
+measurementType actually changes during an edit.
+
+── FIFTH: LOGENTRYSHEET TITLE ────────────────────────────────────────────────
+Per Marco's original reference screenshot, tapping an existing Day's-log
+entry should show a generic "Food item" / "Meal" title (matching Pantry's
+own detail screens), not the entry's actual name. LogEntrySheet's title is
+now derived state, reported up live from LogEntryContent's basket size via
+onTitleChange — converting a Food entry into a Meal mid-edit flips the
+header immediately, before Save is even tapped.
+
+── CLEANUP ───────────────────────────────────────────────────────────────────
+4 stray `eslint-disable react-hooks/refs` comments (pre-existing, unrelated
+to this round's changes but surfaced once nearby code shifted) removed —
+ESLint confirmed they weren't suppressing anything.
+
+tsc: clean. lint: clean (0 warnings). vitest: 35 passed (unchanged).
+`npm run build` verified clean.
+
+Still open, needs more specific repro from Marco (see chat): "convert an
+existing Food entry to a Meal, then Save — not working" wasn't reproduced by
+code review alone; and the Nutri-scan flow not showing the per-100g/per-
+serving prompt on this particular scan.
+
 ROUND 130 — MEALS IN PANTRY: NEW INGREDIENTS DON'T POLLUTE THE PANTRY (2026-07-02)
 ================================================================
 Files: src/ui/screens/PantryScreen.tsx, src/ui/components/PantryFoodItemDetail.tsx,

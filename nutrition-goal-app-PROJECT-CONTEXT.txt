@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-02 — Round 130 (Meals in Pantry — new Food items created inside the meal-builder no longer clutter the main Pantry list by default; only Camera/Photo/Describe for the Pantry meal-builder still to come)
+Last updated: 2026-07-03 — Round 131 (fixed several real Day's-log edit-flow bugs surfaced by testing: editing an already-linked item silently didn't save, a newly-linked entry could stay frozen forever, switching units in an edit didn't reset quantity; 2 items still open pending more specific repro from Marco)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,41 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 131 — DAY'S-LOG EDIT FLOW: LIVE-LINK BUGS (2026-07-03)
+Files: src/ui/components/AddEntrySheet.tsx
+Marco's testing surfaced pre-existing bugs (not introduced by the meals-in-
+pantry work) in how editing a Day's-log basket item talks to the Pantry:
+- Editing an ALREADY pantry-linked item's macros never wrote through to
+  repos.foodItems — the "save to pantry" checkbox is hidden once an item is
+  already linked, and both EditOverlay onSave handlers used that checkbox
+  value (always false when hidden) to gate the write. Fixed: write-through
+  now happens whenever the item IS or BECOMES linked; the checkbox only
+  gates whether a brand-new item gets linked in the first place.
+- Newly-linking a manual entry to pantry (LogEntryContent) set foodItemId
+  but never quantity — effectiveNutrition() needs both to live-recompute,
+  so the entry looked linked but stayed frozen on its old snapshot forever.
+  This explains Marco's exact repro: today's entry (added via search, which
+  sets quantity) updated correctly; a past entry retrofitted via edit →
+  save-to-pantry (missing quantity) never did.
+- Outer "Save changes" compared against a stale `pantryItem` prop (resolved
+  once at mount) instead of the live basket state — could lose a link
+  created mid-session. Now checks basket[0].pantryItemId directly.
+- Switching measurementType during an edit (per_100g <-> per_serving) left
+  the old qty number as-is, reinterpreting grams as servings or vice versa
+  (Marco's screenshot: 8.9g became "8.9 srv"). Now resets qty to a sensible
+  default when the unit actually changes.
+- LogEntrySheet's title is now "Food item"/"Meal" (generic, matching the
+  Pantry's own screens per Marco's original reference), reactive to the
+  live basket size — not the entry's actual name.
+- Also removed 4 stray now-unused eslint-disable comments surfaced by
+  nearby code shifting.
+- tsc: clean. lint: clean (0 warnings). vitest: 35 passed. `npm run build`
+  verified clean.
+- STILL OPEN (need more specific repro): "convert an existing Food entry to
+  a Meal, then Save — not working" (code review didn't find a distinct bug
+  beyond the ones above — may already be fixed by them, needs retest); and
+  the Nutri-scan flow not prompting per-100g/per-serving on a specific scan.
+
 ROUND 130 — MEALS IN PANTRY: NEW INGREDIENTS DON'T POLLUTE THE PANTRY (2026-07-02)
 Files: src/ui/screens/PantryScreen.tsx, PantryFoodItemDetail.tsx,
        PantryMealDetail.tsx, PantryPicker.tsx, FoodItemForm.tsx,
@@ -319,24 +354,6 @@ Files: src/ui/components/AddEntrySheet.tsx
 - LogEntryContent: same Meal-picking, always flattens (its basket is never
   empty) — the existing entry.mealId create-vs-update logic from round 127
   already handles the rest.
-- tsc: clean. lint: clean. vitest: 35 passed (unchanged). `npm run build`
-  verified clean.
-
-ROUND 128 — MEALS IN PANTRY: BASKET VIEW CATCHES UP TO SPEC (2026-07-02)
-Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/FoodItemForm.tsx
-- Removed the inline "Meal" heading (icon + text) above the Day's-log basket
-  cards in both FoodForm and LogEntryContent — not in the Figma reference,
-  the cards speak for themselves.
-- "+Add another item" module now reads "Create a meal" / "Add another item"
-  (1 item, matches Pantry's own copy) vs "Add a new food item" (2+ items,
-  single line) — in both FoodForm and LogEntryContent, matching the
-  reference mockup's 3 frames exactly.
-- CTA fix: single-item log button "Log it" → "Log food" (spec + mockup).
-  FoodItemFormContent's basket-manual mode gets soleItem: when the basket is
-  empty, Manual's CTA reads "Save food" instead of "Add to meal".
-- Deliberately unchanged (confirmed against the mockup): the Day's-log
-  picker's Recent list stays Food-items-only with "per serving"/"per 100g";
-  Sheet title stays static "Add", not a dynamic "Food item"/"Meal" title.
 - tsc: clean. lint: clean. vitest: 35 passed (unchanged). `npm run build`
   verified clean.
 

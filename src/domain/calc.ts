@@ -1,5 +1,5 @@
 import type {
-  FoodItem, FoodEntry, ActivityEntry, NutritionSnapshot, Meal, MeasurementType,
+  FoodItem, FoodEntry, ActivityEntry, NutritionSnapshot, Meal, MealItem, MeasurementType,
 } from './types';
 
 /** Atwater-style constant: ~7700 kcal per kg of body mass. */
@@ -114,6 +114,30 @@ export function mealPhotosFor(meal: Meal, itemsById: Map<string, FoodItem>): str
   return Array.from(new Set(photos)).slice(0, 4);
 }
 
+/** The nutrition a single local/unlinked MealItem contributes right now,
+ *  given its stored qty (round 138). Items carrying measurementType (new
+ *  meal items, round 138+) scale properly like a FoodItem, via the same
+ *  per_100g/per_serving factor nutritionFor() uses — `qty` there is a real
+ *  amount (grams or servings). Older items (no measurementType, pre-round-
+ *  138) fall back to the original behavior: `calories` etc. are already the
+ *  total at the item's estimated portion, and `qty` is a plain multiplier
+ *  on top of that total. Without this distinction, a gram-based item's
+ *  stored per-100g RATE would get blindly multiplied by its gram quantity
+ *  instead of by quantity/100, wildly inflating the total. */
+export function mealItemNutrition(mi: MealItem): NutritionSnapshot {
+  const qty = mi.qty ?? 1;
+  const factor = mi.measurementType
+    ? (mi.measurementType === 'per_100g' ? qty / (mi.referenceAmount || 1) : qty)
+    : qty;
+  return {
+    calories: round(mi.calories * factor),
+    protein: round(mi.protein * factor),
+    carbs: round(mi.carbs * factor),
+    fiber: round(mi.fiber * factor),
+    fat: round(mi.fat * factor),
+  };
+}
+
 /** The nutrition a FoodEntry actually contributes right now.
  *
  *  Pantry-backed entries (have a foodItemId + quantity) are recomputed LIVE
@@ -123,8 +147,8 @@ export function mealPhotosFor(meal: Meal, itemsById: Map<string, FoodItem>): str
  *
  *  Meal entries (mealData present) recompute per-item: any item carrying a
  *  foodItemId is pulled live from the current pantry item; items without one
- *  (local/unlinked, or the pantry item was later deleted) fall back to their
- *  own stored macro values within mealData.
+ *  (local/unlinked, or the pantry item was later deleted) fall back to
+ *  mealItemNutrition() using their own stored macro values within mealData.
  *
  *  `itemsById` maps FoodItem.id → FoodItem. If an entry's item is missing
  *  (e.g. deleted from the pantry) we fall back to the stored snapshot so the
@@ -136,18 +160,11 @@ export function effectiveNutrition(
   if (entry.mealData && itemsById) {
     return sumSnapshots(
       entry.mealData.items.map((mi) => {
-        const qty = mi.qty ?? 1;
         if (mi.foodItemId) {
           const item = itemsById.get(mi.foodItemId);
-          if (item) return nutritionFor(item, qty);
+          if (item) return nutritionFor(item, mi.qty ?? 1);
         }
-        return {
-          calories: round(mi.calories * qty),
-          protein: round(mi.protein * qty * 10) / 10,
-          carbs: round(mi.carbs * qty * 10) / 10,
-          fiber: round(mi.fiber * qty * 10) / 10,
-          fat: round(mi.fat * qty * 10) / 10,
-        };
+        return mealItemNutrition(mi);
       }),
     );
   }

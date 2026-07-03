@@ -4,7 +4,7 @@ import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
 import { convertFoodItemReferences } from '../../data/quantityConversion';
 import { newId, todayISO } from '../../data/ids';
-import { nutritionFor, mealNutritionFor, mealPhotoFor, itemsByIdMap, unscaleSnapshot } from '../../domain/calc';
+import { nutritionFor, mealNutritionFor, mealPhotoFor, itemsByIdMap, unscaleSnapshot, mealItemNutrition } from '../../domain/calc';
 import { currentWeightKg } from '../../domain/goal';
 import { kgToLbs, lbsToKg } from '../../domain/units';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
@@ -734,12 +734,20 @@ function FoodForm({
         }
       }
 
-      const mealItems: MealItem[] = basket.map((item, i) => {
-        const n = basketNutrition(item);
-        return { name: item.name, estimatedGrams: item.qty, calories: n.calories,
-          protein: n.protein, carbs: n.carbs, fiber: n.fiber, fat: n.fat,
-          confidence: 'high' as const, selected: true, foodItemId: resolvedFoodItemIds[i] };
-      });
+      // Round 138: store each item's RATE (at referenceAmount) + real qty —
+      // same convention as BasketItem/FoodItem — instead of a flattened
+      // TOTAL, so mealItemNutrition() can scale it correctly later instead
+      // of blindly multiplying a per-100g rate by a gram quantity (the
+      // "58,000 kcal" bug: a gram-based item silently became "1 serving
+      // of the total", then any stepper tap multiplied that whole total).
+      const mealItems: MealItem[] = basket.map((item, i) => ({
+        name: item.name,
+        estimatedGrams: item.measurementType === 'per_100g' ? Math.round(item.qty) : Math.round(item.referenceAmount),
+        measurementType: item.measurementType, referenceAmount: item.referenceAmount,
+        calories: item.calories, protein: item.protein, carbs: item.carbs,
+        fiber: item.fiber, fat: item.fat, qty: item.qty,
+        confidence: 'high' as const, selected: true, foodItemId: resolvedFoodItemIds[i],
+      }));
       const entryId = newId();
 
       if (saveToPantry) {
@@ -1422,18 +1430,28 @@ function entryToBasket(entry: FoodEntry, pantryItems: FoodItem[]): BasketItem[] 
   // a single-item basket from the stale link and silently drop every other
   // item in the meal.
   if (entry.mealData) {
-    // Meal entry — each MealItem becomes a per_serving BasketItem
+    // Meal entry — each MealItem becomes a BasketItem. Round 138: items
+    // carrying their original measurementType/referenceAmount (new items
+    // going forward) reconstruct as a true per_100g/per_serving item, same
+    // as any other basket item, so the stepper offers the right increment
+    // (10g vs 0.5 servings) instead of forcing every item into a coarse
+    // "servings" multiplier of its whole stored total. Older items
+    // (pre-round-138, no measurementType) fall back to the original
+    // per_serving/total behavior, unchanged. Also restores pantryItemId so
+    // an already-linked ingredient's link survives a resave instead of
+    // silently unlinking (or duplicating, if "Save to pantry" is checked).
     return entry.mealData.items.map((item) => ({
       id: newId(),
       name: item.name,
-      measurementType: 'per_serving' as const,
-      referenceAmount: 1,
+      measurementType: item.measurementType ?? 'per_serving' as const,
+      referenceAmount: item.referenceAmount ?? 1,
       calories: item.calories,
       protein:  item.protein,
       carbs:    item.carbs,
       fiber:    item.fiber,
       fat:      item.fat,
       qty: item.qty ?? 1,
+      ...(item.foodItemId ? { pantryItemId: item.foodItemId } : {}),
     }));
   }
 
@@ -1931,13 +1949,17 @@ function LogEntryContent({
         }
       }
 
+      // Round 138: persist each item's measurementType/referenceAmount
+      // alongside its RATE + real qty (same fix as logBasket's fresh-save
+      // path) so a gram-based item keeps stepping in grams — not a coarse
+      // "servings" multiplier of its whole total — on every future reopen.
       const items: MealItem[] = basket.map((b, i) => {
         const orig = entry.mealData?.items[i];
         return {
           name: b.name,
           description: orig?.description ?? '',
-          estimatedGrams: orig?.estimatedGrams
-            ?? (b.measurementType === 'per_100g' ? Math.round(b.qty) : b.referenceAmount),
+          estimatedGrams: b.measurementType === 'per_100g' ? Math.round(b.qty) : Math.round(b.referenceAmount),
+          measurementType: b.measurementType, referenceAmount: b.referenceAmount,
           calories: b.calories, protein: b.protein, carbs: b.carbs,
           fiber: b.fiber, fat: b.fat,
           confidence: orig?.confidence ?? 'high',
@@ -1946,13 +1968,22 @@ function LogEntryContent({
           foodItemId: resolvedFoodItemIds[i],
         };
       });
-      const snapshot: NutritionSnapshot = {
-        calories: Math.round(items.reduce((s, it) => s + it.calories * (it.qty ?? 1), 0)),
-        protein:  Math.round(items.reduce((s, it) => s + it.protein  * (it.qty ?? 1), 0) * 10) / 10,
-        carbs:    Math.round(items.reduce((s, it) => s + it.carbs    * (it.qty ?? 1), 0) * 10) / 10,
-        fiber:    Math.round(items.reduce((s, it) => s + it.fiber    * (it.qty ?? 1), 0) * 10) / 10,
-        fat:      Math.round(items.reduce((s, it) => s + it.fat      * (it.qty ?? 1), 0) * 10) / 10,
-      };
+      // mealItemNutrition() scales each item by its own measurementType
+      // factor (grams/100 or plain servings) instead of blindly multiplying
+      // a rate by a raw qty — the same fix needed in effectiveNutrition().
+      const snapshot: NutritionSnapshot = items.reduce(
+        (acc, it) => {
+          const n = mealItemNutrition(it);
+          return {
+            calories: acc.calories + n.calories,
+            protein:  acc.protein  + n.protein,
+            carbs:    acc.carbs    + n.carbs,
+            fiber:    acc.fiber    + n.fiber,
+            fat:      acc.fat      + n.fat,
+          };
+        },
+        { calories: 0, protein: 0, carbs: 0, fiber: 0, fat: 0 } as NutritionSnapshot,
+      );
 
       // Create (first time) or update (already linked) the real Meal when
       // saved to pantry; unchecking just un-links this entry — the Meal
@@ -1973,7 +2004,16 @@ function LogEntryContent({
       // mealData first (see the fix above) so this is now a belt-and-braces
       // fix rather than the sole one, but it's still the correct value:
       // this entry is a Meal entry now, not a Food entry.
-      await repos.foodEntries.update({ ...entry, foodItemId: undefined, mealId, snapshot, mealData: { name: mealName, photo, photos, items } });
+      // manualName (round 138 fix): TodayScreen's Day's-log row reads
+      // entry.manualName BEFORE mealData.name, so it must be kept in sync
+      // with the edited meal name too — otherwise the row stays frozen on
+      // whatever name (or lack of one) the entry was first saved with, no
+      // matter how many times the name is edited afterward.
+      await repos.foodEntries.update({
+        ...entry, foodItemId: undefined, mealId, snapshot,
+        manualName: saveToPantry ? undefined : mealName,
+        mealData: { name: mealName, photo, photos, items },
+      });
     } else {
       const b = basket[0];
       // Shrunk back to a single manual item — same as above, no longer a

@@ -137,6 +137,17 @@ export interface MealItem {
    *  Lets a Day's-log Meal entry live-recompute from the current Food item macros,
    *  same as a plain Food entry does via effectiveNutrition(). Absent = local/unlinked item. */
   foodItemId?: string;
+  /** Original unit basis this item was captured in (round 138). When present,
+   *  calories/protein/carbs/fiber/fat are the RATE at referenceAmount (same
+   *  convention as FoodItem/BasketItem) and `qty` is the actual current
+   *  amount — grams for per_100g, servings for per_serving — so the item
+   *  reconstructs with the right stepper (10g steps vs 0.5-serving steps)
+   *  and scales correctly via mealItemNutrition(). Without this (older
+   *  entries, pre-round-138), `calories` etc. are the already-scaled TOTAL
+   *  and `qty` is a plain multiplier on top of that total — the original
+   *  behavior, preserved as a fallback with no migration needed. */
+  measurementType?: MeasurementType;
+  referenceAmount?: number;
 }
 
 /** One logged food line on a day. Stores a SNAPSHOT of computed nutrition

@@ -1,4 +1,59 @@
 ================================================================
+ROUND 138 — MEAL NAME NOT STICKING + GRAMS-TO-SERVINGS RUNAWAY KCAL (2026-07-03)
+================================================================
+Files: src/domain/{types,calc}.ts(+test), src/ui/components/AddEntrySheet.tsx
+
+── MEAL NAME EDITS NEVER STUCK ───────────────────────────────────────────────
+Marco: built a local (not-saved-to-pantry) meal from "Describe" + "Photo",
+meal saved under the FIRST item's name instead of the name field's value;
+Day's-log row showed that first-item name; reopening showed the original
+suggested title again; editing the name and re-saving did nothing.
+Root cause: LogEntryContent.save()'s "stay a meal" branch correctly wrote
+the edited name into mealData.name, but never touched entry.manualName —
+and TodayScreen's row reads `entry.manualName ?? mealData?.name ?? ...`,
+manualName first. Since manualName was frozen at whatever it was on the
+very first save, the row (and the value carried into re-renders) never
+reflected any later edit. Fixed: manualName is now kept in sync
+(`saveToPantry ? undefined : mealName`) on every save, matching exactly how
+logBasket already does it on first save.
+
+── GRAMS SILENTLY BECAME "SERVINGS", ONE MEAL HIT 58,000 KCAL ───────────────
+Marco: built a meal from two AI-scanned items (Describe + Photo — both
+gram-based). After saving/reopening, the per-item stepper showed "servings"
+instead of grams; a few taps of + sent the meal to 58,000 kcal.
+Root cause: MealItem (the type behind FoodEntry.mealData.items) never
+stored its measurementType/referenceAmount — only a flattened TOTAL
+calories value plus an optional plain `qty` multiplier. entryToBasket()
+(used every time an existing meal is reopened for editing) therefore
+always hardcoded every item to `measurementType: 'per_serving',
+referenceAmount: 1, qty: 1` — the "1 serving" here silently meant "the
+entire scanned total." Tapping the stepper's +0.5 step then multiplied the
+WHOLE total each time instead of nudging a few grams, which is exactly how
+a two-item meal reaches five figures in a handful of taps.
+Fixed (mirrors round 136's manualMeasurementType/manualReferenceAmount
+pattern, applied to MealItem instead of FoodEntry):
+- MealItem gets measurementType?/referenceAmount? fields. New meal items
+  now store the RATE at referenceAmount + the real current qty (grams or
+  servings) — same convention FoodItem/BasketItem already use — instead of
+  a flattened total. Older items (no measurementType) are untouched and
+  keep behaving exactly as before; no migration needed.
+- New mealItemNutrition() (calc.ts) scales a MealItem correctly by its own
+  measurementType factor; effectiveNutrition()'s meal branch and
+  LogEntryContent.save()'s snapshot calc both now use it instead of a blind
+  `calories * qty` multiply.
+- entryToBasket() reconstructs each item with its real measurementType/
+  referenceAmount when present, so the stepper offers the right increment
+  (10g vs 0.5 servings) on reopen.
+- Bonus fix found while in this code: entryToBasket()'s meal branch never
+  carried a linked ingredient's pantryItemId back into the edit basket, so
+  resaving a meal with a pantry-linked ingredient would silently unlink it
+  (or duplicate the Food item, if "Save to pantry" was checked). Now
+  restored via `pantryItemId: item.foodItemId`.
+
+tsc: clean. lint: clean. vitest: 48 passed (3 new). `npm run build` verified
+clean.
+
+================================================================
 ROUND 137 — HDR PHOTO OVEREXPOSURE FIX (2026-07-03)
 ================================================================
 Files: src/lib/image.ts

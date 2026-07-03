@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nutritionFor, effectiveNutrition, mealNutritionFor, mealPhotoFor, mealPhotosFor, convertQuantity, unscaleSnapshot, itemsByIdMap, summarizeDay, calcDigestionCalories, KCAL_PER_KG } from './calc';
+import { nutritionFor, effectiveNutrition, mealNutritionFor, mealItemNutrition, mealPhotoFor, mealPhotosFor, convertQuantity, unscaleSnapshot, itemsByIdMap, summarizeDay, calcDigestionCalories, KCAL_PER_KG } from './calc';
 import type { FoodItem, FoodEntry, ActivityEntry, Meal } from './types';
 
 const chicken: FoodItem = {
@@ -141,6 +141,46 @@ describe('effectiveNutrition — Meal entries (round 123)', () => {
     const n = effectiveNutrition(entry, itemsByIdMap([]));
     expect(n.calories).toBe(250);
     expect(n.protein).toBe(10);
+  });
+
+  it('round 138: a gram-based local meal item scales by grams/100, not a blind qty multiply', () => {
+    // Reproduces the "58,000 kcal" bug: a Describe/Photo-scanned item is
+    // stored as a per_100g RATE (165 kcal/100g) with qty = current grams
+    // (250g) — effectiveNutrition must divide by 100, not multiply the
+    // rate straight through by 250.
+    const entry: FoodEntry = {
+      id: 'e3', date: '2026-07-02', isManual: true, createdAt: '',
+      snapshot: { calories: 0, protein: 0, carbs: 0, fiber: 0, fat: 0 },
+      mealData: {
+        name: 'Chicken + rice',
+        items: [
+          {
+            name: 'Chicken breast', estimatedGrams: 250, calories: 165, protein: 31, carbs: 0, fiber: 0, fat: 3.6,
+            confidence: 'high', selected: true, qty: 250, measurementType: 'per_100g', referenceAmount: 100,
+          },
+        ],
+      },
+    };
+    const n = effectiveNutrition(entry, itemsByIdMap([]));
+    expect(n.calories).toBe(412.5); // 165 * 2.5 — NOT 165 * 250
+  });
+
+  it('round 138: reopening the stepper and bumping qty scales the same gram-based item correctly', () => {
+    // Same item as above, after the user used the (now-correct, 10g-step)
+    // stepper to bump it from 250g to 300g.
+    const n = mealItemNutrition({
+      name: 'Chicken breast', estimatedGrams: 250, calories: 165, protein: 31, carbs: 0, fiber: 0, fat: 3.6,
+      confidence: 'high', selected: true, qty: 300, measurementType: 'per_100g', referenceAmount: 100,
+    });
+    expect(n.calories).toBe(495); // 165 * 3.0
+  });
+
+  it('round 138: old items without measurementType keep the pre-138 total*multiplier fallback', () => {
+    const n = mealItemNutrition({
+      name: 'Legacy item', estimatedGrams: 1, calories: 250, protein: 10, carbs: 20, fiber: 2, fat: 8,
+      confidence: 'high', selected: true, qty: 2,
+    });
+    expect(n.calories).toBe(500); // 250 * 2 — unchanged legacy behavior
   });
 });
 

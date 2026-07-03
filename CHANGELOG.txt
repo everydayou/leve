@@ -1,4 +1,33 @@
 ================================================================
+ROUND 137 — HDR PHOTO OVEREXPOSURE FIX (2026-07-03)
+================================================================
+Files: src/lib/image.ts
+
+── PHOTOS SOMETIMES CAME OUT "EXTRA BRIGHT" AFTER SAVING ────────────────────
+Marco noticed some photos he captured looked overexposed once saved to a
+Food item, compared to how they actually looked. Traced to the two canvas-
+based downscale helpers (downscaleImage for file/library picks,
+downscaleDataUrl for Capacitor Camera captures used by Nutri-scan/Camera
+scan flows) — both called getContext('2d') with no explicit color space.
+iPhone's Smart HDR/Deep Fusion photos carry a wide-gamut/HDR profile, and
+WebKit's canvas has a known history of mis-tone-mapping such sources when
+the color space isn't pinned, blowing out highlights. Only affects photos
+iOS actually shot in HDR (scene/lighting dependent), matching the
+"sometimes" pattern. Fixed by passing { colorSpace: 'srgb' } explicitly to
+both getContext('2d') calls, forcing WebKit to normalize the draw to the
+display-safe range instead of mis-handling the source profile.
+
+NOTE: this is a targeted fix for a documented WebKit canvas quirk, not a
+guaranteed 100% cure — needs Marco to confirm on a photo he knows came out
+too bright before. Separately found (not touched): PantryScreen/PhotoPicker
+has a native-picker "Prompt" path that bypasses this canvas pipeline
+entirely (stores the raw capture at quality:100) — if brightness shows up
+from THAT specific button too, that would point to a different cause and is
+worth knowing which exact icon Marco used.
+
+tsc: clean. lint: clean. vitest: 45 passed. `npm run build` verified clean.
+
+================================================================
 ROUND 136 — MANUAL ENTRY UNIT LOSS, MODAL SIZE, DECIMAL COMMA (2026-07-02)
 ================================================================
 Files: src/domain/{types,calc}.ts(+test), src/ui/components/AddEntrySheet.tsx,

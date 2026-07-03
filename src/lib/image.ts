@@ -20,7 +20,12 @@ export function downscaleImage(file: File, maxPx = MAX_THUMB_PX): Promise<string
       const h = Math.max(1, Math.round(img.height * scale));
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
+      // colorSpace: 'srgb' — explicit, not the implicit default. iOS Smart
+      // HDR/Deep Fusion photos carry a wide-gamut/HDR profile; WebKit's
+      // canvas has been observed to mis-tone-map these when the color space
+      // isn't pinned, blowing out highlights ("extra bright" photos).
+      // Forcing sRGB makes the draw normalize to the display-safe range.
+      const ctx = canvas.getContext('2d', { colorSpace: 'srgb' });
       URL.revokeObjectURL(url);
       if (!ctx) { reject(new Error('no 2d context')); return; }
       // For PNG inputs: keep PNG encoding to preserve transparency.
@@ -54,7 +59,8 @@ export function downscaleDataUrl(dataUrl: string, maxPx = MAX_SCAN_PX): Promise<
       const h = Math.max(1, Math.round(img.height * scale));
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
+      // See downscaleImage() above for why colorSpace is pinned explicitly.
+      const ctx = canvas.getContext('2d', { colorSpace: 'srgb' });
       if (!ctx) { reject(new Error('no 2d context')); return; }
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, w, h);

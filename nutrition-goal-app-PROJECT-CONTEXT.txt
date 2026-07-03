@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-02 — Round 136 (fixed manual/scanned entries losing their unit on reopen — 400g was collapsing to '1 serving'; taller method-picker modal with an instructional line; fixed a decimal-comma regression in number fields)
+Last updated: 2026-07-03 — Round 137 (fixed photos sometimes saving overexposed/"extra bright" — HDR iPhone photos mishandled by canvas without an explicit color space)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,24 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 137 — HDR PHOTO OVEREXPOSURE FIX (2026-07-03)
+Files: src/lib/image.ts
+- Marco noticed some captured photos looked "extra bright"/overexposed once
+  saved. Root cause: downscaleImage/downscaleDataUrl (the two canvas-based
+  photo-resize helpers) called getContext('2d') with no explicit color
+  space. iPhone HDR/Deep Fusion photos carry a wide-gamut/HDR profile that
+  WebKit's canvas has a known history of mis-tone-mapping when the color
+  space isn't pinned, blowing out highlights — matches the "sometimes"
+  pattern (only HDR-shot photos are affected). Fixed by passing
+  { colorSpace: 'srgb' } explicitly to both getContext('2d') calls.
+  NOTE: targeted fix for a documented WebKit quirk, not guaranteed 100% —
+  needs Marco to confirm on a photo he knows came out too bright. Separately
+  noted (not touched): PhotoPicker's native "Prompt" path bypasses this
+  canvas pipeline entirely — if brightness shows up from that exact button
+  too, that points to a different cause.
+- tsc: clean. lint: clean. vitest: 45 passed. `npm run build` verified
+  clean.
+
 ROUND 136 — MANUAL ENTRY UNIT LOSS, MODAL SIZE, DECIMAL COMMA (2026-07-02)
 Files: src/domain/{types,calc}.ts(+test), src/ui/components/AddEntrySheet.tsx,
        src/ui/components/MethodCards.tsx, src/ui/kit/NumberField.tsx
@@ -323,22 +341,6 @@ Files: src/ui/components/MethodCards.tsx, src/ui/screens/PantryScreen.tsx,
   value, not setState-in-a-useEffect (disallowed by project lint rules).
   Save itself is also disabled until something's changed, so an untouched
   item can never be misread as "chose to unlink."
-- tsc: clean. lint: clean. vitest: 42 passed. `npm run build` verified
-  clean.
-
-ROUND 134 — METHOD PICKER MODAL + UNLINK-FROM-PANTRY (2026-07-02)
-Files: src/ui/components/MethodCards.tsx, src/ui/screens/PantryScreen.tsx,
-       src/ui/components/{FoodItemForm,AddEntrySheet}.tsx
-- New MethodPickerModal (small bottom modal, same shape as ServingModal —
-  not a full Sheet) shows the MethodCards row before "+ New food" in
-  Pantry; Manual opens the existing form, others still "coming soon".
-  Confirmed the native iOS file-picker sheet can't be relabeled — this
-  needed our own UI regardless of the deferred Camera/Photo/Describe work.
-- "Saved to pantry" checkbox on an already-linked basket item is now
-  interactive: unchecking it fully unlinks that one entry (becomes local,
-  keeps its edited values, stops syncing with the Pantry item in either
-  direction going forward). Wired in FoodItemFormContent + both EditOverlay
-  onSave handlers (FoodForm, LogEntryContent).
 - tsc: clean. lint: clean. vitest: 42 passed. `npm run build` verified
   clean.
 

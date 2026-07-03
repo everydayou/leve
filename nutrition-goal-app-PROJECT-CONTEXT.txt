@@ -377,11 +377,11 @@ pantry work) in how editing a Day's-log basket item talks to the Pantry:
 TODO / FUTURE WORK
 ================================================================
 - "+NEW FOOD" METHOD PICKER: tapping "+New food" in Pantry jumps straight to
-  the manual entry form — Marco wants a method picker first (Manual/Camera/
-  Photo/Describe/Label, same MethodCards component used elsewhere). Note:
-  the native iOS file-picker action sheet (Photo Library/Camera/Choose File)
-  can't be relabeled to show custom app options — this needs our own
-  MethodCards UI, not a native picker customization.
+  the manual entry form — Marco wants a method picker first. Clarified: a
+  SMALL modal (not a full-height Sheet) showing the MethodCards row as a
+  carousel (Manual/Camera/Photo/Describe/Label), same component used
+  elsewhere — not a native iOS picker (confirmed that can't be relabeled to
+  show custom app options; this needs our own MethodCards UI regardless).
 - "+NEW FOOD" LOADING + TRANSITION POLISH: Marco wants a deliberate ~2s
   loading state after "Save food" (matching the mockup's dedicated
   "Saving food" screen) and for the New-food-form -> Food-item-detail
@@ -389,6 +389,15 @@ TODO / FUTURE WORK
   new one sliding up. Needs the form and detail view to live inside ONE
   continuous Sheet with phase-based internal content instead of two
   separate Sheet instances — a real (if contained) refactor, not done yet.
+- BASKET-EDIT "SAVED TO PANTRY" CHECKBOX — SHOULD IT BE TOGGLE-ABLE?: when
+  editing a basket item (Day's-log / FAB Add) that's already pantry-linked,
+  FoodItemFormContent shows "Saved to pantry" checked + disabled (basket-
+  edit mode, initial.pantryItemId set) — originally just an informational
+  indicator. Marco is reconsidering: should this be enabled, letting the
+  user UN-link this one instance (edit macros locally without touching the
+  shared Pantry item), rather than always writing through to Pantry (as
+  round 131 made consistent)? Real product trade-off, not decided yet —
+  don't implement without an explicit decision.
 - MEAL NUTRITION SUMMARY: Meal detail (and the Day's-log Meal review, once
   that's wired) currently only shows per-item cards — no dedicated
   total-macro breakdown for the Meal as a whole. Marco flagged this as

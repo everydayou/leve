@@ -108,9 +108,11 @@ export function FoodItemFormContent({
   const [fib, setFib]   = useState(initial.fiber    != null ? String(Math.round(initial.fiber    * 10) / 10) : '');
   const [fat, setFat]   = useState(initial.fat      != null ? String(Math.round(initial.fat      * 10) / 10) : '');
   const [photo, setPhoto]           = useState<string | undefined>(initial.photo);
-  // basket-edit on an already-linked item defaults CHECKED — round 134 makes
-  // this toggle-able (unchecking unlinks to a local, one-off entry), so the
-  // default has to reflect the current (linked) state rather than always false.
+  // For an already-linked basket item, this starts true (the SAFE default —
+  // stays synced with Pantry, matching round 131) but is only ever SHOWN or
+  // ACTED ON once something's actually been edited (see effectiveSaveToPantry
+  // below) — round 135: the checkbox itself stays unchecked + disabled until
+  // then, so there's nothing to decide when there's nothing to save.
   const [saveToPantry, setSaveToPantry] = useState(mode === 'basket-edit' && !!initial.pantryItemId);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -124,11 +126,39 @@ export function FoodItemFormContent({
   const isSrv        = mType === 'per_serving';
   const isPantryMode = mode === 'pantry-new' || mode === 'pantry-edit' || mode === 'meal-add-item';
   const isBasketEdit = mode === 'basket-edit';
-  // Editing a basket item that's ALREADY pantry-linked — the checkbox here
-  // reads "Saved to pantry" (not "Save to pantry") and, when unchecked
-  // (round 134), unlinks this one instance to a local, one-off entry rather
-  // than opting a new item in.
+  // Editing a basket item that's ALREADY pantry-linked — unchecking "Save to
+  // pantry" (round 134) unlinks this one instance to a local, one-off entry
+  // rather than opting a new item in.
   const isBasketEditAlreadyLinked = isBasketEdit && !!initial.pantryItemId;
+
+  // Has anything actually changed from what this item already had? Only
+  // meaningful for isBasketEditAlreadyLinked — everywhere else the fields
+  // start empty, so any content at all already means "the user typed
+  // something" (that's what `dirty` above is for).
+  const initialSrvG = initial.measurementType === 'per_serving' && (initial.referenceAmount ?? 0) > 1
+    ? String(initial.referenceAmount) : '';
+  const initialCal  = initial.calories != null ? String(Math.round(initial.calories))            : '';
+  const initialPro  = initial.protein  != null ? String(Math.round(initial.protein  * 10) / 10) : '';
+  const initialCarb = initial.carbs    != null ? String(Math.round(initial.carbs    * 10) / 10) : '';
+  const initialFib  = initial.fiber    != null ? String(Math.round(initial.fiber    * 10) / 10) : '';
+  const initialFat  = initial.fat      != null ? String(Math.round(initial.fat      * 10) / 10) : '';
+  const editedFromInitial =
+    name.trim() !== (initial.name ?? '').trim()
+    || mType !== (initial.measurementType ?? 'per_100g')
+    || srvG !== initialSrvG
+    || cal !== initialCal || pro !== initialPro || carb !== initialCarb
+    || fib !== initialFib || fat !== initialFat
+    || photo !== initial.photo;
+
+  // The checkbox reads as unchecked while there's nothing to decide yet
+  // (isBasketEditAlreadyLinked + not yet edited), regardless of the
+  // underlying saveToPantry state (which stays at its safe default of
+  // `true` the whole time) — the moment editedFromInitial flips true, it
+  // shows as already-checked with zero extra logic, and the user is free
+  // to uncheck it from there.
+  const effectiveSaveToPantry = isBasketEditAlreadyLinked
+    ? (editedFromInitial && saveToPantry)
+    : saveToPantry;
 
   const showSaveToPantry =
     mode === 'basket-manual'
@@ -139,10 +169,16 @@ export function FoodItemFormContent({
   const showSaveToPantryCheckbox = showSaveToPantry || isBasketEditAlreadyLinked;
 
   const checkDuplicate =
-    isPantryMode || ((mode === 'basket-manual' || isBasketEdit) && saveToPantry);
+    isPantryMode || ((mode === 'basket-manual' || isBasketEdit) && effectiveSaveToPantry);
   const conflict = checkDuplicate ? findPantryNameConflict(existingItems, existingMeals, name, existingItemId) : undefined;
   const blocked   = !!conflict;
-  const canSave   = name.trim().length > 0 && !blocked && !saving;
+  // For an already-linked basket item specifically, require an actual
+  // change before allowing Save at all — otherwise tapping Save on an
+  // untouched item would return saveToPantry: false (nothing to decide,
+  // checkbox shows unchecked+disabled) and get read by the caller as "the
+  // user chose to unlink," which they never actually chose.
+  const canSave   = name.trim().length > 0 && !blocked && !saving
+    && (!isBasketEditAlreadyLinked || editedFromInitial);
 
   // pantry-edit on a currently-hidden item: the CTA reflects what "Save to
   // pantry" is actually about to do — save it into Pantry for the first time
@@ -197,7 +233,7 @@ export function FoodItemFormContent({
         fiber:    +fib  || 0,
         fat:      +fat  || 0,
         photo,
-        saveToPantry: showSaveToPantryCheckbox ? saveToPantry : false,
+        saveToPantry: showSaveToPantryCheckbox ? effectiveSaveToPantry : false,
       });
     } finally {
       setSaving(false);
@@ -257,16 +293,17 @@ export function FoodItemFormContent({
       {/* ── Save to pantry ────────────────────────────────────────────────── */}
       {isBasketEditAlreadyLinked ? (
         <div>
-          <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
+          <label className={`flex select-none items-center gap-2 text-subhead ${editedFromInitial ? 'cursor-pointer text-content-secondary' : 'cursor-default text-content-muted'}`}>
             <input
               type="checkbox"
-              checked={saveToPantry}
+              checked={effectiveSaveToPantry}
+              disabled={!editedFromInitial}
               onChange={(e) => setSaveToPantry(e.target.checked)}
-              className="h-4 w-4 accent-accent"
+              className="h-4 w-4 accent-accent disabled:opacity-50"
             />
-            Saved to pantry
+            Save to pantry
           </label>
-          {!saveToPantry && (
+          {editedFromInitial && !effectiveSaveToPantry && (
             <p className="mt-1 text-caption text-content-secondary">
               This entry will stop syncing with the pantry item — your changes stay local to it.
             </p>

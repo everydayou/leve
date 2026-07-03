@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-02 — Round 134 (shipped both previously-deferred decisions: a small method-picker modal before '+New food', and the 'Saved to pantry' checkbox is now toggle-able to fully unlink a Day's-log entry from its Pantry item)
+Last updated: 2026-07-02 — Round 135 (MethodPickerModal now reuses the real Sheet component for animation/drag-to-dismiss/X-close instead of a hand-rolled div; fixed a self-conflict bug in the new unlink checkbox and reworked it to start unchecked+disabled until something's actually edited)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,31 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 135 — METHOD MODAL POLISH + UNLINK CHECKBOX FIXES (2026-07-02)
+Files: src/ui/components/MethodCards.tsx, src/ui/screens/PantryScreen.tsx,
+       src/ui/components/{FoodItemForm,AddEntrySheet}.tsx
+- MethodPickerModal rewritten to use the real Sheet component (not
+  forceExpanded, auto-sized) instead of a hand-rolled createPortal div —
+  gets Sheet's proven slide animation, left-side X close, and
+  drag-to-dismiss for free. Title changed "Add food" -> "New food".
+- Fixed: the unlink checkbox's duplicate-name check matched the item's own
+  pantry record as a "conflict" — EditOverlay never passed existingItemId
+  for basket-edit mode (harmless before round 134 since the check never
+  activated for this case; round 134 made it active). Now passes
+  existingItemId={item.pantryItemId}.
+- Label is now always "Save to pantry" (was "Saved to pantry").
+- Reworked per Marco's request: for an already-linked item, the checkbox
+  starts unchecked + disabled until a field actually differs from the
+  item's starting values (new editedFromInitial comparison — separate from
+  the existing `dirty` flag, which doesn't work for pre-filled edit forms).
+  Once relevant, it shows already-checked (the safe default — stays synced
+  with Pantry) and the user can uncheck to unlink. Implemented as a derived
+  value, not setState-in-a-useEffect (disallowed by project lint rules).
+  Save itself is also disabled until something's changed, so an untouched
+  item can never be misread as "chose to unlink."
+- tsc: clean. lint: clean. vitest: 42 passed. `npm run build` verified
+  clean.
+
 ROUND 134 — METHOD PICKER MODAL + UNLINK-FROM-PANTRY (2026-07-02)
 Files: src/ui/components/MethodCards.tsx, src/ui/screens/PantryScreen.tsx,
        src/ui/components/{FoodItemForm,AddEntrySheet}.tsx
@@ -335,24 +360,6 @@ Files: src/domain/calc.ts(+test), src/domain/pantry.ts, src/data/
   the 2-second loading screen + in-place (no slide) transition to Food item
   detail, Camera/Photo/Describe/Label still missing from the Pantry
   meal-builder.
-
-ROUND 132 — CONVERT-TO-MEAL: STALE foodItemId HID EVERY OTHER ITEM (2026-07-02)
-Files: src/ui/components/AddEntrySheet.tsx
-Root cause of round 131's open item: converting a plain Food entry into a
-Meal (save()'s meal branch) set mealId but never cleared the entry's OLD
-foodItemId. entryToBasket() checked foodItemId before mealData, so reopening
-a converted entry rebuilt a single-item basket from the stale link — while
-the Day's-log LIST ROW (via effectiveNutrition(), which already checks
-mealData first per round 123) correctly showed the combined total. That
-split (right total, wrong reopen) was the tell.
-Fixed both ends: entryToBasket() now checks mealData first (matching
-effectiveNutrition()'s order); save()'s meal branch explicitly clears
-foodItemId on conversion.
-Nutri-scan: not a code bug — the described result (per_100g, qty = estimated
-grams, no serving prompt) is exactly how Camera/Photo scanning behaves by
-design; the dedicated Nutri-scan (label) button does prompt via
-ServingModal. Confirming with Marco which icon he actually used.
-tsc: clean. lint: clean. vitest: 35 passed. `npm run build` verified clean.
 
 ================================================================
 TODO / FUTURE WORK

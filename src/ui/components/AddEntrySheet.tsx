@@ -1383,6 +1383,7 @@ function EditOverlay({
         }}
         existingItems={existingItems}
         existingMeals={existingMeals}
+        existingItemId={item.pantryItemId}
         onSave={(values: FoodItemFormValues) => onSave({
           name:            values.name,
           calories:        values.calories,

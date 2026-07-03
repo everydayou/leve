@@ -3,19 +3,19 @@
 // (PantryFoodItemDetail / PantryMealDetail) render the exact same collapsible
 // module and method buttons. One place to change either, and it reflects
 // everywhere it's used.
-import { createPortal } from 'react-dom';
-import { Icon } from '../kit';
+import { Icon, Sheet } from '../kit';
 
 // ── MethodPickerModal ─────────────────────────────────────────────────────────
 
-/** Small bottom-anchored modal (same shape as AddEntrySheet's ServingModal —
- *  NOT a full-height Sheet) showing the MethodCards row as a one-off choice.
- *  Used where there's no existing basket/meal context to expand inline into
- *  — e.g. Pantry's "+ New food" (round 134): tapping it asks which method
- *  before landing on any specific form, rather than jumping straight to
- *  Manual entry. */
+/** Small modal showing the MethodCards row as a one-off choice — used where
+ *  there's no existing basket/meal context to expand inline into, e.g.
+ *  Pantry's "+ New food" (round 134): tapping it asks which method before
+ *  landing on any specific form, rather than jumping straight to Manual
+ *  entry. Just the standard Sheet (not forceExpanded, so it sizes to its
+ *  content) — gets the slide-up/down animation, the X close button, and
+ *  drag-to-dismiss for free, same as every other sheet in the app. */
 export function MethodPickerModal({
-  title = 'Add food', onDismiss, ...methodProps
+  title = 'New food', onDismiss, ...methodProps
 }: {
   title?: string;
   onDismiss: () => void;
@@ -26,20 +26,10 @@ export function MethodPickerModal({
   onPantry?: () => void;
   onManual: () => void;
 }) {
-  return createPortal(
-    <div className="fixed inset-0 z-[300] flex items-end bg-black/40" onClick={onDismiss}>
-      <div
-        className="w-full space-y-3 rounded-t-[28px] bg-surface px-5 pt-6"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 34px) + 24px)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Grab handle */}
-        <div className="mx-auto -mt-2 mb-1 h-1.5 w-11 rounded-pill bg-border-strong" />
-        <p className="text-center text-headline font-bold text-content">{title}</p>
-        <MethodCards {...methodProps} />
-      </div>
-    </div>,
-    document.body,
+  return (
+    <Sheet title={title} onClose={onDismiss}>
+      <MethodCards {...methodProps} />
+    </Sheet>
   );
 }
 

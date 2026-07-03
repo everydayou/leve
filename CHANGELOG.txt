@@ -1,4 +1,47 @@
 ================================================================
+ROUND 135 — METHOD MODAL POLISH + UNLINK CHECKBOX FIXES (2026-07-02)
+================================================================
+Files: src/ui/components/MethodCards.tsx, src/ui/screens/PantryScreen.tsx,
+       src/ui/components/{FoodItemForm,AddEntrySheet}.tsx
+
+── METHODPICKERMODAL NOW USES THE REAL SHEET COMPONENT ──────────────────────
+Marco asked for: nicer open/close animation, an X on the left, drag-to-
+dismiss, and the title changed from "Add food" to "New food". Realized the
+existing Sheet component already does all four (slide animation, X-close on
+the left, title centred, drag-to-dismiss with spring-back) — MethodPickerModal
+was hand-rolling a raw createPortal div instead of just using it. Rewritten
+as a thin wrapper: `<Sheet title="New food" onClose={onDismiss}>` (not
+forceExpanded, so it auto-sizes to content like the old modal did). Far less
+code, and inherits Sheet's already-proven behaviour instead of reinventing it.
+
+── UNLINK-FROM-PANTRY: TWO BUGS + ONE UX REFINEMENT ─────────────────────────
+Bug: the checkbox's own duplicate-name check started firing once round 134
+made it interactive (previously it silently never ran, since the state
+defaulted to false while the checkbox displayed checked+disabled — a
+harmless mismatch until now) — but EditOverlay never passed existingItemId,
+so the item's own pantry record matched itself as a "conflict." Fixed:
+EditOverlay now passes existingItemId={item.pantryItemId}.
+Copy: label now always reads "Save to pantry" (was "Saved to pantry" for
+the already-linked case).
+UX refinement (Marco's request): the checkbox now starts unchecked AND
+disabled when editing an already-linked item — matching a "nothing to
+decide until you've changed something" pattern. The moment any field
+actually differs from what the item started with (new editedFromInitial
+comparison — the existing `dirty` flag doesn't work here since basket-edit
+mode starts pre-filled, not empty), it becomes enabled and shows as already
+checked (the safe default: stays synced with Pantry, round 131), letting the
+user explicitly uncheck it to unlink instead. Implemented as a purely
+derived value (effectiveSaveToPantry), not a setState-inside-useEffect —
+the project's lint rules disallow synchronous setState in effects, and the
+derived approach is simpler anyway. Also guarded Save itself: for this case
+specifically, Save is disabled until something's actually changed, so
+tapping it on an untouched item can never be misread as "user chose to
+unlink" (nothing changed = nothing to decide = button does nothing, rather
+than silently unlinking).
+
+tsc: clean. lint: clean. vitest: 42 passed (unchanged). `npm run build`
+verified clean.
+
 ROUND 134 — METHOD PICKER MODAL + UNLINK-FROM-PANTRY (2026-07-02)
 ================================================================
 Files: src/ui/components/MethodCards.tsx, src/ui/screens/PantryScreen.tsx,

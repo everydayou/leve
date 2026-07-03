@@ -167,7 +167,7 @@ export function PantryScreen() {
 
       {pickingMethod && (
         <MethodPickerModal
-          title="Add food"
+          title="New food"
           onManual={() => { setPickingMethod(false); setAdding(true); }}
           onCamera={() => { setPickingMethod(false); showToast?.('Coming soon — camera for new foods is next'); }}
           onPhoto={() => { setPickingMethod(false); showToast?.('Coming soon — photo for new foods is next'); }}

@@ -14,7 +14,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
+import { convertFoodItemReferences } from '../../data/quantityConversion';
 import { itemsByIdMap, mealPhotosFor, nutritionFor } from '../../domain/calc';
+import { findPantryNameConflict } from '../../domain/pantry';
 import { Button, ImageHero, LabeledInput, Sheet, OverlayNav, useSheetSetOverlay } from '../kit';
 import { PantryItemCard } from './PantryItemCard';
 import { AddAnotherSection, MethodCards } from './MethodCards';
@@ -114,12 +116,12 @@ function PantryMealDetailContent({
   async function handleAddItem(values: FoodItemFormValues) {
     const newItemId = newId();
     // Hidden from the Pantry's own Food-items list by default (round 130) —
-    // this Food item exists purely to complete this meal. The user can
-    // explicitly "Save to pantry" from its own edit view later.
+    // unless the user ticked "Save to pantry" right here (round 133).
     await repos.foodItems.put({
       id: newItemId, name: values.name, measurementType: values.measurementType,
       referenceAmount: values.referenceAmount, calories: values.calories, protein: values.protein,
-      carbs: values.carbs, fiber: values.fiber, fat: values.fat, photo: values.photo, isArchived: true,
+      carbs: values.carbs, fiber: values.fiber, fat: values.fat, photo: values.photo,
+      isArchived: !values.saveToPantry,
     });
     await repos.meals.put({
       ...meal,
@@ -172,8 +174,15 @@ function PantryMealDetailContent({
   }
 
   async function saveName(next: string) {
-    if (next.trim() === meal.name) return;
-    await repos.meals.put({ ...meal, name: next.trim() || meal.name });
+    const trimmed = next.trim();
+    if (trimmed === meal.name) return;
+    const conflict = trimmed ? findPantryNameConflict(items, meals, trimmed, meal.id) : undefined;
+    if (conflict) {
+      setName(meal.name); // revert — this name is already taken
+      showToast?.(conflict.type === 'meal' ? 'That name is already used by a meal' : 'That name is already used by a food item');
+      return;
+    }
+    await repos.meals.put({ ...meal, name: trimmed || meal.name });
   }
 
   async function confirmUpdate() {
@@ -184,6 +193,7 @@ function PantryMealDetailContent({
       // "Save to pantry" checkbox — never the other way around (that's what
       // deleting the item is for).
       const nowSavingToPantry = editingItem.isArchived && pendingUpdate.saveToPantry;
+      const oldType = editingItem.measurementType, oldRef = editingItem.referenceAmount;
       await repos.foodItems.put({
         ...editingItem,
         name: pendingUpdate.name,
@@ -197,6 +207,12 @@ function PantryMealDetailContent({
         photo: pendingUpdate.photo,
         isArchived: editingItem.isArchived ? !pendingUpdate.saveToPantry : editingItem.isArchived,
       });
+      // Unit basis changed — every stored quantity referencing this item
+      // (Day's-log entries, Meal items, including this very Meal) is in the
+      // OLD unit and needs converting (round 133).
+      if (oldType !== pendingUpdate.measurementType || oldRef !== pendingUpdate.referenceAmount) {
+        await convertFoodItemReferences(repos, editingItem.id, oldType, oldRef, pendingUpdate.measurementType, pendingUpdate.referenceAmount);
+      }
       setPendingUpdate(null);
       setActiveOverlay(null);
       showToast?.(nowSavingToPantry ? 'Saved to pantry' : 'Food item updated');
@@ -220,6 +236,7 @@ function PantryMealDetailContent({
             isArchived: editingItem.isArchived,
           }}
           existingItems={items}
+          existingMeals={meals}
           existingItemId={editingItem.id}
           onSave={(values) => setPendingUpdate(values)}
           onCancel={() => setActiveOverlay(null)}
@@ -231,6 +248,7 @@ function PantryMealDetailContent({
         <FoodItemFormContent
           mode="meal-add-item"
           existingItems={items}
+          existingMeals={meals}
           onSave={handleAddItem}
           onCancel={closeManualOverlay}
           onDirtyChange={setManualDirty}
@@ -301,7 +319,7 @@ function PantryMealDetailContent({
           />
         </AddAnotherSection>
 
-        <Button size="lg" variant="outline" onClick={() => { void saveName(name); onClose(); }}>Close</Button>
+        <Button size="lg" onClick={() => { void saveName(name); onClose(); }}>Save meal</Button>
       </div>
 
       {pendingUpdate && (

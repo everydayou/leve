@@ -11,6 +11,7 @@
 import { useRef, useState } from 'react';
 import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
+import { convertFoodItemReferences } from '../../data/quantityConversion';
 import { Button, ImageHero, Sheet, OverlayNav, useSheetSetOverlay } from '../kit';
 import { PantryItemCard } from './PantryItemCard';
 import { AddAnotherSection, MethodCards } from './MethodCards';
@@ -107,12 +108,13 @@ function PantryFoodItemDetailContent({
   async function handleAddMealItem(values: FoodItemFormValues) {
     const newItemId = newId();
     // Hidden from the Pantry's own Food-items list by default (round 130) —
-    // this Food item exists purely to complete the meal being built. The
-    // user can explicitly "Save to pantry" from its own edit view later.
+    // unless the user ticked "Save to pantry" right here (round 133), in
+    // which case it's a real, visible pantry item from the start.
     await repos.foodItems.put({
       id: newItemId, name: values.name, measurementType: values.measurementType,
       referenceAmount: values.referenceAmount, calories: values.calories, protein: values.protein,
-      carbs: values.carbs, fiber: values.fiber, fat: values.fat, photo: values.photo, isArchived: true,
+      carbs: values.carbs, fiber: values.fiber, fat: values.fat, photo: values.photo,
+      isArchived: !values.saveToPantry,
     });
     const meal: Meal = {
       id: newId(), name: item.name, isArchived: false,
@@ -168,6 +170,7 @@ function PantryFoodItemDetailContent({
             photo: item.photo,
           }}
           existingItems={items}
+          existingMeals={meals}
           existingItemId={item.id}
           onSave={(values) => setPendingUpdate(values)}
           onCancel={() => setActiveOverlay(null)}
@@ -179,6 +182,7 @@ function PantryFoodItemDetailContent({
         <FoodItemFormContent
           mode="meal-add-item"
           existingItems={items}
+          existingMeals={meals}
           onSave={handleAddMealItem}
           onCancel={closeManualOverlay}
           onDirtyChange={setManualDirty}
@@ -212,6 +216,7 @@ function PantryFoodItemDetailContent({
     if (!pendingUpdate) return;
     setUpdating(true);
     try {
+      const oldType = item.measurementType, oldRef = item.referenceAmount;
       await repos.foodItems.put({
         ...item,
         name: pendingUpdate.name,
@@ -224,6 +229,12 @@ function PantryFoodItemDetailContent({
         fat: pendingUpdate.fat,
         photo: pendingUpdate.photo,
       });
+      // Unit basis changed — every stored quantity referencing this item
+      // (Day's-log entries, Meal items) is in the OLD unit and needs
+      // converting, or it silently means something else now (round 133).
+      if (oldType !== pendingUpdate.measurementType || oldRef !== pendingUpdate.referenceAmount) {
+        await convertFoodItemReferences(repos, item.id, oldType, oldRef, pendingUpdate.measurementType, pendingUpdate.referenceAmount);
+      }
       setPendingUpdate(null);
       setActiveOverlay(null);
       showToast?.('Food item updated');

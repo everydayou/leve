@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nutritionFor, effectiveNutrition, mealNutritionFor, mealPhotoFor, mealPhotosFor, itemsByIdMap, summarizeDay, calcDigestionCalories, KCAL_PER_KG } from './calc';
+import { nutritionFor, effectiveNutrition, mealNutritionFor, mealPhotoFor, mealPhotosFor, convertQuantity, itemsByIdMap, summarizeDay, calcDigestionCalories, KCAL_PER_KG } from './calc';
 import type { FoodItem, FoodEntry, ActivityEntry, Meal } from './types';
 
 const chicken: FoodItem = {
@@ -187,5 +187,33 @@ describe('mealPhotosFor', () => {
     const items = itemsByIdMap([bar]);
     const meal: Meal = { id: 'm', name: 'M', isArchived: false, items: [{ id: 'mi', foodItemId: 'b', quantity: 1 }] };
     expect(mealPhotosFor(meal, items)).toEqual([]);
+  });
+});
+
+describe('convertQuantity', () => {
+  it('converts per_100g grams to per_serving servings, preserving the actual amount', () => {
+    // 100g of a food where 1 serving = 50g -> 2 servings
+    expect(convertQuantity(100, 'per_100g', 100, 'per_serving', 50)).toBe(2);
+  });
+
+  it('converts per_serving servings to per_100g grams', () => {
+    // 2 servings @ 50g each -> 100g
+    expect(convertQuantity(2, 'per_serving', 50, 'per_100g', 100)).toBe(100);
+  });
+
+  it('is a no-op when the unit basis is unchanged', () => {
+    expect(convertQuantity(37, 'per_100g', 100, 'per_100g', 100)).toBe(37);
+    expect(convertQuantity(3, 'per_serving', 20, 'per_serving', 20)).toBe(3);
+  });
+
+  it('reproduces the exact round-133 bug scenario if NOT converted', () => {
+    // The bug: a stored quantity of 100 (grams, per_100g) reinterpreted
+    // directly as 100 servings would multiply nutrition by 100x. Converting
+    // first avoids that — 100g at 1 serving = referenceAmount grams (say the
+    // user left it at the default of 1g/serving) becomes 100 servings,
+    // which is mathematically correct for that (odd) serving size, and
+    // very different from 1 serving with no conversion at all.
+    expect(convertQuantity(100, 'per_100g', 100, 'per_serving', 1)).toBe(100);
+    expect(convertQuantity(100, 'per_100g', 100, 'per_serving', 100)).toBe(1);
   });
 });

@@ -11,9 +11,9 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { findByName } from '../../domain/pantry';
+import { findPantryNameConflict } from '../../domain/pantry';
 import { Button, Icon, LabeledInput, MeasurementTypeSelector, NumberField } from '../kit';
-import type { FoodItem, MeasurementType } from '../../domain/types';
+import type { FoodItem, Meal, MeasurementType } from '../../domain/types';
 
 // ── Shared icon ───────────────────────────────────────────────────────────────
 
@@ -67,6 +67,7 @@ export function FoodItemFormContent({
   mode,
   initial = {},
   existingItems = [],
+  existingMeals = [],
   existingItemId,
   onSave,
   onCancel,
@@ -78,6 +79,8 @@ export function FoodItemFormContent({
   mode: FoodItemFormMode;
   initial?: FoodItemFormInitial;
   existingItems?: FoodItem[];
+  /** Pantry names must be unique across Food items AND Meals (round 133). */
+  existingMeals?: Meal[];
   existingItemId?: string;
   onSave: (values: FoodItemFormValues) => void | Promise<void>;
   onCancel: () => void;
@@ -121,25 +124,33 @@ export function FoodItemFormContent({
 
   const showSaveToPantry =
     mode === 'basket-manual'
+    || mode === 'meal-add-item'
     || (isBasketEdit && !initial.pantryItemId)
     || (mode === 'pantry-edit' && initial.isArchived === true);
 
   const checkDuplicate =
     isPantryMode || ((mode === 'basket-manual' || isBasketEdit) && saveToPantry);
-  const duplicate = checkDuplicate ? findByName(existingItems, name, existingItemId) : undefined;
-  const blocked   = !!duplicate;
+  const conflict = checkDuplicate ? findPantryNameConflict(existingItems, existingMeals, name, existingItemId) : undefined;
+  const blocked   = !!conflict;
   const canSave   = name.trim().length > 0 && !blocked && !saving;
+
+  // pantry-edit on a currently-hidden item: the CTA reflects what "Save to
+  // pantry" is actually about to do — save it into Pantry for the first time
+  // (checked) vs. just update its own record without opting it in (unchecked).
+  const isHiddenItemEdit = mode === 'pantry-edit' && initial.isArchived === true;
 
   const ctaLabel = saving ? (
     mode === 'pantry-new'     ? 'Saving food'            :
+    isHiddenItemEdit          ? (saveToPantry ? 'Saving food item' : 'Updating food item') :
     mode === 'pantry-edit'    ? 'Updating food item'     :
-    mode === 'meal-add-item'  ? 'Saving & adding to meal' :
+    mode === 'meal-add-item'  ? 'Adding to meal'          :
     mode === 'basket-edit'    ? 'Saving'                  :
     /* basket-manual */         (soleItem ? 'Saving food' : 'Adding')
   ) : (
     mode === 'pantry-new'     ? 'Save food'              :
+    isHiddenItemEdit          ? (saveToPantry ? 'Save food item' : 'Update food item') :
     mode === 'pantry-edit'    ? 'Update food item'        :
-    mode === 'meal-add-item'  ? 'Save & add to meal'      :
+    mode === 'meal-add-item'  ? 'Add to meal'             :
     mode === 'basket-edit'    ? 'Save'                    :
     /* basket-manual */         (soleItem ? 'Save food' : 'Add to meal')
   );
@@ -228,7 +239,9 @@ export function FoodItemFormContent({
         invalid={blocked}
       />
       {blocked && (
-        <p className="text-caption text-danger">This name already exists in your pantry</p>
+        <p className="text-caption text-danger">
+          {conflict?.type === 'meal' ? 'This name is already used by a meal in your pantry' : 'This name already exists in your pantry'}
+        </p>
       )}
 
       {/* ── Save to pantry ────────────────────────────────────────────────── */}

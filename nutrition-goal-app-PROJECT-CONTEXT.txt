@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-02 — Round 132 (found and fixed the convert-to-meal bug from round 131's open list: stale foodItemId made reopening a converted meal entry show only its first item; Nutri-scan report looks like a mixed-up icon, not a bug — confirming with Marco)
+Last updated: 2026-07-02 — Round 133 (fixed a genuinely blocking bug — changing a Food item's serving unit after it's been logged/used in a Meal silently multiplied/divided totals by 100x — plus name-collision checks across Food items/Meals, a placeholder-name display bug, and several copy/CTA requests; a few UX polish items explicitly deferred)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,46 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 133 — CORRECTNESS PASS: NAMES, UNITS, DUPLICATES, COPY (2026-07-02)
+Files: src/domain/calc.ts(+test), src/domain/pantry.ts, src/data/
+       quantityConversion.ts (new, +test), src/ui/screens/{TodayScreen,
+       PantryScreen}.tsx, src/ui/components/{FoodItemForm,
+       PantryFoodItemDetail,PantryMealDetail,AddEntrySheet}.tsx
+- BLOCKING BUG FIXED: switching a Food item's measurementType (per_100g <->
+  per_serving) after it's already logged/used in a Meal silently
+  reinterpreted the OLD stored quantity under the new unit (a "100" that
+  meant grams suddenly meant servings), multiplying/dividing totals by
+  100x+. New convertQuantity() (calc.ts) + convertFoodItemReferences()
+  (new file, data/quantityConversion.ts) convert every FoodEntry (plain +
+  Meal-linked) and every Meal referencing that item whenever its unit
+  changes — wired into every edit surface (Pantry Food item detail, Meal
+  detail's per-item edit, Day's-log basket edit-of-linked-item). Tested.
+- Day's-log rows showed literal "Food" for Meal entries — TodayScreen's
+  name lookup never checked mealData.name, only manualName then a pantry-
+  item lookup by foodItemId (which Meal entries don't have). Fixed.
+- Duplicate-name checks now span Food items AND Meals (new
+  findPantryNameConflict() in domain/pantry.ts) — previously you could name
+  a Food item the same as an existing Meal. Wired into every Food item
+  create/edit form and into Meal renaming (which had NO duplicate check at
+  all before).
+- Picking a Meal via search now fast-populates the basket the same as
+  picking from Recent (previously only Recent triggered the "prefill name,
+  default Save-to-pantry on, remember id" path — search silently fell
+  through to a plainer "flatten in" path with a blank name field).
+- Re-logging an already-logged-today pantry item now bumps its existing
+  entry's quantity instead of creating a duplicate (mirrors the basket's
+  own increment-if-present behavior).
+- Copy/CTA: "Add item to meal" now shows Save-to-pantry + CTA "Add to
+  meal"; editing a hidden item's CTA reflects the checkbox ("Save food
+  item" vs "Update food item"); Meal detail's Close button is now primary,
+  labelled "Save meal".
+- tsc: clean. lint: clean. vitest: 42 passed. `npm run build` verified
+  clean.
+- DEFERRED (told Marco): "+New food" method picker before the manual form,
+  the 2-second loading screen + in-place (no slide) transition to Food item
+  detail, Camera/Photo/Describe/Label still missing from the Pantry
+  meal-builder.
+
 ROUND 132 — CONVERT-TO-MEAL: STALE foodItemId HID EVERY OTHER ITEM (2026-07-02)
 Files: src/ui/components/AddEntrySheet.tsx
 Root cause of round 131's open item: converting a plain Food entry into a
@@ -333,33 +373,22 @@ pantry work) in how editing a Day's-log basket item talks to the Pantry:
   beyond the ones above — may already be fixed by them, needs retest); and
   the Nutri-scan flow not prompting per-100g/per-serving on a specific scan.
 
-ROUND 130 — MEALS IN PANTRY: NEW INGREDIENTS DON'T POLLUTE THE PANTRY (2026-07-02)
-Files: src/ui/screens/PantryScreen.tsx, PantryFoodItemDetail.tsx,
-       PantryMealDetail.tsx, PantryPicker.tsx, FoodItemForm.tsx,
-       src/ui/components/AddEntrySheet.tsx, src/data/mealsMigration.ts(+test)
-- Food items created via Manual purely to complete a meal (Pantry meal-
-  builder) now default to isArchived: true — hidden from the main Food-items
-  list, "living only in the meal" per Marco's call, until the user
-  explicitly ticks "Save to pantry" from that item's own edit view.
-  mealsMigration.ts's recovered ingredients get the same treatment.
-- Ripple fix: every place that builds an itemsById map to resolve a Meal's
-  live nutrition/photo now uses the FULL item set (foodItems.all(true)), not
-  just visible items — otherwise a hidden ingredient would silently drop out
-  of its own Meal's totals, or get dropped entirely when logging a saved
-  meal from the Day's-log picker. New `allItems` prop threaded through
-  PantryScreen → PantryFoodItemDetail/PantryMealDetail → PantryPicker, and
-  independently fetched inside FoodForm/LogEntryContent for addPantryMeal.
-  Everywhere a human PICKS from pantry (duplicate-name checks, Add-from-
-  pantry, Day's-log Recent/Search) still correctly uses visible-only items.
-- FoodItemFormContent's pantry-edit mode shows "Save to pantry" when editing
-  a currently-hidden item; checking it flips isArchived → false. Wired in
-  PantryMealDetail's confirmUpdate (toast: "Saved to pantry").
-- tsc: clean. lint: clean. vitest: 35 passed (mealsMigration tests extended).
-  `npm run build` verified clean.
-
 ================================================================
 TODO / FUTURE WORK
 ================================================================
+- "+NEW FOOD" METHOD PICKER: tapping "+New food" in Pantry jumps straight to
+  the manual entry form — Marco wants a method picker first (Manual/Camera/
+  Photo/Describe/Label, same MethodCards component used elsewhere). Note:
+  the native iOS file-picker action sheet (Photo Library/Camera/Choose File)
+  can't be relabeled to show custom app options — this needs our own
+  MethodCards UI, not a native picker customization.
+- "+NEW FOOD" LOADING + TRANSITION POLISH: Marco wants a deliberate ~2s
+  loading state after "Save food" (matching the mockup's dedicated
+  "Saving food" screen) and for the New-food-form -> Food-item-detail
+  transition to happen "in place" rather than the sheet sliding down then a
+  new one sliding up. Needs the form and detail view to live inside ONE
+  continuous Sheet with phase-based internal content instead of two
+  separate Sheet instances — a real (if contained) refactor, not done yet.
 - MEAL NUTRITION SUMMARY: Meal detail (and the Day's-log Meal review, once
   that's wired) currently only shows per-item cards — no dedicated
   total-macro breakdown for the Meal as a whole. Marco flagged this as

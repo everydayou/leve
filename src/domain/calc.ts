@@ -1,5 +1,5 @@
 import type {
-  FoodItem, FoodEntry, ActivityEntry, NutritionSnapshot, Meal,
+  FoodItem, FoodEntry, ActivityEntry, NutritionSnapshot, Meal, MeasurementType,
 } from './types';
 
 /** Atwater-style constant: ~7700 kcal per kg of body mass. */
@@ -19,6 +19,25 @@ export function nutritionFor(item: FoodItem, quantity: number): NutritionSnapsho
     fiber: round(item.fiber * factor),
     fat: round(item.fat * factor),
   };
+}
+
+/** Converts a stored quantity from one Food item unit basis to another,
+ *  preserving the actual physical amount. Needed when a Food item's own
+ *  measurementType/referenceAmount changes after it's already been
+ *  referenced elsewhere (Day's-log entries, Meal items) — those stored
+ *  quantities are expressed in the OLD unit basis and mean something
+ *  completely different under the new one otherwise (round 133: switching
+ *  per_100g -> per_serving on an already-used item was multiplying
+ *  calories by 100+, since "100" silently went from meaning grams to
+ *  meaning servings). */
+export function convertQuantity(
+  quantity: number,
+  oldType: MeasurementType, oldRefAmount: number,
+  newType: MeasurementType, newRefAmount: number,
+): number {
+  if (oldType === newType && oldRefAmount === newRefAmount) return quantity;
+  const grams = oldType === 'per_100g' ? quantity : quantity * oldRefAmount;
+  return newType === 'per_100g' ? grams : grams / (newRefAmount || 1);
 }
 
 /** Sum of NutritionSnapshots — used for Meal totals. */

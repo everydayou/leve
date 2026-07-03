@@ -1,4 +1,83 @@
 ================================================================
+ROUND 133 — CORRECTNESS PASS: NAMES, UNITS, DUPLICATES, COPY (2026-07-02)
+================================================================
+Files: src/domain/calc.ts(+test), src/domain/pantry.ts, src/data/quantityConversion.ts
+       (NEW, +test), src/ui/screens/TodayScreen.tsx, src/ui/screens/PantryScreen.tsx,
+       src/ui/components/{FoodItemForm,PantryFoodItemDetail,PantryMealDetail,
+       AddEntrySheet}.tsx
+
+Marco's latest test pass surfaced several more real bugs plus a batch of
+copy/UX requests. Correctness fixes first, then the smaller asks.
+
+── "FOOD" PLACEHOLDER NAME FOR MEAL ENTRIES ─────────────────────────────────
+TodayScreen's Day's-log row name used `entry.manualName ?? labelFor(items,
+entry.foodItemId)`, where labelFor() falls back to the literal string 'Food'
+if no pantry item matches. Meal entries (mealId set, foodItemId undefined)
+always missed both checks and fell through to 'Food' — even though the row's
+CALORIE total was already correct (effectiveNutrition already checks
+mealData first, per round 123). Fixed: mealData.name is now checked before
+the pantry-item fallback.
+
+── QUANTITY/UNIT CONVERSION ON MEASUREMENTTYPE CHANGE (blocking, per Marco) ─
+Root cause of "100g item, switch to per-serving, Day's log shows 100x
+calories": a stored quantity (e.g. "100", meaning 100 grams under per_100g)
+was being reinterpreted directly under the NEW unit (100 *servings*) with no
+conversion — nutritionFor() has no way to know the number's old meaning.
+New convertQuantity() (calc.ts) converts a quantity between unit bases,
+preserving the actual physical amount. New convertFoodItemReferences()
+(src/data/quantityConversion.ts) walks every FoodEntry (plain + Meal-linked
+items) and every Meal referencing a Food item and converts their stored
+quantity whenever that item's measurementType/referenceAmount changes.
+Wired into every place that edits an existing Food item's unit: Pantry's
+Food item detail, Meal detail's per-item edit, and the Day's-log basket's
+edit-of-an-already-linked-item flow (both FoodForm and LogEntryContent).
+Covered by dedicated tests (data/quantityConversion.test.ts) proving
+nutrition is unchanged for the same physical amount after a unit switch.
+
+── DUPLICATE NAMES ACROSS FOOD ITEMS AND MEALS ──────────────────────────────
+findByName() only ever checked Food items against Food items — a Food item
+and a Meal could share a name, confusing since the "All" list combines them.
+New findPantryNameConflict() (domain/pantry.ts) checks a candidate name
+against BOTH lists. Wired into every Food item create/edit surface
+(FoodItemFormContent, now taking existingMeals) and into Meal renaming
+(PantryMealDetail.saveName, which previously had no duplicate check at all —
+reverts the input and toasts if a conflict is found).
+
+── PICKING A MEAL VIA SEARCH NOW BEHAVES LIKE PICKING FROM RECENT ───────────
+addPantryMeal's fast-path (populate the basket directly from the Meal,
+prefill its name, default "Save to pantry" on, remember its id so re-saving
+updates it) previously only triggered when NOT found via search — picking
+the same Meal via search silently fell through to the "flatten in" path
+instead, leaving the name field blank and the checkbox unchecked/generic.
+Dropped the fromSearch condition for Meals — picking one into an empty
+basket always means "log this meal," regardless of how it was found.
+
+── RE-LOGGING AN ALREADY-LOGGED ITEM MERGES INSTEAD OF DUPLICATING ──────────
+Fast-tapping a pantry item that's already logged today (as its own entry,
+not part of a meal) now bumps that entry's quantity instead of creating a
+second one — mirrors the basket's own "already there, increment" behaviour.
+Undo restores the previous quantity rather than deleting the entry.
+
+── COPY / CTA REQUESTS ───────────────────────────────────────────────────────
+- meal-add-item mode ("Add item to meal") now shows the "Save to pantry"
+  checkbox and its CTA reads "Add to meal" (was "Save & add to meal") —
+  lets the user opt a new ingredient into visible Pantry status at creation
+  time instead of always defaulting hidden.
+- Editing a currently-hidden item's own record: CTA now reads "Save food
+  item" when the checkbox is checked, "Update food item" when it isn't —
+  previously always said "Update food item" regardless.
+- Pantry Meal detail's Close button is now the primary CTA, labelled
+  "Save meal".
+
+tsc: clean. lint: clean. vitest: 42 passed (8 pre-existing skips). `npm run
+build` verified clean.
+
+Deferred (communicated to Marco, not done this round): "+New food" method
+picker (Manual/Camera/Photo/Describe before the form), the 2-second loading
+screen + in-place (no slide) transition from "New food" to "Food item"
+detail, and Camera/Photo/Describe/Label still missing from the Pantry
+meal-builder generally.
+
 ROUND 132 — CONVERT-TO-MEAL: STALE foodItemId HID EVERY OTHER ITEM (2026-07-02)
 ================================================================
 Files: src/ui/components/AddEntrySheet.tsx

@@ -168,6 +168,7 @@ export function PantryScreen() {
           <FoodItemFormContent
             mode="pantry-new"
             existingItems={items}
+            existingMeals={meals}
             onSave={handleCreateFood}
             onCancel={() => setAdding(false)}
           />

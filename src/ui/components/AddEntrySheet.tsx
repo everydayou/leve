@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
+import { convertFoodItemReferences } from '../../data/quantityConversion';
 import { newId, todayISO } from '../../data/ids';
 import { nutritionFor, mealNutritionFor, mealPhotoFor, itemsByIdMap } from '../../domain/calc';
 import { currentWeightKg } from '../../domain/goal';
@@ -318,13 +319,14 @@ function FoodForm({
     activeOverlay === 'describe' ? (
       <DescribeOverlay onBack={overlayBack} onAnalyze={handleDescribeAnalyze} />
     ) : activeOverlay === 'manual' ? (
-      <ManualOverlay items={items} onBack={overlayBack} onAdd={addManualItem} soleItem={basket.length === 0} />
+      <ManualOverlay items={items} meals={meals} onBack={overlayBack} onAdd={addManualItem} soleItem={basket.length === 0} />
     ) : editItem ? (
       <EditOverlay
         item={editItem}
         currentPhoto={sources.find((s) => s.id === editItem.sourceId)?.photo}
         onBack={overlayBack}
         existingItems={items}
+        existingMeals={meals}
         onSave={(patch, saveToPantryChecked, photo) => {
           if (!editItem) { overlayBack(); return; }
           // Switching units (per_100g <-> per_serving) makes the OLD raw qty
@@ -351,6 +353,12 @@ function FoodForm({
               fiber: merged.fiber, fat: merged.fat,
               photo, isArchived: false,
             });
+            // Already-linked item's unit basis changed — anything ELSE that
+            // already references this pantry item (other Day's-log entries,
+            // Meals) is in the OLD unit and needs converting (round 133).
+            if (!isNewLink && (editItem.measurementType !== merged.measurementType || editItem.referenceAmount !== merged.referenceAmount)) {
+              void convertFoodItemReferences(repos, pantryItemId, editItem.measurementType, editItem.referenceAmount, merged.measurementType, merged.referenceAmount);
+            }
           }
           overlayBack();
         }}
@@ -503,14 +511,28 @@ function FoodForm({
 
   // ── Basket mutations ──────────────────────────────────────────────────────
 
-  function addPantryItem(item: FoodItem, fromSearch?: boolean) {
+  async function addPantryItem(item: FoodItem, fromSearch?: boolean) {
     hapticLight();
     // Fast log: basket empty → log directly without going through basket (skip if user searched)
     if (basket.length === 0 && !fromSearch) {
       const bi = pantryToBasket(item);
+      // Already logged today as its own entry (not part of a meal)? Bump its
+      // quantity instead of creating a second entry (round 133) — same idea
+      // as the basket's own "already in the basket, increment" behaviour.
+      const todaysEntries = await repos.foodEntries.byDate(date);
+      const existing = todaysEntries.find((e) => e.foodItemId === item.id && !e.mealData);
+      if (existing) {
+        const step = bi.measurementType === 'per_100g' ? 10 : 1;
+        const oldQty = existing.quantity ?? 0;
+        const newQty = oldQty + step;
+        await repos.foodEntries.update({ ...existing, quantity: newQty, snapshot: basketNutrition({ ...bi, qty: newQty }) });
+        showToast?.(`${item.name} updated`, async () => repos.foodEntries.update({ ...existing, quantity: oldQty, snapshot: basketNutrition({ ...bi, qty: oldQty }) }));
+        onDone();
+        return;
+      }
       const n = basketNutrition(bi);
       const entryId = newId();
-      void repos.foodEntries.add({
+      await repos.foodEntries.add({
         id: entryId, date,
         foodItemId: item.id,
         quantity: bi.qty,
@@ -539,7 +561,7 @@ function FoodForm({
     setPickerOpen(false);
   }
 
-  function addPantryMeal(meal: Meal, fromSearch?: boolean) {
+  function addPantryMeal(meal: Meal) {
     hapticLight();
     const mealBasketItems: BasketItem[] = meal.items
       .map((mi) => {
@@ -554,10 +576,15 @@ function FoodForm({
       showToast?.('Could not load that meal — its food items may have been removed');
       return;
     }
-    // Fast path: basket empty and not searching → populate directly from
-    // this Meal's own items/quantities, ready to review and log. Remember
-    // its id so logBasket() updates the SAME Meal rather than duplicating it.
-    if (basket.length === 0 && !fromSearch) {
+    // Fast path: basket empty → populate directly from this Meal's own
+    // items/quantities, ready to review and log. Applies regardless of
+    // whether the Meal was found via search or Recent (round 133 — picking
+    // an existing Meal into an empty basket should always mean "log this
+    // meal", not build a new one; the fromSearch distinction only matters
+    // for single Food items, which have a separate quick-add convention).
+    // Remember its id so logBasket() updates the SAME Meal rather than
+    // duplicating it.
+    if (basket.length === 0) {
       setBasket(mealBasketItems);
       setMealName(meal.name);
       setSaveToPantry(true); // it's already in Pantry — default to keeping it linked
@@ -1276,9 +1303,10 @@ function ServingModal({
 // ── ManualOverlay ─────────────────────────────────────────────────────────────
 
 function ManualOverlay({
-  items, onBack, onAdd, soleItem = false,
+  items, meals = [], onBack, onAdd, soleItem = false,
 }: {
   items: FoodItem[];
+  meals?: Meal[];
   onBack: () => void;
   onAdd: (entry: {
     name: string; calories: number; protein: number; carbs: number;
@@ -1300,6 +1328,7 @@ function ManualOverlay({
         mode="basket-manual"
         soleItem={soleItem}
         existingItems={items}
+        existingMeals={meals}
         onSave={(values: FoodItemFormValues) => onAdd({
           name:            values.name,
           calories:        values.calories,
@@ -1321,7 +1350,7 @@ function ManualOverlay({
 // ── EditOverlay ───────────────────────────────────────────────────────────────
 
 function EditOverlay({
-  item, currentPhoto, onBack, onSave, onPhotoChange, existingItems,
+  item, currentPhoto, onBack, onSave, onPhotoChange, existingItems, existingMeals = [],
 }: {
   item: BasketItem;
   currentPhoto?: string;
@@ -1329,6 +1358,7 @@ function EditOverlay({
   onSave: (patch: Partial<BasketItem>, saveToPantry: boolean, photo: string | undefined) => void;
   onPhotoChange?: (dataUrl: string | undefined) => void;
   existingItems?: FoodItem[];
+  existingMeals?: Meal[];
 }) {
   return (
     <div className="space-y-3 py-1">
@@ -1348,6 +1378,7 @@ function EditOverlay({
           pantryItemId:    item.pantryItemId,
         }}
         existingItems={existingItems}
+        existingMeals={existingMeals}
         onSave={(values: FoodItemFormValues) => onSave({
           name:            values.name,
           calories:        values.calories,
@@ -1561,13 +1592,14 @@ function LogEntryContent({
     activeOverlay === 'describe' ? (
       <DescribeOverlay onBack={overlayBack} onAnalyze={handleDescribeAnalyze} />
     ) : activeOverlay === 'manual' ? (
-      <ManualOverlay items={pantryItems} onBack={overlayBack} onAdd={addManualItem} soleItem={basket.length === 0} />
+      <ManualOverlay items={pantryItems} meals={meals} onBack={overlayBack} onAdd={addManualItem} soleItem={basket.length === 0} />
     ) : editItem ? (
       <EditOverlay
         item={editItem}
         currentPhoto={localPhotos[0]}
         onBack={overlayBack}
         existingItems={pantryItems}
+        existingMeals={meals}
         onSave={(patch, saveToPantryChecked, photo) => {
           if (!editItem) { overlayBack(); return; }
           // Switching units (per_100g <-> per_serving) makes the OLD raw qty
@@ -1595,6 +1627,15 @@ function LogEntryContent({
               fiber: merged.fiber, fat: merged.fat,
               photo, isArchived: false,
             });
+            // Already-linked item's unit basis changed — every OTHER stored
+            // reference (other Day's-log entries, Meals) is in the OLD unit
+            // and needs converting (round 133). Runs before the explicit
+            // update below, which sets THIS entry's own quantity correctly
+            // regardless of whatever the cascade also did to it.
+            const unitChanged = !isNewLink && (editItem.measurementType !== merged.measurementType || editItem.referenceAmount !== merged.referenceAmount);
+            if (unitChanged) {
+              void convertFoodItemReferences(repos, pantryItemId, editItem.measurementType, editItem.referenceAmount, merged.measurementType, merged.referenceAmount);
+            }
             // Keep this entry's own record in sync too — foodItemId AND
             // quantity are both required for effectiveNutrition() to live-
             // recompute; previously quantity was never set here, so a

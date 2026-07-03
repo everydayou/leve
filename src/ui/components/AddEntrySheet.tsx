@@ -1011,9 +1011,12 @@ function BasketStepper({
 
   const btnCls =
     'flex h-8 w-8 items-center justify-center rounded-full bg-surface text-content border border-border-field transition-colors active:opacity-70';
-  // Exact same box (min-w/text/alignment) as the static label below, so
-  // swapping to an input never shifts the stepper's size or shape.
-  const valueCls = 'min-w-[54px] text-center text-subhead font-normal text-content';
+  // Exact same box (fixed width/text/alignment) as the static label below,
+  // so swapping to an input never shifts the stepper's size or shape. A
+  // FIXED width (not just min-w) matters here — unlike a <span>, an <input>
+  // doesn't shrink-wrap its content and will happily render wider than its
+  // sibling label if only given a minimum.
+  const valueCls = 'w-[54px] shrink-0 text-center text-subhead font-normal text-content';
 
   return (
     // stopPropagation so tapping stepper inside a card doesn't trigger card's onEdit
@@ -1047,7 +1050,12 @@ function BasketStepper({
           onChange={(e) => handleDraftChange(e.target.value)}
           onBlur={commitDraft}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-          className={`${valueCls} border-none bg-transparent p-0 outline-none focus:outline-none focus:ring-0`}
+          className={`${valueCls} border-none bg-transparent p-0`}
+          // Inline, not a Tailwind class: the app's global `:focus-visible`
+          // rule (index.css) draws a 2px accent outline at equal CSS
+          // specificity to a plain `outline-none` utility class, and (by
+          // source order) was winning. An inline style always wins.
+          style={{ outline: 'none' }}
         />
       ) : (
         <span data-no-drag onClick={startEditing} className={valueCls}>

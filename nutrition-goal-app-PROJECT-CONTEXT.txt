@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-03 — Round 139 (Day's-log quantity stepper: tap the number to type a value directly, same size, no underline)
+Last updated: 2026-07-03 — Round 140 (fixed the tap-to-type stepper input's width changing + green focus outline that a global CSS rule kept re-adding)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,17 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 140 — STEPPER INPUT: FIXED WIDTH + KILL THE FOCUS OUTLINE (2026-07-03)
+Files: src/ui/components/AddEntrySheet.tsx
+- Round 139's tap-to-type input was rendering wider than the pill (min-w
+  doesn't shrink-wrap an <input> the way it does a <span>) and showing a
+  green focus outline (the global `:focus-visible` CSS rule in index.css
+  was winning over the outline-none Tailwind classes at equal specificity,
+  later in source order). Fixed: fixed `w-[54px] shrink-0` width, and an
+  inline `style={{ outline: 'none' }}` (always wins, unlike a class).
+- tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
+  verified clean.
+
 ROUND 139 — TAP-TO-TYPE ON THE DAY'S-LOG QUANTITY STEPPER (2026-07-03)
 Files: src/ui/components/AddEntrySheet.tsx
 - Tapping the number in BasketStepper (the Day's-log quantity -/+ control)
@@ -322,24 +333,6 @@ Files: src/domain/{types,calc}.ts(+test), src/ui/components/AddEntrySheet.tsx
   checked) — restored.
 - tsc: clean. lint: clean. vitest: 48 passed (3 new). `npm run build`
   verified clean.
-
-ROUND 137 — HDR PHOTO OVEREXPOSURE FIX (2026-07-03)
-Files: src/lib/image.ts
-- Marco noticed some captured photos looked "extra bright"/overexposed once
-  saved. Root cause: downscaleImage/downscaleDataUrl (the two canvas-based
-  photo-resize helpers) called getContext('2d') with no explicit color
-  space. iPhone HDR/Deep Fusion photos carry a wide-gamut/HDR profile that
-  WebKit's canvas has a known history of mis-tone-mapping when the color
-  space isn't pinned, blowing out highlights — matches the "sometimes"
-  pattern (only HDR-shot photos are affected). Fixed by passing
-  { colorSpace: 'srgb' } explicitly to both getContext('2d') calls.
-  NOTE: targeted fix for a documented WebKit quirk, not guaranteed 100% —
-  needs Marco to confirm on a photo he knows came out too bright. Separately
-  noted (not touched): PhotoPicker's native "Prompt" path bypasses this
-  canvas pipeline entirely — if brightness shows up from that exact button
-  too, that points to a different cause.
-- tsc: clean. lint: clean. vitest: 45 passed. `npm run build` verified
-  clean.
 
 ================================================================
 TODO / FUTURE WORK

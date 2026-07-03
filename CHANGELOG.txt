@@ -1,4 +1,27 @@
 ================================================================
+ROUND 140 — STEPPER INPUT: FIXED WIDTH + KILL THE FOCUS OUTLINE (2026-07-03)
+================================================================
+Files: src/ui/components/AddEntrySheet.tsx
+
+Two follow-ups from round 139's tap-to-type on the Day's-log stepper,
+both visible in Marco's screenshot (a stretched green-outlined bar with
+iOS's selection-handle dots instead of the small pill):
+- WIDTH CHANGE: the value box used `min-w-[54px]`, which is fine for a
+  <span> (shrink-wraps to its text) but not for an <input> — inputs don't
+  shrink-wrap and happily render much wider than a bare minimum. Switched
+  to a fixed `w-[54px] shrink-0` so editing mode is pixel-identical to
+  the static label.
+- GREEN FOCUS OUTLINE: `outline-none`/`focus:outline-none` Tailwind
+  classes were losing to the app's global `:focus-visible { outline: 2px
+  solid var(--color-accent) }` rule (index.css) — same CSS specificity,
+  and the global rule comes later in the stylesheet, so it won. Replaced
+  with an inline `style={{ outline: 'none' }}`, which always wins
+  regardless of specificity/source order.
+
+tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
+verified clean.
+
+================================================================
 ROUND 139 — TAP-TO-TYPE ON THE DAY'S-LOG QUANTITY STEPPER (2026-07-03)
 ================================================================
 Files: src/ui/components/AddEntrySheet.tsx

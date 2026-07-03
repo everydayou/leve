@@ -11,6 +11,7 @@ import { FoodItemFormContent } from '../components/FoodItemForm';
 import type { FoodItemFormValues } from '../components/FoodItemForm';
 import { PantryFoodItemDetail } from '../components/PantryFoodItemDetail';
 import { PantryMealDetail } from '../components/PantryMealDetail';
+import { MethodPickerModal } from '../components/MethodCards';
 
 import { hapticLight } from '../../lib/haptics';
 import type { DayContext } from '../AppShell';
@@ -25,6 +26,7 @@ export function PantryScreen() {
   const { showToast } = useOutletContext<DayContext>();
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<PantryFilter>('all');
+  const [pickingMethod, setPickingMethod] = useState(false);
   const [adding, setAdding] = useState(false);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
   const [openMealId, setOpenMealId] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export function PantryScreen() {
     <div className="pb-6">
       <header className="flex items-start justify-between px-6 pt-4">
         <h1 className="text-title font-semibold">Pantry</h1>
-        <Button variant="ghost" size="sm" fullWidth={false} className="!font-normal !text-accent-hover -mr-3.5" onClick={() => setAdding(true)}>+ New food</Button>
+        <Button variant="ghost" size="sm" fullWidth={false} className="!font-normal !text-accent-hover -mr-3.5" onClick={() => setPickingMethod(true)}>+ New food</Button>
       </header>
 
       <div className="px-6">
@@ -151,7 +153,7 @@ export function PantryScreen() {
                       icon="foodIcon"
                       title="Your pantry is empty"
                       description="Add foods you eat often so you can log them in one tap."
-                      action={<Button icon="plus" onClick={() => setAdding(true)}>New food</Button>}
+                      action={<Button icon="plus" onClick={() => setPickingMethod(true)}>New food</Button>}
                     />
                   ) : (
                     <p className="px-6 py-10 text-center text-subhead text-content-muted">No {filter === 'meals' ? 'meals' : filter === 'items' ? 'foods' : 'results'} match.</p>
@@ -161,6 +163,18 @@ export function PantryScreen() {
             </ul>
           </div>
         </>
+      )}
+
+      {pickingMethod && (
+        <MethodPickerModal
+          title="Add food"
+          onManual={() => { setPickingMethod(false); setAdding(true); }}
+          onCamera={() => { setPickingMethod(false); showToast?.('Coming soon — camera for new foods is next'); }}
+          onPhoto={() => { setPickingMethod(false); showToast?.('Coming soon — photo for new foods is next'); }}
+          onDescribe={() => { setPickingMethod(false); showToast?.('Coming soon — describe for new foods is next'); }}
+          onLabel={() => { setPickingMethod(false); showToast?.('Coming soon — nutri-scan for new foods is next'); }}
+          onDismiss={() => setPickingMethod(false)}
+        />
       )}
 
       {adding && (

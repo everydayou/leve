@@ -108,7 +108,10 @@ export function FoodItemFormContent({
   const [fib, setFib]   = useState(initial.fiber    != null ? String(Math.round(initial.fiber    * 10) / 10) : '');
   const [fat, setFat]   = useState(initial.fat      != null ? String(Math.round(initial.fat      * 10) / 10) : '');
   const [photo, setPhoto]           = useState<string | undefined>(initial.photo);
-  const [saveToPantry, setSaveToPantry] = useState(false);
+  // basket-edit on an already-linked item defaults CHECKED — round 134 makes
+  // this toggle-able (unchecking unlinks to a local, one-off entry), so the
+  // default has to reflect the current (linked) state rather than always false.
+  const [saveToPantry, setSaveToPantry] = useState(mode === 'basket-edit' && !!initial.pantryItemId);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -121,12 +124,19 @@ export function FoodItemFormContent({
   const isSrv        = mType === 'per_serving';
   const isPantryMode = mode === 'pantry-new' || mode === 'pantry-edit' || mode === 'meal-add-item';
   const isBasketEdit = mode === 'basket-edit';
+  // Editing a basket item that's ALREADY pantry-linked — the checkbox here
+  // reads "Saved to pantry" (not "Save to pantry") and, when unchecked
+  // (round 134), unlinks this one instance to a local, one-off entry rather
+  // than opting a new item in.
+  const isBasketEditAlreadyLinked = isBasketEdit && !!initial.pantryItemId;
 
   const showSaveToPantry =
     mode === 'basket-manual'
     || mode === 'meal-add-item'
     || (isBasketEdit && !initial.pantryItemId)
     || (mode === 'pantry-edit' && initial.isArchived === true);
+
+  const showSaveToPantryCheckbox = showSaveToPantry || isBasketEditAlreadyLinked;
 
   const checkDuplicate =
     isPantryMode || ((mode === 'basket-manual' || isBasketEdit) && saveToPantry);
@@ -187,7 +197,7 @@ export function FoodItemFormContent({
         fiber:    +fib  || 0,
         fat:      +fat  || 0,
         photo,
-        saveToPantry: showSaveToPantry ? saveToPantry : false,
+        saveToPantry: showSaveToPantryCheckbox ? saveToPantry : false,
       });
     } finally {
       setSaving(false);
@@ -245,11 +255,23 @@ export function FoodItemFormContent({
       )}
 
       {/* ── Save to pantry ────────────────────────────────────────────────── */}
-      {isBasketEdit && initial.pantryItemId ? (
-        <label className="flex select-none items-center gap-2 text-subhead text-content-muted">
-          <input type="checkbox" checked disabled className="h-4 w-4 accent-accent opacity-60" />
-          Saved to pantry
-        </label>
+      {isBasketEditAlreadyLinked ? (
+        <div>
+          <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
+            <input
+              type="checkbox"
+              checked={saveToPantry}
+              onChange={(e) => setSaveToPantry(e.target.checked)}
+              className="h-4 w-4 accent-accent"
+            />
+            Saved to pantry
+          </label>
+          {!saveToPantry && (
+            <p className="mt-1 text-caption text-content-secondary">
+              This entry will stop syncing with the pantry item — your changes stay local to it.
+            </p>
+          )}
+        </div>
       ) : showSaveToPantry ? (
         <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
           <input

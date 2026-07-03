@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-02 — Round 133 (fixed a genuinely blocking bug — changing a Food item's serving unit after it's been logged/used in a Meal silently multiplied/divided totals by 100x — plus name-collision checks across Food items/Meals, a placeholder-name display bug, and several copy/CTA requests; a few UX polish items explicitly deferred)
+Last updated: 2026-07-02 — Round 134 (shipped both previously-deferred decisions: a small method-picker modal before '+New food', and the 'Saved to pantry' checkbox is now toggle-able to fully unlink a Day's-log entry from its Pantry item)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,22 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 134 — METHOD PICKER MODAL + UNLINK-FROM-PANTRY (2026-07-02)
+Files: src/ui/components/MethodCards.tsx, src/ui/screens/PantryScreen.tsx,
+       src/ui/components/{FoodItemForm,AddEntrySheet}.tsx
+- New MethodPickerModal (small bottom modal, same shape as ServingModal —
+  not a full Sheet) shows the MethodCards row before "+ New food" in
+  Pantry; Manual opens the existing form, others still "coming soon".
+  Confirmed the native iOS file-picker sheet can't be relabeled — this
+  needed our own UI regardless of the deferred Camera/Photo/Describe work.
+- "Saved to pantry" checkbox on an already-linked basket item is now
+  interactive: unchecking it fully unlinks that one entry (becomes local,
+  keeps its edited values, stops syncing with the Pantry item in either
+  direction going forward). Wired in FoodItemFormContent + both EditOverlay
+  onSave handlers (FoodForm, LogEntryContent).
+- tsc: clean. lint: clean. vitest: 42 passed. `npm run build` verified
+  clean.
+
 ROUND 133 — CORRECTNESS PASS: NAMES, UNITS, DUPLICATES, COPY (2026-07-02)
 Files: src/domain/calc.ts(+test), src/domain/pantry.ts, src/data/
        quantityConversion.ts (new, +test), src/ui/screens/{TodayScreen,
@@ -338,50 +354,9 @@ design; the dedicated Nutri-scan (label) button does prompt via
 ServingModal. Confirming with Marco which icon he actually used.
 tsc: clean. lint: clean. vitest: 35 passed. `npm run build` verified clean.
 
-ROUND 131 — DAY'S-LOG EDIT FLOW: LIVE-LINK BUGS (2026-07-03)
-Files: src/ui/components/AddEntrySheet.tsx
-Marco's testing surfaced pre-existing bugs (not introduced by the meals-in-
-pantry work) in how editing a Day's-log basket item talks to the Pantry:
-- Editing an ALREADY pantry-linked item's macros never wrote through to
-  repos.foodItems — the "save to pantry" checkbox is hidden once an item is
-  already linked, and both EditOverlay onSave handlers used that checkbox
-  value (always false when hidden) to gate the write. Fixed: write-through
-  now happens whenever the item IS or BECOMES linked; the checkbox only
-  gates whether a brand-new item gets linked in the first place.
-- Newly-linking a manual entry to pantry (LogEntryContent) set foodItemId
-  but never quantity — effectiveNutrition() needs both to live-recompute,
-  so the entry looked linked but stayed frozen on its old snapshot forever.
-  This explains Marco's exact repro: today's entry (added via search, which
-  sets quantity) updated correctly; a past entry retrofitted via edit →
-  save-to-pantry (missing quantity) never did.
-- Outer "Save changes" compared against a stale `pantryItem` prop (resolved
-  once at mount) instead of the live basket state — could lose a link
-  created mid-session. Now checks basket[0].pantryItemId directly.
-- Switching measurementType during an edit (per_100g <-> per_serving) left
-  the old qty number as-is, reinterpreting grams as servings or vice versa
-  (Marco's screenshot: 8.9g became "8.9 srv"). Now resets qty to a sensible
-  default when the unit actually changes.
-- LogEntrySheet's title is now "Food item"/"Meal" (generic, matching the
-  Pantry's own screens per Marco's original reference), reactive to the
-  live basket size — not the entry's actual name.
-- Also removed 4 stray now-unused eslint-disable comments surfaced by
-  nearby code shifting.
-- tsc: clean. lint: clean (0 warnings). vitest: 35 passed. `npm run build`
-  verified clean.
-- STILL OPEN (need more specific repro): "convert an existing Food entry to
-  a Meal, then Save — not working" (code review didn't find a distinct bug
-  beyond the ones above — may already be fixed by them, needs retest); and
-  the Nutri-scan flow not prompting per-100g/per-serving on a specific scan.
-
 ================================================================
 TODO / FUTURE WORK
 ================================================================
-- "+NEW FOOD" METHOD PICKER: tapping "+New food" in Pantry jumps straight to
-  the manual entry form — Marco wants a method picker first. Clarified: a
-  SMALL modal (not a full-height Sheet) showing the MethodCards row as a
-  carousel (Manual/Camera/Photo/Describe/Label), same component used
-  elsewhere — not a native iOS picker (confirmed that can't be relabeled to
-  show custom app options; this needs our own MethodCards UI regardless).
 - "+NEW FOOD" LOADING + TRANSITION POLISH: Marco wants a deliberate ~2s
   loading state after "Save food" (matching the mockup's dedicated
   "Saving food" screen) and for the New-food-form -> Food-item-detail
@@ -389,15 +364,6 @@ TODO / FUTURE WORK
   new one sliding up. Needs the form and detail view to live inside ONE
   continuous Sheet with phase-based internal content instead of two
   separate Sheet instances — a real (if contained) refactor, not done yet.
-- BASKET-EDIT "SAVED TO PANTRY" CHECKBOX — SHOULD IT BE TOGGLE-ABLE?: when
-  editing a basket item (Day's-log / FAB Add) that's already pantry-linked,
-  FoodItemFormContent shows "Saved to pantry" checked + disabled (basket-
-  edit mode, initial.pantryItemId set) — originally just an informational
-  indicator. Marco is reconsidering: should this be enabled, letting the
-  user UN-link this one instance (edit macros locally without touching the
-  shared Pantry item), rather than always writing through to Pantry (as
-  round 131 made consistent)? Real product trade-off, not decided yet —
-  don't implement without an explicit decision.
 - MEAL NUTRITION SUMMARY: Meal detail (and the Day's-log Meal review, once
   that's wired) currently only shows per-item cards — no dedicated
   total-macro breakdown for the Meal as a whole. Marco flagged this as

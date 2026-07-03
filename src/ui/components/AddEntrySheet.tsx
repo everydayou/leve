@@ -340,8 +340,12 @@ function FoodForm({
           // Already linked → this is an update, not a fresh "save to pantry"
           // opt-in; only actually NEW items need the checkbox to be checked.
           const isNewLink = saveToPantryChecked && !editItem.pantryItemId;
-          const pantryItemId = isNewLink ? newId() : editItem.pantryItemId;
-          updateItem(editingIdx!, { ...fullPatch, ...(pantryItemId ? { pantryItemId } : {}) });
+          // Already-linked item, box unchecked (round 134) → unlink this
+          // instance entirely: it becomes a local, one-off item, no longer
+          // synced with the Pantry item in either direction.
+          const isUnlinking = !saveToPantryChecked && !!editItem.pantryItemId;
+          const pantryItemId = isUnlinking ? undefined : (isNewLink ? newId() : editItem.pantryItemId);
+          updateItem(editingIdx!, { ...fullPatch, pantryItemId });
           if (pantryItemId) {
             // Write through whenever this item IS or BECOMES pantry-linked —
             // previously this only fired for brand-new links, so editing an
@@ -1613,9 +1617,13 @@ function LogEntryContent({
           // Already linked → this is an update, not a fresh "save to pantry"
           // opt-in; only actually NEW items need the checkbox to be checked.
           const isNewLink = saveToPantryChecked && !editItem.pantryItemId;
-          const pantryItemId = isNewLink ? newId() : editItem.pantryItemId;
+          // Already-linked item, box unchecked (round 134) → unlink this
+          // instance entirely: it becomes a local, one-off entry, no longer
+          // synced with the Pantry item in either direction.
+          const isUnlinking = !saveToPantryChecked && !!editItem.pantryItemId;
+          const pantryItemId = isUnlinking ? undefined : (isNewLink ? newId() : editItem.pantryItemId);
           setBasket((prev) => prev.map((b, i) =>
-            i === editingIdx ? { ...b, ...fullPatch, ...(pantryItemId ? { pantryItemId } : {}) } : b));
+            i === editingIdx ? { ...b, ...fullPatch, pantryItemId } : b));
           if (pantryItemId) {
             // Write through whenever this item IS or BECOMES pantry-linked —
             // previously this only fired for brand-new links, so editing an
@@ -1646,6 +1654,16 @@ function LogEntryContent({
               quantity: merged.qty,
               isManual: false,
               manualName: undefined,
+              snapshot: roundSnap(basketNutrition(merged)),
+            });
+          } else if (isUnlinking) {
+            // Convert this entry to a fully local, one-off record — it keeps
+            // today's edited values but stops syncing with the Pantry item.
+            void repos.foodEntries.update({
+              ...entry,
+              foodItemId: undefined,
+              isManual: true,
+              manualName: merged.name,
               snapshot: roundSnap(basketNutrition(merged)),
             });
           }

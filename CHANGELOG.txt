@@ -1,4 +1,38 @@
 ================================================================
+ROUND 134 — METHOD PICKER MODAL + UNLINK-FROM-PANTRY (2026-07-02)
+================================================================
+Files: src/ui/components/MethodCards.tsx, src/ui/screens/PantryScreen.tsx,
+       src/ui/components/{FoodItemForm,AddEntrySheet}.tsx
+
+── "+NEW FOOD" METHOD PICKER ─────────────────────────────────────────────────
+New MethodPickerModal (MethodCards.tsx) — a small bottom-anchored modal, same
+shape as AddEntrySheet's ServingModal (NOT a full-height Sheet), showing the
+MethodCards row as a one-off choice with no existing basket/meal context to
+expand inline into. Tapping "+ New food" in Pantry now shows this first
+(Manual/Camera/Photo/Describe/Nutri-scan); Manual opens the existing "New
+food" form unchanged, the rest toast "coming soon" (unchanged scope — still
+needs the scan/describe helpers extracted from AddEntrySheet.tsx). Confirmed
+with Marco that the native iOS file-picker action sheet can't be relabeled
+to show custom options — this needed our own UI regardless.
+
+── "SAVED TO PANTRY" CHECKBOX IS NOW TOGGLE-ABLE (UNLINK) ───────────────────
+Editing an already pantry-linked basket item (Day's-log / FAB Add) used to
+show "Saved to pantry" checked and disabled — purely informational, editing
+macros there always wrote through to the shared Pantry item (round 131).
+Marco decided: unchecking it should fully UNLINK this one instance — it
+becomes a local, one-off entry that keeps today's edited values but stops
+syncing with the Pantry item in either direction (future Pantry edits won't
+affect it, and its own edits won't touch the Pantry item). Implemented in
+FoodItemFormContent (checkbox now interactive for this case, with a caption
+explaining the effect when unchecked) and in both EditOverlay onSave
+handlers in AddEntrySheet.tsx (FoodForm's basket-only case just clears
+pantryItemId on the in-memory item; LogEntryContent's case additionally
+converts the persisted FoodEntry to isManual: true with its own manualName
+and snapshot).
+
+tsc: clean. lint: clean. vitest: 42 passed (unchanged). `npm run build`
+verified clean.
+
 ROUND 133 — CORRECTNESS PASS: NAMES, UNITS, DUPLICATES, COPY (2026-07-02)
 ================================================================
 Files: src/domain/calc.ts(+test), src/domain/pantry.ts, src/data/quantityConversion.ts

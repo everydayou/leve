@@ -1371,6 +1371,28 @@ function EditOverlay({
 // All three cases (pantry / manual / meal) look exactly like the basket.
 
 function entryToBasket(entry: FoodEntry, pantryItems: FoodItem[]): BasketItem[] {
+  // Check mealData FIRST — same ordering fix as calc.ts's effectiveNutrition
+  // (round 123). A Meal entry converted from a plain Food entry can still
+  // carry the OLD foodItemId around (nothing clears it on conversion — see
+  // the fix in save() below); checking foodItemId first would then rebuild
+  // a single-item basket from the stale link and silently drop every other
+  // item in the meal.
+  if (entry.mealData) {
+    // Meal entry — each MealItem becomes a per_serving BasketItem
+    return entry.mealData.items.map((item) => ({
+      id: newId(),
+      name: item.name,
+      measurementType: 'per_serving' as const,
+      referenceAmount: 1,
+      calories: item.calories,
+      protein:  item.protein,
+      carbs:    item.carbs,
+      fiber:    item.fiber,
+      fat:      item.fat,
+      qty: item.qty ?? 1,
+    }));
+  }
+
   const pantryItem = pantryItems.find((i) => i.id === entry.foodItemId);
 
   if (pantryItem) {
@@ -1389,22 +1411,6 @@ function entryToBasket(entry: FoodEntry, pantryItems: FoodItem[]): BasketItem[] 
       qty,
       pantryItemId: pantryItem.id,
     }];
-  }
-
-  if (entry.mealData) {
-    // Meal entry — each MealItem becomes a per_serving BasketItem
-    return entry.mealData.items.map((item) => ({
-      id: newId(),
-      name: item.name,
-      measurementType: 'per_serving' as const,
-      referenceAmount: 1,
-      calories: item.calories,
-      protein:  item.protein,
-      carbs:    item.carbs,
-      fiber:    item.fiber,
-      fat:      item.fat,
-      qty: item.qty ?? 1,
-    }));
   }
 
   // Manual entry — single basket item from snapshot
@@ -1875,7 +1881,13 @@ function LogEntryContent({
         await repos.meals.put({ id: mealId, name: mealName, photo, items: mealFoodItems, isArchived: false });
       }
 
-      await repos.foodEntries.update({ ...entry, mealId, snapshot, mealData: { name: mealName, photo, photos, items } });
+      // Explicitly clear foodItemId — if this entry started as a plain
+      // Food entry (foodItemId set) and is only NOW becoming a Meal, that
+      // old link must not survive the conversion. entryToBasket() checks
+      // mealData first (see the fix above) so this is now a belt-and-braces
+      // fix rather than the sole one, but it's still the correct value:
+      // this entry is a Meal entry now, not a Food entry.
+      await repos.foodEntries.update({ ...entry, foodItemId: undefined, mealId, snapshot, mealData: { name: mealName, photo, photos, items } });
     } else {
       const b = basket[0];
       // Shrunk back to a single manual item — same as above, no longer a Meal.

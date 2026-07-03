@@ -1,4 +1,36 @@
 ================================================================
+ROUND 132 — CONVERT-TO-MEAL: STALE foodItemId HID EVERY OTHER ITEM (2026-07-02)
+================================================================
+Files: src/ui/components/AddEntrySheet.tsx
+
+Root-caused Marco's "convert to meal, then save — I only see the first item
+when I reopen it" (the Day's-log LIST ROW showed the correct combined
+total, only reopening the entry was wrong — that split was the key clue).
+
+entryToBasket() checked entry.foodItemId (and rebuilt a single-item basket
+from it) BEFORE checking entry.mealData. Converting a plain Food entry into
+a Meal never cleared its old foodItemId — save()'s meal branch only ever
+SET mealId, it didn't unset the field the entry no longer needed. So the
+entry ended up with both foodItemId (stale, from before) and mealData (new)
+set at once. effectiveNutrition() already checks mealData first (round 123),
+which is why the Day's-log row totaled correctly — but entryToBasket() did
+not, so reopening the entry rebuilt the editor from the stale single-item
+link and silently dropped every other item in the meal.
+Fixed both ends: entryToBasket() now checks mealData first, matching
+effectiveNutrition()'s existing order; and save()'s meal branch now
+explicitly clears foodItemId when converting an entry to a Meal, so there's
+no stale field left for anything to trip over next time either.
+
+tsc: clean. lint: clean. vitest: 35 passed. `npm run build` verified clean.
+
+Nutri-scan follow-up (not a code change): the scanned result Marco saw
+(measurementType per_100g, qty = the estimated grams, no serving-choice
+prompt) matches exactly how Camera/Photo scanning works by design — no
+prompt, always per-100g, grams estimated directly. The dedicated Nutri-scan
+(label) button DOES prompt for per-100g vs per-serving via ServingModal.
+Asked Marco to confirm which icon he actually tapped before treating this
+as a bug.
+
 ROUND 131 — DAY'S-LOG EDIT FLOW: LIVE-LINK BUGS (2026-07-02)
 ================================================================
 Files: src/ui/components/AddEntrySheet.tsx

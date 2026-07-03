@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-03 — Round 131 (fixed several real Day's-log edit-flow bugs surfaced by testing: editing an already-linked item silently didn't save, a newly-linked entry could stay frozen forever, switching units in an edit didn't reset quantity; 2 items still open pending more specific repro from Marco)
+Last updated: 2026-07-02 — Round 132 (found and fixed the convert-to-meal bug from round 131's open list: stale foodItemId made reopening a converted meal entry show only its first item; Nutri-scan report looks like a mixed-up icon, not a bug — confirming with Marco)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,24 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 132 — CONVERT-TO-MEAL: STALE foodItemId HID EVERY OTHER ITEM (2026-07-02)
+Files: src/ui/components/AddEntrySheet.tsx
+Root cause of round 131's open item: converting a plain Food entry into a
+Meal (save()'s meal branch) set mealId but never cleared the entry's OLD
+foodItemId. entryToBasket() checked foodItemId before mealData, so reopening
+a converted entry rebuilt a single-item basket from the stale link — while
+the Day's-log LIST ROW (via effectiveNutrition(), which already checks
+mealData first per round 123) correctly showed the combined total. That
+split (right total, wrong reopen) was the tell.
+Fixed both ends: entryToBasket() now checks mealData first (matching
+effectiveNutrition()'s order); save()'s meal branch explicitly clears
+foodItemId on conversion.
+Nutri-scan: not a code bug — the described result (per_100g, qty = estimated
+grams, no serving prompt) is exactly how Camera/Photo scanning behaves by
+design; the dedicated Nutri-scan (label) button does prompt via
+ServingModal. Confirming with Marco which icon he actually used.
+tsc: clean. lint: clean. vitest: 35 passed. `npm run build` verified clean.
+
 ROUND 131 — DAY'S-LOG EDIT FLOW: LIVE-LINK BUGS (2026-07-03)
 Files: src/ui/components/AddEntrySheet.tsx
 Marco's testing surfaced pre-existing bugs (not introduced by the meals-in-
@@ -338,24 +356,6 @@ Files: src/ui/screens/PantryScreen.tsx, PantryFoodItemDetail.tsx,
   PantryMealDetail's confirmUpdate (toast: "Saved to pantry").
 - tsc: clean. lint: clean. vitest: 35 passed (mealsMigration tests extended).
   `npm run build` verified clean.
-
-ROUND 129 — MEALS IN PANTRY: LOG A SAVED MEAL DIRECTLY (2026-07-02)
-Files: src/ui/components/AddEntrySheet.tsx
-- FoodPicker (Day's-log search/recent, used by both FoodForm and
-  LogEntryContent) now lists Meals alongside Food items, subtitle "Food
-  item"/"Meal" (was "per serving"/"per 100g" — Marco's correction to round
-  128). Recent stays Food-item-only (no frequentMealIds tracking yet).
-- FoodForm: picking a Meal with an empty basket fast-populates it from that
-  Meal's own items/quantities, prefills the name, defaults "Save to pantry"
-  on, and remembers the Meal's id (loggingExistingMealId) so logBasket()
-  UPDATES that Meal on save instead of duplicating it. Picking one into an
-  already-non-empty basket (or via search) flattens its items in instead —
-  never nests a Meal inside a Meal.
-- LogEntryContent: same Meal-picking, always flattens (its basket is never
-  empty) — the existing entry.mealId create-vs-update logic from round 127
-  already handles the rest.
-- tsc: clean. lint: clean. vitest: 35 passed (unchanged). `npm run build`
-  verified clean.
 
 ================================================================
 TODO / FUTURE WORK

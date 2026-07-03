@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-02 — Round 135 (MethodPickerModal now reuses the real Sheet component for animation/drag-to-dismiss/X-close instead of a hand-rolled div; fixed a self-conflict bug in the new unlink checkbox and reworked it to start unchecked+disabled until something's actually edited)
+Last updated: 2026-07-02 — Round 136 (fixed manual/scanned entries losing their unit on reopen — 400g was collapsing to '1 serving'; taller method-picker modal with an instructional line; fixed a decimal-comma regression in number fields)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,27 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 136 — MANUAL ENTRY UNIT LOSS, MODAL SIZE, DECIMAL COMMA (2026-07-02)
+Files: src/domain/{types,calc}.ts(+test), src/ui/components/AddEntrySheet.tsx,
+       src/ui/components/MethodCards.tsx, src/ui/kit/NumberField.tsx
+- Root cause of "saved as 100g, bumped to 400g, saved — converted to
+  servings": manual entries (Nutri-scan/Describe/Photo/Manual — anything not
+  picked from Pantry) only stored their flattened TOTAL, never their unit —
+  entryToBasket() always rebuilt them as "1 serving = the total." Added
+  manualMeasurementType/manualReferenceAmount to FoodEntry + new
+  unscaleSnapshot() (calc.ts, tested, reverses nutritionFor()'s scaling).
+  Wired into logBasket's fresh manual log, LogEntryContent's shrink/stay-
+  manual save branches, and the unlink-to-local conversion (round 134).
+  Older entries fall back to "1 serving" as before — no migration needed.
+- MethodPickerModal: added an instructional caption + extra padding, taller
+  per Marco's ask.
+- NumberField: was type="number", which silently rejects a locale decimal
+  comma outright (nothing to "convert" — the character never reaches
+  onChange). Switched to type="text" + inputMode="decimal" with explicit
+  comma-to-period normalization.
+- tsc: clean. lint: clean. vitest: 45 passed. `npm run build` verified
+  clean.
+
 ROUND 135 — METHOD MODAL POLISH + UNLINK CHECKBOX FIXES (2026-07-02)
 Files: src/ui/components/MethodCards.tsx, src/ui/screens/PantryScreen.tsx,
        src/ui/components/{FoodItemForm,AddEntrySheet}.tsx
@@ -320,46 +341,6 @@ Files: src/ui/components/MethodCards.tsx, src/ui/screens/PantryScreen.tsx,
   onSave handlers (FoodForm, LogEntryContent).
 - tsc: clean. lint: clean. vitest: 42 passed. `npm run build` verified
   clean.
-
-ROUND 133 — CORRECTNESS PASS: NAMES, UNITS, DUPLICATES, COPY (2026-07-02)
-Files: src/domain/calc.ts(+test), src/domain/pantry.ts, src/data/
-       quantityConversion.ts (new, +test), src/ui/screens/{TodayScreen,
-       PantryScreen}.tsx, src/ui/components/{FoodItemForm,
-       PantryFoodItemDetail,PantryMealDetail,AddEntrySheet}.tsx
-- BLOCKING BUG FIXED: switching a Food item's measurementType (per_100g <->
-  per_serving) after it's already logged/used in a Meal silently
-  reinterpreted the OLD stored quantity under the new unit (a "100" that
-  meant grams suddenly meant servings), multiplying/dividing totals by
-  100x+. New convertQuantity() (calc.ts) + convertFoodItemReferences()
-  (new file, data/quantityConversion.ts) convert every FoodEntry (plain +
-  Meal-linked) and every Meal referencing that item whenever its unit
-  changes — wired into every edit surface (Pantry Food item detail, Meal
-  detail's per-item edit, Day's-log basket edit-of-linked-item). Tested.
-- Day's-log rows showed literal "Food" for Meal entries — TodayScreen's
-  name lookup never checked mealData.name, only manualName then a pantry-
-  item lookup by foodItemId (which Meal entries don't have). Fixed.
-- Duplicate-name checks now span Food items AND Meals (new
-  findPantryNameConflict() in domain/pantry.ts) — previously you could name
-  a Food item the same as an existing Meal. Wired into every Food item
-  create/edit form and into Meal renaming (which had NO duplicate check at
-  all before).
-- Picking a Meal via search now fast-populates the basket the same as
-  picking from Recent (previously only Recent triggered the "prefill name,
-  default Save-to-pantry on, remember id" path — search silently fell
-  through to a plainer "flatten in" path with a blank name field).
-- Re-logging an already-logged-today pantry item now bumps its existing
-  entry's quantity instead of creating a duplicate (mirrors the basket's
-  own increment-if-present behavior).
-- Copy/CTA: "Add item to meal" now shows Save-to-pantry + CTA "Add to
-  meal"; editing a hidden item's CTA reflects the checkbox ("Save food
-  item" vs "Update food item"); Meal detail's Close button is now primary,
-  labelled "Save meal".
-- tsc: clean. lint: clean. vitest: 42 passed. `npm run build` verified
-  clean.
-- DEFERRED (told Marco): "+New food" method picker before the manual form,
-  the 2-second loading screen + in-place (no slide) transition to Food item
-  detail, Camera/Photo/Describe/Label still missing from the Pantry
-  meal-builder.
 
 ================================================================
 TODO / FUTURE WORK

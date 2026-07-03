@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nutritionFor, effectiveNutrition, mealNutritionFor, mealPhotoFor, mealPhotosFor, convertQuantity, itemsByIdMap, summarizeDay, calcDigestionCalories, KCAL_PER_KG } from './calc';
+import { nutritionFor, effectiveNutrition, mealNutritionFor, mealPhotoFor, mealPhotosFor, convertQuantity, unscaleSnapshot, itemsByIdMap, summarizeDay, calcDigestionCalories, KCAL_PER_KG } from './calc';
 import type { FoodItem, FoodEntry, ActivityEntry, Meal } from './types';
 
 const chicken: FoodItem = {
@@ -215,5 +215,36 @@ describe('convertQuantity', () => {
     // very different from 1 serving with no conversion at all.
     expect(convertQuantity(100, 'per_100g', 100, 'per_serving', 1)).toBe(100);
     expect(convertQuantity(100, 'per_100g', 100, 'per_serving', 100)).toBe(1);
+  });
+});
+
+describe('unscaleSnapshot', () => {
+  it('reverses nutritionFor for a per_100g quantity (round 136 scan-unit-loss bug)', () => {
+    // 400g at 130 kcal/100g -> a total snapshot of 520 kcal. unscaleSnapshot
+    // should recover the original 130 kcal/100g "at referenceAmount" value.
+    const total = nutritionFor(
+      { id: 'x', name: 'X', measurementType: 'per_100g', referenceAmount: 100, calories: 130, protein: 2.7, carbs: 28, fiber: 0.4, fat: 0.3, isArchived: false },
+      400,
+    );
+    expect(total.calories).toBe(520);
+    const perRef = unscaleSnapshot(total, 'per_100g', 400, 100);
+    expect(perRef.calories).toBe(130);
+    expect(perRef.protein).toBe(2.7);
+  });
+
+  it('reverses nutritionFor for a per_serving quantity', () => {
+    const total = nutritionFor(
+      { id: 'y', name: 'Y', measurementType: 'per_serving', referenceAmount: 1, calories: 210, protein: 20, carbs: 24, fiber: 9, fat: 7, isArchived: false },
+      3,
+    );
+    expect(total.calories).toBe(630);
+    const perRef = unscaleSnapshot(total, 'per_serving', 3, 1);
+    expect(perRef.calories).toBe(210);
+  });
+
+  it('is a no-op at quantity 1 (per_serving) or quantity == referenceAmount (per_100g)', () => {
+    const snap = { calories: 65, protein: 3.5, carbs: 30, fiber: 1, fat: 6 };
+    expect(unscaleSnapshot(snap, 'per_serving', 1, 1)).toEqual(snap);
+    expect(unscaleSnapshot(snap, 'per_100g', 100, 100)).toEqual(snap);
   });
 });

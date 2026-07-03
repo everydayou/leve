@@ -147,8 +147,18 @@ export interface FoodEntry {
   id: string;
   date: string; // YYYY-MM-DD
   foodItemId?: string;
-  quantity?: number; // in the unit basis of the item's referenceAmount
+  /** For pantry-linked entries: in the unit basis of the FoodItem's
+   *  referenceAmount. For manual entries (round 136, no foodItemId): in the
+   *  unit basis of manualReferenceAmount below — together they let a manual
+   *  entry re-open showing "400g" instead of collapsing to "1 serving". */
+  quantity?: number;
   manualName?: string;
+  /** Manual (non-pantry-linked, non-Meal) entries only (round 136) —
+   *  preserves the original per_100g/per_serving unit context. Older
+   *  entries predating this field fall back to "1 serving" on reopen, same
+   *  as before. */
+  manualMeasurementType?: MeasurementType;
+  manualReferenceAmount?: number;
   isManual: boolean;
   snapshot: NutritionSnapshot;
   createdAt: string; // ISO timestamp

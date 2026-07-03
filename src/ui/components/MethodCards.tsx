@@ -15,9 +15,10 @@ import { Icon, Sheet } from '../kit';
  *  content) — gets the slide-up/down animation, the X close button, and
  *  drag-to-dismiss for free, same as every other sheet in the app. */
 export function MethodPickerModal({
-  title = 'New food', onDismiss, ...methodProps
+  title = 'New food', helperText = "Choose one way to add this food", onDismiss, ...methodProps
 }: {
   title?: string;
+  helperText?: string;
   onDismiss: () => void;
   onCamera: () => void;
   onPhoto: () => void;
@@ -28,6 +29,7 @@ export function MethodPickerModal({
 }) {
   return (
     <Sheet title={title} onClose={onDismiss}>
+      <p className="pt-2 pb-6 text-center text-subhead text-content-secondary">{helperText}</p>
       <MethodCards {...methodProps} />
     </Sheet>
   );

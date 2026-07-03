@@ -40,6 +40,27 @@ export function convertQuantity(
   return newType === 'per_100g' ? grams : grams / (newRefAmount || 1);
 }
 
+/** Inverse of nutritionFor(): given a TOTAL snapshot already scaled by
+ *  `quantity` under the given unit basis, returns the per-referenceAmount
+ *  values that would reproduce that same total if re-scaled by `quantity`
+ *  via nutritionFor(). Used to reconstruct a manual (non-pantry-linked)
+ *  FoodEntry's basket representation from its frozen total snapshot (round
+ *  136) — without this, re-opening a manual entry has no way to distinguish
+ *  "400g" from "1 serving" of the same total. */
+export function unscaleSnapshot(
+  snapshot: NutritionSnapshot, measurementType: MeasurementType, quantity: number, referenceAmount: number,
+): NutritionSnapshot {
+  const factor = measurementType === 'per_100g' ? quantity / referenceAmount : quantity;
+  const unscale = (v: number) => (factor ? v / factor : v);
+  return {
+    calories: unscale(snapshot.calories),
+    protein: unscale(snapshot.protein),
+    carbs: unscale(snapshot.carbs),
+    fiber: unscale(snapshot.fiber),
+    fat: unscale(snapshot.fat),
+  };
+}
+
 /** Sum of NutritionSnapshots — used for Meal totals. */
 function sumSnapshots(list: NutritionSnapshot[]): NutritionSnapshot {
   return list.reduce(

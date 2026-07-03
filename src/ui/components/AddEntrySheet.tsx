@@ -4,7 +4,7 @@ import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
 import { convertFoodItemReferences } from '../../data/quantityConversion';
 import { newId, todayISO } from '../../data/ids';
-import { nutritionFor, mealNutritionFor, mealPhotoFor, itemsByIdMap } from '../../domain/calc';
+import { nutritionFor, mealNutritionFor, mealPhotoFor, itemsByIdMap, unscaleSnapshot } from '../../domain/calc';
 import { currentWeightKg } from '../../domain/goal';
 import { kgToLbs, lbsToKg } from '../../domain/units';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
@@ -677,6 +677,14 @@ function FoodForm({
         foodItemId: item.pantryItemId,
         quantity: item.qty,
         manualName: item.pantryItemId ? undefined : item.name,
+        // Preserve the original per_100g/per_serving unit context for manual
+        // (non-pantry-linked) entries (round 136) — without this,
+        // entryToBasket() has no way to know it was "400g" rather than "1
+        // serving" of the total, and silently collapses to the latter.
+        ...(item.pantryItemId ? {} : {
+          manualMeasurementType: item.measurementType,
+          manualReferenceAmount: item.referenceAmount,
+        }),
         isManual: !item.pantryItemId,
         snapshot: n,
         createdAt: new Date().toISOString(),
@@ -1449,19 +1457,31 @@ function entryToBasket(entry: FoodEntry, pantryItems: FoodItem[]): BasketItem[] 
     }];
   }
 
-  // Manual entry — single basket item from snapshot
-  return [{
-    id: newId(),
-    name: entry.manualName ?? 'Food',
-    measurementType: 'per_serving' as const,
-    referenceAmount: 1,
-    calories: entry.snapshot.calories,
-    protein:  entry.snapshot.protein,
-    carbs:    entry.snapshot.carbs,
-    fiber:    entry.snapshot.fiber,
-    fat:      entry.snapshot.fat,
-    qty: 1,
-  }];
+  // Manual entry — single basket item from snapshot. Reconstruct its
+  // original per_100g/per_serving unit context when we have it (round 136:
+  // manualMeasurementType/manualReferenceAmount); older entries predating
+  // this fall back to "1 serving = the whole snapshot", same as before.
+  {
+    const mType = entry.manualMeasurementType ?? 'per_serving';
+    const refAmount = entry.manualReferenceAmount ?? 1;
+    const qty = entry.quantity ?? 1;
+    // snapshot holds the TOTAL (already scaled by qty) — unscale it back to
+    // "at referenceAmount" so re-scaling by qty in the basket reproduces the
+    // same total, instead of applying the scaling twice.
+    const perRef = unscaleSnapshot(entry.snapshot, mType, qty, refAmount);
+    return [{
+      id: newId(),
+      name: entry.manualName ?? 'Food',
+      measurementType: mType,
+      referenceAmount: refAmount,
+      calories: perRef.calories,
+      protein:  perRef.protein,
+      carbs:    perRef.carbs,
+      fiber:    perRef.fiber,
+      fat:      perRef.fat,
+      qty,
+    }];
+  }
 }
 
 export function LogEntrySheet({
@@ -1660,9 +1680,15 @@ function LogEntryContent({
           } else if (isUnlinking) {
             // Convert this entry to a fully local, one-off record — it keeps
             // today's edited values but stops syncing with the Pantry item.
+            // Preserve its unit context too (round 136), same as any other
+            // manual entry — otherwise reopening it would collapse to
+            // "1 serving" and lose whatever quantity/unit it actually was.
             void repos.foodEntries.update({
               ...entry,
               foodItemId: undefined,
+              quantity: merged.qty,
+              manualMeasurementType: merged.measurementType,
+              manualReferenceAmount: merged.referenceAmount,
               isManual: true,
               manualName: merged.name,
               snapshot: roundSnap(basketNutrition(merged)),
@@ -1950,9 +1976,13 @@ function LogEntryContent({
       await repos.foodEntries.update({ ...entry, foodItemId: undefined, mealId, snapshot, mealData: { name: mealName, photo, photos, items } });
     } else {
       const b = basket[0];
-      // Shrunk back to a single manual item — same as above, no longer a Meal.
+      // Shrunk back to a single manual item — same as above, no longer a
+      // Meal. Preserve its per_100g/per_serving unit context (round 136) —
+      // same reasoning as logBasket's fresh-log manual branch.
       await repos.foodEntries.update({
-        ...entry, manualName: b.name, snapshot: roundSnap(basketNutrition(b)),
+        ...entry, manualName: b.name, quantity: b.qty,
+        manualMeasurementType: b.measurementType, manualReferenceAmount: b.referenceAmount,
+        snapshot: roundSnap(basketNutrition(b)),
         mealId: undefined, mealData: undefined,
       });
     }

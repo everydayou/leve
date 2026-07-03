@@ -1,4 +1,48 @@
 ================================================================
+ROUND 136 — MANUAL ENTRY UNIT LOSS, MODAL SIZE, DECIMAL COMMA (2026-07-02)
+================================================================
+Files: src/domain/{types,calc}.ts(+test), src/ui/components/AddEntrySheet.tsx,
+       src/ui/components/MethodCards.tsx, src/ui/kit/NumberField.tsx
+
+── MANUAL/SCANNED SINGLE ENTRIES LOST THEIR UNIT ON REOPEN ──────────────────
+Root cause of Marco's report ("saved as 100g, bumped to 400g, saved — but it
+converted to servings"): a manually-logged entry (Nutri-scan, Describe,
+Photo, or plain Manual — anything NOT picked from Pantry) only ever stored
+its flattened TOTAL snapshot, never its measurementType/referenceAmount/
+quantity. entryToBasket() had no way to know it was "400g" rather than "1
+serving of the total" and always rebuilt it as the latter — silently
+discarding whatever unit and quantity it actually was the moment you
+reopened it.
+Added manualMeasurementType/manualReferenceAmount to FoodEntry (quantity was
+already there, just unused for manual entries). New unscaleSnapshot()
+(calc.ts, tested) reverses nutritionFor()'s scaling — needed because the
+stored snapshot is the TOTAL, and reconstructing a basket item needs the
+PER-REFERENCE-AMOUNT values so re-scaling by quantity reproduces the same
+total rather than doubling it. Wired into every place a manual entry gets
+created or re-saved: logBasket's fresh single-item log, LogEntryContent's
+"shrink back to manual" and "stay manual" save branches, and the
+unlink-from-pantry conversion added in round 134. Older entries logged
+before this round simply fall back to "1 serving" on reopen, same as
+always — no migration needed, nothing breaks.
+
+── METHODPICKERMODAL: TALLER + INSTRUCTIONAL LINE ───────────────────────────
+Added a short caption ("Choose one way to add this food") between the title
+and the method row, with extra padding — makes the modal noticeably taller
+per Marco's ask, and tells the user what they're choosing between.
+
+── NUMBERFIELD: DECIMAL COMMA REGRESSION FIXED ──────────────────────────────
+Macro/quantity number fields were type="number", which — on locale keyboards
+that produce "," for the decimal separator — silently REJECTS the comma
+outright rather than accepting it for conversion (there was no comma-to-
+period logic in the current code at all to have "broken"; type="number"
+inputs just don't let non-canonical decimal characters through). Switched to
+type="text" + inputMode="decimal" (still shows the same numeric keypad) with
+explicit onChange normalization: "," -> ".", strip anything else that isn't
+a digit or the first period.
+
+tsc: clean. lint: clean. vitest: 45 passed (+3 new unscaleSnapshot cases).
+`npm run build` verified clean.
+
 ROUND 135 — METHOD MODAL POLISH + UNLINK CHECKBOX FIXES (2026-07-02)
 ================================================================
 Files: src/ui/components/MethodCards.tsx, src/ui/screens/PantryScreen.tsx,

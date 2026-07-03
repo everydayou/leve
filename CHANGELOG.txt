@@ -1,4 +1,33 @@
 ================================================================
+ROUND 139 — TAP-TO-TYPE ON THE DAY'S-LOG QUANTITY STEPPER (2026-07-03)
+================================================================
+Files: src/ui/components/AddEntrySheet.tsx
+
+Marco: wants to tap the number in the middle of the quantity stepper (the
+-/+ control when adding/editing a food) and type the value directly,
+without changing the stepper's size/shape or adding an underline.
+
+Tapping the number now swaps it for a same-sized borderless text input
+(autofocus, text auto-selected) instead of the static label; typing a
+value and hitting Enter or tapping away commits it through the exact same
+onChange the +/- buttons already use. type="text" + inputMode="decimal"
+(not type="number") so a locale decimal comma isn't silently rejected —
+same reasoning as NumberField's round-136 fix, with the same comma-to-
+period normalization. spellCheck/autoCorrect explicitly disabled so iOS
+doesn't draw its own suggestion underline under the typed value. Invalid
+or empty input on commit is a no-op (leaves the quantity unchanged) rather
+than removing the item.
+
+Scope note: only the Day's-log basket stepper (BasketStepper) — the one
+actually used to adjust a logged quantity. The Pantry Food item/Meal
+detail screen's stepper is a separate, currently-static display (it
+defines the recipe, not a consumed amount) and was left untouched per
+Marco's choice.
+
+tsc: clean. lint: clean. vitest: 48 passed (unchanged — UI-only change, no
+new domain logic). `npm run build` verified clean.
+
+================================================================
 ROUND 138 — MEAL NAME NOT STICKING + GRAMS-TO-SERVINGS RUNAWAY KCAL (2026-07-03)
 ================================================================
 Files: src/domain/{types,calc}.ts(+test), src/ui/components/AddEntrySheet.tsx

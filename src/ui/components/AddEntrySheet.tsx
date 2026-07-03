@@ -965,6 +965,14 @@ function BasketStepper({
   // Show trash icon on the minus button when one more decrement would remove the item
   const atThreshold = qty <= step;
 
+  // Tap-to-type (round 139): tapping the number swaps it for a same-sized
+  // text input so the exact quantity can be typed instead of stepped to.
+  // type="text" (not "number") — a native number input silently rejects a
+  // locale decimal comma; see NumberField's round-136 fix for the same
+  // reasoning.
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
   function adj(delta: number) {
     hapticLight();
     const next = Math.round((qty + delta) * 10) / 10;
@@ -975,12 +983,37 @@ function BasketStepper({
     }
   }
 
+  function startEditing() {
+    hapticLight();
+    setDraft(String(qty));
+    setEditing(true);
+  }
+
+  function handleDraftChange(raw: string) {
+    let next = raw.replace(/,/g, '.').replace(/[^\d.]/g, '');
+    const firstDot = next.indexOf('.');
+    if (firstDot !== -1) {
+      next = next.slice(0, firstDot + 1) + next.slice(firstDot + 1).replace(/\./g, '');
+    }
+    setDraft(next);
+  }
+
+  function commitDraft() {
+    setEditing(false);
+    const parsed = Number.parseFloat(draft);
+    if (!Number.isFinite(parsed) || parsed <= 0) return; // invalid/empty — leave qty unchanged
+    onChange(Math.round(parsed * 10) / 10);
+  }
+
   const label = isGrams
     ? `${qty}g`
     : `${qty % 1 === 0 ? qty : qty.toFixed(1)} srv`;
 
   const btnCls =
     'flex h-8 w-8 items-center justify-center rounded-full bg-surface text-content border border-border-field transition-colors active:opacity-70';
+  // Exact same box (min-w/text/alignment) as the static label below, so
+  // swapping to an input never shifts the stepper's size or shape.
+  const valueCls = 'min-w-[54px] text-center text-subhead font-normal text-content';
 
   return (
     // stopPropagation so tapping stepper inside a card doesn't trigger card's onEdit
@@ -1000,9 +1033,27 @@ function BasketStepper({
           <Icon name="minus" size={20} strokeWidth={2} />
         )}
       </button>
-      <span className="min-w-[54px] text-center text-subhead font-normal text-content">
-        {label}
-      </span>
+      {editing ? (
+        <input
+          data-no-drag
+          type="text"
+          inputMode="decimal"
+          autoFocus
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          value={draft}
+          onFocus={(e) => e.target.select()}
+          onChange={(e) => handleDraftChange(e.target.value)}
+          onBlur={commitDraft}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          className={`${valueCls} border-none bg-transparent p-0 outline-none focus:outline-none focus:ring-0`}
+        />
+      ) : (
+        <span data-no-drag onClick={startEditing} className={valueCls}>
+          {label}
+        </span>
+      )}
       <button data-no-drag onClick={() => adj(step)} className={btnCls} aria-label="Increase">
         <Icon name="plus" size={20} strokeWidth={2} />
       </button>

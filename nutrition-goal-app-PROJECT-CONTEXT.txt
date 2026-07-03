@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-03 — Round 138 (fixed meal-name edits not sticking on Day's-log meals; fixed scanned/gram-based meal items silently becoming "servings" and multiplying wildly via the stepper)
+Last updated: 2026-07-03 — Round 139 (Day's-log quantity stepper: tap the number to type a value directly, same size, no underline)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,20 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 139 — TAP-TO-TYPE ON THE DAY'S-LOG QUANTITY STEPPER (2026-07-03)
+Files: src/ui/components/AddEntrySheet.tsx
+- Tapping the number in BasketStepper (the Day's-log quantity -/+ control)
+  now swaps it for a same-sized borderless text input instead of stepping;
+  typing a value + Enter/tap-away commits via the same onChange the
+  buttons use. type="text"+inputMode="decimal" (not type="number") so a
+  decimal comma isn't rejected, same fix as NumberField (round 136).
+  spellCheck/autoCorrect disabled so iOS doesn't underline the typed value.
+  Invalid/empty input is a no-op, not a removal. Scope: only this stepper
+  — the Pantry Food item/Meal detail stepper is a separate static display
+  left untouched (defines the recipe, not a consumed amount).
+- tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
+  verified clean.
+
 ROUND 138 — MEAL NAME NOT STICKING + GRAMS-TO-SERVINGS RUNAWAY KCAL (2026-07-03)
 Files: src/domain/{types,calc}.ts(+test), src/ui/components/AddEntrySheet.tsx
 - Meal name edits never stuck: LogEntryContent.save()'s "stay a meal"
@@ -324,27 +338,6 @@ Files: src/lib/image.ts
   noted (not touched): PhotoPicker's native "Prompt" path bypasses this
   canvas pipeline entirely — if brightness shows up from that exact button
   too, that points to a different cause.
-- tsc: clean. lint: clean. vitest: 45 passed. `npm run build` verified
-  clean.
-
-ROUND 136 — MANUAL ENTRY UNIT LOSS, MODAL SIZE, DECIMAL COMMA (2026-07-02)
-Files: src/domain/{types,calc}.ts(+test), src/ui/components/AddEntrySheet.tsx,
-       src/ui/components/MethodCards.tsx, src/ui/kit/NumberField.tsx
-- Root cause of "saved as 100g, bumped to 400g, saved — converted to
-  servings": manual entries (Nutri-scan/Describe/Photo/Manual — anything not
-  picked from Pantry) only stored their flattened TOTAL, never their unit —
-  entryToBasket() always rebuilt them as "1 serving = the total." Added
-  manualMeasurementType/manualReferenceAmount to FoodEntry + new
-  unscaleSnapshot() (calc.ts, tested, reverses nutritionFor()'s scaling).
-  Wired into logBasket's fresh manual log, LogEntryContent's shrink/stay-
-  manual save branches, and the unlink-to-local conversion (round 134).
-  Older entries fall back to "1 serving" as before — no migration needed.
-- MethodPickerModal: added an instructional caption + extra padding, taller
-  per Marco's ask.
-- NumberField: was type="number", which silently rejects a locale decimal
-  comma outright (nothing to "convert" — the character never reaches
-  onChange). Switched to type="text" + inputMode="decimal" with explicit
-  comma-to-period normalization.
 - tsc: clean. lint: clean. vitest: 45 passed. `npm run build` verified
   clean.
 

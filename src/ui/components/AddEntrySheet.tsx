@@ -2123,9 +2123,15 @@ function LogEntryContent({
         {/* Meal summary — shown when 2+ items (round 152). Wraps the meal
             name field, its total kcal, the macro breakdown, and "Save to
             pantry" in one card — same treatment as Pantry's own Meal detail.
-            Outlined, not shadowed, per Marco's follow-up. */}
+            Outlined (border-card-no-shadow, round 154), not shadowed, per
+            Marco's follow-up. The 24px marginTop is inline, deliberately
+            overriding the outer space-y-3, so the gap from the photo above
+            is exactly 24px regardless of any other spacing in play. */}
         {basket.length >= 2 && (
-          <div className="space-y-3 rounded-[20px] border border-border-subtle bg-surface p-4">
+          <div
+            style={{ marginTop: '24px' }}
+            className="space-y-3 rounded-[20px] border border-border-card-no-shadow bg-surface p-4"
+          >
             <div>
               <div className="flex items-end gap-2">
                 <div className="flex-1">
@@ -2136,7 +2142,7 @@ function LogEntryContent({
                     placeholder={timeMealName()}
                   />
                 </div>
-                <span className="shrink-0 rounded-field bg-surface px-3 py-2.5 text-subhead font-semibold text-content-secondary">
+                <span className="shrink-0 rounded-field bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
                   {totalNutrition.calories} kcal
                 </span>
               </div>
@@ -2154,38 +2160,74 @@ function LogEntryContent({
           </div>
         )}
 
-        {basket.length >= 2 && (
-          <p className="text-headline font-bold text-content">Food items</p>
-        )}
-
-        {/* Basket cards */}
-        {basket.map((item, idx) => (
-          <BasketCard
-            key={item.id}
-            item={item}
-            nutrition={basketNutrition(item)}
-            onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
-            onRemove={() => {
-              if (basket.length === 1) { void del(); return; }
-              const removedItem = basket[idx];
-              setBasket((prev) => prev.filter((_, i) => i !== idx));
-              // Remove photo from localPhotos if no other basket item uses the same pantry photo
-              if (removedItem.pantryItemId) {
-                const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
-                if (pantryPhoto) {
-                  const stillReferenced = basket
-                    .filter((_, i) => i !== idx)
-                    .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
-                  if (!stillReferenced) {
-                    setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+        {/* "Food items" + its list share a wrapper (round 154) so the 24px
+            top / 8px bottom spacing around the heading is exact and immune
+            to the outer space-y-3's own margin — the inner space-y-3
+            reproduces the SAME gap the basket cards always had between each
+            other. Single-item basket (still building/editing a Food item,
+            not a Meal) skips both the heading and this wrapper entirely —
+            unchanged from before. */}
+        {basket.length >= 2 ? (
+          <div style={{ marginTop: '24px' }}>
+            <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
+            <div className="space-y-3">
+              {basket.map((item, idx) => (
+                <BasketCard
+                  key={item.id}
+                  item={item}
+                  nutrition={basketNutrition(item)}
+                  onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
+                  onRemove={() => {
+                    if (basket.length === 1) { void del(); return; }
+                    const removedItem = basket[idx];
+                    setBasket((prev) => prev.filter((_, i) => i !== idx));
+                    // Remove photo from localPhotos if no other basket item uses the same pantry photo
+                    if (removedItem.pantryItemId) {
+                      const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
+                      if (pantryPhoto) {
+                        const stillReferenced = basket
+                          .filter((_, i) => i !== idx)
+                          .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
+                        if (!stillReferenced) {
+                          setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+                        }
+                      }
+                    }
+                  }}
+                  onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+                  onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
+          basket.map((item, idx) => (
+            <BasketCard
+              key={item.id}
+              item={item}
+              nutrition={basketNutrition(item)}
+              onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
+              onRemove={() => {
+                if (basket.length === 1) { void del(); return; }
+                const removedItem = basket[idx];
+                setBasket((prev) => prev.filter((_, i) => i !== idx));
+                if (removedItem.pantryItemId) {
+                  const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
+                  if (pantryPhoto) {
+                    const stillReferenced = basket
+                      .filter((_, i) => i !== idx)
+                      .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
+                    if (!stillReferenced) {
+                      setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+                    }
                   }
                 }
-              }
-            }}
-            onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-            onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
-          />
-        ))}
+              }}
+              onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+              onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
+            />
+          ))
+        )}
 
         {/* Inline add-another with full FoodPicker — same copy rule as
             FoodForm: "Create a meal" while still a single item, "Add a new

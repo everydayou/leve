@@ -1,4 +1,48 @@
 ================================================================
+ROUND 154 — MACRO BADGE SIZE, MEAL-CARD BORDER TOKEN, EXACT PIXEL SPACING (2026-07-04)
+================================================================
+Files: src/ui/kit/MacroSummaryLine.tsx, src/ui/components/PantryMealDetail.tsx,
+       src/ui/components/AddEntrySheet.tsx
+
+Second follow-up round on the meal-summary/macro-badge work:
+
+- Macro badges: text stepped down one notch in the type scale, from
+  text-subhead (15px) to text-footnote (13px).
+
+- Meal summary card border: border-border-subtle -> border-border-card-no-
+  shadow. There's no literal "border-hover" token in this design system
+  (checked index.css's @theme block) — border-card-no-shadow is the one
+  explicitly documented for "flat card containers with no shadow", which is
+  exactly this card since round 153 dropped its shadow. In light AND dark
+  mode this resolves to the identical value as border-field, so visually
+  it's the same either way.
+
+- Kcal badge background (next to the meal-name field) changed from
+  bg-surface to bg-surface-sunken, matching the meal-name input's own
+  background, per Marco's ask that the two containers match.
+
+- Spacing, made exact and collapse-proof: Marco reported the rendered gap
+  between the meal photo and the summary card was only ~4px despite the
+  space-y utility supposedly giving 16-24px — and that the two views (Day's-
+  log / Pantry) weren't even consistent with each other (space-y-4 vs
+  space-y-3). Rather than keep reasoning about it from source, replaced
+  ambient space-y-driven spacing around these specific elements with
+  explicit inline styles, which unambiguously win over any conflicting
+  class and can't be silently eaten by margin collapsing: the summary
+  card now has `style={{ marginTop: '24px' }}` directly (image -> card gap,
+  identical in both views); "Food items" and its item list now share a
+  small wrapper div so the heading's own `marginBottom: '8px'` faces a
+  first-child item card with no competing auto margin-top of its own,
+  guaranteeing the requested 24px-top / 8px-bottom around the label exactly
+  as rendered, not just as authored. The inner wrapper reproduces the same
+  gap the item cards always had between each other (space-y-4 in Pantry,
+  space-y-3 in Day's-log) — that spacing is unchanged, only the boundary
+  around the "Food items" label itself is now pinned.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 153 — MACRO BADGE POLISH, MEAL-CARD OUTLINE, SHADOW REVERT (2026-07-04)
 ================================================================
 Files: src/ui/kit/MacroSummaryLine.tsx, src/ui/kit/Sheet.tsx,

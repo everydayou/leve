@@ -419,8 +419,17 @@ function PantryMealDetailContent({
             Meal view: name + total kcal + macro breakdown in one card. No
             "Save to pantry" checkbox here — this Meal already IS a pantry
             object, unlike a Day's-log entry that's only optionally saved
-            into it. Outlined, not shadowed, per Marco's follow-up. */}
-        <div className="rounded-[20px] border border-border-subtle bg-surface p-4">
+            into it. Outlined (border-card-no-shadow, round 154), not
+            shadowed, per Marco's follow-up. The 24px marginTop is set
+            inline rather than via the outer space-y utility — deliberately
+            overrides it so the gap from the photo above is exactly 24px
+            regardless of any other spacing in play (round 154: Marco asked
+            for the literal rendered gap, not just "whatever the space-y
+            scale gives us"). */}
+        <div
+          style={{ marginTop: '24px' }}
+          className="rounded-[20px] border border-border-card-no-shadow bg-surface p-4"
+        >
           <div className="flex items-end gap-2">
             <div className="flex-1">
               <LabeledInput
@@ -430,30 +439,38 @@ function PantryMealDetailContent({
                 onBlur={() => void saveName(name)}
               />
             </div>
-            <span className="shrink-0 rounded-field bg-surface px-3 py-2.5 text-subhead font-semibold text-content-secondary">
+            <span className="shrink-0 rounded-field bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
               {mealNutritionFor(meal, itemsById).calories} kcal
             </span>
           </div>
           <MacroSummaryLine nutrition={mealNutritionFor(meal, itemsById)} className="mt-2.5" />
         </div>
 
-        <p className="text-headline font-bold text-content">Food items</p>
-
-        {meal.items.map((mi) => {
-          const item = itemsById.get(mi.foodItemId);
-          if (!item) return null;
-          return (
-            <PantryItemCard
-              key={mi.id}
-              name={item.name}
-              nutrition={nutritionFor(item, mi.quantity)}
-              servingLabel={servingLabelFor(item, mi.quantity)}
-              onEdit={() => { setEditingItemId(item.id); setActiveOverlay('edit'); }}
-              onRemove={meal.items.length > 1 ? () => void handleRemoveItem(mi.id) : undefined}
-              onCorrect={scannedItemIds.has(item.id) ? () => { setCorrectingItemId(item.id); setActiveOverlay('describe-correct'); } : undefined}
-            />
-          );
-        })}
+        {/* "Food items" + its list, in their own wrapper so the 24px-top /
+            8px-bottom spacing around the heading (round 154) is exact and
+            immune to the outer space-y-4's own margin — the inner space-y-4
+            below reproduces the SAME gap the item cards always had between
+            each other, unrelated to this change. */}
+        <div style={{ marginTop: '24px' }}>
+          <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
+          <div className="space-y-4">
+            {meal.items.map((mi) => {
+              const item = itemsById.get(mi.foodItemId);
+              if (!item) return null;
+              return (
+                <PantryItemCard
+                  key={mi.id}
+                  name={item.name}
+                  nutrition={nutritionFor(item, mi.quantity)}
+                  servingLabel={servingLabelFor(item, mi.quantity)}
+                  onEdit={() => { setEditingItemId(item.id); setActiveOverlay('edit'); }}
+                  onRemove={meal.items.length > 1 ? () => void handleRemoveItem(mi.id) : undefined}
+                  onCorrect={scannedItemIds.has(item.id) ? () => { setCorrectingItemId(item.id); setActiveOverlay('describe-correct'); } : undefined}
+                />
+              );
+            })}
+          </div>
+        </div>
 
         {/* Same collapsible module as Food item detail's "Create a meal" and
             the Day's-log basket's "+ Add another item". */}

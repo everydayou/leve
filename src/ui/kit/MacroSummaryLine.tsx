@@ -11,8 +11,9 @@ function fmt(n: number): string {
  *  card" in the meals-in-pantry spec). Round 152: was previously one long
  *  pill with all four values dot-separated inside it; split into individual
  *  badges per Marco's visual reference — bg-surface-muted (lighter than the
- *  bg-surface-sunken used elsewhere for insets), text-subhead (15px),
- *  rounded-[8px], px-2 py-0.5, per his exact follow-up spec. */
+ *  bg-surface-sunken used elsewhere for insets), rounded-[8px], px-2 py-0.5.
+ *  Round 154: text size stepped down one notch in the type scale, from
+ *  text-subhead (15px) to text-footnote (13px). */
 export function MacroSummaryLine({
   nutrition, className = '',
 }: {
@@ -30,7 +31,7 @@ export function MacroSummaryLine({
       {macros.map(({ label, value }) => (
         <span
           key={label}
-          className="rounded-[8px] bg-surface-muted px-2 py-0.5 text-subhead text-content-secondary"
+          className="rounded-[8px] bg-surface-muted px-2 py-0.5 text-footnote text-content-secondary"
         >
           {label} {fmt(value)}g
         </span>

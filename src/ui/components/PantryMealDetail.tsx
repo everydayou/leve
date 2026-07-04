@@ -439,11 +439,16 @@ function PantryMealDetailContent({
                 onBlur={() => void saveName(name)}
               />
             </div>
-            <span className="shrink-0 rounded-field bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
+            {/* border-transparent (round 155): LabeledInput's own input has a
+                1px border (transparent at rest) baked into its box height —
+                matching it here keeps this badge exactly the same height as
+                the name field beside it. */}
+            <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
               {mealNutritionFor(meal, itemsById).calories} kcal
             </span>
           </div>
-          <MacroSummaryLine nutrition={mealNutritionFor(meal, itemsById)} className="mt-2.5" />
+          {/* Round 155: 4px to the name row above (was 10px). */}
+          <MacroSummaryLine nutrition={mealNutritionFor(meal, itemsById)} className="mt-1" />
         </div>
 
         {/* "Food items" + its list, in their own wrapper so the 24px-top /

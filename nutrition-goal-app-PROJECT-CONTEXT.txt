@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 154 (macro badges at 13px, meal-card border token, kcal badge matches name-field background, exact pixel spacing around the meal summary card and "Food items" label via inline styles rather than the ambient space-y scale)
+Last updated: 2026-07-04 — Round 155 (card internal spacing: 4px name-row-to-badges, 16px badges-to-stepper/buttons, on Basket card, Pantry item card, and the meal summary card; kcal badge height now matches the name field exactly)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -275,6 +275,22 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 155 — CARD INTERNAL SPACING (4px/16px) + KCAL BADGE HEIGHT MATCH (2026-07-04)
+Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/PantryItemCard.tsx,
+       src/ui/components/PantryMealDetail.tsx
+- BasketCard/PantryItemCard: name+kcal row -> badges tightened to 4px (was
+  8px); badges -> stepper/buttons row widened to 16px (was 10px). Same
+  ratio applied inside the meal-summary card (both views): 4px name row ->
+  badges; Day's-log's "Save to pantry" checkbox below the badges widened to
+  16px via inline style (was capped at 12px by the parent's space-y-3 —
+  same collapse-proofing pattern as round 154). Pantry's Meal detail has no
+  row below its badges, so only the top gap applied.
+- Kcal badge (beside the meal name field) given `border border-transparent`
+  to match LabeledInput's own 1px border — the one structural difference
+  that was making it render very slightly shorter than the name field.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 154 — MACRO BADGE SIZE, MEAL-CARD BORDER TOKEN, EXACT PIXEL SPACING (2026-07-04)
 Files: src/ui/kit/MacroSummaryLine.tsx, src/ui/components/PantryMealDetail.tsx,
        src/ui/components/AddEntrySheet.tsx
@@ -292,6 +308,24 @@ Files: src/ui/kit/MacroSummaryLine.tsx, src/ui/components/PantryMealDetail.tsx,
   so the heading's own 8px bottom margin doesn't collapse against the first
   item card's auto margin-top — guarantees 24px-top/8px-bottom around the
   label exactly as rendered. Between-item-card spacing is unchanged.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
+ROUND 153 — MACRO BADGE POLISH, MEAL-CARD OUTLINE, SHADOW REVERT (2026-07-04)
+Files: src/ui/kit/MacroSummaryLine.tsx, src/ui/kit/Sheet.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+- Follow-up to round 152's feedback: macro badges now bg-surface-muted
+  (lighter than bg-surface-sunken) + rounded-[8px] (was 14px); text size
+  already matched his 15pt spec exactly (text-subhead = 0.9375rem = 15px),
+  no change needed. Meal summary card switched from a flat sunken fill to
+  an outlined card (border + bg-surface, no shadow) on both the Day's-log
+  Meal view and Pantry's Meal detail; "Food items" label bumped to
+  text-headline (18px).
+- Sheet.tsx's round-152 scroll-shadow changes were FULLY REVERTED — Marco
+  reported the fix didn't work and introduced a new bug. Confirmed via git
+  diff that the shadow edit was Sheet.tsx's only change since round 151, so
+  restoring that exact prior file was a clean, complete revert. The
+  original shadow issue (see round 152's entry / CHANGELOG) is still open.
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 

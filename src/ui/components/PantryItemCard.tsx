@@ -41,11 +41,13 @@ export function PantryItemCard({
       onClick={onEdit}
       style={{ cursor: 'pointer' }}
     >
-      <div className="mb-2 flex items-center gap-3">
+      {/* Round 155: 4px to the badges below, 16px from the badges to the
+          stepper/buttons row (was 8px / 10px). */}
+      <div className="mb-1 flex items-center gap-3">
         <span className="flex-1 truncate text-callout font-bold text-content">{name}</span>
         <span className="shrink-0 text-callout text-content">{nutrition.calories} kcal</span>
       </div>
-      <MacroSummaryLine nutrition={nutrition} className="mb-2.5" />
+      <MacroSummaryLine nutrition={nutrition} className="mb-4" />
       <div className="flex items-center justify-between">
         {/* Disabled stepper — Pantry defines properties, never consumed quantity. */}
         <div

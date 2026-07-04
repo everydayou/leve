@@ -1012,11 +1012,13 @@ export function BasketCard({
       onClick={onEdit}
       style={{ cursor: 'pointer' }}
     >
-      <div className="flex items-center gap-2 mb-2">
+      {/* Round 155: 4px to the badges below, 16px from the badges to the
+          stepper/buttons row (was 8px / 10px). */}
+      <div className="flex items-center gap-2 mb-1">
         <span className="flex-1 truncate text-callout font-bold text-content">{item.name}</span>
         <span className="shrink-0 text-callout text-content">{nutrition.calories} kcal</span>
       </div>
-      <MacroSummaryLine nutrition={nutrition} className="mb-2.5" />
+      <MacroSummaryLine nutrition={nutrition} className="mb-4" />
       {/* Bottom row: stepper (left) + action buttons (right) */}
       <div className="flex items-center justify-between">
         <BasketStepper item={item} qty={item.qty} onChange={onQtyChange} onRemove={onRemove} />
@@ -2142,13 +2144,19 @@ function LogEntryContent({
                     placeholder={timeMealName()}
                   />
                 </div>
-                <span className="shrink-0 rounded-field bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
+                {/* border-transparent (round 155): matches LabeledInput's own
+                    1px border so this badge is exactly the same height as
+                    the name field beside it. */}
+                <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
                   {totalNutrition.calories} kcal
                 </span>
               </div>
-              <MacroSummaryLine nutrition={totalNutrition} className="mt-2.5" />
+              {/* Round 155: 4px to the name row above (was 10px). */}
+              <MacroSummaryLine nutrition={totalNutrition} className="mt-1" />
             </div>
-            <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
+            {/* Round 155: 16px from the badges above (was space-y-3's 12px;
+                inline overrides it the same way the card's own marginTop does). */}
+            <label style={{ marginTop: '16px' }} className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
               <input
                 type="checkbox"
                 checked={saveToPantry}

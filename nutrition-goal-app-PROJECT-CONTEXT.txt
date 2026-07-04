@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 149 (Pantry's Camera/Photo/Describe/Nutri-scan no longer show a review/confirm screen — they commit immediately, same one-tap shape as Manual/Add-from-pantry; the "Add item to meal" form is Manual-only)
+Last updated: 2026-07-04 — Round 150 ("+ New food"'s Camera/Photo/Describe/Nutri-scan now stay inside one persistent, compact Sheet instead of flashing open a second blank full-screen one; scan-created Food items get a primary "Save food" CTA instead of "Close")
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -271,6 +271,39 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 150 — "+ NEW FOOD": ONE PERSISTENT SHEET INSTEAD OF A SECOND BLANK ONE; "SAVE FOOD" CTA (2026-07-04)
+Files: src/ui/components/PantryNewFoodScan.tsx (rewritten), src/ui/screens/PantryScreen.tsx,
+       src/ui/components/PantryFoodItemDetail.tsx
+- Marco (two screenshots): tapping Camera/Photo/Describe/Nutri-scan from
+  "+ New food" opened a SECOND, blank, full-screen sheet on top of the
+  compact "New food" method picker, instead of the picker staying put with
+  a loader in place. Root cause: PantryScreen tracked `pickingMethod` and
+  `scanMethod` as two separate states, each rendering its OWN Sheet
+  (MethodPickerModal, then the old forceExpanded PantryNewFoodScan) — the
+  hand-off between them read as a flash of an empty full-height sheet, and
+  for Nutri-scan it appeared behind the native iOS photo-picker action
+  sheet too. Fixed by collapsing the whole flow into one `PantryNewFood`
+  component: a SINGLE, compact (non-forceExpanded) Sheet for its entire
+  lifetime, swapping only its inner content (picker -> spinner/Describe ->
+  commit). Manual is unaffected — still hands off to its own separate,
+  forceExpanded form Sheet. Describe's textarea renders as a plain Sheet
+  child rather than via useSheetSetOverlay (every other call site in the
+  app pairs that with forceExpanded; this Sheet must stay compact) —
+  DescribeOverlay's OverlayNav/useOverlaySetFooter calls no-op safely
+  without that context, so the only loss is the "< Describe" sub-header row
+  (the Sheet's own title + X already covered cancel).
+- Also added a `justCreated` prop to PantryFoodItemDetail so the CTA reads
+  primary "Save food" (not outline "Close") when landed on right after a
+  scan commit — those have no prior explicit save tap, unlike Manual.
+  PantryMealDetail needed no change (CTA was already unconditional "Save
+  meal").
+- NOT done: unifying the per-100g/per-serving prompt across all 4 methods
+  (Marco's "Nutri-scan also reads whole food" observation) — not
+  mechanically detectable from the current scan API response without
+  guessing; flagged back to Marco with concrete options instead.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 148 — "CHANGE" CTA ON SCANNED PANTRY ITEMS (2026-07-04) — SUPERSEDED BY ROUND 149
 Files: src/ui/components/FoodCapture.tsx, src/ui/components/PantryMealDetail.tsx,
        src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryNewFoodScan.tsx
@@ -302,39 +335,37 @@ Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/PantryFoodItemD
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 
-ROUND 147 — PANTRY "+ NEW FOOD": CAMERA/PHOTO/DESCRIBE/NUTRI-SCAN (2026-07-04)
-Files: src/ui/components/PantryNewFoodScan.tsx (NEW), src/ui/screens/PantryScreen.tsx
-- Round 145 wired Camera/Photo/Describe/Nutri-scan into the Pantry MEAL
-  builder ("Create a meal" / "Add a new food item") but deliberately left
-  Pantry's own top-level "+ New food" button on "coming soon" — scanning
-  can return multiple items, which doesn't fit "New food"'s single-item
-  model without a decision first. Turned out this was the actual gap Marco
-  was hitting all along (the "still not working" reports were him testing
-  via "+ New food" specifically, not the meal builder, which was working).
-  Resolved by applying the SAME 1-vs-2+ rule already used everywhere else
-  in the app (Day's-log basket's "Log food"/"Log meal", PantryFoodItemDetail's
-  "Create a meal"): exactly 1 detected item -> a new, visible Food item
-  (isArchived: false — "+ New food" always means a real pantry item, unlike
-  the meal builder's hidden-by-default ingredients), landing on Food item
-  detail. 2+ items -> a new Meal (ingredients default isArchived: true per
-  round 130/144, opt out via "Save to pantry" while editing one), landing
-  on Meal detail. New PantryNewFoodScan.tsx reuses useFoodCapture, the
-  review list (BasketCard), DescribeOverlay, EditOverlay and ServingModal
-  exactly as built for round 145 — no new capture logic, just a new
-  commit path or PantryScreen.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
 ================================================================
 TODO / FUTURE WORK
 ================================================================
-- "+NEW FOOD" LOADING + TRANSITION POLISH: Marco wants a deliberate ~2s
-  loading state after "Save food" (matching the mockup's dedicated
-  "Saving food" screen) and for the New-food-form -> Food-item-detail
-  transition to happen "in place" rather than the sheet sliding down then a
-  new one sliding up. Needs the form and detail view to live inside ONE
-  continuous Sheet with phase-based internal content instead of two
-  separate Sheet instances — a real (if contained) refactor, not done yet.
+- "+NEW FOOD" LOADING + TRANSITION POLISH: round 150 fixed this for the
+  Camera/Photo/Describe/Nutri-scan methods — they now live inside ONE
+  persistent Sheet with phase-based content (picker -> spinner/Describe ->
+  commit), no more sheet-swap flash. NOT yet applied to Manual: tapping
+  Manual still hands off to a separate forceExpanded form Sheet, and the
+  New-food-form -> Food-item-detail transition there still slides one sheet
+  down then a new one up rather than happening "in place" — Marco's
+  original ask was for a dedicated ~2s "Saving food" loading screen there
+  too, still outstanding.
+- NUTRI-SCAN vs. CAMERA/PHOTO/DESCRIBE — SHOULD ALL 4 SHARE ONE BEHAVIOUR?
+  Marco: Nutri-scan also successfully reads whole food, not just packaged
+  nutrition labels, so always asking "per 100g or per serving?" there (via
+  handleLabelScan/ServingModal in useFoodCapture.tsx) — while Camera/Photo/
+  Describe never ask it — feels inconsistent; he'd like all 4 to converge
+  on one behaviour, asking the per-100g/serving question only when a
+  nutrition label is actually being scanned. Not implemented: the current
+  scanFood API response can't distinguish "photo of a nutrition facts
+  panel" from "photo of one whole food item" — both come back as a single
+  item with name/estimatedGrams/macros, no signal either way. Two options
+  put to Marco rather than guessing: (a) drop the serving-modal special
+  case entirely so all 4 methods behave identically (same as Photo/Camera
+  today) — simplest, but a real packaged-product scan loses the "track by
+  weight-normalised serving" option it has today; or (b) keep asking the
+  question whenever exactly 1 item comes back, regardless of which button
+  was tapped, and skip it for 2+ items — closer to today's Nutri-scan
+  behaviour but adds an extra tap the first time Camera/Photo/Describe
+  legitimately return a single food item (e.g. "an apple"), which they've
+  never done before in this app or the original Day's-log flow.
 - MEAL NUTRITION SUMMARY: Meal detail (and the Day's-log Meal review, once
   that's wired) currently only shows per-item cards — no dedicated
   total-macro breakdown for the Meal as a whole. Marco flagged this as

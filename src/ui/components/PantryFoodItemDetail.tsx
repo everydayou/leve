@@ -32,7 +32,7 @@ function servingLabelFor(item: FoodItem): string {
 type OverlayKey = 'edit' | 'add-manual' | 'add-pantry' | 'describe';
 
 export function PantryFoodItemDetail({
-  item, items, allItems, meals, onClose, onDeleted, onMealCreated, showToast,
+  item, items, allItems, meals, justCreated, onClose, onDeleted, onMealCreated, showToast,
 }: {
   item: FoodItem;
   /** VISIBLE Food items — for duplicate-name checks and the "Add from
@@ -43,6 +43,11 @@ export function PantryFoodItemDetail({
    *  nutrition/photo even when some of its ingredients are hidden. */
   allItems: FoodItem[];
   meals: Meal[];
+  /** True when this item was just committed by a Camera/Photo/Describe/
+   *  Nutri-scan capture (round 150) — there was no prior explicit "Save
+   *  food" tap (unlike Manual, which already saved before landing here), so
+   *  the primary CTA reads "Save food" instead of "Close" to match. */
+  justCreated?: boolean;
   onClose: () => void;
   onDeleted: () => void;
   onMealCreated: (meal: Meal) => void;
@@ -65,7 +70,7 @@ export function PantryFoodItemDetail({
       }
     >
       <PantryFoodItemDetailContent
-        item={item} items={items} allItems={allItems} meals={meals} onClose={onClose} onDeleted={onDeleted}
+        item={item} items={items} allItems={allItems} meals={meals} justCreated={justCreated} onClose={onClose} onDeleted={onDeleted}
         onMealCreated={onMealCreated} showToast={showToast} deleteRef={deleteRef}
       />
     </Sheet>
@@ -73,12 +78,13 @@ export function PantryFoodItemDetail({
 }
 
 function PantryFoodItemDetailContent({
-  item, items, allItems, meals, onClose, onDeleted, onMealCreated, showToast, deleteRef,
+  item, items, allItems, meals, justCreated, onClose, onDeleted, onMealCreated, showToast, deleteRef,
 }: {
   item: FoodItem;
   items: FoodItem[];
   allItems: FoodItem[];
   meals: Meal[];
+  justCreated?: boolean;
   onClose: () => void;
   onDeleted: () => void;
   onMealCreated: (meal: Meal) => void;
@@ -345,7 +351,11 @@ function PantryFoodItemDetailContent({
           />
         </AddAnotherSection>
 
-        <Button size="lg" variant="outline" onClick={onClose}>Close</Button>
+        {justCreated ? (
+          <Button size="lg" onClick={onClose}>Save food</Button>
+        ) : (
+          <Button size="lg" variant="outline" onClick={onClose}>Close</Button>
+        )}
       </div>
 
       {pendingUpdate && (

@@ -11,9 +11,7 @@ import { FoodItemFormContent } from '../components/FoodItemForm';
 import type { FoodItemFormValues } from '../components/FoodItemForm';
 import { PantryFoodItemDetail } from '../components/PantryFoodItemDetail';
 import { PantryMealDetail } from '../components/PantryMealDetail';
-import { MethodPickerModal } from '../components/MethodCards';
-import { PantryNewFoodScan } from '../components/PantryNewFoodScan';
-import type { NewFoodScanMethod } from '../components/PantryNewFoodScan';
+import { PantryNewFood } from '../components/PantryNewFoodScan';
 
 import { hapticLight } from '../../lib/haptics';
 import type { DayContext } from '../AppShell';
@@ -28,10 +26,12 @@ export function PantryScreen() {
   const { showToast } = useOutletContext<DayContext>();
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<PantryFilter>('all');
-  const [pickingMethod, setPickingMethod] = useState(false);
+  const [newFoodOpen, setNewFoodOpen] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [scanMethod, setScanMethod] = useState<NewFoodScanMethod | null>(null);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
+  // Tracks whether `openItemId` was just created by a scan (vs. opened by
+  // tapping an existing row) — drives PantryFoodItemDetail's CTA copy (round 150).
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [openMealId, setOpenMealId] = useState<string | null>(null);
 
   // rawItems/rawMeals are null while IndexedDB is still loading; [] means truly empty.
@@ -89,7 +89,7 @@ export function PantryScreen() {
     <div className="pb-6">
       <header className="flex items-start justify-between px-6 pt-4">
         <h1 className="text-title font-semibold">Pantry</h1>
-        <Button variant="ghost" size="sm" fullWidth={false} className="!font-normal !text-accent-hover -mr-3.5" onClick={() => setPickingMethod(true)}>+ New food</Button>
+        <Button variant="ghost" size="sm" fullWidth={false} className="!font-normal !text-accent-hover -mr-3.5" onClick={() => setNewFoodOpen(true)}>+ New food</Button>
       </header>
 
       <div className="px-6">
@@ -156,7 +156,7 @@ export function PantryScreen() {
                       icon="foodIcon"
                       title="Your pantry is empty"
                       description="Add foods you eat often so you can log them in one tap."
-                      action={<Button icon="plus" onClick={() => setPickingMethod(true)}>New food</Button>}
+                      action={<Button icon="plus" onClick={() => setNewFoodOpen(true)}>New food</Button>}
                     />
                   ) : (
                     <p className="px-6 py-10 text-center text-subhead text-content-muted">No {filter === 'meals' ? 'meals' : filter === 'items' ? 'foods' : 'results'} match.</p>
@@ -168,24 +168,12 @@ export function PantryScreen() {
         </>
       )}
 
-      {pickingMethod && (
-        <MethodPickerModal
-          title="New food"
-          onManual={() => { setPickingMethod(false); setAdding(true); }}
-          onCamera={() => { setPickingMethod(false); setScanMethod('camera'); }}
-          onPhoto={() => { setPickingMethod(false); setScanMethod('photo'); }}
-          onDescribe={() => { setPickingMethod(false); setScanMethod('describe'); }}
-          onLabel={() => { setPickingMethod(false); setScanMethod('label'); }}
-          onDismiss={() => setPickingMethod(false)}
-        />
-      )}
-
-      {scanMethod && (
-        <PantryNewFoodScan
-          method={scanMethod}
-          onClose={() => setScanMethod(null)}
-          onFoodCreated={(id) => { setScanMethod(null); setOpenItemId(id); }}
-          onMealCreated={(meal) => { setScanMethod(null); setOpenMealId(meal.id); }}
+      {newFoodOpen && (
+        <PantryNewFood
+          onClose={() => setNewFoodOpen(false)}
+          onManual={() => { setNewFoodOpen(false); setAdding(true); }}
+          onFoodCreated={(id) => { setNewFoodOpen(false); setJustCreatedId(id); setOpenItemId(id); }}
+          onMealCreated={(meal) => { setNewFoodOpen(false); setOpenMealId(meal.id); }}
           showToast={showToast}
         />
       )}
@@ -208,9 +196,10 @@ export function PantryScreen() {
           items={items}
           allItems={allItems}
           meals={meals}
-          onClose={() => setOpenItemId(null)}
-          onDeleted={() => setOpenItemId(null)}
-          onMealCreated={(meal) => { setOpenItemId(null); setOpenMealId(meal.id); }}
+          justCreated={openItemId === justCreatedId}
+          onClose={() => { setOpenItemId(null); setJustCreatedId(null); }}
+          onDeleted={() => { setOpenItemId(null); setJustCreatedId(null); }}
+          onMealCreated={(meal) => { setOpenItemId(null); setJustCreatedId(null); setOpenMealId(meal.id); }}
           showToast={showToast}
         />
       )}

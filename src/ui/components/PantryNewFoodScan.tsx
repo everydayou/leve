@@ -1,62 +1,50 @@
-// Pantry → "+ New food" → Camera/Photo/Describe/Nutri-scan.
+// Pantry → "+ New food" → Camera/Photo/Describe/Nutri-scan/Manual.
+//
+// One persistent, compact Sheet (sized to its content, same as
+// MethodPickerModal always was) that swaps what it shows as the flow
+// progresses: method picker → loading spinner (or the Describe textarea) →
+// hands off once a result commits. Earlier versions opened a SEPARATE,
+// forceExpanded Sheet the moment a method was tapped — from the user's
+// point of view that looked like a second, blank, full-screen sheet
+// flashing open behind the method picker (and, for Nutri-scan, behind the
+// native iOS photo-picker action sheet too). Keeping everything inside the
+// one Sheet instance that was already open fixes both.
 //
 // Unlike Manual (which needs a form — there's nothing to fill in for you),
-// these methods already have the macros from AI, so there's no form to
-// show: as soon as a result comes back, it commits immediately and this
-// Sheet hands off to whatever it created — same one-tap-and-done shape as
-// Manual's "Save & add to meal" / "Save food". Correcting a wrong AI read
-// happens afterward, the same way as any other item: tap it to edit.
+// Camera/Photo/Describe/Nutri-scan already have the macros from AI, so
+// there's no form to show: as soon as a result comes back, it commits
+// immediately and this Sheet hands off to whatever it created — same
+// one-tap-and-done shape as Manual's "Save & add to meal" / "Save food".
+// Correcting a wrong AI read happens afterward, the same way as any other
+// item: tap it to edit.
 //
-// Unlike the meal builder (PantryMealDetail/PantryFoodItemDetail), "+ New
-// food" doesn't start from an existing Meal or Food item — it's genuinely
-// ambiguous up front whether a scan will produce one item (a new Food item)
-// or several (which doesn't fit "one new food," so it becomes a Meal
-// instead — same 1-vs-2+ rule the Day's-log basket and PantryFoodItemDetail
-// both already use).
-import { useEffect, useRef, useState } from 'react';
+// It's genuinely ambiguous up front whether a scan will produce one item (a
+// new Food item) or several (which doesn't fit "one new food," so it
+// becomes a Meal instead — same 1-vs-2+ rule the Day's-log basket and
+// PantryFoodItemDetail both already use).
+import { useState } from 'react';
 import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
-import { Sheet, useSheetSetOverlay } from '../kit';
+import { Sheet } from '../kit';
+import { MethodCards } from './MethodCards';
 import { useFoodCapture } from './useFoodCapture';
 import { AnalyzingIndicator, DescribeOverlay, ServingModal } from './FoodCapture';
 import type { BasketItem } from './FoodCapture';
 import type { ShowToast } from './Toaster';
 import type { Meal } from '../../domain/types';
 
-export type NewFoodScanMethod = 'camera' | 'photo' | 'describe' | 'label';
-
-export function PantryNewFoodScan({
-  method, onClose, onFoodCreated, onMealCreated, showToast,
+export function PantryNewFood({
+  onClose, onManual, onFoodCreated, onMealCreated, showToast,
 }: {
-  method: NewFoodScanMethod;
   onClose: () => void;
+  /** Manual still hands off to its own separate (forceExpanded) form Sheet
+   *  — the one case that genuinely needs a full screen to fill in macros. */
+  onManual: () => void;
   onFoodCreated: (id: string) => void;
   onMealCreated: (meal: Meal) => void;
   showToast?: ShowToast;
 }) {
-  return (
-    <Sheet title="New food" onClose={onClose} forceExpanded>
-      <PantryNewFoodScanContent
-        method={method} onClose={onClose}
-        onFoodCreated={onFoodCreated} onMealCreated={onMealCreated} showToast={showToast}
-      />
-    </Sheet>
-  );
-}
-
-function PantryNewFoodScanContent({
-  method, onClose, onFoodCreated, onMealCreated, showToast,
-}: {
-  method: NewFoodScanMethod;
-  onClose: () => void;
-  onFoodCreated: (id: string) => void;
-  onMealCreated: (meal: Meal) => void;
-  showToast?: ShowToast;
-}) {
-  // Initialized directly from `method` (fixed for this component's
-  // lifetime) rather than set inside the mount effect below, since a
-  // direct setState call in an effect body triggers cascading renders.
-  const [describing, setDescribing] = useState(method === 'describe');
+  const [describing, setDescribing] = useState(false);
   const [committing, setCommitting] = useState(false);
 
   const capture = useFoodCapture({
@@ -106,32 +94,12 @@ function PantryNewFoodScanContent({
 
   async function handleDescribeAnalyzeForNewFood(text: string) {
     const newItems = await capture.handleDescribeAnalyze(text);
-    setDescribing(false); // close the Describe overlay before showing the commit spinner
+    setDescribing(false); // close the Describe view before showing the commit spinner
     await commitCaptured(newItems);
   }
 
-  // Fire the tapped method the moment this screen mounts — it's only ever
-  // opened by tapping Camera/Photo/Describe/Nutri-scan directly.
-  const startedRef = useRef(false);
-  useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    if (method === 'camera') void capture.handleCamera();
-    else if (method === 'photo') void capture.handlePhoto();
-    else if (method === 'label') capture.openLabelPicker();
-    // 'describe' needs no action here — `describing` was already
-    // initialized to true above.
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useSheetSetOverlay(
-    describing ? (
-      <DescribeOverlay onBack={onClose} onAnalyze={handleDescribeAnalyzeForNewFood} />
-    ) : null,
-    [describing],
-  );
-
   return (
-    <>
+    <Sheet title="New food" onClose={onClose}>
       {capture.hiddenInputs}
       {capture.servingModal && (
         <ServingModal
@@ -142,9 +110,29 @@ function PantryNewFoodScanContent({
           onDismiss={capture.closeServingModal}
         />
       )}
-      {(capture.analyzing || committing) && (
+      {capture.analyzing || committing ? (
         <AnalyzingIndicator label={committing ? 'Adding to pantry…' : capture.analyzeLabel} />
+      ) : describing ? (
+        // Rendered as plain Sheet content rather than via useSheetSetOverlay
+        // — this Sheet is intentionally compact (not forceExpanded), and
+        // every other useSheetSetOverlay call site in the app pairs it with
+        // forceExpanded. DescribeOverlay's own inner OverlayNav/footer hooks
+        // no-op gracefully without that context, so it just loses its
+        // "< Describe" sub-header; the Sheet's own "New food" title + X
+        // still cover that (X already closed the whole flow here before).
+        <DescribeOverlay onBack={onClose} onAnalyze={handleDescribeAnalyzeForNewFood} />
+      ) : (
+        <>
+          <p className="pt-2 pb-6 text-center text-subhead text-content-secondary">Choose one way to add this food</p>
+          <MethodCards
+            onManual={onManual}
+            onCamera={() => void capture.handleCamera()}
+            onPhoto={() => void capture.handlePhoto()}
+            onDescribe={() => setDescribing(true)}
+            onLabel={() => capture.openLabelPicker()}
+          />
+        </>
       )}
-    </>
+    </Sheet>
   );
 }

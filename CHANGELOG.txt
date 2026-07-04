@@ -1,4 +1,69 @@
 ================================================================
+ROUND 150 — "+ NEW FOOD": ONE PERSISTENT SHEET INSTEAD OF A SECOND BLANK ONE; "SAVE FOOD" CTA (2026-07-04)
+================================================================
+Files: src/ui/components/PantryNewFoodScan.tsx (rewritten), src/ui/screens/PantryScreen.tsx,
+       src/ui/components/PantryFoodItemDetail.tsx
+
+Marco (two screenshots): tapping Camera/Photo/Describe/Nutri-scan from "+ New
+food" opened a SECOND, blank, full-screen sheet on top of the compact "New
+food" method-picker sheet, instead of the picker staying put and just
+showing a loader in place (his reference screenshot) — worst for Nutri-scan,
+where the blank sheet appeared behind/alongside the native iOS photo-picker
+action sheet. Root cause: PantryScreen tracked `pickingMethod` (renders
+MethodPickerModal, its own Sheet) and `scanMethod` (renders the old
+PantryNewFoodScan, ALSO its own forceExpanded Sheet) as two separate pieces
+of state — tapping a method closed one Sheet and opened a different one a
+frame later, which read as a flash of an empty full-height sheet.
+
+Fixed by collapsing the whole "+ New food" flow into ONE component
+(`PantryNewFood`, replacing both `MethodPickerModal` usage and the old
+`PantryNewFoodScan`) that renders a SINGLE, compact (non-forceExpanded)
+Sheet for its entire lifetime, swapping only its inner content: method
+picker -> analyzing spinner / Describe textarea -> commit. PantryScreen now
+tracks one `newFoodOpen` boolean instead of `pickingMethod` + `scanMethod`.
+Manual is unaffected — it still hands off to its own separate, forceExpanded
+form Sheet, the one case that genuinely needs the extra room to fill in
+macros.
+
+One deliberate deviation from the meal-builder surfaces: Describe's textarea
+is rendered as a plain child of this Sheet rather than via
+`useSheetSetOverlay` (the right-slide-in panel mechanism PantryMealDetail/
+PantryFoodItemDetail use for the same DescribeOverlay). Checked every other
+call site in the app (`grep -rln useSheetSetOverlay src/ui`) and every one
+of them pairs it with `forceExpanded` — nothing in the codebase exercises
+that overlay mechanism on a natural-height Sheet, and this Sheet needs to
+stay compact per Marco's ask. DescribeOverlay's own `OverlayNav`/
+`useOverlaySetFooter` calls no-op safely without that context (verified by
+reading their implementations — both read a context that defaults to null
+outside `OverlayLayer`), so the only visible difference is losing the
+"< Describe" sub-header row; the Sheet's own "New food" title + X already
+covered "cancel out of this" before (Describe's back arrow already just
+called `onClose`, closing the whole flow — no regression there).
+
+Also: Marco noted the CTA on landing after a scan should be a primary
+"Save food", not the outline "Close" — because unlike Manual (which already
+had an explicit "Save food" tap before landing on the detail view), the AI
+methods commit straight through with no confirm step (round 149), so the
+detail view IS the implicit confirmation. Added a `justCreated` prop to
+PantryFoodItemDetail, set only when `onFoodCreated` fires from a scan (not
+from Manual's `handleCreateFood`, which already had its own explicit save).
+PantryMealDetail needed no change — its CTA was already an unconditional
+primary "Save meal" regardless of how the meal was reached.
+
+NOT done this round (needs Marco's input before touching it): his "funny
+use case" observation that Nutri-scan also successfully reads whole food
+(not just packaged nutrition labels), which makes always asking "per 100g
+or per serving?" there — while Camera/Photo/Describe never ask it — feel
+inconsistent. His proposed rule ("ask only if it's scanning a nutrition
+sheet") isn't mechanically detectable from the current scanFood API
+response (label vs. whole-food photos both come back as a single item with
+name/estimatedGrams/macros — no signal distinguishing them). Flagged to
+Marco with two concrete options rather than guessing; see TODO section.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 148 — "CHANGE" CTA ON SCANNED PANTRY ITEMS (2026-07-04) — SUPERSEDED BY ROUND 149
 ================================================================
 Files: src/ui/components/FoodCapture.tsx, src/ui/components/PantryMealDetail.tsx,

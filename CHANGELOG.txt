@@ -1,4 +1,32 @@
 ================================================================
+ROUND 143 — "SAVE TO PANTRY" CHECKBOX STUCK ON AFTER DELETING THE MEAL (2026-07-04)
+================================================================
+Files: src/ui/components/AddEntrySheet.tsx
+
+Marco: scan a photo → get a Meal → save to Pantry. Delete that Meal from
+Pantry. Reopen the same entry from Day's log — the "Save to pantry"
+checkbox still shows checked, even though the Meal no longer exists.
+Ticking it again does nothing (it's already "checked"), so there's no way
+to re-add it to Pantry short of rebuilding the whole meal from scratch.
+
+Root cause: `useState(!!entry.mealId)` initialized the checkbox purely
+from whether the ENTRY has a mealId field at all — it never checked
+whether a Meal with that id still actually exists. Deleting a Meal from
+Pantry doesn't (and shouldn't) go back and clear mealId off every entry
+that ever logged it, so the checkbox was reading a stale reference as
+"still linked" forever after.
+
+Fixed: `saveToPantry` is now an override layered on top of a live-derived
+default (`mealStillExists = meals.some(m => m.id === entry.mealId)`), not
+raw state seeded once at mount — same "derived value, not setState-in-
+effect" approach as round 135's unlink checkbox. A deleted Meal now shows
+the checkbox correctly OFF; ticking it back on and saving recreates the
+Meal (repos.meals.put reuses the same, now-free, id — a normal upsert).
+
+tsc: clean. lint: clean. vitest: 48 passed (unchanged — UI-state fix, no
+new domain logic). `npm run build` verified clean.
+
+================================================================
 ROUND 142 — REVERT ROUND 141's IMAGEHERO EXPERIMENT (2026-07-04)
 ================================================================
 Files: src/ui/kit/ImageHero.tsx

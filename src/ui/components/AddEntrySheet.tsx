@@ -1649,8 +1649,20 @@ function LogEntryContent({
 
   // ── Meal name — editable when basket has 2+ items ──────────────────────
   const [localMealName, setLocalMealName] = useState(entry.mealData?.name ?? '');
-  // Pre-checked when this entry is already linked to a real Pantry Meal.
-  const [saveToPantry, setSaveToPantry] = useState(!!entry.mealId);
+  // "Save to pantry" (round 143 fix): pre-checked when this entry is linked
+  // to a Pantry Meal that STILL EXISTS — not just when entry.mealId is set.
+  // Deleting a Meal from Pantry doesn't clear mealId off entries that
+  // logged it; the old `useState(!!entry.mealId)` treated the entry as
+  // "already saved" forever after, showing a checked box that couldn't be
+  // told apart from a real link, so re-checking an already-"checked" box
+  // did nothing and the Meal could never be re-added to Pantry. Modeled as
+  // an override on top of a live-derived default (not raw state) so it
+  // self-corrects if `meals` hasn't finished loading yet on first render,
+  // without any setState-in-effect.
+  const mealStillExists = !!entry.mealId && meals.some((m) => m.id === entry.mealId);
+  const [saveToPantryOverride, setSaveToPantryOverride] = useState<boolean | null>(null);
+  const saveToPantry = saveToPantryOverride ?? mealStillExists;
+  function setSaveToPantry(v: boolean) { setSaveToPantryOverride(v); }
 
   const _freqIds = useLive(() => repos.foodEntries.frequentItemIds(4, 3), []) ?? [];
   const frequentItems = _freqIds
@@ -1678,7 +1690,7 @@ function LogEntryContent({
   const hasChanges = stripIds(basket) !== stripIds(initialBasketRef.current)
     || localPhotos.join() !== initialPhotos.join()
     || localMealName !== (entry.mealData?.name ?? '')
-    || saveToPantry !== !!entry.mealId;
+    || saveToPantry !== mealStillExists;
 
   // ── Overlay back ────────────────────────────────────────────────────────
   function overlayBack() {

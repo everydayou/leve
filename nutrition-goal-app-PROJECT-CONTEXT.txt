@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 142 (reverted round 141's photo experiment — no fix + a real regression; photo brightness cause is still unknown, see Known Gaps)
+Last updated: 2026-07-04 — Round 143 (fixed "Save to pantry" checkbox staying stuck checked after the linked Meal was deleted from Pantry — photo brightness closed, was an old entry per Marco)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -174,33 +174,12 @@ HIGH:
   Day's-log basket's BasketItem[]/sources data model.
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
-- PHOTO BRIGHTNESS (open, rounds 137/141/142 — 2 attempts failed): Marco
-  reports food photos render "too bright" in ImageHero (Pantry Food item
-  detail AND the Day's-log basket preview, which share this component),
-  but NORMAL in FoodItemForm's edit-photo view for the exact same photo.
-  Native long-press preview also shows it correctly exposed. Timeline:
-  round 137 (canvas colorSpace on capture) — retested, no effect. Round 141
-  (moved ImageHero's rounded corners from a wrapping overflow-hidden div
-  onto the <img>, testing a GPU-compositing-layer theory) — retested, no
-  effect on brightness, AND caused a real regression (square white
-  corners, reverted in round 142). The round-141 revert also DISPROVES the
-  compositing theory: FoodItemForm's edit view has ALWAYS used
-  overflow-hidden + rounded corners and renders correctly, so that
-  structural detail isn't the differentiator. A full CSS/JSX audit (round
-  141) found zero filters/overlays/blend-modes anywhere in the codebase.
-  Marco's own new observation: the effect is "reactive to screen
-  brightness" and doesn't happen on all photos — this points AWAY from an
-  app-code bug and toward either (a) a perceptual/simultaneous-contrast
-  effect (ImageHero sits on a lot of plain white Sheet background; the
-  edit view has dark overlay buttons directly on the photo, which may
-  anchor perception differently) or (b) an iOS display-hardware behavior
-  (content-adaptive backlight/True Tone reacting to how much plain white
-  surrounds the photo) that isn't fixable from web app code at all. NOT
-  YET ASKED: whether the effect persists with Settings > Accessibility >
-  Display & Text Size > Auto-Brightness turned off — would help confirm/
-  rule out the hardware theory. Do not attempt another blind CSS fix here
-  without new evidence — two attempts have already failed, one caused a
-  regression.
+- PHOTO BRIGHTNESS — CLOSED (round 143): Marco confirmed the reports were
+  all against an old entry; newly-scanned photos have shown no problem.
+  No code changes were kept for this (round 141's experiment was reverted
+  in round 142 after causing a regression with no actual fix). If it
+  resurfaces, start fresh — rounds 137/141's canvas-colorSpace and GPU-
+  compositing-layer theories were both tested and disproven.
 
 MED:
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
@@ -307,6 +286,20 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 143 — "SAVE TO PANTRY" CHECKBOX STUCK ON AFTER DELETING THE MEAL (2026-07-04)
+Files: src/ui/components/AddEntrySheet.tsx
+- Scan a photo -> get a Meal -> save to Pantry -> delete that Meal from
+  Pantry -> reopen the Day's-log entry: "Save to pantry" checkbox stayed
+  checked (entry.mealId is stale but never cleared), so it couldn't be
+  re-added — ticking an already-"checked" box does nothing. Fixed:
+  `saveToPantry` is now an override on top of a live-derived
+  `mealStillExists` check (meals.some(m => m.id === entry.mealId)) instead
+  of raw state seeded once from `!!entry.mealId` at mount — same pattern
+  as round 135's unlink checkbox (derived value, no setState-in-effect).
+  Ticking it back on and saving recreates the Meal at the same id.
+- tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
+  verified clean.
+
 ROUND 142 — REVERT ROUND 141's IMAGEHERO EXPERIMENT (2026-07-04)
 Files: src/ui/kit/ImageHero.tsx
 - Round 141's photo-brightness experiment (rounding moved onto the <img>,
@@ -340,17 +333,6 @@ Files: src/domain/{calc,calc.test}.ts, src/ui/screens/PantryScreen.tsx,
   the <img> itself in ImageHero.tsx, removing the wrapper's overflow-hidden
   — visually identical, needs Marco to test.
 - tsc: clean. lint: clean. vitest: 48 passed (1 updated). `npm run build`
-  verified clean.
-
-ROUND 140 — STEPPER INPUT: FIXED WIDTH + KILL THE FOCUS OUTLINE (2026-07-03)
-Files: src/ui/components/AddEntrySheet.tsx
-- Round 139's tap-to-type input was rendering wider than the pill (min-w
-  doesn't shrink-wrap an <input> the way it does a <span>) and showing a
-  green focus outline (the global `:focus-visible` CSS rule in index.css
-  was winning over the outline-none Tailwind classes at equal specificity,
-  later in source order). Fixed: fixed `w-[54px] shrink-0` width, and an
-  inline `style={{ outline: 'none' }}` (always wins, unlike a class).
-- tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
   verified clean.
 
 ================================================================

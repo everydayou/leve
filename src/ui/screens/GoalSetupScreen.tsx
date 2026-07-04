@@ -4,7 +4,7 @@ import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
 import { newId, todayISO } from '../../data/ids';
 import {
-  goalIntensity, currentWeightKg,
+  goalIntensity, currentWeightKg, activityCarbTargetG,
   LOSE_PACES, GAIN_PACES,
   dateFromLosePace, dateFromGainPace,
   type LosePaceId, type GainPaceId,
@@ -839,19 +839,28 @@ export function GoalSetupForm({
                           onEditToggle={() => setEditingRow(editingRow === 'protein' ? null : 'protein')}
                           onReset={() => { setProteinGState(null); setEditingRow(null); }}
                           onChange={setProteinGState} note={proteinNote(proteinG, sNum)} />
-                        {macroStyle === 'balanced' && (
-                          <>
-                            <MacroRow compact label="Carb target (g)" displayValue="Adjusts with activity" />
-                            <MacroRow compact label="Fat target (g)" displayValue={`${fatG} per day`}
-                              editable isEditing={editingRow === 'fat'} value={fatG}
-                              min={10} max={r5(totalCal * 0.55 / 9)}
-                              onEditToggle={() => setEditingRow(editingRow === 'fat' ? null : 'fat')}
-                              onReset={() => { setFatGState(null); setEditingRow(null); }}
-                              onChange={setFatGState} note={macroNote('balanced', 'fat', fatG, totalCal)} />
-                          </>
-                        )}
+                        {macroStyle === 'balanced' && (() => {
+                          // Round 169: body-weight baseline (see
+                          // activityCarbTargetG) — no activity logged yet in
+                          // this preview, so it shows the resting baseline only.
+                          const carbG = activityCarbTargetG('balanced', sNum, 0);
+                          return (
+                            <>
+                              <MacroRow compact label="Carb target (g)" displayValue={`Base ${carbG} g · adjusts with activity`} />
+                              <MacroRow compact label="Fat target (g)" displayValue={`${fatG} per day`}
+                                editable isEditing={editingRow === 'fat'} value={fatG}
+                                min={10} max={r5(totalCal * 0.55 / 9)}
+                                onEditToggle={() => setEditingRow(editingRow === 'fat' ? null : 'fat')}
+                                onReset={() => { setFatGState(null); setEditingRow(null); }}
+                                onChange={setFatGState} note={macroNote('balanced', 'fat', fatG, totalCal)} />
+                            </>
+                          );
+                        })()}
                         {macroStyle === 'performance' && (() => {
-                          const carbG = Math.max(0, Math.round((totalCal - proteinG * 4 - fatG * 9) / 4));
+                          // Round 169: same body-weight-baseline model, just a
+                          // higher baseline/activity share ("more carbs around
+                          // activity" — see CARB_MODEL in domain/goal.ts).
+                          const carbG = activityCarbTargetG('performance', sNum, 0);
                           return (
                             <>
                               <MacroRow compact label="Carb target (g)" displayValue={`Base ${carbG} g · adjusts with activity`} />

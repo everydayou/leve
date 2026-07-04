@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 168 (found and fixed the actual root cause of the grey-panel-fill bug — round 167's hook was re-measuring before Sheet's 420ms open transition finished; swapped in a new lighter placeholder image; image corner radius 20px -> 32px everywhere; AddAnotherSection 16px collapsed / 24px expanded; Day's-log bottom padding 12px -> 8px)
+Last updated: 2026-07-04 — Round 169 (replaced the residual "whatever's left after protein/fat" carb-target formula for Balanced/Performance macro styles with a continuous body-weight-baseline + activity-scaled model — activityCarbTargetG in domain/goal.ts — fixing Marco's report of a 340g carb target on a near-zero-activity day)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -288,6 +288,28 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 169 — ACTIVITY-SCALED CARB TARGET MODEL (2026-07-04)
+Files: src/domain/goal.ts, src/ui/screens/TodayScreen.tsx,
+       src/ui/screens/GoalSetupScreen.tsx
+- Balanced/Performance carb target was a pure residual — (totalBurn −
+  protein_kcal − fat_kcal) ÷ 4 — so nearly the whole BMR-driven calorie
+  envelope landed in carbs regardless of activity (Marco: 340g on a
+  420-active-kcal day). Replaced with `activityCarbTargetG` in
+  domain/goal.ts: a sedentary body-weight baseline (2.2g/kg Balanced,
+  2.4g/kg Performance) plus a share of today's active calories converted
+  to grams (55%/75% of active kcal ÷ 4) — continuous, not a fixed bucket
+  table, so it scales with the person rather than needing new buckets
+  when weight/goals change. Lower-carb untouched (its own explicit,
+  user-editable carbLimitG already existed).
+- Wired into TodayScreen's live effectiveCarbLimit (real activeKcal +
+  current weight) and GoalSetupScreen's setup preview (activeKcal=0
+  baseline) — Balanced now shows a base number too, previously it showed
+  no number at all.
+- Sanity check at 70kg: 0 active kcal -> 154g/168g (Balanced/Performance);
+  420 active kcal -> 212g/247g; 1000 active kcal -> 292g/356g.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 168 — GREY-FILL ROOT-CAUSE FIX, NEW PLACEHOLDER, 32PX RADIUS, SPACING (2026-07-04)
 Files: src/lib/useFillToBottom.ts, src/assets/food-placeholder.png (replaced),
        src/ui/kit/ImageHero.tsx, src/ui/components/FoodItemForm.tsx,
@@ -334,30 +356,6 @@ Files: src/lib/useFillToBottom.ts (new), src/ui/components/PantryMealDetail.tsx,
   that component trips the analyzer's conservative ref-taint tracking).
   vitest: 48 passed, 8 skipped (unchanged). `npm run build` verified
   clean.
-
-ROUND 166 — ADD-ANOTHER BORDER, FULL-HEIGHT GREY PANEL, PHOTO SHADOW RESTORED (2026-07-04)
-Files: src/ui/components/MethodCards.tsx, src/ui/kit/ImageHero.tsx,
-       src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
-       (LogEntryContent, FoodForm)
-- AddAnotherSection gained an optional `bordered` prop (border-field
-  outline) — on unconditionally for PantryMealDetail (always a Meal),
-  `bordered={basket.length >= 2}` for FoodForm's/LogEntryContent's shared
-  instance (serves both single-item and Meal cases). Every other call
-  site is unaffected (defaults to false).
-- Grey Food-items panel now flex-fills the Sheet's remaining scroll
-  height instead of ending after its own content and revealing white
-  underneath on short Meals — each component's outer wrapper is
-  `flex flex-col` + `min-height: 100%` (resolves against Sheet's own
-  `flex-1` scroll area), and the grey panel itself is `flex: 1`.
-- ImageHero real photos (single hero + the 2-4 photo collage) have their
-  shadow-card-lg restored — round 163 had dropped it, reasoning a second
-  shadow inside the meal-card's own shadow would double up; the no-photo
-  placeholder stays shadowless.
-- Marco's real placeholder image (food-placeholder.png, uploaded via
-  GitHub's web UI) is now wired into ImageHero, replacing the generic
-  food-icon stand-in from round 163.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
 
 ROUND 156 — MEAL-SUMMARY-CARD SPACING TWEAK: NAME ROW -> BADGES TO 8PX (2026-07-04)
 Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx

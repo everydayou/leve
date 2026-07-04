@@ -103,6 +103,39 @@ export function currentWeightKg(weights: WeightEntry[]): number | null {
   return sorted[0].weightKg;
 }
 
+// ── Activity-scaled carb target (round 169) ───────────────────────────────────
+// Replaces the old "whatever calories are left after protein/fat" residual
+// model for Balanced/Performance macro styles — that model dumped nearly the
+// entire calorie envelope into carbs even on zero-activity days, since
+// protein/fat targets barely move but the residual is driven by TOTAL burn
+// (BMR + activity). Marco's example: 340g carbs on a 420-active-kcal day.
+// Carbs now scale with body size (a g/kg sedentary baseline) plus a share of
+// today's actual active calories, so a rest day gets a sane baseline and an
+// active day gets meaningfully more — continuous, not a fixed lookup table,
+// so it stays correct as weight/goals change rather than needing new buckets.
+const CARB_MODEL: Record<'balanced' | 'performance', { baselinePerKg: number; activityShare: number }> = {
+  balanced:    { baselinePerKg: 2.2, activityShare: 0.55 }, // everyday default
+  performance: { baselinePerKg: 2.4, activityShare: 0.75 }, // "more carbs around activity"
+};
+
+/** Carb target (g) for the Balanced/Performance macro styles: a body-weight
+ *  baseline (g/kg, sedentary) plus a share of today's active calories
+ *  converted to grams (÷4 kcal/g). `weightKg` falls back to 70 if unknown
+ *  (e.g. the goal-setup preview before a weight is on file) so the number
+ *  stays sane rather than collapsing to 0. Lower-carb keeps its own
+ *  explicit, user-editable carbLimitG — this only applies to the other two. */
+export function activityCarbTargetG(
+  style: 'balanced' | 'performance',
+  weightKg: number | null,
+  activeKcal: number,
+): number {
+  const { baselinePerKg, activityShare } = CARB_MODEL[style];
+  const kg = weightKg && weightKg > 0 ? weightKg : 70;
+  const baseline = baselinePerKg * kg;
+  const fromActivity = (Math.max(0, activeKcal) * activityShare) / 4;
+  return Math.max(0, Math.round(baseline + fromActivity));
+}
+
 const round = (n: number): number => Math.round(n * 100) / 100;
 
 // ── Simple-mode pace definitions ──────────────────────────────────────────────

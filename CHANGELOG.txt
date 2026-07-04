@@ -1,4 +1,38 @@
 ================================================================
+ROUND 169 — ACTIVITY-SCALED CARB TARGET MODEL (2026-07-04)
+================================================================
+Files: src/domain/goal.ts, src/ui/screens/TodayScreen.tsx,
+       src/ui/screens/GoalSetupScreen.tsx
+
+Marco flagged the Balanced/Performance carb target as way too high on a
+rest day (340g carbs on a 420-active-kcal day) and shared a model from
+another AI conversation: bucket carbs by active-calorie ranges. Dug into
+the code first — the actual bug was that carbs were computed as a pure
+residual, (totalBurn − protein_kcal − fat_kcal) ÷ 4, so almost the whole
+BMR-driven calorie envelope landed in carbs regardless of activity.
+
+Rather than a fixed lookup table (brittle — doesn't scale with the
+person's actual weight/TDEE, needs new buckets if targets change),
+implemented a continuous version: `activityCarbTargetG` in domain/goal.ts
+computes a sedentary body-weight baseline (2.2g/kg Balanced, 2.4g/kg
+Performance) plus a share of today's active calories converted to carb
+grams (55%/75% of active kcal ÷ 4). Lower-carb is untouched — it already
+has its own explicit, user-editable carbLimitG.
+
+Wired into TodayScreen's live effectiveCarbLimit calc (uses today's real
+activeKcal + current weight) and GoalSetupScreen's setup-time preview
+(shows the resting baseline, activeKcal=0, same "Base X g · adjusts with
+activity" copy now for BOTH Balanced and Performance — previously
+Balanced showed no number at all since it had no real formula to show).
+
+Sanity check at 70kg: 0 active kcal -> 154g (Balanced) / 168g
+(Performance); 420 active kcal -> 212g / 247g; 1000 active kcal -> 292g
+/ 356g — night-and-day difference from the old 340g-on-a-rest-day result.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 168 — GREY-FILL ROOT-CAUSE FIX, NEW PLACEHOLDER, 32PX RADIUS, SPACING (2026-07-04)
 ================================================================
 Files: src/lib/useFillToBottom.ts, src/assets/food-placeholder.png (replaced),

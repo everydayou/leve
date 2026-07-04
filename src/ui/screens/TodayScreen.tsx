@@ -8,7 +8,7 @@ import { useDay } from '../../state/useDay';
 import { todayISO, addDays } from '../../data/ids';
 import { getMondayOfWeek, fmtDiaryDate } from '../../lib/date';
 import { effectiveNutrition, calcDigestionCalories } from '../../domain/calc';
-import { requiredDailyDeficit, isGainGoal } from '../../domain/goal';
+import { requiredDailyDeficit, isGainGoal, activityCarbTargetG, currentWeightKg } from '../../domain/goal';
 import { mifflinStJeorBMR } from '../../domain/bmr';
 import { kgToLbs } from '../../domain/units';
 import { prefersReducedMotion } from '../../lib/motion';
@@ -789,11 +789,16 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
   const gaugeValue = Math.max(-1, Math.min(1, left / gaugeRange));
   const isPastDay  = date < todayISO();
 
-  // Effective carb target, computed the same way GoalSetupScreen shows it:
+  // Effective carb target:
   //   lower_carb  → explicit carbLimitG (falls back to ~25% of target kcal)
-  //   balanced / performance → residual: (targetKcal − protein_kcal − fat_kcal) ÷ 4
-  //     ("Adjusts with activity" in setup — so we recompute daily from live totalBurn)
+  //   balanced / performance → round 169: body-weight baseline + a share of
+  //     today's active calories (activityCarbTargetG), replacing the old
+  //     "whatever's left after protein/fat" residual model — that dumped
+  //     nearly the whole calorie envelope into carbs even on rest days,
+  //     since it was driven by TOTAL burn (BMR + activity) rather than
+  //     activity itself. See domain/goal.ts for the model + reasoning.
   const targetKcal = totalBurn > 0 ? totalBurn - dailyTarget : 0; // lose: +deficit, gain: +surplus
+  const weightKgForCarbs = currentWeightKg(weights);
   const effectiveCarbLimit: number = (() => {
     if (!macroStyle || targetKcal <= 0) return 0;
     if (macroStyle === 'lower_carb') {
@@ -801,8 +806,10 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
         ? carbLimitG
         : Math.max(20, Math.round(targetKcal * 0.25 / 4 / 5) * 5);
     }
-    // balanced / performance: residual kcal → grams
-    return Math.max(0, Math.round((targetKcal - proteinGoalG * 4 - (fatTargetG ?? 0) * 9) / 4));
+    // balanced / performance: body-weight baseline + activity-scaled addition.
+    // macroStyle is typed as a plain string here (DayPanelProps), but
+    // 'lower_carb' and falsy are already excluded above.
+    return activityCarbTargetG(macroStyle as 'balanced' | 'performance', weightKgForCarbs, actCals);
   })();
 
   // ── Macro section visibility ────────────────────────────────────────────────

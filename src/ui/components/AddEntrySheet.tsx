@@ -715,7 +715,15 @@ function FoodForm({
       // real Food item created for them when the whole Meal is being saved
       // (spec §4: unsaved items inside a saved Meal get saved internally too —
       // we don't want to silently pollute the Pantry with items the user
-      // never asked to save).
+      // never asked to save). Round 144: that "don't pollute Pantry" intent
+      // was never actually enforced here — isArchived was hardcoded false,
+      // so a scanned/built meal's ingredients showed up in Pantry's own
+      // Food-items list as if individually saved on purpose. isArchived:
+      // true hides them there (same convention as the Pantry-side meal
+      // builder, round 130) while still letting the Meal live-recompute
+      // from them (itemsById already includes hidden items). The user can
+      // still opt an ingredient in individually later via its own edit
+      // form's "Save to pantry" checkbox (round 130).
       const resolvedFoodItemIds: (string | undefined)[] = [];
       for (const item of basket) {
         if (item.pantryItemId) {
@@ -726,7 +734,7 @@ function FoodForm({
             id: newFoodItemId, name: item.name,
             measurementType: item.measurementType, referenceAmount: item.referenceAmount,
             calories: item.calories, protein: item.protein, carbs: item.carbs,
-            fiber: item.fiber, fat: item.fat, isArchived: false,
+            fiber: item.fiber, fat: item.fat, isArchived: true,
           });
           resolvedFoodItemIds.push(newFoodItemId);
         } else {
@@ -2003,7 +2011,10 @@ function LogEntryContent({
       // possible — same rule as fresh logging (logBasket): already-linked
       // items keep their link regardless of the checkbox below; brand-new
       // items only get a real Food item created when the whole Meal is
-      // being saved to Pantry.
+      // being saved to Pantry. isArchived: true (round 144) — hidden from
+      // Pantry's own Food-items list, same as logBasket's fresh-save path;
+      // these ingredients live inside the Meal, not as items the user
+      // separately chose to save.
       const resolvedFoodItemIds: (string | undefined)[] = [];
       for (const b of basket) {
         if (b.pantryItemId) {
@@ -2014,7 +2025,7 @@ function LogEntryContent({
             id: newFoodItemId, name: b.name,
             measurementType: b.measurementType, referenceAmount: b.referenceAmount,
             calories: b.calories, protein: b.protein, carbs: b.carbs,
-            fiber: b.fiber, fat: b.fat, isArchived: false,
+            fiber: b.fiber, fat: b.fat, isArchived: true,
           });
           resolvedFoodItemIds.push(newFoodItemId);
         } else {

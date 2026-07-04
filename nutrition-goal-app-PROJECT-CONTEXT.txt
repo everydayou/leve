@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 143 (fixed "Save to pantry" checkbox staying stuck checked after the linked Meal was deleted from Pantry — photo brightness closed, was an old entry per Marco)
+Last updated: 2026-07-04 — Round 144 (fixed scanned/built meal ingredients showing up as their own items in Pantry when the meal is saved — should stay hidden, living only in the meal)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -280,6 +280,26 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 144 — SCANNED MEAL INGREDIENTS SAVING TO PANTRY AS THEIR OWN ITEMS (2026-07-04)
+Files: src/ui/components/AddEntrySheet.tsx
+- Marco: scanning a photo into a meal, then saving that meal to Pantry,
+  was also saving every individual ingredient as its own visible Pantry
+  Food item — he wants them to live only inside the meal (this was the
+  explicit round-130 decision, but round 130's fix only ever landed on the
+  Pantry-side meal builder, not the Day's-log side). Root cause: logBasket
+  and LogEntryContent.save() both have a "resolve each basket item to a
+  real Pantry Food item" loop that creates a Food item for every still-
+  unlinked item whenever the meal-level "Save to pantry" is checked —
+  exactly the scanned-item case, since scan results are never individually
+  opted in — and both hardcoded `isArchived: false` despite a comment
+  saying the opposite was intended. Fixed: both now create these items
+  with `isArchived: true` (hidden from Pantry's Food-items list, same as
+  the Pantry-side builder), while staying fully live-linked to the Meal.
+  Explicit single-item saves (editing one basket item, or the per-item
+  checkbox in the Manual-add-to-meal form) are unaffected.
+- tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
+  verified clean.
+
 ROUND 143 — "SAVE TO PANTRY" CHECKBOX STUCK ON AFTER DELETING THE MEAL (2026-07-04)
 Files: src/ui/components/AddEntrySheet.tsx
 - Scan a photo -> get a Meal -> save to Pantry -> delete that Meal from
@@ -307,26 +327,6 @@ Files: src/ui/kit/ImageHero.tsx
   photo correctly, so that structural detail was never the differentiator.
   See Known Gaps for the current (still open) theory.
 - tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
-  verified clean.
-
-ROUND 141 — KCAL DECIMALS FIXED, PHOTO BRIGHTNESS EXPERIMENT (2026-07-04)
-Files: src/domain/{calc,calc.test}.ts, src/ui/screens/PantryScreen.tsx,
-       src/ui/components/AddEntrySheet.tsx, src/ui/kit/ImageHero.tsx
-- Kcal/protein decimals: calc.ts's shared `round()` (1-decimal, correct for
-  macros) was also being used for CALORIES in nutritionFor/sumSnapshots/
-  round-138's mealItemNutrition — added `roundKcal()` (plain Math.round)
-  for calories specifically. Also fixed Pantry list row + Recent/search
-  picker row protein to whole numbers (list contexts; detail view's
-  1-decimal MacroSummaryLine is untouched/correct).
-- Photo brightness: Marco confirmed round 137's fix didn't resolve it, and
-  gave a key diagnostic — iOS's native long-press preview shows the photo
-  correctly exposed, only the app's normal render looks washed out. Found
-  NO CSS filter/overlay anywhere in the codebase. Leading theory: a WebKit
-  GPU-compositing-layer quirk from `overflow-hidden`+`rounded`+`shadow` on
-  the image wrapper. EXPERIMENT (not confirmed): moved the rounding onto
-  the <img> itself in ImageHero.tsx, removing the wrapper's overflow-hidden
-  — visually identical, needs Marco to test.
-- tsc: clean. lint: clean. vitest: 48 passed (1 updated). `npm run build`
   verified clean.
 
 ================================================================

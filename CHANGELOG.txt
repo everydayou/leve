@@ -1,4 +1,40 @@
 ================================================================
+ROUND 144 — SCANNED MEAL INGREDIENTS SAVING TO PANTRY AS THEIR OWN ITEMS (2026-07-04)
+================================================================
+Files: src/ui/components/AddEntrySheet.tsx
+
+Marco: "if I scan a photo and it's a meal, saving it to Pantry also saves
+all the individual food items as their own items — I want those to live
+only inside the meal." Confirmed: this was the exact opposite of what was
+already decided and built in round 130 ("Pantry meal-builder: new items
+default hidden from Pantry") — that fix only ever landed on the PANTRY
+side's own meal builder (PantryFoodItemDetail/PantryMealDetail). The
+Day's-log side (logBasket's fresh multi-item save, and
+LogEntryContent.save()'s equivalent for editing an existing meal entry)
+never got it: both had a "resolve each basket item to a real Pantry Food
+item" loop that creates a Food item for every still-unlinked basket item
+whenever the MEAL-level "Save to pantry" checkbox is on — exactly the
+photo-scan case, since scanned items are never individually opted in via
+a per-item checkbox — and both hardcoded `isArchived: false` on the new
+Food item, despite a comment right above it saying "we don't want to
+silently pollute the Pantry with items the user never asked to save."
+
+Fixed: both call sites now create these fallback/bulk items with
+`isArchived: true`, same convention as the Pantry-side builder. They stay
+fully live-linked to the Meal (mealNutritionFor/effectiveNutrition already
+resolve hidden items via itemsById, per round 130's fix #51) but no longer
+show up in Pantry's own Food-items list. The user can still individually
+"Save to pantry" any one ingredient later from inside the meal, same as
+before (round 130's per-item checkbox in the ingredient's own edit form).
+Explicit per-item saves (editing a single basket item, or the Manual-add-
+to-meal form's own "Save to pantry" checkbox) are unaffected — those
+represent a genuine individual choice and correctly stay visible.
+
+tsc: clean. lint: clean. vitest: 48 passed (unchanged — UI/DB-write logic,
+not unit-tested per established precedent). `npm run build` verified
+clean.
+
+================================================================
 ROUND 143 — "SAVE TO PANTRY" CHECKBOX STUCK ON AFTER DELETING THE MEAL (2026-07-04)
 ================================================================
 Files: src/ui/components/AddEntrySheet.tsx

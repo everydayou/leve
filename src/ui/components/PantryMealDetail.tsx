@@ -34,10 +34,10 @@ function servingLabelFor(item: FoodItem, quantity: number): string {
   return item.measurementType === 'per_100g' ? `${quantity}g` : `${quantity} Srv`;
 }
 
-type OverlayKey = 'edit' | 'add-manual' | 'add-pantry' | 'describe';
+type OverlayKey = 'edit' | 'add-manual' | 'add-pantry' | 'describe' | 'describe-correct';
 
 export function PantryMealDetail({
-  mealId, meals, items, allItems, onClose, showToast,
+  mealId, meals, items, allItems, justCreatedItemIds, onClose, showToast,
 }: {
   mealId: string;
   /** Live meals list from the parent — keeps this sheet in sync with edits. */
@@ -50,6 +50,12 @@ export function PantryMealDetail({
    *  ingredients regardless of visibility — otherwise a meal-only item would
    *  silently drop out of its own Meal's nutrition/photo. */
   allItems: FoodItem[];
+  /** FoodItem ids that were just scan-created together with this Meal
+   *  (round 150) — e.g. from "+ New food" producing 2+ items. Seeds which
+   *  ingredient cards show the "Change" button on open; cleared by the
+   *  parent once this Sheet closes, same transient window as `justCreated`
+   *  on PantryFoodItemDetail. */
+  justCreatedItemIds?: string[];
   onClose: () => void;
   showToast?: ShowToast;
 }) {
@@ -75,14 +81,14 @@ export function PantryMealDetail({
     >
       <PantryMealDetailContent
         meal={meal} items={items} allItems={allItems} meals={meals} photos={mealPhotosFor(meal, itemsById)}
-        onClose={onClose} showToast={showToast} deleteRef={deleteRef}
+        justCreatedItemIds={justCreatedItemIds} onClose={onClose} showToast={showToast} deleteRef={deleteRef}
       />
     </Sheet>
   );
 }
 
 function PantryMealDetailContent({
-  meal, items, allItems, meals, photos, onClose, showToast, deleteRef,
+  meal, items, allItems, meals, photos, justCreatedItemIds, onClose, showToast, deleteRef,
 }: {
   meal: Meal;
   items: FoodItem[];
@@ -90,6 +96,7 @@ function PantryMealDetailContent({
   meals: Meal[];
   /** Live hero photos (own photo + every ingredient's) — computed by the parent. */
   photos: string[];
+  justCreatedItemIds?: string[];
   onClose: () => void;
   showToast?: ShowToast;
   deleteRef: React.MutableRefObject<() => void>;
@@ -111,6 +118,16 @@ function PantryMealDetailContent({
   //    wrong AI read happens afterward, the same way as any other item:
   //    tap it to edit. ─────────────────────────────────────────────────────
   const [committingScan, setCommittingScan] = useState(false);
+  // "Change" (round 150) — which ingredient FoodItem ids can still be
+  // re-described in place, same transient this-session-only window the
+  // Day's-log basket's Change button has always had. Seeded from
+  // `justCreatedItemIds` (the whole meal just arrived from a "+ New food"
+  // scan) and grown as more items get scanned in via "Add another item"
+  // while this Sheet stays open; a fresh open (new component instance)
+  // resets it, same as every other "just did this" flag in the app.
+  const [scannedItemIds, setScannedItemIds] = useState<Set<string>>(() => new Set(justCreatedItemIds));
+  const [correctingItemId, setCorrectingItemId] = useState<string | null>(null);
+  const [correcting, setCorrecting] = useState(false);
 
   const capture = useFoodCapture({
     showToast,
@@ -121,6 +138,7 @@ function PantryMealDetailContent({
     setCommittingScan(true);
     try {
       const newMealFoodItems: Meal['items'] = [];
+      const newIds: string[] = [];
       for (const bi of newItems) {
         const newItemId = newId();
         // Hidden from the Pantry's own Food-items list by default (round
@@ -133,8 +151,10 @@ function PantryMealDetailContent({
           isArchived: true,
         });
         newMealFoodItems.push({ id: newId(), foodItemId: newItemId, quantity: bi.qty });
+        newIds.push(newItemId);
       }
       await repos.meals.put({ ...meal, items: [...meal.items, ...newMealFoodItems] });
+      setScannedItemIds((prev) => new Set([...prev, ...newIds]));
       showToast?.('Added to meal');
     } finally {
       setCommittingScan(false);
@@ -145,6 +165,49 @@ function PantryMealDetailContent({
     const newItems = await capture.handleDescribeAnalyze(text);
     setActiveOverlay(null); // close the Describe overlay before showing the commit spinner
     await commitScannedItems(newItems);
+  }
+
+  // "Change" — re-describe ONE existing ingredient in place, splicing
+  // whatever comes back (could be more than one food, e.g. "actually it's
+  // toast AND eggs") into meal.items where that ingredient was. The old
+  // FoodItem row is left orphaned rather than deleted, same as removing an
+  // item from a meal already does — it might still be a valid standalone
+  // pantry definition even though this meal no longer points at it.
+  async function handleDescribeAnalyzeForCorrection(text: string) {
+    const newItems = await capture.handleDescribeAnalyze(text); // throws on error, shown inline by DescribeOverlay
+    setActiveOverlay(null); // close the Describe view before showing the commit spinner
+    const targetId = correctingItemId;
+    setCorrectingItemId(null);
+    if (!targetId) return;
+    setCorrecting(true);
+    try {
+      const newFoodItemIds: string[] = [];
+      const replacementMealItems: Meal['items'] = [];
+      for (const bi of newItems) {
+        const id = newId();
+        await repos.foodItems.put({
+          id, name: bi.name, measurementType: bi.measurementType, referenceAmount: bi.referenceAmount,
+          calories: bi.calories, protein: bi.protein, carbs: bi.carbs, fiber: bi.fiber, fat: bi.fat,
+          isArchived: true,
+        });
+        replacementMealItems.push({ id: newId(), foodItemId: id, quantity: bi.qty });
+        newFoodItemIds.push(id);
+      }
+      const mealItemIdx = meal.items.findIndex((mi) => mi.foodItemId === targetId);
+      const nextItems = mealItemIdx === -1
+        ? [...meal.items, ...replacementMealItems]
+        : [...meal.items.slice(0, mealItemIdx), ...replacementMealItems, ...meal.items.slice(mealItemIdx + 1)];
+      await repos.meals.put({ ...meal, items: nextItems });
+      setScannedItemIds((prev) => {
+        const next = new Set(prev);
+        next.delete(targetId);
+        for (const id of newFoodItemIds) next.add(id);
+        return next;
+      });
+      showToast?.('Food item updated');
+    } finally {
+      setCorrecting(false);
+    }
   }
 
   // Resolve this Meal's OWN items from the full set (allItems) — some may be
@@ -318,16 +381,21 @@ function PantryMealDetailContent({
         onBack={() => setActiveOverlay(null)}
         onAnalyze={handleDescribeAnalyzeForMeal}
       />
+    ) : activeOverlay === 'describe-correct' ? (
+      <DescribeOverlay
+        onBack={() => { setActiveOverlay(null); setCorrectingItemId(null); }}
+        onAnalyze={handleDescribeAnalyzeForCorrection}
+      />
     ) : null,
-    [activeOverlay, editingItem, items, allItems, meals, memberItemIds, manualDirty],
+    [activeOverlay, editingItem, correctingItemId, items, allItems, meals, memberItemIds, manualDirty],
   );
 
   // ── Analysing / committing — same early-return spinner shape as the
   //    Day's-log basket, extended to cover the brief write-to-DB moment
   //    right after a scan/describe/label result comes back, so there's no
   //    flash of the old item list before the new one lands. ──────────────
-  if (capture.analyzing || committingScan) {
-    return <AnalyzingIndicator label={committingScan ? 'Adding to meal…' : capture.analyzeLabel} />;
+  if (capture.analyzing || committingScan || correcting) {
+    return <AnalyzingIndicator label={committingScan ? 'Adding to meal…' : correcting ? 'Updating…' : capture.analyzeLabel} />;
   }
 
   deleteRef.current = () => setConfirmingDeleteMeal(true); // eslint-disable-line react-hooks/refs
@@ -365,6 +433,7 @@ function PantryMealDetailContent({
               servingLabel={servingLabelFor(item, mi.quantity)}
               onEdit={() => { setEditingItemId(item.id); setActiveOverlay('edit'); }}
               onRemove={meal.items.length > 1 ? () => void handleRemoveItem(mi.id) : undefined}
+              onCorrect={scannedItemIds.has(item.id) ? () => { setCorrectingItemId(item.id); setActiveOverlay('describe-correct'); } : undefined}
             />
           );
         })}

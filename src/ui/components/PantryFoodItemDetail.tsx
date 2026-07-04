@@ -29,7 +29,7 @@ function servingLabelFor(item: FoodItem): string {
   return item.measurementType === 'per_100g' ? `${item.referenceAmount}g` : '1 Srv';
 }
 
-type OverlayKey = 'edit' | 'add-manual' | 'add-pantry' | 'describe';
+type OverlayKey = 'edit' | 'add-manual' | 'add-pantry' | 'describe' | 'describe-correct';
 
 export function PantryFoodItemDetail({
   item, items, allItems, meals, justCreated, onClose, onDeleted, onMealCreated, showToast,
@@ -50,7 +50,13 @@ export function PantryFoodItemDetail({
   justCreated?: boolean;
   onClose: () => void;
   onDeleted: () => void;
-  onMealCreated: (meal: Meal) => void;
+  /** `newlyScannedItemIds` — when this Meal was just created by combining
+   *  this item with a fresh Camera/Photo/Describe/Nutri-scan capture
+   *  (round 150), the ids of just the NEWLY captured Food items (excluding
+   *  this screen's own, pre-existing `item`) — lets the landing Meal detail
+   *  offer "Change" on those specific cards. Omitted for Manual/Add-from-
+   *  pantry, which aren't scans. */
+  onMealCreated: (meal: Meal, newlyScannedItemIds?: string[]) => void;
   showToast?: ShowToast;
 }) {
   // The delete button lives in the Sheet header (outer), but the actual
@@ -87,7 +93,7 @@ function PantryFoodItemDetailContent({
   justCreated?: boolean;
   onClose: () => void;
   onDeleted: () => void;
-  onMealCreated: (meal: Meal) => void;
+  onMealCreated: (meal: Meal, newlyScannedItemIds?: string[]) => void;
   showToast?: ShowToast;
   deleteRef: React.MutableRefObject<() => void>;
 }) {
@@ -116,6 +122,7 @@ function PantryFoodItemDetailContent({
     setCommittingScan(true);
     try {
       const newMealItems = [newMealItem(item.id, item)];
+      const newlyScannedItemIds: string[] = [];
       for (const bi of newItems) {
         const newItemId = newId();
         // Hidden from the Pantry's own Food-items list by default (round
@@ -128,11 +135,12 @@ function PantryFoodItemDetailContent({
           isArchived: true,
         });
         newMealItems.push({ id: newId(), foodItemId: newItemId, quantity: bi.qty });
+        newlyScannedItemIds.push(newItemId);
       }
       const meal: Meal = { id: newId(), name: item.name, isArchived: false, items: newMealItems };
       await repos.meals.put(meal);
       showToast?.('Meal created');
-      onMealCreated(meal);
+      onMealCreated(meal, newlyScannedItemIds);
     } finally {
       setCommittingScan(false);
     }
@@ -142,6 +150,53 @@ function PantryFoodItemDetailContent({
     const newItems = await capture.handleDescribeAnalyze(text);
     setActiveOverlay(null); // close the Describe overlay before showing the commit spinner
     await commitScannedItems(newItems);
+  }
+
+  // ── "Change" (round 150) — re-run Describe to replace THIS item's own
+  //    macros, same "Change" button/behaviour as the Day's-log basket's
+  //    scanned cards. Only offered while `justCreated` is true (this
+  //    Sheet's own open session, right after a Camera/Photo/Describe/
+  //    Nutri-scan capture) — same transient window the original round-148
+  //    Change button had on its pre-commit review card, before round 149
+  //    made captures commit immediately. Describe can come back with more
+  //    than one food (e.g. "actually it's toast AND eggs") — that no longer
+  //    fits "one Food item," so it converts to a Meal instead, same 1-vs-2+
+  //    rule as everywhere else; the original single item is deleted since
+  //    nothing could have referenced it yet (it was only just created). */
+  const [correcting, setCorrecting] = useState(false);
+
+  async function handleDescribeAnalyzeForCorrection(text: string) {
+    const newItems = await capture.handleDescribeAnalyze(text); // throws on error, shown inline by DescribeOverlay
+    setActiveOverlay(null); // close the Describe view before showing the commit spinner
+    setCorrecting(true);
+    try {
+      if (newItems.length === 1) {
+        const bi = newItems[0];
+        await repos.foodItems.put({
+          ...item, name: bi.name, measurementType: bi.measurementType, referenceAmount: bi.referenceAmount,
+          calories: bi.calories, protein: bi.protein, carbs: bi.carbs, fiber: bi.fiber, fat: bi.fat,
+        });
+        showToast?.('Food item updated');
+      } else {
+        const mealFoodItems: Meal['items'] = [];
+        for (const bi of newItems) {
+          const id = newId();
+          await repos.foodItems.put({
+            id, name: bi.name, measurementType: bi.measurementType, referenceAmount: bi.referenceAmount,
+            calories: bi.calories, protein: bi.protein, carbs: bi.carbs, fiber: bi.fiber, fat: bi.fat,
+            isArchived: true,
+          });
+          mealFoodItems.push({ id: newId(), foodItemId: id, quantity: bi.qty });
+        }
+        await repos.foodItems.remove(item.id);
+        const meal: Meal = { id: newId(), name: newItems[0].name, isArchived: false, items: mealFoodItems };
+        await repos.meals.put(meal);
+        showToast?.('Meal created');
+        onMealCreated(meal);
+      }
+    } finally {
+      setCorrecting(false);
+    }
   }
 
   const nutrition = {
@@ -259,6 +314,11 @@ function PantryFoodItemDetailContent({
         onBack={() => setActiveOverlay(null)}
         onAnalyze={handleDescribeAnalyzeForMeal}
       />
+    ) : activeOverlay === 'describe-correct' ? (
+      <DescribeOverlay
+        onBack={() => setActiveOverlay(null)}
+        onAnalyze={handleDescribeAnalyzeForCorrection}
+      />
     ) : null,
     [activeOverlay, item, items, allItems, meals, manualDirty],
   );
@@ -266,8 +326,8 @@ function PantryFoodItemDetailContent({
   // ── Analysing / committing — same early-return spinner shape as the
   //    Day's-log basket, extended to cover the brief write-to-DB moment
   //    right after a scan/describe/label result comes back. ─────────────
-  if (capture.analyzing || committingScan) {
-    return <AnalyzingIndicator label={committingScan ? 'Creating meal…' : capture.analyzeLabel} />;
+  if (capture.analyzing || committingScan || correcting) {
+    return <AnalyzingIndicator label={committingScan ? 'Creating meal…' : correcting ? 'Updating…' : capture.analyzeLabel} />;
   }
 
   deleteRef.current = () => setConfirmingDelete(true); // eslint-disable-line react-hooks/refs
@@ -329,6 +389,7 @@ function PantryFoodItemDetailContent({
           nutrition={nutrition}
           servingLabel={servingLabelFor(item)}
           onEdit={() => setActiveOverlay('edit')}
+          onCorrect={justCreated ? () => setActiveOverlay('describe-correct') : undefined}
         />
 
         {/* Same collapsible module as the Day's-log basket's "+ Add another

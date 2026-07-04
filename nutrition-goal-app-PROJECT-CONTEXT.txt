@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 150 ("+ New food"'s Camera/Photo/Describe/Nutri-scan now stay inside one persistent, compact Sheet instead of flashing open a second blank full-screen one; scan-created Food items get a primary "Save food" CTA instead of "Close")
+Last updated: 2026-07-04 — Round 151 (the "Change" button is back on scan-captured Pantry items — Food item detail's own card, and each correctable ingredient card inside a Meal — for as long as that item's detail Sheet stays open after the capture)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -271,6 +271,30 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 151 — BRING BACK THE "CHANGE" BUTTON ON SCAN-CAPTURED PANTRY ITEMS (2026-07-04)
+Files: src/ui/components/PantryItemCard.tsx, src/ui/components/PantryFoodItemDetail.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/screens/PantryScreen.tsx
+- Marco: round 149 removing the pre-commit review screen also took the
+  round-148 "Change" button down with it (nowhere left to attach it to).
+  Reintroduced it on the POST-commit item cards instead, scoped to the same
+  transient "just happened" window Change always had (never a permanent
+  per-item flag): PantryItemCard gained an `onCorrect` prop (same pill as
+  BasketCard's). PantryFoodItemDetail shows it on its own card while
+  `justCreated` (round 150) is true — tapping it re-describes and
+  overwrites that exact FoodItem in place, or converts to a Meal if the
+  correction yields 2+ foods (1-vs-2+ rule), deleting the now-superseded
+  single item (safe — nothing could reference it yet). PantryMealDetail
+  tracks a `scannedItemIds` set, seeded from a new `justCreatedItemIds`
+  prop (whole Meal just arrived from a scan) and grown as more items are
+  scanned in via "Add another item" while the Sheet stays open; "Change" on
+  one of those splices the correction into meal.items in that ingredient's
+  place, leaving the superseded FoodItem orphaned (same as removing an item
+  from a meal already does).
+- Also: Marco decided to leave the Nutri-scan-also-reads-whole-food
+  question (round 150's TODO) alone for now — not pursuing it.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 150 — "+ NEW FOOD": ONE PERSISTENT SHEET INSTEAD OF A SECOND BLANK ONE; "SAVE FOOD" CTA (2026-07-04)
 Files: src/ui/components/PantryNewFoodScan.tsx (rewritten), src/ui/screens/PantryScreen.tsx,
        src/ui/components/PantryFoodItemDetail.tsx
@@ -303,14 +327,6 @@ Files: src/ui/components/PantryNewFoodScan.tsx (rewritten), src/ui/screens/Pantr
   guessing; flagged back to Marco with concrete options instead.
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
-
-ROUND 148 — "CHANGE" CTA ON SCANNED PANTRY ITEMS (2026-07-04) — SUPERSEDED BY ROUND 149
-Files: src/ui/components/FoodCapture.tsx, src/ui/components/PantryMealDetail.tsx,
-       src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryNewFoodScan.tsx
-- Added the Day's-log basket's "Change" button (re-run Describe to replace
-  one card) to the round-145 review screen's scanned cards. Short-lived:
-  round 149 (immediately after, same session) removed the review screen
-  entirely, which this button lived on — see round 149.
 
 ROUND 149 — PANTRY SCAN METHODS: DROP THE REVIEW SCREEN, COMMIT IMMEDIATELY (2026-07-04)
 Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/PantryFoodItemDetail.tsx,
@@ -347,25 +363,10 @@ TODO / FUTURE WORK
   down then a new one up rather than happening "in place" — Marco's
   original ask was for a dedicated ~2s "Saving food" loading screen there
   too, still outstanding.
-- NUTRI-SCAN vs. CAMERA/PHOTO/DESCRIBE — SHOULD ALL 4 SHARE ONE BEHAVIOUR?
-  Marco: Nutri-scan also successfully reads whole food, not just packaged
-  nutrition labels, so always asking "per 100g or per serving?" there (via
-  handleLabelScan/ServingModal in useFoodCapture.tsx) — while Camera/Photo/
-  Describe never ask it — feels inconsistent; he'd like all 4 to converge
-  on one behaviour, asking the per-100g/serving question only when a
-  nutrition label is actually being scanned. Not implemented: the current
-  scanFood API response can't distinguish "photo of a nutrition facts
-  panel" from "photo of one whole food item" — both come back as a single
-  item with name/estimatedGrams/macros, no signal either way. Two options
-  put to Marco rather than guessing: (a) drop the serving-modal special
-  case entirely so all 4 methods behave identically (same as Photo/Camera
-  today) — simplest, but a real packaged-product scan loses the "track by
-  weight-normalised serving" option it has today; or (b) keep asking the
-  question whenever exactly 1 item comes back, regardless of which button
-  was tapped, and skip it for 2+ items — closer to today's Nutri-scan
-  behaviour but adds an extra tap the first time Camera/Photo/Describe
-  legitimately return a single food item (e.g. "an apple"), which they've
-  never done before in this app or the original Day's-log flow.
+- NUTRI-SCAN vs. CAMERA/PHOTO/DESCRIBE consistency: raised in round 150
+  (Nutri-scan also reads whole food, not just labels, making its
+  always-ask-per-100g/serving behaviour feel inconsistent with the other 3
+  methods) — Marco decided (round 151) to leave this alone for now.
 - MEAL NUTRITION SUMMARY: Meal detail (and the Day's-log Meal review, once
   that's wired) currently only shows per-item cards — no dedicated
   total-macro breakdown for the Meal as a whole. Marco flagged this as

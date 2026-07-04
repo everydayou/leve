@@ -13,7 +13,7 @@ import type { NutritionSnapshot } from '../../domain/types';
 import { DeleteIcon, EditIcon } from './icons';
 
 export function PantryItemCard({
-  name, nutrition, servingLabel, onEdit, onRemove,
+  name, nutrition, servingLabel, onEdit, onRemove, onCorrect,
 }: {
   name: string;
   nutrition: NutritionSnapshot;
@@ -30,6 +30,10 @@ export function PantryItemCard({
    *  from the Meal" — spec §11). Omit for a single Food item's own detail
    *  card, where there's nothing to remove it from. */
   onRemove?: () => void;
+  /** When provided, shows a "Change" button (scanned items, same window as
+   *  the Day's-log basket's own Change button — re-run Describe to replace
+   *  this item's macros rather than editing them by hand). */
+  onCorrect?: () => void;
 }) {
   return (
     <div
@@ -57,6 +61,14 @@ export function PantryItemCard({
           </span>
         </div>
         <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {onCorrect && (
+            <button
+              onClick={onCorrect}
+              className="flex h-10 items-center rounded-full border border-border-field px-3 text-subhead font-medium text-content-secondary active:bg-surface-sunken"
+            >
+              Change
+            </button>
+          )}
           <button
             onClick={onEdit}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-border-field bg-surface text-content active:opacity-60"

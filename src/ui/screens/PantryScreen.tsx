@@ -33,6 +33,10 @@ export function PantryScreen() {
   // tapping an existing row) — drives PantryFoodItemDetail's CTA copy (round 150).
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [openMealId, setOpenMealId] = useState<string | null>(null);
+  // Which of the freshly-opened Meal's own ingredients came from a scan
+  // (vs. Manual/Add-from-pantry) — seeds PantryMealDetail's "Change" button
+  // availability (round 150).
+  const [justCreatedMealItemIds, setJustCreatedMealItemIds] = useState<string[] | undefined>(undefined);
 
   // rawItems/rawMeals are null while IndexedDB is still loading; [] means truly empty.
   // Keep them separate so we never flash the EmptyState before data arrives.
@@ -173,7 +177,7 @@ export function PantryScreen() {
           onClose={() => setNewFoodOpen(false)}
           onManual={() => { setNewFoodOpen(false); setAdding(true); }}
           onFoodCreated={(id) => { setNewFoodOpen(false); setJustCreatedId(id); setOpenItemId(id); }}
-          onMealCreated={(meal) => { setNewFoodOpen(false); setOpenMealId(meal.id); }}
+          onMealCreated={(meal) => { setNewFoodOpen(false); setJustCreatedMealItemIds(meal.items.map((mi) => mi.foodItemId)); setOpenMealId(meal.id); }}
           showToast={showToast}
         />
       )}
@@ -199,7 +203,7 @@ export function PantryScreen() {
           justCreated={openItemId === justCreatedId}
           onClose={() => { setOpenItemId(null); setJustCreatedId(null); }}
           onDeleted={() => { setOpenItemId(null); setJustCreatedId(null); }}
-          onMealCreated={(meal) => { setOpenItemId(null); setJustCreatedId(null); setOpenMealId(meal.id); }}
+          onMealCreated={(meal, newlyScannedItemIds) => { setOpenItemId(null); setJustCreatedId(null); setJustCreatedMealItemIds(newlyScannedItemIds); setOpenMealId(meal.id); }}
           showToast={showToast}
         />
       )}
@@ -210,7 +214,8 @@ export function PantryScreen() {
           meals={meals}
           items={items}
           allItems={allItems}
-          onClose={() => setOpenMealId(null)}
+          justCreatedItemIds={justCreatedMealItemIds}
+          onClose={() => { setOpenMealId(null); setJustCreatedMealItemIds(undefined); }}
           showToast={showToast}
         />
       )}

@@ -1,4 +1,51 @@
 ================================================================
+ROUND 151 — BRING BACK THE "CHANGE" BUTTON ON SCAN-CAPTURED PANTRY ITEMS (2026-07-04)
+================================================================
+Files: src/ui/components/PantryItemCard.tsx, src/ui/components/PantryFoodItemDetail.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/screens/PantryScreen.tsx
+
+Marco: "we're missing again the 'Change' button for photo taken, photo from
+library." Round 148 added a "Change" button (re-run Describe to replace a
+card's macros) to the Pantry scan flows' pre-commit review screen — but
+round 149, immediately after in the same session, removed that whole review
+screen since items now commit straight through with no review step, taking
+the Change button down with it (documented at the time as a deliberate,
+if unfortunate, side effect — "there's no longer a pre-commit card to
+attach it to"). Marco wants the affordance back.
+
+The button itself was never meant to be permanent — even in its original
+home (the Day's-log basket's BasketCard), it only ever existed for
+uncommitted items sitting in the in-progress basket array, gone the moment
+you saved. The equivalent "moment" in the now-commit-immediately Pantry
+flows is: right after landing on the Food item / Meal detail a scan just
+produced, for as long as that Sheet stays open.
+
+Added `onCorrect` to PantryItemCard (same pill button/copy as BasketCard's).
+PantryFoodItemDetail shows it on its own item card exactly when `justCreated`
+is true (round 150's flag) — tapping it opens Describe in a new
+"describe-correct" overlay mode that overwrites this exact FoodItem's fields
+in place (same id, so nothing else needs to change). If the correction
+comes back with 2+ foods instead of 1 (you described more than what's
+actually one item), it converts to a Meal instead — same 1-vs-2+ rule as
+every other commit path — and deletes the original single item, which is
+safe because nothing could have referenced it yet.
+
+PantryMealDetail tracks a `scannedItemIds` set (which ingredient FoodItem
+ids are still correctable): seeded from a new `justCreatedItemIds` prop
+when the whole Meal just arrived from a scan ("+ New food" producing 2+
+items, or Food item detail's "Create a meal" section — the latter only
+marks the NEWLY captured ingredients, not the pre-existing item the meal
+was built around), and grown further as more items get scanned in via
+"Add another item" while the Sheet stays open. "Change" on one of these
+splices whatever Describe returns (could be 1 or several foods) into
+meal.items in place of that one ingredient; the superseded FoodItem is left
+orphaned rather than deleted, same as removing an item from a meal already
+does today.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 150 — "+ NEW FOOD": ONE PERSISTENT SHEET INSTEAD OF A SECOND BLANK ONE; "SAVE FOOD" CTA (2026-07-04)
 ================================================================
 Files: src/ui/components/PantryNewFoodScan.tsx (rewritten), src/ui/screens/PantryScreen.tsx,

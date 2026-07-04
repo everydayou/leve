@@ -174,12 +174,6 @@ HIGH:
   Day's-log basket's BasketItem[]/sources data model.
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
-- PHOTO BRIGHTNESS — CLOSED (round 143): Marco confirmed the reports were
-  all against an old entry; newly-scanned photos have shown no problem.
-  No code changes were kept for this (round 141's experiment was reverted
-  in round 142 after causing a regression with no actual fix). If it
-  resurfaces, start fresh — rounds 137/141's canvas-colorSpace and GPU-
-  compositing-layer theories were both tested and disproven.
 
 MED:
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight

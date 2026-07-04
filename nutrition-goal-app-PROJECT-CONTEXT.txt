@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 146 (Round 145's JS-only service-worker fix wasn't enough on its own — added a native-layer WKWebsiteDataStore clear in AppDelegate.swift so a stale controlling service worker can't keep serving its own cached bundle forever)
+Last updated: 2026-07-04 — Round 147 (Pantry's top-level "+ New food" Camera/Photo/Describe/Nutri-scan now wired up too — 1 detected item becomes a Food item, 2+ becomes a Meal, closing the gap round 145 deliberately left open)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -167,12 +167,6 @@ HIGH:
   pinned-above-scroll position on device.
 
 MED:
-- PANTRY "+ NEW FOOD" CAMERA/PHOTO/DESCRIBE/NUTRI-SCAN: still "coming soon"
-  (round 145 only wired these into the MEAL builder). Scanning a photo can
-  return several items, which doesn't fit "New food"'s single-item flow
-  without a product decision first (e.g. picking one of several detected
-  items, or letting it create a Meal instead) — needs Marco's call before
-  building it.
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
   entries. (Goal actions confirm via Sheet; entry deletes are immediate.)
 - ACCOUNT IA: layout still growing — grouping pass worthwhile when more
@@ -277,6 +271,29 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 147 — PANTRY "+ NEW FOOD": CAMERA/PHOTO/DESCRIBE/NUTRI-SCAN (2026-07-04)
+Files: src/ui/components/PantryNewFoodScan.tsx (NEW), src/ui/screens/PantryScreen.tsx
+- Round 145 wired Camera/Photo/Describe/Nutri-scan into the Pantry MEAL
+  builder ("Create a meal" / "Add a new food item") but deliberately left
+  Pantry's own top-level "+ New food" button on "coming soon" — scanning
+  can return multiple items, which doesn't fit "New food"'s single-item
+  model without a decision first. Turned out this was the actual gap Marco
+  was hitting all along (the "still not working" reports were him testing
+  via "+ New food" specifically, not the meal builder, which was working).
+  Resolved by applying the SAME 1-vs-2+ rule already used everywhere else
+  in the app (Day's-log basket's "Log food"/"Log meal", PantryFoodItemDetail's
+  "Create a meal"): exactly 1 detected item -> a new, visible Food item
+  (isArchived: false — "+ New food" always means a real pantry item, unlike
+  the meal builder's hidden-by-default ingredients), landing on Food item
+  detail. 2+ items -> a new Meal (ingredients default isArchived: true per
+  round 130/144, opt out via "Save to pantry" while editing one), landing
+  on Meal detail. New PantryNewFoodScan.tsx reuses useFoodCapture, the
+  review list (BasketCard), DescribeOverlay, EditOverlay and ServingModal
+  exactly as built for round 145 — no new capture logic, just a new
+  commit path or PantryScreen.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 146 — STALE NATIVE BUNDLE, TAKE 2: NATIVE-LAYER CACHE CLEAR (2026-07-04)
 Files: ios/App/App/AppDelegate.swift
 - Round 145's fix (stop registering the PWA service worker on native,
@@ -338,26 +355,6 @@ Files: src/lib/foodScan.ts, src/ui/kit/FloatingTabBar.tsx,
   existing service worker + clears its Cache Storage on every launch
   (self-healing for installs already affected — doesn't touch IndexedDB,
   where the real app data lives, only the SW's own cache).
-- tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
-  verified clean.
-
-ROUND 144 — SCANNED MEAL INGREDIENTS SAVING TO PANTRY AS THEIR OWN ITEMS (2026-07-04)
-Files: src/ui/components/AddEntrySheet.tsx
-- Marco: scanning a photo into a meal, then saving that meal to Pantry,
-  was also saving every individual ingredient as its own visible Pantry
-  Food item — he wants them to live only inside the meal (this was the
-  explicit round-130 decision, but round 130's fix only ever landed on the
-  Pantry-side meal builder, not the Day's-log side). Root cause: logBasket
-  and LogEntryContent.save() both have a "resolve each basket item to a
-  real Pantry Food item" loop that creates a Food item for every still-
-  unlinked item whenever the meal-level "Save to pantry" is checked —
-  exactly the scanned-item case, since scan results are never individually
-  opted in — and both hardcoded `isArchived: false` despite a comment
-  saying the opposite was intended. Fixed: both now create these items
-  with `isArchived: true` (hidden from Pantry's Food-items list, same as
-  the Pantry-side builder), while staying fully live-linked to the Meal.
-  Explicit single-item saves (editing one basket item, or the per-item
-  checkbox in the Manual-add-to-meal form) are unaffected.
 - tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
   verified clean.
 

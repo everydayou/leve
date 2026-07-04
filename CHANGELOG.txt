@@ -1,4 +1,35 @@
 ================================================================
+ROUND 147 — PANTRY "+ NEW FOOD": CAMERA/PHOTO/DESCRIBE/NUTRI-SCAN (2026-07-04)
+================================================================
+Files: src/ui/components/PantryNewFoodScan.tsx (NEW), src/ui/screens/PantryScreen.tsx
+
+Round 145 wired Camera/Photo/Describe/Nutri-scan into the Pantry MEAL
+builder ("Create a meal" / "Add a new food item") but deliberately left
+Pantry's own top-level "+ New food" button on "coming soon" — scanning can
+return multiple items, which doesn't fit "New food"'s single-item model
+without a decision first. Turned out this was the actual gap Marco was
+hitting all along: the "still not working" reports across rounds 145/146
+were him testing via "+ New food" specifically the whole time, not the meal
+builder — which had, in fact, been working since round 145. The service-
+worker investigation (rounds 145/146) wasn't wasted, though: it's a real fix
+for a real (separate) bug, just not the one being chased.
+
+Resolved by applying the exact same 1-vs-2+ rule already used everywhere
+else in the app (Day's-log basket's "Log food"/"Log meal" CTA, and
+PantryFoodItemDetail's own "Create a meal" flow): exactly 1 detected item
+becomes a new, visible Food item (`isArchived: false` — "+ New food" always
+means a real pantry item; there's no meal for it to hide inside, unlike the
+meal builder's ingredients), landing on Food item detail. 2+ items become a
+new Meal (ingredients default `isArchived: true` per round 130/144, opt out
+via "Save to pantry" while editing one before confirming), landing on Meal
+detail. New PantryNewFoodScan.tsx is a thin new commit path — it reuses
+useFoodCapture, the review list (BasketCard), DescribeOverlay, EditOverlay
+and ServingModal exactly as built for round 145, no new capture logic.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged). `npm run
+build` verified clean.
+
+================================================================
 ROUND 146 — STALE NATIVE BUNDLE, TAKE 2: NATIVE-LAYER CACHE CLEAR (2026-07-04)
 ================================================================
 Files: ios/App/App/AppDelegate.swift

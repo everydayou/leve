@@ -12,6 +12,8 @@ import type { FoodItemFormValues } from '../components/FoodItemForm';
 import { PantryFoodItemDetail } from '../components/PantryFoodItemDetail';
 import { PantryMealDetail } from '../components/PantryMealDetail';
 import { MethodPickerModal } from '../components/MethodCards';
+import { PantryNewFoodScan } from '../components/PantryNewFoodScan';
+import type { NewFoodScanMethod } from '../components/PantryNewFoodScan';
 
 import { hapticLight } from '../../lib/haptics';
 import type { DayContext } from '../AppShell';
@@ -28,6 +30,7 @@ export function PantryScreen() {
   const [filter, setFilter] = useState<PantryFilter>('all');
   const [pickingMethod, setPickingMethod] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [scanMethod, setScanMethod] = useState<NewFoodScanMethod | null>(null);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
   const [openMealId, setOpenMealId] = useState<string | null>(null);
 
@@ -169,11 +172,23 @@ export function PantryScreen() {
         <MethodPickerModal
           title="New food"
           onManual={() => { setPickingMethod(false); setAdding(true); }}
-          onCamera={() => { setPickingMethod(false); showToast?.('Coming soon — camera for new foods is next'); }}
-          onPhoto={() => { setPickingMethod(false); showToast?.('Coming soon — photo for new foods is next'); }}
-          onDescribe={() => { setPickingMethod(false); showToast?.('Coming soon — describe for new foods is next'); }}
-          onLabel={() => { setPickingMethod(false); showToast?.('Coming soon — nutri-scan for new foods is next'); }}
+          onCamera={() => { setPickingMethod(false); setScanMethod('camera'); }}
+          onPhoto={() => { setPickingMethod(false); setScanMethod('photo'); }}
+          onDescribe={() => { setPickingMethod(false); setScanMethod('describe'); }}
+          onLabel={() => { setPickingMethod(false); setScanMethod('label'); }}
           onDismiss={() => setPickingMethod(false)}
+        />
+      )}
+
+      {scanMethod && (
+        <PantryNewFoodScan
+          method={scanMethod}
+          items={items}
+          meals={meals}
+          onClose={() => setScanMethod(null)}
+          onFoodCreated={(id) => { setScanMethod(null); setOpenItemId(id); }}
+          onMealCreated={(meal) => { setScanMethod(null); setOpenMealId(meal.id); }}
+          showToast={showToast}
         />
       )}
 

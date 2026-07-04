@@ -1134,7 +1134,8 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
         </div>
       )}
 
-      <section className="mt-4 px-6 pb-3">
+      {/* Round 168: bottom padding 12px -> 8px per Marco. */}
+      <section className="mt-4 px-6 pb-2">
         <div className="mb-3">
           <h3 className="text-subhead font-semibold">Day's log</h3>
         </div>

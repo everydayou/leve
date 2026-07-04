@@ -1,4 +1,43 @@
 ================================================================
+ROUND 168 — GREY-FILL ROOT-CAUSE FIX, NEW PLACEHOLDER, 32PX RADIUS, SPACING (2026-07-04)
+================================================================
+Files: src/lib/useFillToBottom.ts, src/assets/food-placeholder.png (replaced),
+       src/ui/kit/ImageHero.tsx, src/ui/components/FoodItemForm.tsx,
+       src/ui/components/MethodCards.tsx, src/ui/screens/TodayScreen.tsx
+
+1. Found the actual root cause of the grey-panel-fill bug round 167's
+   useFillToBottom hook didn't fix: Sheet.tsx slides the panel up over
+   OPEN_MS = 420ms (a CSS transform transition), but the hook's re-measure
+   timeouts (50ms, 350ms) both fired BEFORE that transition finished —
+   capturing a `top` value from mid-animation (higher up than the panel's
+   resting position), which undersized the computed fill and left the
+   exact plain-white gap Marco kept reporting ("still nothing... the
+   bottom area is white"). Rewrote the hook to poll across the whole
+   settle window (50/120/200/300/420/520/650/850ms) and also re-measure
+   on every `transitionend` bubbling up from anywhere in the document, so
+   it no longer depends on guessing one "safe" delay.
+
+2. Swapped in Marco's new food_item_placeholder_2.png (569KB) as the
+   default placeholder, replacing the previous food-placeholder.png
+   (812KB) — same filename/import path in ImageHero and FoodItemForm, so
+   no code changes needed beyond the asset itself. Deleted both the old
+   food-placeholder.png and the interim 1.5MB upload from the repo.
+
+3. Image corner radius: 20px -> 32px everywhere a photo or placeholder
+   renders (ImageHero's single/collage/placeholder boxes, FoodItemForm's
+   with-photo and add-photo boxes) — now matching radius-main (32px),
+   the same radius already used by the Meal-summary card these images
+   sit inside.
+
+4. AddAnotherSection: 16px corner radius while collapsed, the existing
+   24px once expanded.
+
+5. Day's-log section: bottom padding 12px -> 8px (TodayScreen.tsx).
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 167 — FIX GREY-FILL BUG (JS-MEASURED), DARKER BORDER, EMPTY-FAB IMAGE, ADD-PHOTO CTA (2026-07-04)
 ================================================================
 Files: src/lib/useFillToBottom.ts (new), src/ui/components/PantryMealDetail.tsx,

@@ -19,7 +19,7 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
   if (photos.length === 0) {
     return (
       <div className={`flex justify-center ${className ?? ''}`}>
-        <div className="h-64 w-64 overflow-hidden rounded-[20px]">
+        <div className="h-64 w-64 overflow-hidden rounded-[32px]">
           <img src={foodPlaceholder} alt="" className="h-full w-full object-cover" />
         </div>
       </div>
@@ -39,7 +39,7 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
            pattern with no loss. Round 166: shadow-card-lg restored here
            (round 163 had dropped it to avoid a shadow-in-shadow look once
            nested inside the meal/food-item card — Marco wants it back). */}
-        <div className="h-64 w-64 overflow-hidden rounded-[20px] shadow-card-lg">
+        <div className="h-64 w-64 overflow-hidden rounded-[32px] shadow-card-lg">
           <img src={photos[0]} alt="Meal" className="h-full w-full object-cover" />
         </div>
       </div>
@@ -76,7 +76,7 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
           return (
             <div
               key={i}
-              className="absolute overflow-hidden rounded-[20px] shadow-card-lg"
+              className="absolute overflow-hidden rounded-[32px] shadow-card-lg"
               style={{
                 width: c.w,
                 height: c.h,

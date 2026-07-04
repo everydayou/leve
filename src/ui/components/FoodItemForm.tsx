@@ -248,8 +248,8 @@ export function FoodItemFormContent({
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
       {photo ? (
         <div className="flex justify-center">
-          <div className="h-64 w-64 rounded-[20px] shadow-card-lg">
-            <div className="relative h-full w-full overflow-hidden rounded-[20px]">
+          <div className="h-64 w-64 rounded-[32px] shadow-card-lg">
+            <div className="relative h-full w-full overflow-hidden rounded-[32px]">
               <img src={photo} alt="Food" className="h-full w-full object-cover" />
               <button
                 onClick={handlePhotoRemove}
@@ -270,14 +270,14 @@ export function FoodItemFormContent({
       ) : (
         <div className="flex justify-center">
           {/* Round 167 — matches the real-photo box exactly (256x256,
-              rounded-[20px]) instead of a thin outlined button, so the
+              rounded-[32px]) instead of a thin outlined button, so the
               "no photo yet" state reads the same way it does everywhere
               else in the app (see ImageHero's own placeholder). No shadow
               here, per Marco's placeholder-image spec ("flat muted grey
               and no shadow for when there are no images"). */}
           <button
             onClick={() => fileRef.current?.click()}
-            className="relative h-64 w-64 overflow-hidden rounded-[20px]"
+            className="relative h-64 w-64 overflow-hidden rounded-[32px]"
             aria-label="Add photo"
           >
             <img src={foodPlaceholder} alt="" className="h-full w-full object-cover" />

@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 167 (grey Food-items panel now fills remaining Sheet space via a JS-measured hook, not CSS flex, after round 166's approach failed on-device; "Add a new food item" border one step darker (border-strong); FoodForm's FAB-empty state (0 items) shows no image; FoodItemForm's "Add photo" CTA now a 256x256 box matching the real-photo/placeholder treatment)
+Last updated: 2026-07-04 — Round 168 (found and fixed the actual root cause of the grey-panel-fill bug — round 167's hook was re-measuring before Sheet's 420ms open transition finished; swapped in a new lighter placeholder image; image corner radius 20px -> 32px everywhere; AddAnotherSection 16px collapsed / 24px expanded; Day's-log bottom padding 12px -> 8px)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -288,6 +288,27 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 168 — GREY-FILL ROOT-CAUSE FIX, NEW PLACEHOLDER, 32PX RADIUS, SPACING (2026-07-04)
+Files: src/lib/useFillToBottom.ts, src/assets/food-placeholder.png (replaced),
+       src/ui/kit/ImageHero.tsx, src/ui/components/FoodItemForm.tsx,
+       src/ui/components/MethodCards.tsx, src/ui/screens/TodayScreen.tsx
+- Root cause of the grey-panel-fill bug found: Sheet.tsx's own open
+  transition runs for OPEN_MS = 420ms, but round 167's hook re-measured
+  at 50ms/350ms — both before the panel finished sliding up, so it
+  captured a mid-animation `top` and undersized the fill. Now polls
+  across the full settle window (up to 850ms) and also re-measures on
+  every `transitionend` bubbling up in the document.
+- New placeholder image (food_item_placeholder_2.png, 569KB) replaces
+  the old food-placeholder.png (812KB); same import path, no code churn
+  beyond the asset swap. Old placeholder + interim 1.5MB upload deleted.
+- Image corner radius 20px -> 32px everywhere (ImageHero, FoodItemForm) —
+  now matches radius-main (32px), same as the Meal-summary card these
+  images sit inside.
+- AddAnotherSection: 16px radius collapsed, 24px (unchanged) expanded.
+- Day's-log section bottom padding: 12px -> 8px.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 167 — FIX GREY-FILL BUG (JS-MEASURED), DARKER BORDER, EMPTY-FAB IMAGE, ADD-PHOTO CTA (2026-07-04)
 Files: src/lib/useFillToBottom.ts (new), src/ui/components/PantryMealDetail.tsx,
        src/ui/components/AddEntrySheet.tsx (FoodForm, LogEntryContent),
@@ -335,23 +356,6 @@ Files: src/ui/components/MethodCards.tsx, src/ui/kit/ImageHero.tsx,
 - Marco's real placeholder image (food-placeholder.png, uploaded via
   GitHub's web UI) is now wired into ImageHero, replacing the generic
   food-icon stand-in from round 163.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 165 — EDGE-TO-EDGE BLEED + GREY NESTED BEHIND THE WHITE CARD (2026-07-04)
-Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
-       (LogEntryContent, FoodForm)
-- Both the white card and the grey "Food items" panel now bleed past the
-  Sheet's own 20px side padding (negative side margins, each re-applies
-  20px as its own content padding) so their BACKGROUND shapes reach the
-  true screen edges while content stays inset as before.
-- White card nested back INSIDE the grey panel (as its first child) so
-  grey is always directly behind it — round 164 had them as siblings,
-  which meant the white card's rounded bottom corners revealed the
-  Sheet's plain white background instead of grey at the cutouts.
-- Asked Marco for the actual placeholder image file (line-art plate/fork/
-  knife) — pasted chat images aren't accessible as files in this
-  environment; ImageHero still shows the generic food-icon placeholder.
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 

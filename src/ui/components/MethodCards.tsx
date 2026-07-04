@@ -61,8 +61,10 @@ export function AddAnotherSection({
    *  border-strong. */
   bordered?: boolean;
 }) {
+  // Round 168: 16px corner radius while collapsed (smaller pill), the
+  // existing 24px once expanded (roomier surface for the picker content).
   return (
-    <div className={`rounded-[24px] bg-surface-sunken overflow-hidden${bordered ? ' border border-border-strong' : ''}`}>
+    <div className={`${open ? 'rounded-[24px]' : 'rounded-[16px]'} bg-surface-sunken overflow-hidden${bordered ? ' border border-border-strong' : ''}`}>
       {/* Heading row */}
       <button
         onClick={onToggle}

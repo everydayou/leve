@@ -716,12 +716,19 @@ function KeyboardPlayground() {
       </PickerRow>
 
       <PickerRow label="4 · decimal + custom Done bar" description="A small toolbar slides in above the keyboard on focus — tap Done (or Return-equivalent) to dismiss.">
+        {/* lang="en-US" (round 159): on-device the decimal key on this
+            keypad follows the phone's REGION setting, not the app's own
+            language — some regions show "," instead of ".". Pinning this
+            one input's lang forces the "." key/format regardless of the
+            device's region. The onChange replace is a safety net in case
+            a "," still slips through on some OS version. */}
         <input
           ref={doneInputRef}
           type="text"
           inputMode="decimal"
+          lang="en-US"
           value={doneVal}
-          onChange={e => setDoneVal(e.target.value)}
+          onChange={e => setDoneVal(e.target.value.replace(/,/g, '.'))}
           onFocus={() => setDoneFocused(true)}
           onBlur={() => setDoneFocused(false)}
           className={inputCls}
@@ -733,11 +740,12 @@ function KeyboardPlayground() {
           on top of the keyboard via the same inset the Sheet component
           already tracks. onMouseDown (not onClick) fires BEFORE the input's
           onBlur on iOS/WebKit, so preventDefault here stops the blur from
-          racing the tap and dismissing before the value settles. */}
+          racing the tap and dismissing before the value settles. 24px from
+          the right edge to the Done button (round 159). */}
       {doneFocused && (
         <div
-          className="fixed inset-x-0 z-[400] flex justify-end border-t border-border-subtle bg-surface-elevated px-4 py-2"
-          style={{ bottom: keyboardInset }}
+          className="fixed inset-x-0 z-[400] flex justify-end border-t border-border-subtle bg-surface-elevated py-2 pl-4"
+          style={{ bottom: keyboardInset, paddingRight: '24px' }}
         >
           <button
             type="button"

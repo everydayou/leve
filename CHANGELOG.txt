@@ -1,4 +1,24 @@
 ================================================================
+ROUND 159 — KEYBOARD PLAYGROUND ROW 4: FORCE "." SEPARATOR, 24PX DONE SPACING (2026-07-04)
+================================================================
+Files: src/ui/components/DevMenu.tsx
+
+Marco confirmed row 4 (decimal + custom Done bar) is the one he wants —
+two refinements to it:
+
+- The decimal key was showing "," instead of "." (device-region-dependent
+  behaviour of iOS's decimal keypad, unrelated to the app's own language).
+  Added lang="en-US" to that input, which pins its decimal
+  key/format regardless of the phone's region setting; the onChange handler
+  also now replaces any "," that slips through with "." as a safety net.
+
+- The Done button's spacing from the right edge widened to a precise 24px
+  (was px-4 = 16px all around); left padding unchanged.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 158 — DEV: KEYBOARD PLAYGROUND (2026-07-04)
 ================================================================
 Files: src/ui/components/DevMenu.tsx

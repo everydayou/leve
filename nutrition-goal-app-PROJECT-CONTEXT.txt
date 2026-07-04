@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 141 (fixed kcal/protein decimals leaking into whole-number list contexts; photo brightness is an open experiment — see Known Gaps)
+Last updated: 2026-07-04 — Round 142 (reverted round 141's photo experiment — no fix + a real regression; photo brightness cause is still unknown, see Known Gaps)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -174,18 +174,33 @@ HIGH:
   Day's-log basket's BasketItem[]/sources data model.
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
-- PHOTO BRIGHTNESS (open, round 137/141): Marco reports food photos render
-  "too bright" in-app; iOS's native long-press preview shows the same photo
-  correctly exposed, ruling out a data/encoding problem. Round 137's canvas
-  colorSpace fix (src/lib/image.ts) did NOT resolve it per Marco's retest.
-  No CSS filter/overlay found anywhere in the codebase after a full search.
-  Round 141 tried an experimental fix (moved rounded corners from a
-  wrapping overflow-hidden div onto the <img> itself in ImageHero.tsx, on
-  the theory that WebKit promotes clipped+shadowed containers to a
-  differently-color-managed GPU layer) — unconfirmed, awaiting Marco's
-  on-device test. If that doesn't help, next steps: try the same img-level
-  rounding fix on PhotoPicker's Thumb/thumbnail images too, or test
-  disabling `shadow-card-lg` on the hero photo as a further isolation step.
+- PHOTO BRIGHTNESS (open, rounds 137/141/142 — 2 attempts failed): Marco
+  reports food photos render "too bright" in ImageHero (Pantry Food item
+  detail AND the Day's-log basket preview, which share this component),
+  but NORMAL in FoodItemForm's edit-photo view for the exact same photo.
+  Native long-press preview also shows it correctly exposed. Timeline:
+  round 137 (canvas colorSpace on capture) — retested, no effect. Round 141
+  (moved ImageHero's rounded corners from a wrapping overflow-hidden div
+  onto the <img>, testing a GPU-compositing-layer theory) — retested, no
+  effect on brightness, AND caused a real regression (square white
+  corners, reverted in round 142). The round-141 revert also DISPROVES the
+  compositing theory: FoodItemForm's edit view has ALWAYS used
+  overflow-hidden + rounded corners and renders correctly, so that
+  structural detail isn't the differentiator. A full CSS/JSX audit (round
+  141) found zero filters/overlays/blend-modes anywhere in the codebase.
+  Marco's own new observation: the effect is "reactive to screen
+  brightness" and doesn't happen on all photos — this points AWAY from an
+  app-code bug and toward either (a) a perceptual/simultaneous-contrast
+  effect (ImageHero sits on a lot of plain white Sheet background; the
+  edit view has dark overlay buttons directly on the photo, which may
+  anchor perception differently) or (b) an iOS display-hardware behavior
+  (content-adaptive backlight/True Tone reacting to how much plain white
+  surrounds the photo) that isn't fixable from web app code at all. NOT
+  YET ASKED: whether the effect persists with Settings > Accessibility >
+  Display & Text Size > Auto-Brightness turned off — would help confirm/
+  rule out the hardware theory. Do not attempt another blind CSS fix here
+  without new evidence — two attempts have already failed, one caused a
+  regression.
 
 MED:
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
@@ -292,6 +307,21 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 142 — REVERT ROUND 141's IMAGEHERO EXPERIMENT (2026-07-04)
+Files: src/ui/kit/ImageHero.tsx
+- Round 141's photo-brightness experiment (rounding moved onto the <img>,
+  removing the wrapping overflow-hidden) fixed nothing and caused a real
+  regression: square white corners on ImageHero's photo (shared by Pantry
+  Food item detail AND the Day's-log basket preview) — border-radius on an
+  object-fit:cover <img> doesn't reliably clip in WebKit. Reverted to the
+  original overflow-hidden wrapper pattern. This also disproves round
+  141's compositing-layer theory outright: FoodItemForm's edit-photo view
+  has always used overflow-hidden + rounded corners and renders the same
+  photo correctly, so that structural detail was never the differentiator.
+  See Known Gaps for the current (still open) theory.
+- tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
+  verified clean.
+
 ROUND 141 — KCAL DECIMALS FIXED, PHOTO BRIGHTNESS EXPERIMENT (2026-07-04)
 Files: src/domain/{calc,calc.test}.ts, src/ui/screens/PantryScreen.tsx,
        src/ui/components/AddEntrySheet.tsx, src/ui/kit/ImageHero.tsx
@@ -320,20 +350,6 @@ Files: src/ui/components/AddEntrySheet.tsx
   was winning over the outline-none Tailwind classes at equal specificity,
   later in source order). Fixed: fixed `w-[54px] shrink-0` width, and an
   inline `style={{ outline: 'none' }}` (always wins, unlike a class).
-- tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
-  verified clean.
-
-ROUND 139 — TAP-TO-TYPE ON THE DAY'S-LOG QUANTITY STEPPER (2026-07-03)
-Files: src/ui/components/AddEntrySheet.tsx
-- Tapping the number in BasketStepper (the Day's-log quantity -/+ control)
-  now swaps it for a same-sized borderless text input instead of stepping;
-  typing a value + Enter/tap-away commits via the same onChange the
-  buttons use. type="text"+inputMode="decimal" (not type="number") so a
-  decimal comma isn't rejected, same fix as NumberField (round 136).
-  spellCheck/autoCorrect disabled so iOS doesn't underline the typed value.
-  Invalid/empty input is a no-op, not a removal. Scope: only this stepper
-  — the Pantry Food item/Meal detail stepper is a separate static display
-  left untouched (defines the recipe, not a consumed amount).
 - tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
   verified clean.
 

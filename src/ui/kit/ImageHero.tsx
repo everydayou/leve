@@ -10,15 +10,16 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
   if (photos.length === 1) {
     return (
       <div className={`flex justify-center ${className ?? ''}`}>
-        {/* Round 141 (experimental): rounding lives on the <img> itself, not
-            an `overflow-hidden` wrapper — a Safari/WKWebView quirk can render
-            a clipped+shadowed compositing layer with slightly different
-            color handling than the plain image, which may explain reported
-            "washed out" photos that look correct via iOS's native long-press
-            preview (which bypasses this layer entirely). Visually identical
-            either way. */}
-        <div className="h-64 w-64 shadow-card-lg">
-          <img src={photos[0]} alt="Meal" className="h-full w-full rounded-[20px] object-cover" />
+        {/* Round 141 tried moving rounding onto the <img> directly (removing
+           this overflow-hidden wrapper) to test a GPU-compositing-layer
+           theory for reported photo brightness — reverted (round 142):
+           border-radius directly on an object-fit:cover <img> doesn't clip
+           reliably in WebKit, which caused a real regression (square white
+           corners). The brightness theory is also disproven — see round 142
+           notes — so this reverts to the plain, correct overflow-hidden
+           pattern with no loss. */}
+        <div className="h-64 w-64 overflow-hidden rounded-[20px] shadow-card-lg">
+          <img src={photos[0]} alt="Meal" className="h-full w-full object-cover" />
         </div>
       </div>
     );
@@ -54,7 +55,7 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
           return (
             <div
               key={i}
-              className="absolute shadow-card-lg"
+              className="absolute overflow-hidden rounded-[20px] shadow-card-lg"
               style={{
                 width: c.w,
                 height: c.h,
@@ -64,7 +65,7 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
                 zIndex: c.z,
               }}
             >
-              <img src={photo} alt={`Photo ${i + 1}`} className="h-full w-full rounded-[20px] object-cover" />
+              <img src={photo} alt={`Photo ${i + 1}`} className="h-full w-full object-cover" />
             </div>
           );
         })}

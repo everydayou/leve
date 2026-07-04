@@ -39,10 +39,13 @@ Three more items from Marco's on-device review:
    specifically for real photos (single hero shot + the 2-4 photo collage
    tiles); the no-photo placeholder box stays shadowless as before.
 
-Also: Marco added a "food placeholder.png" for the eventual default image
-but pasted/attached chat images still aren't reaching this environment as
-files — asked him to connect his project folder so it can be picked up
-directly next round.
+Also: Marco uploaded "food placeholder.png" directly to the GitHub repo
+(via GitHub's own web UI, working around the chat-image-access gap) —
+pulled it in, moved it to src/assets/food-placeholder.png, and wired it
+into ImageHero as the real no-photo placeholder (replacing round 163's
+generic food-icon stand-in). It's a 1254×1254 PNG (~812KB) rendered at
+256×256 via object-cover — sizeable for a placeholder; flagged to Marco
+in case he wants to compress it, not blocking otherwise.
 
 tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
 `npm run build` verified clean.

@@ -1,15 +1,16 @@
-import { Icon } from './Icon';
+import foodPlaceholder from '../../assets/food-placeholder.png';
 
 /** Displays 1 photo as a wide hero, or 2–3 photos as a rotating collage.
  *  Meal/Food item views always show an image slot (round 162) — when
- *  `photos` is empty, renders a flat muted placeholder instead of nothing,
- *  since Marco doesn't yet have a real default-image asset to drop in.
- *  No shadow on the placeholder (it's not real content). Round 163 also
- *  dropped shadow-card-lg from REAL photos (reasoning: nested inside the
- *  meal/food-item card's own shadow, a second shadow would double up) —
- *  round 166 reverted that specifically for real photos, per Marco: "the
- *  food photos have no shadow... can you ensure that it goes back to
- *  them." Placeholder stays shadowless either way.
+ *  `photos` is empty, renders Marco's default placeholder illustration
+ *  (round 166: "food placeholder.png", a line-art plate/fork/knife —
+ *  round 163's generic food-icon box was only a stand-in until he had a
+ *  real asset) instead of nothing. No shadow on the placeholder — it's
+ *  not real content. Round 163 also dropped shadow-card-lg from REAL
+ *  photos (reasoning: nested inside the meal/food-item card's own
+ *  shadow, a second shadow would double up) — round 166 reverted that
+ *  specifically for real photos, per Marco: "the food photos have no
+ *  shadow... can you ensure that it goes back to them."
  *
  *  Figma x/y values are bounding-box positions (top-left of the axis-aligned
  *  rect around the rotated element). CSS left/top is the unrotated box position,
@@ -18,8 +19,8 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
   if (photos.length === 0) {
     return (
       <div className={`flex justify-center ${className ?? ''}`}>
-        <div className="flex h-64 w-64 items-center justify-center rounded-[20px] bg-surface-muted">
-          <Icon name="foodIcon" size={32} className="text-content-muted" />
+        <div className="h-64 w-64 overflow-hidden rounded-[20px]">
+          <img src={foodPlaceholder} alt="" className="h-full w-full object-cover" />
         </div>
       </div>
     );

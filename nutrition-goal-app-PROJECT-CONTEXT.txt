@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 166 ("Add a new food item" gets a border in the Meal case only; grey Food-items panel now flex-fills the remaining Sheet height instead of ending early; ImageHero real photos have shadow-card-lg back — still pending the real placeholder image file)
+Last updated: 2026-07-04 — Round 166 ("Add a new food item" gets a border in the Meal case only; grey Food-items panel now flex-fills the remaining Sheet height; ImageHero real photos have shadow-card-lg back; real default placeholder image (food-placeholder.png) now wired in, replacing the generic icon)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -170,12 +170,12 @@ HIGH:
   item" has a border-field outline in the Meal case only; ImageHero real
   photos have their shadow-card-lg back. Still built without a visual
   preview in this environment — needs another on-device pass.
-- DEFAULT MEAL/FOOD-ITEM IMAGE (round 163, still pending real asset):
-  ImageHero shows a flat bg-surface-muted placeholder (generic food icon,
-  no shadow). Marco has a nicer line-art plate/fork/knife illustration
-  ("food placeholder.png") but pasted/attached chat images aren't
-  reaching this environment as files — asked him to connect his project
-  folder so it can be picked up directly.
+- DEFAULT MEAL/FOOD-ITEM IMAGE (round 166, resolved): ImageHero now uses
+  Marco's real "food-placeholder.png" (line-art plate/fork/knife,
+  src/assets/food-placeholder.png) instead of the round-163 generic icon
+  stand-in — he uploaded it directly via GitHub's web UI. It's a
+  1254×1254 PNG (~812KB) shown at 256×256 via object-cover; worth
+  compressing at some point but not blocking.
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
 - SHEET SCROLL-SHADOW BUG (open, round 152/153): main Sheet header's shadow
@@ -306,6 +306,9 @@ Files: src/ui/components/MethodCards.tsx, src/ui/kit/ImageHero.tsx,
   shadow-card-lg restored — round 163 had dropped it, reasoning a second
   shadow inside the meal-card's own shadow would double up; the no-photo
   placeholder stays shadowless.
+- Marco's real placeholder image (food-placeholder.png, uploaded via
+  GitHub's web UI) is now wired into ImageHero, replacing the generic
+  food-icon stand-in from round 163.
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 

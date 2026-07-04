@@ -1,4 +1,5 @@
 import UIKit
+import WebKit
 import Capacitor
 
 @UIApplicationMain
@@ -7,6 +8,29 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // An earlier build briefly registered the web app's PWA service
+        // worker inside this native WKWebView (it's only meant for the
+        // browser/PWA install path). A controlling service worker can keep
+        // serving its OWN cached bundle indefinitely, regardless of what a
+        // later build/sync actually contains — the JS shipped in that later
+        // build never gets a chance to run to un-register it, since the old
+        // worker is exactly what's still deciding what gets loaded. Clearing
+        // these WKWebsiteDataStore types here, before the web view loads
+        // anything, sidesteps that chicken-and-egg problem at the native
+        // layer instead. Safe to run on every launch (cheap no-op once
+        // already clean). Deliberately NOT included: ServiceWorker-managed
+        // IndexedDB, LocalStorage, SessionStorage, Cookies — none of the
+        // real app data (goals, foods, weigh-ins) lives in any of the types
+        // below, only in IndexedDB, which this never touches.
+        let staleWebCacheTypes: Set<String> = [
+            WKWebsiteDataTypeServiceWorkerRegistrations,
+            WKWebsiteDataTypeFetchCache,
+            WKWebsiteDataTypeDiskCache,
+            WKWebsiteDataTypeMemoryCache,
+            WKWebsiteDataTypeOfflineWebApplicationCache,
+        ]
+        WKWebsiteDataStore.default().removeData(ofTypes: staleWebCacheTypes, modifiedSince: .distantPast) {}
+
         // Override point for customization after application launch.
         return true
     }

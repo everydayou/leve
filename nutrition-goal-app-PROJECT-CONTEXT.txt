@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 145 (Camera/Photo/Describe/Nutri-scan wired into the Pantry meal builder; fixed native app serving a stale cached bundle after ios:sync via a leftover PWA service worker)
+Last updated: 2026-07-04 — Round 146 (Round 145's JS-only service-worker fix wasn't enough on its own — added a native-layer WKWebsiteDataStore clear in AppDelegate.swift so a stale controlling service worker can't keep serving its own cached bundle forever)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -277,6 +277,31 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 146 — STALE NATIVE BUNDLE, TAKE 2: NATIVE-LAYER CACHE CLEAR (2026-07-04)
+Files: ios/App/App/AppDelegate.swift
+- Round 145's fix (stop registering the PWA service worker on native,
+  self-unregister from main.tsx) turned out not to be reliably enough on
+  its own: once a service worker is ALREADY controlling the WKWebView
+  (from an earlier build, before round 145), it can keep serving its OWN
+  precached bundle indefinitely — including on every subsequent app
+  relaunch — without ever giving the NEW build's JS (which contains the
+  unregister-itself code) an actual chance to run. A pure-JS self-heal
+  depends on WebKit's own service-worker update-check timing, which isn't
+  guaranteed to happen promptly for locally-bundled Capacitor content, and
+  evidently didn't here even after a real Xcode rebuild + a few relaunches.
+  Fixed at the native layer instead, which sidesteps the chicken-and-egg
+  problem entirely: AppDelegate's didFinishLaunchingWithOptions now clears
+  WKWebsiteDataStore's ServiceWorkerRegistrations + FetchCache (the Cache
+  Storage API Workbox precaches into) + Disk/Memory/OfflineWebApplication
+  caches, BEFORE the web view ever loads a page — so there's no cached
+  service worker left to decide what to serve in the first place. Runs on
+  every launch (cheap no-op once already clean, so no downside to leaving
+  it in permanently). Deliberately does NOT touch IndexedDB, LocalStorage,
+  SessionStorage, or Cookies — none of the real app data (goals, foods,
+  weigh-ins) lives in any of the cleared types.
+- Not verified compiling in Xcode from this session (no Mac/Xcode
+  toolchain available) — flag any build error from this file immediately.
+
 ROUND 145 — PANTRY MEAL BUILDER: CAMERA/PHOTO/DESCRIBE/NUTRI-SCAN + STALE NATIVE BUNDLE FIX (2026-07-04)
 Files: src/lib/foodScan.ts, src/ui/kit/FloatingTabBar.tsx,
        src/ui/components/AddEntrySheet.tsx, src/ui/components/MethodCards.tsx,
@@ -333,20 +358,6 @@ Files: src/ui/components/AddEntrySheet.tsx
   the Pantry-side builder), while staying fully live-linked to the Meal.
   Explicit single-item saves (editing one basket item, or the per-item
   checkbox in the Manual-add-to-meal form) are unaffected.
-- tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
-  verified clean.
-
-ROUND 143 — "SAVE TO PANTRY" CHECKBOX STUCK ON AFTER DELETING THE MEAL (2026-07-04)
-Files: src/ui/components/AddEntrySheet.tsx
-- Scan a photo -> get a Meal -> save to Pantry -> delete that Meal from
-  Pantry -> reopen the Day's-log entry: "Save to pantry" checkbox stayed
-  checked (entry.mealId is stale but never cleared), so it couldn't be
-  re-added — ticking an already-"checked" box does nothing. Fixed:
-  `saveToPantry` is now an override on top of a live-derived
-  `mealStillExists` check (meals.some(m => m.id === entry.mealId)) instead
-  of raw state seeded once from `!!entry.mealId` at mount — same pattern
-  as round 135's unlink checkbox (derived value, no setState-in-effect).
-  Ticking it back on and saving recreates the Meal at the same id.
 - tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
   verified clean.
 

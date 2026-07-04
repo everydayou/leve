@@ -58,9 +58,12 @@ delete/uninstall the app from the phone.
 - **Signing error / "Failed to register bundle identifier"** → change `appId` in
   `capacitor.config.ts` to something unique (e.g. `com.marco.ngt2`), then
   `npm run ios:sync` and try again.
-- **App shows old content after a sync** → the PWA service worker may be serving a
-  stale cache. Tell me and I'll disable the service worker for the native build
-  (one small config change); it's only needed for the browser PWA path.
+- **App shows old content after a sync** → this used to be the PWA service worker
+  serving a stale cache. Fixed: the native build now actively unregisters any
+  service worker + clears its caches on launch (`src/main.tsx`), and no longer
+  registers one in the first place (`vite.config.ts`'s `injectRegister: false`).
+  If you still see old content after a real Xcode ▶ Run, it's something else —
+  send me the Xcode build log.
 - Anything else: copy the Xcode error text to me.
 
 ## Later: HealthKit / Withings

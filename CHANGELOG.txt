@@ -1,4 +1,80 @@
 ================================================================
+ROUND 145 — PANTRY MEAL BUILDER: CAMERA/PHOTO/DESCRIBE/NUTRI-SCAN + STALE NATIVE BUNDLE FIX (2026-07-04)
+================================================================
+Files: src/lib/foodScan.ts, src/ui/kit/FloatingTabBar.tsx,
+       src/ui/components/AddEntrySheet.tsx, src/ui/components/MethodCards.tsx,
+       src/ui/components/basketHelpers.ts (NEW), src/ui/components/useFoodCapture.tsx (NEW),
+       src/ui/components/FoodCapture.tsx (NEW), src/ui/components/PantryMealDetail.tsx,
+       src/ui/components/PantryFoodItemDetail.tsx, vite.config.ts, src/main.tsx
+
+Closed the last piece of the meals-in-pantry Known Gap: Camera/Photo/Describe/
+Nutri-scan in the Pantry meal builder ("Create a meal" / "Add a new food
+item") no longer toast "coming soon" — they reuse the exact same scan/
+describe/label-scan mechanics, copy, and error handling as the Day's-log
+basket, rather than re-deriving them.
+
+── EXTRACTION (Pantry side reuses Day's-log's own scan/describe engine) ─────
+Extracted the mechanics (runScan/handleCamera/handlePhoto/
+handleDescribeAnalyze/handleLabelScan — verbatim copies of AddEntrySheet.tsx's
+existing logic, no behaviour changes) into a new `useFoodCapture()` hook,
+generalised behind an `onCaptured(items, source?)` callback so any surface can
+plug in its own basket. BasketItem + its pure helpers (basketNutrition,
+cleanScanName, scanResultToBasket, pantryToBasket) moved to the new
+basketHelpers.ts (kept out of component files — mixing a hook/plain-function
+export with component exports trips eslint-plugin-react-refresh's
+only-export-components rule). BasketCard/DescribeOverlay/EditOverlay/
+ServingModal are now exported from AddEntrySheet.tsx instead of being copied
+a third time; a new FoodCapture.tsx holds AnalyzingIndicator + the new
+CaptureReviewOverlay (built from BasketCard) for the review-before-commit
+step. FoodForm/LogEntryContent's OWN scan logic is deliberately left
+untouched (still has its pre-existing internal duplication) — not risking a
+rushed refactor of Marco's live daily-use flow, same reasoning as round 122's
+BasketCard/PantryItemCard split.
+
+── PANTRY WIRING ─────────────────────────────────────────────────────────────
+PantryMealDetail / PantryFoodItemDetail: Camera/Photo call the capture hook
+directly (native camera / web file-input fallback, same SCAN_ENABLED gate);
+Describe opens the shared DescribeOverlay; Nutri-scan opens the shared label
+file picker. Results land in a local review list (reusing BasketCard: qty
+stepper, remove, edit) before being committed — each captured item becomes a
+real Food item with `isArchived: true` by default (matches round 130/144's
+hidden-ingredient rule), opt-out via the per-item "Save to pantry" checkbox on
+the reused EditOverlay (which also lets the item's photo/macros be corrected
+before committing). PantryMealDetail appends the new items to the existing
+Meal ("Add to meal"); PantryFoodItemDetail creates a brand-new Meal combining
+the existing item + the captured ones ("Create meal"), mirroring
+handleAddItem/handleAddMealItem's existing semantics exactly.
+
+Scope note: PantryScreen's "+ New food" Camera/Photo/Describe/Nutri-scan is
+intentionally still "coming soon" — scanning can return multiple items, which
+doesn't fit that flow's single-item model without a product decision first
+(pick one of several? create a Meal instead?). Left for Marco to decide,
+tracked in Known Gaps.
+
+── SEPARATE BUG: STALE NATIVE BUNDLE AFTER ios:sync ─────────────────────────
+Found while verifying on-device: after `npm run ios:sync` + a real Xcode
+rebuild/run, the app kept showing pre-round-145 behaviour. Root cause: a
+leftover PWA service worker (registered by an earlier install) was still
+serving its OWN stale cached bundle from Cache Storage — exactly the failure
+mode INSTALL-iOS.md's troubleshooting section already flagged as a known
+risk, now actually hit. The service worker is only meant for the browser/PWA
+install path, never the native (Capacitor) build.
+Fixed: vite.config.ts sets `injectRegister: false` so vite-plugin-pwa no
+longer auto-injects its unconditional `<script>` that registered the SW on
+every load, regardless of platform. main.tsx now registers the service
+worker ONLY on the browser/PWA path (`!Capacitor.isNativePlatform()`); on
+native it instead actively unregisters any existing service worker
+registrations and clears all Cache Storage on every launch — self-healing
+for installs already affected by the bug, no app deletion needed. This does
+NOT touch IndexedDB, where the real app data (goals, foods, weigh-ins) lives
+— only the service worker's own cache.
+Also updated INSTALL-iOS.md's troubleshooting entry to reflect the fix.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged). `npm run
+build` verified clean — confirmed the built index.html no longer contains
+the registerSW.js script tag.
+
+================================================================
 ROUND 144 — SCANNED MEAL INGREDIENTS SAVING TO PANTRY AS THEIR OWN ITEMS (2026-07-04)
 ================================================================
 Files: src/ui/components/AddEntrySheet.tsx

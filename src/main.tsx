@@ -11,6 +11,33 @@ import AppRoot from './AppRoot';
 import { initSplash } from './lib/splashCoordinator';
 import './index.css';
 
+// ── Service worker (browser PWA path only) ──────────────────────────────────
+// Native (Capacitor) builds must never run this — see INSTALL-iOS.md's
+// troubleshooting entry: a stale SW can keep serving an old cached bundle
+// after `npm run ios:sync` + a fresh Xcode rebuild, so newly-synced code
+// silently never actually runs on the device even though the build itself
+// is current. For native we instead actively unregister any SW + clear its
+// caches left over from before this fix landed — safe on every launch, and
+// doesn't touch IndexedDB (where the real app data lives), only the SW's
+// own cache storage. vite.config.ts's `injectRegister: false` stops the
+// PWA plugin from auto-adding its own unconditional registration script.
+if (Capacitor.isNativePlatform()) {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations()
+      .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+      .catch(() => { /* non-fatal */ });
+  }
+  if ('caches' in window) {
+    caches.keys()
+      .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+      .catch(() => { /* non-fatal */ });
+  }
+} else if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => { /* non-fatal */ });
+  });
+}
+
 // Minimum time the loading screen is shown — two full animation cycles (0.9 s each).
 // On a dev-profile reload (sessionStorage flag set) we skip the minimum entirely
 // so profile switching isn't gated behind a 1.8 s wait.

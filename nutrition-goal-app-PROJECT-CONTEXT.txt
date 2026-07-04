@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 144 (fixed scanned/built meal ingredients showing up as their own items in Pantry when the meal is saved — should stay hidden, living only in the meal)
+Last updated: 2026-07-04 — Round 145 (Camera/Photo/Describe/Nutri-scan wired into the Pantry meal builder; fixed native app serving a stale cached bundle after ios:sync via a leftover PWA service worker)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -163,19 +163,16 @@ changes, on the Mac: `npm install` → `npm test` → `npm run build` →
 KNOWN GAPS
 ----------------------------------------------------------------
 HIGH:
-- MEALS IN PANTRY — CAMERA/PHOTO/DESCRIBE FOR THE PANTRY MEAL BUILDER: the
-  only piece left from the original meals-in-pantry scope. Round 127 landed
-  Day's-log integration (logBasket + LogEntryContent.save() both create/
-  maintain real linked Meals now). Manual + "Add from pantry" are fully
-  wired in the Pantry meal-builder; Camera/Photo/Describe still toast
-  "coming soon" — needs the scan/describe helpers (captureFromCamera/
-  captureFromLibrary/scanFood/describeFood, DescribeOverlay, runScan)
-  extracted out of AddEntrySheet.tsx, where they're currently coupled to the
-  Day's-log basket's BasketItem[]/sources data model.
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
 
 MED:
+- PANTRY "+ NEW FOOD" CAMERA/PHOTO/DESCRIBE/NUTRI-SCAN: still "coming soon"
+  (round 145 only wired these into the MEAL builder). Scanning a photo can
+  return several items, which doesn't fit "New food"'s single-item flow
+  without a product decision first (e.g. picking one of several detected
+  items, or letting it create a Meal instead) — needs Marco's call before
+  building it.
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
   entries. (Goal actions confirm via Sheet; entry deletes are immediate.)
 - ACCOUNT IA: layout still growing — grouping pass worthwhile when more
@@ -280,6 +277,45 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 145 — PANTRY MEAL BUILDER: CAMERA/PHOTO/DESCRIBE/NUTRI-SCAN + STALE NATIVE BUNDLE FIX (2026-07-04)
+Files: src/lib/foodScan.ts, src/ui/kit/FloatingTabBar.tsx,
+       src/ui/components/AddEntrySheet.tsx, src/ui/components/MethodCards.tsx,
+       src/ui/components/basketHelpers.ts (NEW), src/ui/components/useFoodCapture.tsx (NEW),
+       src/ui/components/FoodCapture.tsx (NEW), src/ui/components/PantryMealDetail.tsx,
+       src/ui/components/PantryFoodItemDetail.tsx, vite.config.ts, src/main.tsx
+- Closed the last piece of the meals-in-pantry Known Gap: Camera/Photo/
+  Describe/Nutri-scan in the Pantry meal builder ("Create a meal" / "Add a
+  new food item") no longer toast "coming soon" — they reuse the exact same
+  scan/describe/label-scan mechanics, copy, and error handling as the
+  Day's-log basket. Extracted the mechanics (runScan/handleCamera/
+  handlePhoto/handleDescribeAnalyze/handleLabelScan, verbatim from
+  AddEntrySheet.tsx) into a new `useFoodCapture()` hook, generalised behind
+  an `onCaptured` callback; BasketItem + its pure helpers moved to
+  basketHelpers.ts; BasketCard/DescribeOverlay/EditOverlay/ServingModal
+  exported from AddEntrySheet.tsx for reuse instead of being copied again.
+  FoodForm/LogEntryContent's OWN scan logic is untouched (still two
+  duplicate copies there) — deliberately not risking a rushed refactor of
+  Marco's live daily-use flow, same reasoning as round 122's BasketCard/
+  PantryItemCard split. Pantry-side captured items are staged in a review
+  list (reusing BasketCard) before being committed as real Food items —
+  `isArchived: true` by default (matches round 130/144), opt-out via the
+  per-item "Save to pantry" checkbox on the (also reused) EditOverlay.
+  Scope note: PantryScreen's "+ New food" scan is intentionally still
+  "coming soon" — see Known Gaps.
+- SEPARATE BUG found while verifying on-device: after `npm run ios:sync` +
+  a real Xcode rebuild/run, the app kept showing pre-round-145 behaviour —
+  a leftover PWA service worker (registered by earlier installs) was still
+  serving its OWN stale cached bundle, exactly the failure mode
+  INSTALL-iOS.md already flagged as a known risk. Fixed: vite.config.ts now
+  sets `injectRegister: false` so the PWA plugin no longer auto-injects an
+  unconditional registration script; main.tsx registers the service worker
+  ONLY on the browser/PWA path, and on native actively unregisters any
+  existing service worker + clears its Cache Storage on every launch
+  (self-healing for installs already affected — doesn't touch IndexedDB,
+  where the real app data lives, only the SW's own cache).
+- tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
+  verified clean.
+
 ROUND 144 — SCANNED MEAL INGREDIENTS SAVING TO PANTRY AS THEIR OWN ITEMS (2026-07-04)
 Files: src/ui/components/AddEntrySheet.tsx
 - Marco: scanning a photo into a meal, then saving that meal to Pantry,
@@ -311,21 +347,6 @@ Files: src/ui/components/AddEntrySheet.tsx
   of raw state seeded once from `!!entry.mealId` at mount — same pattern
   as round 135's unlink checkbox (derived value, no setState-in-effect).
   Ticking it back on and saving recreates the Meal at the same id.
-- tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
-  verified clean.
-
-ROUND 142 — REVERT ROUND 141's IMAGEHERO EXPERIMENT (2026-07-04)
-Files: src/ui/kit/ImageHero.tsx
-- Round 141's photo-brightness experiment (rounding moved onto the <img>,
-  removing the wrapping overflow-hidden) fixed nothing and caused a real
-  regression: square white corners on ImageHero's photo (shared by Pantry
-  Food item detail AND the Day's-log basket preview) — border-radius on an
-  object-fit:cover <img> doesn't reliably clip in WebKit. Reverted to the
-  original overflow-hidden wrapper pattern. This also disproves round
-  141's compositing-layer theory outright: FoodItemForm's edit-photo view
-  has always used overflow-hidden + rounded corners and renders the same
-  photo correctly, so that structural detail was never the differentiator.
-  See Known Gaps for the current (still open) theory.
 - tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
   verified clean.
 

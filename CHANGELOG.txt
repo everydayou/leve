@@ -1,4 +1,36 @@
 ================================================================
+ROUND 164 — REMOVE THE HEADER-TO-CARD SEAM (2026-07-04)
+================================================================
+Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+       (LogEntryContent, FoodForm)
+
+Marco tested round 163 on-device and sent a screenshot: the photo+meal-info
+card (rounded on ALL corners, shadow-card-lg, with its own marginTop gap)
+read as a SECOND, visually disconnected white box floating just below the
+Sheet's own header — since the header is ALSO white, the card's top
+rounded corners + shadow just created a confusing extra seam rather than
+looking like one continuous surface. His ask: "I want the modal sheet,
+the top part, to be part of the white card" — and offered a simpler
+fallback if that's too involved: "a layer with the effect... dividing the
+2 sections," i.e. just a rounded/shadowed transition edge, not a fully
+separate floating card.
+
+Went with the simpler fallback, which also fully solves the top-seam
+problem: the photo + meal-info block no longer has its own top rounding,
+shadow, or gap at all — it flows straight out of the Sheet's header on
+the ambient white background, exactly like the header and body were
+always meant to read as one surface. Rounded BOTTOM corners only
+(rounded-b-main) + shadow-card-lg (a downward-only shadow per its own
+recipe — 0 2px/16px+ POSITIVE y-offset, nothing negative — so it never
+shows above or beside the box) now mark just the transition into the grey
+"Food items" section below, instead of wrapping the whole top region in
+an inset floating card. Applied identically to all 3 Basket Meal views;
+the grey "Food items" section itself is unchanged from round 163.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 163 — MEAL-CARD LAYERING REBUILT ON THE GAUGE-CARD PATTERN + DEFAULT IMAGE PLACEHOLDER (2026-07-04)
 ================================================================
 Files: src/ui/kit/ImageHero.tsx, src/ui/components/AddEntrySheet.tsx (LogEntryContent,

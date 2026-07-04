@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 163 (Meal-card layering rebuilt on TodayScreen's proven Gauge-card pattern — plain nested boxes, no negative margins; ImageHero always renders, with a flat muted placeholder when there's no photo yet — still NOT pixel-confirmed on device)
+Last updated: 2026-07-04 — Round 164 (Meal-card top no longer has its own rounding/shadow/gap — flows flush from the Sheet's header; rounded-bottom + shadow now mark only the divider into the grey Food-items section, per Marco's on-device screenshot feedback)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -163,12 +163,14 @@ changes, on the Mac: `npm install` → `npm test` → `npm run build` →
 KNOWN GAPS
 ----------------------------------------------------------------
 HIGH:
-- MEAL-CARD LAYERED HIERARCHY (round 163, unverified): PantryMealDetail/
-  LogEntryContent/FoodForm now mirror TodayScreen's Gauge-card pattern
-  (photo + meal-info merged into one shadow-card-lg white card, sitting
-  atop a taller rounded-main grey container that reveals "Food items"
-  below) — still built without any visual preview (no headless browser
-  available in this environment) — needs Marco's on-device review.
+- MEAL-CARD LAYERED HIERARCHY (round 164, partially verified): Marco
+  confirmed round 163's white-card-over-grey concept on-device but flagged
+  the card's own top rounding/shadow as a disconnected-looking seam below
+  the Sheet's header — round 164 removed the top rounding/shadow/gap
+  entirely (flows flush from the header) and kept rounded-bottom +
+  shadow-card-lg only as the divider into the grey "Food items" section.
+  Still built without a visual preview in this environment — needs
+  another on-device pass to confirm this reads right.
 - DEFAULT MEAL/FOOD-ITEM IMAGE (round 163): ImageHero now shows a flat
   bg-surface-muted placeholder (food icon, no shadow) when there's no
   real photo, since Marco doesn't have a proper default-image asset yet.
@@ -285,6 +287,19 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 164 — REMOVE THE HEADER-TO-CARD SEAM (2026-07-04)
+Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+       (LogEntryContent, FoodForm)
+- Marco's on-device screenshot showed round 163's rounded-ALL-corners
+  white card reading as a second, disconnected box floating below the
+  Sheet's (also white) header. Fix: photo + meal-info no longer has its
+  own top rounding/shadow/gap — flows flush out of the header. Rounded
+  BOTTOM corners (rounded-b-main) + shadow-card-lg (downward-only shadow,
+  won't show above the box) now mark just the transition into the grey
+  "Food items" section, per Marco's "simple divider" fallback suggestion.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 163 — MEAL-CARD LAYERING REBUILT ON THE GAUGE-CARD PATTERN + DEFAULT IMAGE PLACEHOLDER (2026-07-04)
 Files: src/ui/kit/ImageHero.tsx, src/ui/components/AddEntrySheet.tsx (LogEntryContent,
        FoodForm), src/ui/components/PantryMealDetail.tsx
@@ -321,15 +336,6 @@ Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.t
 - Built without on-device/headless-browser preview this round — overlap
   (16px), radius (rounded-t-sheet), and grey shade (bg-surface-sunken)
   are first-pass reasoned values, not pixel-confirmed. See Known Gaps.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 161 — DAY'S LOG: QUANTITY SUFFIX "(2x)" NOW REGULAR WEIGHT (2026-07-04)
-Files: src/ui/screens/TodayScreen.tsx
-- The "(2x)"/"(150g)" quantity suffix next to a Food row's name was
-  inheriting font-bold from its parent name span (had no weight class of
-  its own). Added font-normal directly on it to match the rest of the
-  secondary-text styling on that row.
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 

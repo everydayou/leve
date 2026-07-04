@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Icon, type IconName } from './Icon';
 import { hapticLight } from '../../lib/haptics';
 import { prefersReducedMotion } from '../../lib/motion';
+import { SCAN_ENABLED } from '../../lib/foodScan';
 
 export type TabItem = { key: string; label: string; icon: IconName };
 export type ActionType = 'scan' | 'food' | 'activity' | 'weight';
@@ -12,8 +13,6 @@ type ActionItem = {
   label: string;
   tier: 'inner' | 'outer';
 };
-
-const SCAN_ENABLED = !!(import.meta.env.VITE_FOOD_SCAN_API_URL as string | undefined);
 
 // Speed-dial items — preserved for future use (currently disconnected from FAB tap)
 const ACTION_ITEMS: ActionItem[] = [

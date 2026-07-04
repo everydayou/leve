@@ -11,7 +11,7 @@ import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { fmtDiaryDate } from '../../lib/date';
 import { downscaleImage, MAX_SCAN_PX } from '../../lib/image';
 import { captureFromCamera, captureFromLibrary, isNativeIOS } from '../../lib/camera';
-import { scanFood, describeFood } from '../../lib/foodScan';
+import { scanFood, describeFood, SCAN_ENABLED } from '../../lib/foodScan';
 import { hapticLight } from '../../lib/haptics';
 import {
   SegmentedControl, Button, LabeledInput, NumberField, WheelPicker,
@@ -24,8 +24,11 @@ import { FoodItemFormContent } from './FoodItemForm';
 import type { FoodItemFormValues } from './FoodItemForm';
 import { DeleteIcon, EditIcon } from './icons';
 import { AddAnotherSection, MethodCards } from './MethodCards';
+import {
+  basketNutrition, cleanScanName, scanResultToBasket, pantryToBasket,
+} from './basketHelpers';
+import type { BasketItem, SourceGroup } from './basketHelpers';
 
-const SCAN_ENABLED = !!(import.meta.env.VITE_FOOD_SCAN_API_URL as string | undefined);
 
 function timeMealName(): string {
   const h = new Date().getHours();
@@ -59,95 +62,7 @@ async function syncAccountBmr() {
   }
 }
 
-// ── Internal basket types ─────────────────────────────────────────────────────
-
-type BasketItem = {
-  id: string;
-  name: string;
-  /** Stored as literal union to avoid importing MeasurementType here. */
-  measurementType: 'per_100g' | 'per_serving';
-  /** 100 for per_100g; grams-per-serving for per_serving. */
-  referenceAmount: number;
-  /** Macros at referenceAmount (not at current qty). */
-  calories: number;
-  protein: number;
-  carbs: number;
-  fiber: number;
-  fat: number;
-  /** Current quantity: grams (per_100g) or servings (per_serving). */
-  qty: number;
-  /** Links to a SourceGroup photo (scan or pantry photo). */
-  sourceId?: string;
-  /** Set when item was added from the pantry. */
-  pantryItemId?: string;
-};
-
-type SourceGroup = { id: string; photo: string };
-
-// ── Basket helpers ────────────────────────────────────────────────────────────
-
-function basketNutrition(item: BasketItem): NutritionSnapshot {
-  const s = item.measurementType === 'per_100g' ? item.qty / 100 : item.qty;
-  return {
-    calories: Math.round(item.calories * s),
-    protein:  Math.round(item.protein  * s * 10) / 10,
-    carbs:    Math.round(item.carbs    * s * 10) / 10,
-    fiber:    Math.round(item.fiber    * s * 10) / 10,
-    fat:      Math.round(item.fat      * s * 10) / 10,
-  };
-}
-
-function pantryToBasket(item: FoodItem, sourceId?: string): BasketItem {
-  return {
-    id: newId(),
-    name: item.name,
-    measurementType: item.measurementType,
-    referenceAmount: item.referenceAmount,
-    calories: item.calories,
-    protein:  item.protein,
-    carbs:    item.carbs,
-    fiber:    item.fiber,
-    fat:      item.fat,
-    qty: item.measurementType === 'per_100g' ? 100 : 1,
-    sourceId,
-    pantryItemId: item.id,
-  };
-}
-
-/** Strip parenthetical descriptors and cap to 22 chars at a word boundary.
- *  Scan results often return verbose names like "Sourdough bread (toasted, partial slice)"
- *  — this normalises them to concise meal names. */
-function cleanScanName(raw: string): string {
-  // Remove trailing parenthetical description: "Bread (with butter)" → "Bread"
-  let name = raw.replace(/\s*\([^)]*\)$/, '').trim();
-  // Also strip " - description" suffixes
-  name = name.replace(/\s+[-–]\s+.+$/, '').trim();
-  if (name.length <= 22) return name;
-  // Truncate at last word boundary within 22 chars
-  const truncated = name.slice(0, 22).replace(/\s+\S*$/, '').trim();
-  return truncated || name.slice(0, 22).trim();
-}
-
-function scanResultToBasket(
-  r: { name: string; estimatedGrams: number; calories: number; protein: number; carbs: number; fiber: number; fat: number },
-  sourceId: string,
-): BasketItem {
-  const grams = Math.max(Number(r.estimatedGrams) || 100, 1);
-  const f = 100 / grams;
-  return {
-    id: newId(),
-    name: cleanScanName(r.name),
-    measurementType: 'per_100g',
-    referenceAmount: 100,
-    calories: (Number(r.calories) || 0) * f,
-    protein:  (Number(r.protein)  || 0) * f,
-    carbs:    (Number(r.carbs)    || 0) * f,
-    fiber:    (Number(r.fiber)    || 0) * f,
-    fat:      (Number(r.fat)      || 0) * f,
-    qty: grams,
-    sourceId,
-  };
-}
+// ── Internal basket types/helpers — see ./basketHelpers.ts ───────────────────
 
 // ── AddEntrySheet ─────────────────────────────────────────────────────────────
 
@@ -1080,7 +995,7 @@ function BasketStepper({
 /** Delete icon from design spec — uses currentColor; defaults to 20×20 */
 // ── BasketCard ────────────────────────────────────────────────────────────────
 
-function BasketCard({
+export function BasketCard({
   item, nutrition, onQtyChange, onRemove, onEdit, onCorrect,
 }: {
   item: BasketItem;
@@ -1291,7 +1206,7 @@ function FoodPicker({
 
 // ── DescribeOverlay ───────────────────────────────────────────────────────────
 
-function DescribeOverlay({
+export function DescribeOverlay({
   onBack, onAnalyze,
 }: {
   onBack: () => void;
@@ -1352,7 +1267,7 @@ function DescribeOverlay({
 
 // ── ServingModal ──────────────────────────────────────────────────────────────
 
-function ServingModal({
+export function ServingModal({
   name, servingG, onPer100g, onPerServing, onDismiss,
 }: {
   name: string; servingG: number;
@@ -1438,7 +1353,7 @@ function ManualOverlay({
 
 // ── EditOverlay ───────────────────────────────────────────────────────────────
 
-function EditOverlay({
+export function EditOverlay({
   item, currentPhoto, onBack, onSave, onPhotoChange, existingItems, existingMeals = [],
 }: {
   item: BasketItem;

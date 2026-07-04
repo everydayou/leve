@@ -18,6 +18,11 @@ export interface ScannedFood {
 
 const API_URL = (import.meta.env.VITE_FOOD_SCAN_API_URL as string | undefined) ?? '';
 
+/** Single source of truth for whether the AI food-scan feature (Camera/
+ *  Photo/Nutri-scan) is configured — gates its UI everywhere it appears
+ *  (Day's-log basket, Pantry meal builder, FAB speed dial). */
+export const SCAN_ENABLED = !!API_URL;
+
 export async function scanFood(imageDataUrl: string): Promise<ScannedFood[]> {
   if (!API_URL) {
     throw new Error('Food scan not configured. Set VITE_FOOD_SCAN_API_URL in .env.local.');

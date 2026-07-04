@@ -24,6 +24,12 @@ import { PantryPicker } from './PantryPicker';
 import { DeleteIcon } from './icons';
 import { FoodItemFormContent } from './FoodItemForm';
 import type { FoodItemFormValues } from './FoodItemForm';
+import { useFoodCapture } from './useFoodCapture';
+import {
+  AnalyzingIndicator, CaptureReviewOverlay,
+  DescribeOverlay, EditOverlay, ServingModal,
+} from './FoodCapture';
+import type { BasketItem } from './FoodCapture';
 import type { ShowToast } from './Toaster';
 import type { FoodItem, Meal } from '../../domain/types';
 
@@ -31,7 +37,7 @@ function servingLabelFor(item: FoodItem, quantity: number): string {
   return item.measurementType === 'per_100g' ? `${quantity}g` : `${quantity} Srv`;
 }
 
-type OverlayKey = 'edit' | 'add-manual' | 'add-pantry';
+type OverlayKey = 'edit' | 'add-manual' | 'add-pantry' | 'describe' | 'add-scan' | 'edit-scan-item';
 
 export function PantryMealDetail({
   mealId, meals, items, allItems, onClose, showToast,
@@ -100,6 +106,64 @@ function PantryMealDetailContent({
   const [confirmingDeleteMeal, setConfirmingDeleteMeal] = useState(false);
   const [manualDirty, setManualDirty] = useState(false);
   const [confirmingDiscardManual, setConfirmingDiscardManual] = useState(false);
+
+  // ── Camera/Photo/Describe/Nutri-scan — captured items are staged here
+  //    (not yet real Food items) until "Add to meal" is confirmed. ────────
+  const [scanBasket, setScanBasket] = useState<BasketItem[]>([]);
+  const [scanSources, setScanSources] = useState<Record<string, string>>({});
+  const [scanSaveToPantry, setScanSaveToPantry] = useState<Record<string, boolean>>({});
+  const [scanPhotoOverrides, setScanPhotoOverrides] = useState<Record<string, string | undefined>>({});
+  const [editingScanIdx, setEditingScanIdx] = useState<number | null>(null);
+  const [addingScanItems, setAddingScanItems] = useState(false);
+
+  function resetScanBasket() {
+    setScanBasket([]); setScanSources({}); setScanSaveToPantry({}); setScanPhotoOverrides({});
+  }
+  function resolveScanPhoto(item: BasketItem): string | undefined {
+    if (item.id in scanPhotoOverrides) return scanPhotoOverrides[item.id];
+    return item.sourceId ? scanSources[item.sourceId] : undefined;
+  }
+
+  const capture = useFoodCapture({
+    showToast,
+    onCaptured: (newItems, source) => {
+      setScanBasket((prev) => [...prev, ...newItems]);
+      if (source) setScanSources((prev) => ({ ...prev, [source.id]: source.photo }));
+      setActiveOverlay('add-scan');
+    },
+  });
+
+  async function handleDescribeAnalyzeForMeal(text: string) {
+    const newItems = await capture.handleDescribeAnalyze(text);
+    setScanBasket((prev) => [...prev, ...newItems]);
+    setActiveOverlay('add-scan');
+  }
+
+  async function confirmAddScanItems() {
+    setAddingScanItems(true);
+    try {
+      const newMealFoodItems = [];
+      for (const bi of scanBasket) {
+        const newItemId = newId();
+        // Hidden from the Pantry's own Food-items list by default (round 130/144)
+        // — unless opted in via "Save to pantry" while editing the captured item.
+        await repos.foodItems.put({
+          id: newItemId, name: bi.name, measurementType: bi.measurementType,
+          referenceAmount: bi.referenceAmount, calories: bi.calories, protein: bi.protein,
+          carbs: bi.carbs, fiber: bi.fiber, fat: bi.fat,
+          photo: resolveScanPhoto(bi),
+          isArchived: !scanSaveToPantry[bi.id],
+        });
+        newMealFoodItems.push({ id: newId(), foodItemId: newItemId, quantity: bi.qty });
+      }
+      await repos.meals.put({ ...meal, items: [...meal.items, ...newMealFoodItems] });
+      resetScanBasket();
+      setActiveOverlay(null);
+      showToast?.('Added to meal');
+    } finally {
+      setAddingScanItems(false);
+    }
+  }
 
   // Resolve this Meal's OWN items from the full set (allItems) — some may be
   // hidden from Pantry (isArchived, meal-only). Everything else (duplicate
@@ -267,15 +331,68 @@ function PantryMealDetailContent({
           onPickMeal={(picked) => void handlePickExistingMeal(picked)}
         />
       </div>
+    ) : activeOverlay === 'describe' ? (
+      <DescribeOverlay
+        onBack={() => setActiveOverlay(scanBasket.length > 0 ? 'add-scan' : null)}
+        onAnalyze={handleDescribeAnalyzeForMeal}
+      />
+    ) : activeOverlay === 'add-scan' ? (
+      <CaptureReviewOverlay
+        title="Add items"
+        onBack={() => { resetScanBasket(); setActiveOverlay(null); }}
+        items={scanBasket}
+        onQtyChange={(idx, qty) => setScanBasket((prev) => prev.map((it, i) => (i === idx ? { ...it, qty } : it)))}
+        onRemove={(idx) => setScanBasket((prev) => prev.filter((_, i) => i !== idx))}
+        onEdit={(idx) => { setEditingScanIdx(idx); setActiveOverlay('edit-scan-item'); }}
+        onConfirm={confirmAddScanItems}
+        confirmLabel="Add to meal"
+        confirming={addingScanItems}
+      />
+    ) : activeOverlay === 'edit-scan-item' && editingScanIdx !== null && scanBasket[editingScanIdx] ? (
+      <EditOverlay
+        item={scanBasket[editingScanIdx]}
+        currentPhoto={resolveScanPhoto(scanBasket[editingScanIdx])}
+        existingItems={items}
+        existingMeals={meals}
+        onBack={() => setActiveOverlay('add-scan')}
+        onSave={(patch, saveToPantryChecked, photo) => {
+          const scanId = scanBasket[editingScanIdx].id;
+          setScanBasket((prev) => prev.map((it, i) => (i === editingScanIdx ? { ...it, ...patch } : it)));
+          setScanSaveToPantry((prev) => ({ ...prev, [scanId]: saveToPantryChecked }));
+          setScanPhotoOverrides((prev) => ({ ...prev, [scanId]: photo }));
+          setEditingScanIdx(null);
+          setActiveOverlay('add-scan');
+        }}
+        onPhotoChange={(dataUrl) => {
+          const scanId = scanBasket[editingScanIdx].id;
+          setScanPhotoOverrides((prev) => ({ ...prev, [scanId]: dataUrl }));
+        }}
+      />
     ) : null,
-    [activeOverlay, editingItem, items, allItems, meals, memberItemIds, manualDirty],
+    [activeOverlay, editingItem, items, allItems, meals, memberItemIds, manualDirty, scanBasket, editingScanIdx, scanPhotoOverrides],
   );
+
+  // ── Analysing state — same early-return spinner as the Day's-log basket
+  //    while a scan/describe/label call is in flight. ─────────────────────
+  if (capture.analyzing) {
+    return <AnalyzingIndicator label={capture.analyzeLabel} />;
+  }
 
   deleteRef.current = () => setConfirmingDeleteMeal(true); // eslint-disable-line react-hooks/refs
 
   return (
     <>
       <div className="space-y-4 pb-2">
+        {capture.hiddenInputs}
+        {capture.servingModal && (
+          <ServingModal
+            name={capture.servingModal.item100.name}
+            servingG={capture.servingModal.servingG}
+            onPer100g={() => capture.resolveServingModal('per100g')}
+            onPerServing={() => capture.resolveServingModal('perServing')}
+            onDismiss={capture.closeServingModal}
+          />
+        )}
         <ImageHero photos={photos} />
 
         <LabeledInput
@@ -311,10 +428,10 @@ function PantryMealDetailContent({
         >
           <MethodCards
             onPantry={() => { setAddSectionOpen(false); setActiveOverlay('add-pantry'); }}
-            onCamera={() => showToast?.('Coming soon — camera for meals is next')}
-            onPhoto={() => showToast?.('Coming soon — photo for meals is next')}
-            onDescribe={() => showToast?.('Coming soon — describe for meals is next')}
-            onLabel={() => showToast?.('Coming soon — nutri-scan for meals is next')}
+            onCamera={() => { setAddSectionOpen(false); void capture.handleCamera(); }}
+            onPhoto={() => { setAddSectionOpen(false); void capture.handlePhoto(); }}
+            onDescribe={() => { setAddSectionOpen(false); setActiveOverlay('describe'); }}
+            onLabel={() => { setAddSectionOpen(false); capture.openLabelPicker(); }}
             onManual={() => { setAddSectionOpen(false); setActiveOverlay('add-manual'); }}
           />
         </AddAnotherSection>

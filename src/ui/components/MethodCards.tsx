@@ -102,7 +102,9 @@ export function MethodCards({
   onCamera, onPhoto, onDescribe, onLabel, onPantry, onManual,
 }: {
   onCamera: () => void; onPhoto: () => void; onDescribe: () => void;
-  /** Nutri-scan (barcode/label) — Day's-log only per spec §12; omit in Pantry contexts. */
+  /** Nutri-scan (barcode/label) — optional because a few older call sites
+   *  predate it; every current surface (Day's-log basket, Pantry meal
+   *  builder) wires it up. */
   onLabel?: () => void;
   /** "Add from pantry" — Pantry meal-builder only; omit in the Day's-log
    *  basket, which already has its own search+recents picker. */

@@ -1,4 +1,54 @@
 ================================================================
+ROUND 163 — MEAL-CARD LAYERING REBUILT ON THE GAUGE-CARD PATTERN + DEFAULT IMAGE PLACEHOLDER (2026-07-04)
+================================================================
+Files: src/ui/kit/ImageHero.tsx, src/ui/components/AddEntrySheet.tsx (LogEntryContent,
+       FoodForm), src/ui/components/PantryMealDetail.tsx
+
+Marco sent two mockup frames + a working reference: "it's similar to the
+concept created for the Gauge card and the macros underneath" — pointing
+at TodayScreen's existing calorie-gauge card, which already does exactly
+this layering (its own comment: "Outer container = the grey background
+shape. White gauge card overlays the top of it; protein bar reveals the
+grey area at the bottom."). Round 162's implementation (negative margins,
+`relative`/z-index paint-order tricks, edge-to-edge bleed) was replaced
+outright with that same proven, much simpler pattern: two plain nested
+boxes of the SAME width — a shadowed white card sits flush at the top of
+a taller `rounded-main` grey container, and the grey shows through
+wherever the white card doesn't reach. No negative margins, no
+positioning tricks needed.
+
+Applied to all 3 Basket Meal views:
+- Outer: `rounded-main bg-surface-sunken` (no side inset needed beyond
+  what the Sheet's own padding already gives).
+- Inner white card: `rounded-main border-border-subtle bg-surface p-4
+  shadow-card-lg` — now contains BOTH the photo (ImageHero) AND the meal
+  name/kcal/macros/"Save to pantry" block together as one card (previously
+  two separate boxes with a 24px gap between them).
+- "Food items" heading/list/"Add a new food item"/Save-or-Log button sit
+  directly on the revealed grey background below, in their own padded
+  section (24px top, 16px sides, 24px bottom).
+- Single Food item (basket.length < 2, no meal-summary card) is
+  unaffected — ImageHero stays a standalone box above it, exactly as
+  before; this layering only applies once there's an actual meal card to
+  layer against.
+
+Also: "both the Meal views, and the Food item views will always have an
+image" — ImageHero previously returned null for an empty photos array;
+now renders a flat `bg-surface-muted` placeholder (a food icon, no
+shadow) at the same 256×256 size instead, per Marco's "flat muted grey
+and no shadow" spec for the still-pending default-image asset. The two
+call sites that gated ImageHero behind `photos.length > 0 &&` (FoodForm,
+LogEntryContent) now call it unconditionally, same as PantryMealDetail
+and PantryFoodItemDetail already did. Real photos also dropped their own
+shadow-card-lg (single hero shot and the 2-4 photo collage tiles alike) —
+now that the image is nested inside the meal card's own shadow, keeping
+a second shadow on the photo itself would double up; matches how
+GaugeArc has no shadow of its own inside the gauge card either.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 162 — LAYERED MEAL-CARD HIERARCHY ACROSS ALL 3 BASKET MEAL VIEWS (2026-07-04)
 ================================================================
 Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx

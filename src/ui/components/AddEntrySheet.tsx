@@ -770,46 +770,13 @@ function FoodForm({
         }}
       />
 
-      {/* Photo collage */}
-      {sourcePhotos.length > 0 && <ImageHero photos={sourcePhotos} />}
-
-      {/* Meal summary (round 157) — same treatment as LogEntryContent's own
-          Meal view / Pantry's Meal detail: name + total kcal + macro
-          breakdown + "Save to pantry" in one outlined (not shadowed) card.
-          marginTop is inline, deliberately overriding the outer
-          space-y-3, so the gap from the photo above is exactly 24px. */}
-      {basket.length >= 2 && (
-        <div
-          style={{ marginTop: '24px' }}
-          className="relative space-y-3 rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card"
-        >
-          <div>
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
-                <LabeledInput
-                  label="Meal name"
-                  value={mealName}
-                  onChange={(e) => setMealName(e.target.value)}
-                  placeholder={timeMealName()}
-                />
-              </div>
-              <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
-                {totalNutrition.calories} kcal
-              </span>
-            </div>
-            <MacroSummaryLine nutrition={totalNutrition} className="mt-2" />
-          </div>
-          <label style={{ marginTop: '16px' }} className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
-            <input
-              type="checkbox"
-              checked={saveToPantry}
-              onChange={(e) => setSaveToPantry(e.target.checked)}
-              className="h-4 w-4 accent-accent"
-            />
-            Save to pantry
-          </label>
-        </div>
-      )}
+{/* Photo collage — round 162: ImageHero always renders (Meal/Food-item
+          views always show an image slot now, even with no real photo yet
+          — see ImageHero's own placeholder). Round 163: for a Meal (2+
+          items) this moves INSIDE the meal-summary card below, sharing its
+          shadow rather than sitting as its own separate box above it —
+          single Food item keeps it standalone. */}
+      {basket.length < 2 && <ImageHero photos={sourcePhotos} />}
 
       {/* Serving size modal (Label scan — shown over the basket) */}
       {servingModal && (
@@ -886,37 +853,58 @@ function FoodForm({
         );
 
         return basket.length >= 2 ? (
-          /* Round 162 — layered hierarchy: the meal card above is now the
-             one elevated (shadow-card, `relative`) surface; everything
-             belonging to it — Food items, "Add a new food item", Log meal —
-             sits inside one full-bleed grey panel that runs behind it.
-             Bleeds past the Sheet's own 20px side padding (mx: -20px,
-             reapplied as padding) and pulls up 16px under the card's
-             bottom edge so its rounded top corners peek out around the
-             card rather than touching it edge-on; paddingTop (40px = 16px
-             overlap + the established 24px card-to-heading gap) keeps the
-             heading clear of the overlapped region. */
-          <div
-            className="rounded-t-sheet bg-surface-sunken"
-            style={{
-              marginLeft: '-20px', marginRight: '-20px', marginTop: '-16px',
-              paddingLeft: '20px', paddingRight: '20px', paddingTop: '40px', paddingBottom: '24px',
-            }}
-          >
-            <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
-            <div className="space-y-3">
-              {basket.map((item, idx) => (
-                <BasketCard
-                  key={item.id}
-                  item={item}
-                  nutrition={basketNutrition(item)}
-                  onQtyChange={(qty) => updateQty(idx, qty)}
-                  onRemove={() => removeItem(idx)}
-                  onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+          /* Round 163 — layered card, rebuilt on the SAME pattern already
+             shipped for TodayScreen's gauge card: a shadowed white card
+             sitting flush at the top of a taller grey rounded-main
+             container, no negative margins or peek-overlap. Photo + meal
+             name/kcal/macros/"Save to pantry" now share ONE card
+             (previously the photo was a separate box above it). */
+          <div style={{ marginTop: '24px' }} className="rounded-main bg-surface-sunken">
+            <div className="rounded-main border border-border-subtle bg-surface p-4 shadow-card-lg">
+              <ImageHero photos={sourcePhotos} />
+              <div style={{ marginTop: '24px' }}>
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <LabeledInput
+                      label="Meal name"
+                      value={mealName}
+                      onChange={(e) => setMealName(e.target.value)}
+                      placeholder={timeMealName()}
+                    />
+                  </div>
+                  <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
+                    {totalNutrition.calories} kcal
+                  </span>
+                </div>
+                <MacroSummaryLine nutrition={totalNutrition} className="mt-2" />
+              </div>
+              <label style={{ marginTop: '16px' }} className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
+                <input
+                  type="checkbox"
+                  checked={saveToPantry}
+                  onChange={(e) => setSaveToPantry(e.target.checked)}
+                  className="h-4 w-4 accent-accent"
                 />
-              ))}
+                Save to pantry
+              </label>
             </div>
-            <div style={{ marginTop: '16px' }}>{addAnotherAndLog}</div>
+
+            <div style={{ padding: '24px 16px 24px 16px' }}>
+              <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
+              <div className="space-y-3">
+                {basket.map((item, idx) => (
+                  <BasketCard
+                    key={item.id}
+                    item={item}
+                    nutrition={basketNutrition(item)}
+                    onQtyChange={(qty) => updateQty(idx, qty)}
+                    onRemove={() => removeItem(idx)}
+                    onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+                  />
+                ))}
+              </div>
+              <div style={{ marginTop: '16px' }}>{addAnotherAndLog}</div>
+            </div>
           </div>
         ) : (
           <>
@@ -2192,65 +2180,16 @@ function LogEntryContent({
 
       <div className="space-y-3 pb-4">
 
-        {/* Photos — multi-photo collage */}
-        {localPhotos.length > 0 && (
+{/* Photos — multi-photo collage. Round 162: ImageHero always renders
+            (Meal/Food-item views always show an image slot now, even with
+            no real photo yet — see ImageHero's own placeholder). Round 163:
+            for a Meal (2+ items) this moves INSIDE the meal-summary card
+            below, sharing its shadow rather than sitting as its own
+            separate box above it — single Food item keeps it standalone. */}
+        {basket.length < 2 && (
           <ImageHero photos={localPhotos} className="mb-1" />
         )}
 
-        {/* Meal summary — shown when 2+ items (round 152). Wraps the meal
-            name field, its total kcal, the macro breakdown, and "Save to
-            pantry" in one card — same treatment as Pantry's own Meal detail.
-            Outlined (border-card-no-shadow, round 154), not shadowed, per
-            Marco's follow-up. The 24px marginTop is inline, deliberately
-            overriding the outer space-y-3, so the gap from the photo above
-            is exactly 24px regardless of any other spacing in play. */}
-        {basket.length >= 2 && (
-          <div
-            style={{ marginTop: '24px' }}
-            className="relative space-y-3 rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card"
-          >
-            <div>
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <LabeledInput
-                    label="Meal name"
-                    value={localMealName}
-                    onChange={(e) => setLocalMealName(e.target.value)}
-                    placeholder={timeMealName()}
-                  />
-                </div>
-                {/* border-transparent (round 155): matches LabeledInput's own
-                    1px border so this badge is exactly the same height as
-                    the name field beside it. */}
-                <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
-                  {totalNutrition.calories} kcal
-                </span>
-              </div>
-              {/* Round 156: 8px to the name row above, meal-summary-card only
-                  (Basket/Pantry item cards stay at 4px per round 155). */}
-              <MacroSummaryLine nutrition={totalNutrition} className="mt-2" />
-            </div>
-            {/* Round 155: 16px from the badges above (was space-y-3's 12px;
-                inline overrides it the same way the card's own marginTop does). */}
-            <label style={{ marginTop: '16px' }} className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
-              <input
-                type="checkbox"
-                checked={saveToPantry}
-                onChange={(e) => setSaveToPantry(e.target.checked)}
-                className="h-4 w-4 accent-accent"
-              />
-              Save to pantry
-            </label>
-          </div>
-        )}
-
-        {/* "Food items" + its list share a wrapper (round 154) so the 24px
-            top / 8px bottom spacing around the heading is exact and immune
-            to the outer space-y-3's own margin — the inner space-y-3
-            reproduces the SAME gap the basket cards always had between each
-            other. Single-item basket (still building/editing a Food item,
-            not a Meal) skips both the heading and this wrapper entirely —
-            unchanged from before. */}
         {(() => {
           const addAnotherAndSave = (
             <>
@@ -2288,54 +2227,81 @@ function LogEntryContent({
           );
 
           return basket.length >= 2 ? (
-            /* Round 162 — layered hierarchy: the meal card above is now the
-               one elevated (shadow-card, `relative`) surface; everything
-               belonging to it — Food items, "Add a new food item", Save
-               changes — sits inside one full-bleed grey panel that runs
-               behind it. Bleeds past the Sheet's own 20px side padding
-               (mx: -20px, reapplied as padding) and pulls up 16px under the
-               card's bottom edge so its rounded top corners peek out around
-               the card rather than touching it edge-on; paddingTop (40px =
-               16px overlap + the established 24px card-to-heading gap)
-               keeps the heading clear of the overlapped region. */
-            <div
-              className="rounded-t-sheet bg-surface-sunken"
-              style={{
-                marginLeft: '-20px', marginRight: '-20px', marginTop: '-16px',
-                paddingLeft: '20px', paddingRight: '20px', paddingTop: '40px', paddingBottom: '24px',
-              }}
-            >
-              <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
-              <div className="space-y-3">
-                {basket.map((item, idx) => (
-                  <BasketCard
-                    key={item.id}
-                    item={item}
-                    nutrition={basketNutrition(item)}
-                    onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
-                    onRemove={() => {
-                      if (basket.length === 1) { void del(); return; }
-                      const removedItem = basket[idx];
-                      setBasket((prev) => prev.filter((_, i) => i !== idx));
-                      // Remove photo from localPhotos if no other basket item uses the same pantry photo
-                      if (removedItem.pantryItemId) {
-                        const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
-                        if (pantryPhoto) {
-                          const stillReferenced = basket
-                            .filter((_, i) => i !== idx)
-                            .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
-                          if (!stillReferenced) {
-                            setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+            /* Round 163 — layered card, rebuilt on the SAME pattern already
+               shipped for TodayScreen's gauge card: a shadowed white card
+               sitting flush at the top of a taller grey rounded-main
+               container, no negative margins or peek-overlap. Photo + meal
+               name/kcal/macros/"Save to pantry" now share ONE card
+               (previously the photo was a separate box above it). */
+            <div style={{ marginTop: '24px' }} className="rounded-main bg-surface-sunken">
+              <div className="rounded-main border border-border-subtle bg-surface p-4 shadow-card-lg">
+                <ImageHero photos={localPhotos} />
+                <div style={{ marginTop: '24px' }}>
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <LabeledInput
+                        label="Meal name"
+                        value={localMealName}
+                        onChange={(e) => setLocalMealName(e.target.value)}
+                        placeholder={timeMealName()}
+                      />
+                    </div>
+                    {/* border-transparent (round 155): matches LabeledInput's own
+                        1px border so this badge is exactly the same height as
+                        the name field beside it. */}
+                    <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
+                      {totalNutrition.calories} kcal
+                    </span>
+                  </div>
+                  {/* Round 156: 8px to the name row above, meal-summary-card only
+                      (Basket/Pantry item cards stay at 4px per round 155). */}
+                  <MacroSummaryLine nutrition={totalNutrition} className="mt-2" />
+                </div>
+                {/* Round 155: 16px from the badges above. */}
+                <label style={{ marginTop: '16px' }} className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
+                  <input
+                    type="checkbox"
+                    checked={saveToPantry}
+                    onChange={(e) => setSaveToPantry(e.target.checked)}
+                    className="h-4 w-4 accent-accent"
+                  />
+                  Save to pantry
+                </label>
+              </div>
+
+              <div style={{ padding: '24px 16px 24px 16px' }}>
+                <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
+                <div className="space-y-3">
+                  {basket.map((item, idx) => (
+                    <BasketCard
+                      key={item.id}
+                      item={item}
+                      nutrition={basketNutrition(item)}
+                      onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
+                      onRemove={() => {
+                        if (basket.length === 1) { void del(); return; }
+                        const removedItem = basket[idx];
+                        setBasket((prev) => prev.filter((_, i) => i !== idx));
+                        // Remove photo from localPhotos if no other basket item uses the same pantry photo
+                        if (removedItem.pantryItemId) {
+                          const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
+                          if (pantryPhoto) {
+                            const stillReferenced = basket
+                              .filter((_, i) => i !== idx)
+                              .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
+                            if (!stillReferenced) {
+                              setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+                            }
                           }
                         }
-                      }
-                    }}
-                    onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-                    onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
-                  />
-                ))}
+                      }}
+                      onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+                      onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
+                    />
+                  ))}
+                </div>
+                <div style={{ marginTop: '16px' }}>{addAnotherAndSave}</div>
               </div>
-              <div style={{ marginTop: '16px' }}>{addAnotherAndSave}</div>
             </div>
           ) : (
             <>

@@ -449,107 +449,88 @@ function PantryMealDetailContent({
             onDismiss={capture.closeServingModal}
           />
         )}
-        <ImageHero photos={photos} />
-
-        {/* Meal summary (round 152) — same treatment as the Day's-log's own
-            Meal view: name + total kcal + macro breakdown in one card. No
-            "Save to pantry" checkbox here — this Meal already IS a pantry
-            object, unlike a Day's-log entry that's only optionally saved
-            into it. Outlined (border-card-no-shadow, round 154), not
-            shadowed, per Marco's follow-up. The 24px marginTop is set
-            inline rather than via the outer space-y utility — deliberately
-            overrides it so the gap from the photo above is exactly 24px
-            regardless of any other spacing in play (round 154: Marco asked
-            for the literal rendered gap, not just "whatever the space-y
-            scale gives us"). */}
-        <div
-          style={{ marginTop: '24px' }}
-          className="relative rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card"
-        >
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <LabeledInput
-                label="Meal name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onBlur={() => void saveName(name)}
-              />
+        {/* Round 163 — layered card, rebuilt on the SAME pattern already
+            shipped for TodayScreen's gauge card ("Outer container = the
+            grey background shape. White gauge card overlays the top of
+            it; protein bar reveals the grey area at the bottom.") — no
+            negative margins or peek-overlap needed, just two plain nested
+            boxes of the SAME width: a shadowed white card sitting flush at
+            the top of a taller grey rounded container, so the grey shows
+            through wherever the white card doesn't reach. Photo + meal
+            name/kcal/macros now share ONE card (previously two separate
+            boxes) — ImageHero itself dropped its own shadow (round 162),
+            since it's nested inside this card's shadow now. */}
+        <div style={{ marginTop: '24px' }} className="rounded-main bg-surface-sunken">
+          <div className="rounded-main border border-border-subtle bg-surface p-4 shadow-card-lg">
+            <ImageHero photos={photos} />
+            <div style={{ marginTop: '24px' }}>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <LabeledInput
+                    label="Meal name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onBlur={() => void saveName(name)}
+                  />
+                </div>
+                {/* border-transparent (round 155): LabeledInput's own input has a
+                    1px border (transparent at rest) baked into its box height —
+                    matching it here keeps this badge exactly the same height as
+                    the name field beside it. */}
+                <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
+                  {mealNutritionFor(meal, itemsById).calories} kcal
+                </span>
+              </div>
+              {/* Round 156: 8px to the name row above, meal-summary-card only
+                  (Basket/Pantry item cards stay at 4px per round 155). */}
+              <MacroSummaryLine nutrition={mealNutritionFor(meal, itemsById)} className="mt-2" />
             </div>
-            {/* border-transparent (round 155): LabeledInput's own input has a
-                1px border (transparent at rest) baked into its box height —
-                matching it here keeps this badge exactly the same height as
-                the name field beside it. */}
-            <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
-              {mealNutritionFor(meal, itemsById).calories} kcal
-            </span>
           </div>
-          {/* Round 156: 8px to the name row above, meal-summary-card only
-              (Basket/Pantry item cards stay at 4px per round 155). */}
-          <MacroSummaryLine nutrition={mealNutritionFor(meal, itemsById)} className="mt-2" />
-        </div>
 
-        {/* Round 162 — layered hierarchy: the meal card above is now the
-            one elevated (shadow-card, `relative` so it paints above this
-            sunken panel) surface; everything belonging to it — Food items,
-            "Add a new food item", Save meal — sits inside one full-bleed
-            grey panel that appears to run BEHIND the card. Bleeds past the
-            Sheet's own 20px side padding (mx: -20px, then re-applies it as
-            padding) and pulls up 16px underneath the card's bottom edge
-            (marginTop: -16px) so its rounded top corners peek out from
-            around the card instead of touching it edge-on; paddingTop
-            (40px = 16px overlap + the established 24px card-to-heading
-            gap) keeps the heading clear of the overlapped region. */}
-        <div
-          className="rounded-t-sheet bg-surface-sunken"
-          style={{
-            marginLeft: '-20px', marginRight: '-20px', marginTop: '-16px',
-            paddingLeft: '20px', paddingRight: '20px', paddingTop: '40px', paddingBottom: '24px',
-          }}
-        >
-          <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
-          <div className="space-y-4">
-            {meal.items.map((mi) => {
-              const item = itemsById.get(mi.foodItemId);
-              if (!item) return null;
-              return (
-                <PantryItemCard
-                  key={mi.id}
-                  name={item.name}
-                  nutrition={nutritionFor(item, mi.quantity)}
-                  servingLabel={servingLabelFor(item, mi.quantity)}
-                  onEdit={() => { setEditingItemId(item.id); setActiveOverlay('edit'); }}
-                  onRemove={meal.items.length > 1 ? () => void handleRemoveItem(mi.id) : undefined}
-                  onCorrect={scannedItemIds.has(item.id) ? () => { setCorrectingItemId(item.id); setActiveOverlay('describe-correct'); } : undefined}
+          <div style={{ padding: '24px 16px 24px 16px' }}>
+            <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
+            <div className="space-y-4">
+              {meal.items.map((mi) => {
+                const item = itemsById.get(mi.foodItemId);
+                if (!item) return null;
+                return (
+                  <PantryItemCard
+                    key={mi.id}
+                    name={item.name}
+                    nutrition={nutritionFor(item, mi.quantity)}
+                    servingLabel={servingLabelFor(item, mi.quantity)}
+                    onEdit={() => { setEditingItemId(item.id); setActiveOverlay('edit'); }}
+                    onRemove={meal.items.length > 1 ? () => void handleRemoveItem(mi.id) : undefined}
+                    onCorrect={scannedItemIds.has(item.id) ? () => { setCorrectingItemId(item.id); setActiveOverlay('describe-correct'); } : undefined}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Same collapsible module as Food item detail's "Create a meal"
+                and the Day's-log basket's "+ Add another item". */}
+            <div style={{ marginTop: '16px' }}>
+              <AddAnotherSection
+                label="Add a new food item"
+                helperText="Add another item"
+                open={addSectionOpen}
+                onToggle={() => setAddSectionOpen((o) => !o)}
+                onClose={() => setAddSectionOpen(false)}
+              >
+                <MethodCards
+                  onPantry={() => { setAddSectionOpen(false); setActiveOverlay('add-pantry'); }}
+                  onCamera={() => { setAddSectionOpen(false); void capture.handleCamera(); }}
+                  onPhoto={() => { setAddSectionOpen(false); void capture.handlePhoto(); }}
+                  onDescribe={() => { setAddSectionOpen(false); setActiveOverlay('describe'); }}
+                  onLabel={() => { setAddSectionOpen(false); capture.openLabelPicker(); }}
+                  onManual={() => { setAddSectionOpen(false); setActiveOverlay('add-manual'); }}
                 />
-              );
-            })}
-          </div>
+              </AddAnotherSection>
+            </div>
 
-          {/* Same collapsible module as Food item detail's "Create a meal"
-              and the Day's-log basket's "+ Add another item". marginTop
-              16px matches the outer space-y-4 gap it used to get for free
-              before moving inside this panel. */}
-          <div style={{ marginTop: '16px' }}>
-            <AddAnotherSection
-              label="Add a new food item"
-              helperText="Add another item"
-              open={addSectionOpen}
-              onToggle={() => setAddSectionOpen((o) => !o)}
-              onClose={() => setAddSectionOpen(false)}
-            >
-              <MethodCards
-                onPantry={() => { setAddSectionOpen(false); setActiveOverlay('add-pantry'); }}
-                onCamera={() => { setAddSectionOpen(false); void capture.handleCamera(); }}
-                onPhoto={() => { setAddSectionOpen(false); void capture.handlePhoto(); }}
-                onDescribe={() => { setAddSectionOpen(false); setActiveOverlay('describe'); }}
-                onLabel={() => { setAddSectionOpen(false); capture.openLabelPicker(); }}
-                onManual={() => { setAddSectionOpen(false); setActiveOverlay('add-manual'); }}
-              />
-            </AddAnotherSection>
-          </div>
-
-          <div style={{ marginTop: '16px' }}>
-            <Button size="lg" onClick={() => { void saveName(name); onClose(); }}>Save meal</Button>
+            <div style={{ marginTop: '16px' }}>
+              <Button size="lg" onClick={() => { void saveName(name); onClose(); }}>Save meal</Button>
+            </div>
           </div>
         </div>
       </div>

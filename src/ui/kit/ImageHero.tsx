@@ -1,11 +1,27 @@
+import { Icon } from './Icon';
+
 /** Displays 1 photo as a wide hero, or 2–3 photos as a rotating collage.
- *  Renders nothing when the array is empty.
+ *  Meal/Food item views always show an image slot (round 162) — when
+ *  `photos` is empty, renders a flat muted placeholder instead of nothing,
+ *  since Marco doesn't yet have a real default-image asset to drop in.
+ *  No shadow on the placeholder (it's not real content); no shadow on a
+ *  real photo either now that ImageHero sits nested inside the new
+ *  meal/food-item card's own shadow-card-lg (round 162) — one elevated
+ *  surface per card, not a shadow inside a shadow.
  *
  *  Figma x/y values are bounding-box positions (top-left of the axis-aligned
  *  rect around the rotated element). CSS left/top is the unrotated box position,
  *  so each coordinate is offset inward by (bbox_size − image_size) / 2. */
 export function ImageHero({ photos, className }: { photos: string[]; className?: string }) {
-  if (photos.length === 0) return null;
+  if (photos.length === 0) {
+    return (
+      <div className={`flex justify-center ${className ?? ''}`}>
+        <div className="flex h-64 w-64 items-center justify-center rounded-[20px] bg-surface-muted">
+          <Icon name="foodIcon" size={32} className="text-content-muted" />
+        </div>
+      </div>
+    );
+  }
 
   if (photos.length === 1) {
     return (
@@ -17,8 +33,9 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
            reliably in WebKit, which caused a real regression (square white
            corners). The brightness theory is also disproven — see round 142
            notes — so this reverts to the plain, correct overflow-hidden
-           pattern with no loss. */}
-        <div className="h-64 w-64 overflow-hidden rounded-[20px] shadow-card-lg">
+           pattern with no loss. Round 162: dropped shadow-card-lg — this now
+           lives nested inside the meal/food-item card's own shadow. */}
+        <div className="h-64 w-64 overflow-hidden rounded-[20px]">
           <img src={photos[0]} alt="Meal" className="h-full w-full object-cover" />
         </div>
       </div>
@@ -55,7 +72,7 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
           return (
             <div
               key={i}
-              className="absolute overflow-hidden rounded-[20px] shadow-card-lg"
+              className="absolute overflow-hidden rounded-[20px]"
               style={{
                 width: c.w,
                 height: c.h,

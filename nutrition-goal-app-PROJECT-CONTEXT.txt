@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 162 (All 3 Basket Meal views: meal-summary card is now the elevated shadow-card surface, with a full-bleed grey panel peeking from behind it holding Food items/Add/CTA — NOT yet pixel-confirmed on device)
+Last updated: 2026-07-04 — Round 163 (Meal-card layering rebuilt on TodayScreen's proven Gauge-card pattern — plain nested boxes, no negative margins; ImageHero always renders, with a flat muted placeholder when there's no photo yet — still NOT pixel-confirmed on device)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -163,12 +163,16 @@ changes, on the Mac: `npm install` → `npm test` → `npm run build` →
 KNOWN GAPS
 ----------------------------------------------------------------
 HIGH:
-- MEAL-CARD LAYERED HIERARCHY (round 162, unverified): the new
-  card-peeking-over-grey-panel treatment on PantryMealDetail/
-  LogEntryContent/FoodForm was built without any visual preview (no
-  headless browser available that round) — overlap amount, radius, and
-  grey shade are reasoned first-pass values only. Needs Marco's on-device
-  review before considering this done.
+- MEAL-CARD LAYERED HIERARCHY (round 163, unverified): PantryMealDetail/
+  LogEntryContent/FoodForm now mirror TodayScreen's Gauge-card pattern
+  (photo + meal-info merged into one shadow-card-lg white card, sitting
+  atop a taller rounded-main grey container that reveals "Food items"
+  below) — still built without any visual preview (no headless browser
+  available in this environment) — needs Marco's on-device review.
+- DEFAULT MEAL/FOOD-ITEM IMAGE (round 163): ImageHero now shows a flat
+  bg-surface-muted placeholder (food icon, no shadow) when there's no
+  real photo, since Marco doesn't have a proper default-image asset yet.
+  Swap this out once he has one.
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
 - SHEET SCROLL-SHADOW BUG (open, round 152/153): main Sheet header's shadow
@@ -281,6 +285,26 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 163 — MEAL-CARD LAYERING REBUILT ON THE GAUGE-CARD PATTERN + DEFAULT IMAGE PLACEHOLDER (2026-07-04)
+Files: src/ui/kit/ImageHero.tsx, src/ui/components/AddEntrySheet.tsx (LogEntryContent,
+       FoodForm), src/ui/components/PantryMealDetail.tsx
+- Replaced round 162's negative-margin/peek-overlap implementation with
+  TodayScreen's existing, proven Gauge-card pattern: plain nested boxes,
+  same width — shadowed white card (rounded-main, shadow-card-lg) sits
+  flush at the top of a taller rounded-main bg-surface-sunken container;
+  grey shows through wherever the white card doesn't reach. No negative
+  margins, no z-index/positioning tricks.
+- Photo (ImageHero) now merges INTO the same white card as the meal name/
+  kcal/macros/"Save to pantry" block (previously two separate boxes).
+  Single Food item (no meal card) is unaffected — image stays standalone.
+- ImageHero always renders now instead of returning null with no photo —
+  shows a flat bg-surface-muted placeholder (food icon, no shadow) per
+  Marco's "flat muted grey and no shadow" spec, applied to both Meal and
+  Food-item views. Real photos also dropped their own shadow (now nested
+  inside the card's shadow — one elevation per card, not shadow-in-shadow).
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 162 — LAYERED MEAL-CARD HIERARCHY ACROSS ALL 3 BASKET MEAL VIEWS (2026-07-04)
 Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
        (LogEntryContent, FoodForm)
@@ -306,33 +330,6 @@ Files: src/ui/screens/TodayScreen.tsx
   inheriting font-bold from its parent name span (had no weight class of
   its own). Added font-normal directly on it to match the rest of the
   secondary-text styling on that row.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 160 — NUMERIC-KEYBOARD "DONE" BAR PROMOTED APP-WIDE (2026-07-04)
-Files: src/ui/kit/useNumericDoneBar.tsx (new), src/ui/kit/NumberField.tsx,
-       src/ui/kit/index.ts, src/ui/components/AddEntrySheet.tsx,
-       src/ui/screens/GoalSetupScreen.tsx, src/ui/screens/TodayScreen.tsx,
-       src/ui/screens/AccountScreen.tsx
-- Extracted the Keyboard-playground row-4 pattern (decimal keypad + a
-  "Done" bar that slides in above the keyboard on focus, using
-  useKeyboardInset()) into a shared useNumericDoneBar() kit hook, then
-  applied it to every numeric-keyboard input in the app, not just the Dev
-  playground: NumberField (covers Calories/Protein/Carbs/Fat/Fiber/
-  Serving size/Est. weight across FoodItemForm and AddEntrySheet's
-  scan-result editor), the Day's-log basket quantity stepper's tap-to-type
-  input, GoalSetupScreen's Height/Age fields, the Activity sheet's
-  Calories field (both TodayScreen's edit and AddEntrySheet's manual-add
-  versions), and AccountScreen's protein-target field. NumberField also
-  now carries lang="en-US" (round 159's decimal-separator fix) and gained
-  an optional placeholder prop to preserve the two fields that used one.
-  GoalSetupScreen/TodayScreen/AccountScreen's raw LabeledInput+inputMode
-  usages for these fields were replaced with NumberField outright, so
-  there's now exactly one numeric-input implementation for the whole app
-  instead of several hand-rolled copies.
-- Also this round: Day's-log Activity list-item row's name/kcal weights
-  were backwards vs. the Food row convention (name bold, amount regular) —
-  swapped to match (src/ui/screens/TodayScreen.tsx).
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 

@@ -2122,9 +2122,10 @@ function LogEntryContent({
 
         {/* Meal summary — shown when 2+ items (round 152). Wraps the meal
             name field, its total kcal, the macro breakdown, and "Save to
-            pantry" in one card — same treatment as Pantry's own Meal detail. */}
+            pantry" in one card — same treatment as Pantry's own Meal detail.
+            Outlined, not shadowed, per Marco's follow-up. */}
         {basket.length >= 2 && (
-          <div className="space-y-3 rounded-[20px] bg-surface-sunken p-4">
+          <div className="space-y-3 rounded-[20px] border border-border-subtle bg-surface p-4">
             <div>
               <div className="flex items-end gap-2">
                 <div className="flex-1">
@@ -2154,7 +2155,7 @@ function LogEntryContent({
         )}
 
         {basket.length >= 2 && (
-          <p className="text-callout font-bold text-content">Food items</p>
+          <p className="text-headline font-bold text-content">Food items</p>
         )}
 
         {/* Basket cards */}

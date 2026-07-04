@@ -419,8 +419,8 @@ function PantryMealDetailContent({
             Meal view: name + total kcal + macro breakdown in one card. No
             "Save to pantry" checkbox here — this Meal already IS a pantry
             object, unlike a Day's-log entry that's only optionally saved
-            into it. */}
-        <div className="rounded-[20px] bg-surface-sunken p-4">
+            into it. Outlined, not shadowed, per Marco's follow-up. */}
+        <div className="rounded-[20px] border border-border-subtle bg-surface p-4">
           <div className="flex items-end gap-2">
             <div className="flex-1">
               <LabeledInput
@@ -437,7 +437,7 @@ function PantryMealDetailContent({
           <MacroSummaryLine nutrition={mealNutritionFor(meal, itemsById)} className="mt-2.5" />
         </div>
 
-        <p className="text-callout font-bold text-content">Food items</p>
+        <p className="text-headline font-bold text-content">Food items</p>
 
         {meal.items.map((mi) => {
           const item = itemsById.get(mi.foodItemId);

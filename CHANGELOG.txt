@@ -1,4 +1,38 @@
 ================================================================
+ROUND 153 — MACRO BADGE POLISH, MEAL-CARD OUTLINE, SHADOW REVERT (2026-07-04)
+================================================================
+Files: src/ui/kit/MacroSummaryLine.tsx, src/ui/kit/Sheet.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+
+Follow-up refinements to round 152:
+
+- Macro badges: background changed from bg-surface-sunken to bg-surface-muted
+  (a lighter/more washed-out token than the sunken one used for insets),
+  corner radius from 14px to 8px. Text size stays text-subhead — already
+  exactly 15px in this app's type scale (--text-subhead: 0.9375rem), so no
+  change was needed there; Marco's spec matched what was already in place.
+
+- Meal summary card (both the Day's-log Meal view and Pantry's own Meal
+  detail): switched from the flat bg-surface-sunken fill to an outlined card
+  — border border-border-subtle + bg-surface, no shadow-card class — per
+  Marco's "the one without shadow, just an outline." "Food items" section
+  label bumped from text-callout (16px) to text-headline (18px, exactly
+  matching his spec).
+
+- Sheet.tsx scroll-shadow changes from round 152 FULLY REVERTED — Marco
+  reported the fix didn't work and introduced a new bug. Restored the exact
+  pre-round-152 file (git diff against the round-151 commit showed the
+  shadow edit was the file's ONLY change since then, so this was a clean,
+  complete revert with no risk of losing anything else). Back to: main
+  Sheet header has no explicit background, OverlayLayer's nav bar keeps its
+  `-mt-1`. The underlying shadow issue Marco originally reported is still
+  open — worth a fresh look with an actual device/screenshot rather than
+  guessing from source again.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 152 — SIX-PART UI/UX BATCH: BADGES, BOLD NAMES, MEAL SUMMARY CARD, SHADOWS, DUPES (2026-07-04)
 ================================================================
 Files: src/domain/pantry.ts, src/ui/kit/MacroSummaryLine.tsx, src/ui/kit/Sheet.tsx,

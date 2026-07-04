@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 152 (meal summary card + "Food items" heading on both Meal views, individual macro badges, bold food names, two Sheet scroll-shadow fixes, duplicate-name guard on scan-created items)
+Last updated: 2026-07-04 — Round 153 (macro badges now muted/8px-radius, meal summary card is outlined not shadowed, "Food items" label at 18px; round 152's Sheet scroll-shadow changes were reverted — still an open bug)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -165,6 +165,10 @@ KNOWN GAPS
 HIGH:
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
+- SHEET SCROLL-SHADOW BUG (open, round 152/153): main Sheet header's shadow
+  disappears under scrolled content; a round-152 fix attempt made it worse
+  and was reverted in round 153. Needs an actual device screenshot/repro
+  rather than another source-only guess.
 
 MED:
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
@@ -271,6 +275,24 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 153 — MACRO BADGE POLISH, MEAL-CARD OUTLINE, SHADOW REVERT (2026-07-04)
+Files: src/ui/kit/MacroSummaryLine.tsx, src/ui/kit/Sheet.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+- Follow-up to round 152's feedback: macro badges now bg-surface-muted
+  (lighter than bg-surface-sunken) + rounded-[8px] (was 14px); text size
+  already matched his 15pt spec exactly (text-subhead = 0.9375rem = 15px),
+  no change needed. Meal summary card switched from a flat sunken fill to
+  an outlined card (border + bg-surface, no shadow) on both the Day's-log
+  Meal view and Pantry's Meal detail; "Food items" label bumped to
+  text-headline (18px).
+- Sheet.tsx's round-152 scroll-shadow changes were FULLY REVERTED — Marco
+  reported the fix didn't work and introduced a new bug. Confirmed via git
+  diff that the shadow edit was Sheet.tsx's only change since round 151, so
+  restoring that exact prior file was a clean, complete revert. The
+  original shadow issue (see round 152's entry / CHANGELOG) is still open.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 152 — SIX-PART UI/UX BATCH: BADGES, BOLD NAMES, MEAL SUMMARY CARD, SHADOWS, DUPES (2026-07-04)
 Files: src/domain/pantry.ts, src/ui/kit/MacroSummaryLine.tsx, src/ui/kit/Sheet.tsx,
        src/ui/components/AddEntrySheet.tsx, src/ui/components/PantryMealDetail.tsx,
@@ -300,6 +322,30 @@ Files: src/domain/pantry.ts, src/ui/kit/MacroSummaryLine.tsx, src/ui/kit/Sheet.t
   wired into every scan-driven Food-item/Meal creation path; left Manual/
   pick-existing paths alone (not what was reported, already a deliberate
   user action each time).
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
+ROUND 151 — BRING BACK THE "CHANGE" BUTTON ON SCAN-CAPTURED PANTRY ITEMS (2026-07-04)
+Files: src/ui/components/PantryItemCard.tsx, src/ui/components/PantryFoodItemDetail.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/screens/PantryScreen.tsx
+- Marco: round 149 removing the pre-commit review screen also took the
+  round-148 "Change" button down with it (nowhere left to attach it to).
+  Reintroduced it on the POST-commit item cards instead, scoped to the same
+  transient "just happened" window Change always had (never a permanent
+  per-item flag): PantryItemCard gained an `onCorrect` prop (same pill as
+  BasketCard's). PantryFoodItemDetail shows it on its own card while
+  `justCreated` (round 150) is true — tapping it re-describes and
+  overwrites that exact FoodItem in place, or converts to a Meal if the
+  correction yields 2+ foods (1-vs-2+ rule), deleting the now-superseded
+  single item (safe — nothing could reference it yet). PantryMealDetail
+  tracks a `scannedItemIds` set, seeded from a new `justCreatedItemIds`
+  prop (whole Meal just arrived from a scan) and grown as more items are
+  scanned in via "Add another item" while the Sheet stays open; "Change" on
+  one of those splices the correction into meal.items in that ingredient's
+  place, leaving the superseded FoodItem orphaned (same as removing an item
+  from a meal already does).
+- Also: Marco decided to leave the Nutri-scan-also-reads-whole-food
+  question (round 150's TODO) alone for now — not pursuing it.
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 

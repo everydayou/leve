@@ -209,14 +209,9 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
         <div className="mx-auto mb-3 h-1.5 w-11 rounded-pill bg-border-strong" />
       </div>
       {/* Nav bar — rendered OUTSIDE the scroll container so it stays fixed
-          during rubber-band scroll on iOS (sticky inside a scroll area moves).
-          Round 152: dropped the `-mt-1` this used to have — it pulled the nav
-          up to overlap the grab-handle box above it, and since this nav is a
-          LATER sibling, its shadow-nav box-shadow (which blurs a little in
-          every direction, not just downward) painted on top of that overlap,
-          reading as a stray shadow sitting above the nav bar at rest. */}
+          during rubber-band scroll on iOS (sticky inside a scroll area moves). */}
       {overlayNav && (
-        <div className={`shrink-0 px-5 pb-3 pt-2 bg-surface${scrolled ? ' shadow-nav' : ''}`}>
+        <div className={`shrink-0 -mt-1 px-5 pb-3 pt-2 bg-surface${scrolled ? ' shadow-nav' : ''}`}>
           <div className="flex items-center">
             <span className="w-10 shrink-0 flex items-center">
               <button onClick={overlayNav.onBack} className="-m-3 p-3 text-content-secondary active:opacity-70" aria-label={overlayNav.icon === 'close' ? 'Close' : 'Back'}>
@@ -650,16 +645,9 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
           aria-hidden="true"
         />
         {/* Header wrapper — shadow appears once the scroll area has been scrolled,
-            mirroring the same pattern used on fixed nav bars in full-screen views.
-            Needs its own opaque `bg-surface` (round 152 fix): without one, this
-            header is visually transparent (just showing the panel's own
-            background through it), so the moment scrolled content — which DOES
-            have its own opaque background — reaches the top and touches it, that
-            later-painted content covers the shadow bleeding down from the header,
-            and the shadow appears to vanish. OverlayLayer's nav bar already had
-            this and didn't have the problem. */}
+            mirroring the same pattern used on fixed nav bars in full-screen views. */}
         <div
-          className={`shrink-0 cursor-grab touch-none bg-surface transition-[box-shadow] duration-200 active:cursor-grabbing${scrolled ? ' shadow-nav' : ''}`}
+          className={`shrink-0 cursor-grab touch-none transition-[box-shadow] duration-200 active:cursor-grabbing${scrolled ? ' shadow-nav' : ''}`}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}

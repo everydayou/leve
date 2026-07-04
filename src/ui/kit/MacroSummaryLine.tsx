@@ -10,7 +10,9 @@ function fmt(n: number): string {
  *  and Pantry Food item / Meal item cards alike (see "Component: Food item
  *  card" in the meals-in-pantry spec). Round 152: was previously one long
  *  pill with all four values dot-separated inside it; split into individual
- *  badges per Marco's visual reference. */
+ *  badges per Marco's visual reference — bg-surface-muted (lighter than the
+ *  bg-surface-sunken used elsewhere for insets), text-subhead (15px),
+ *  rounded-[8px], px-2 py-0.5, per his exact follow-up spec. */
 export function MacroSummaryLine({
   nutrition, className = '',
 }: {
@@ -28,7 +30,7 @@ export function MacroSummaryLine({
       {macros.map(({ label, value }) => (
         <span
           key={label}
-          className="rounded-[14px] bg-surface-sunken px-2 py-0.5 text-subhead text-content-secondary"
+          className="rounded-[8px] bg-surface-muted px-2 py-0.5 text-subhead text-content-secondary"
         >
           {label} {fmt(value)}g
         </span>

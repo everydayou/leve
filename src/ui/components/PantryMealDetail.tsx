@@ -449,87 +449,94 @@ function PantryMealDetailContent({
             onDismiss={capture.closeServingModal}
           />
         )}
-{/* Round 164 — Marco's on-device screenshot showed round 163's
-            rounded-ALL-corners white card (with its own marginTop gap)
-            reading as a SECOND, disconnected white box floating below the
-            Sheet's own (also white) header, rather than one continuous
-            surface — "I want the modal sheet, the top part, to be part of
-            the white card." Fix: the photo + meal-info block no longer has
-            its own top rounding/shadow/gap at all — it just flows straight
-            out of the header on the Sheet's ambient white background.
-            Rounded BOTTOM corners + shadow-card-lg (a downward-only
-            shadow — it won't show above/behind the box) mark ONLY the
-            transition into the grey Food-items section below, per Marco's
-            "simple divider" fallback suggestion. */}
-        <div className="relative bg-surface shadow-card-lg rounded-b-main" style={{ paddingBottom: '20px' }}>
-          <ImageHero photos={photos} />
-          <div style={{ marginTop: '24px' }}>
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
-                <LabeledInput
-                  label="Meal name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onBlur={() => void saveName(name)}
-                />
+{/* Round 165 — two more fixes from Marco's on-device review:
+            (1) both the white card and the grey panel need to bleed all
+            the way to the screen edges, ignoring the Sheet's own 20px
+            side padding — negative side margins cancel it, then each
+            piece re-applies 20px as its own content padding so text/
+            inputs/cards still line up where they always have.
+            (2) "the grey background needs to be completely under the
+            white card, otherwise you see the gap" — round 164's white
+            card and grey panel were SIBLINGS, so the white card's rounded
+            bottom corners cut away to reveal the Sheet's plain white
+            background behind them, not grey. Nesting the white card
+            INSIDE the grey panel (as its first child, same full-bled
+            width) fixes this: grey is always directly behind the white
+            card, so the rounded-corner cutouts reveal grey correctly. */}
+        <div style={{ marginLeft: '-20px', marginRight: '-20px' }} className="bg-surface-sunken">
+          <div
+            className="relative bg-surface shadow-card-lg rounded-b-main"
+            style={{ paddingLeft: '20px', paddingRight: '20px', paddingBottom: '20px' }}
+          >
+            <ImageHero photos={photos} />
+            <div style={{ marginTop: '24px' }}>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <LabeledInput
+                    label="Meal name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onBlur={() => void saveName(name)}
+                  />
+                </div>
+                {/* border-transparent (round 155): LabeledInput's own input has a
+                    1px border (transparent at rest) baked into its box height —
+                    matching it here keeps this badge exactly the same height as
+                    the name field beside it. */}
+                <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
+                  {mealNutritionFor(meal, itemsById).calories} kcal
+                </span>
               </div>
-              {/* border-transparent (round 155): LabeledInput's own input has a
-                  1px border (transparent at rest) baked into its box height —
-                  matching it here keeps this badge exactly the same height as
-                  the name field beside it. */}
-              <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
-                {mealNutritionFor(meal, itemsById).calories} kcal
-              </span>
+              {/* Round 156: 8px to the name row above, meal-summary-card only
+                  (Basket/Pantry item cards stay at 4px per round 155). */}
+              <MacroSummaryLine nutrition={mealNutritionFor(meal, itemsById)} className="mt-2" />
             </div>
-            {/* Round 156: 8px to the name row above, meal-summary-card only
-                (Basket/Pantry item cards stay at 4px per round 155). */}
-            <MacroSummaryLine nutrition={mealNutritionFor(meal, itemsById)} className="mt-2" />
           </div>
-        </div>
 
-        <div className="bg-surface-sunken" style={{ padding: '24px 16px 24px 16px' }}>
-          <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
-          <div className="space-y-4">
-            {meal.items.map((mi) => {
-              const item = itemsById.get(mi.foodItemId);
-              if (!item) return null;
-              return (
-                <PantryItemCard
-                  key={mi.id}
-                  name={item.name}
-                  nutrition={nutritionFor(item, mi.quantity)}
-                  servingLabel={servingLabelFor(item, mi.quantity)}
-                  onEdit={() => { setEditingItemId(item.id); setActiveOverlay('edit'); }}
-                  onRemove={meal.items.length > 1 ? () => void handleRemoveItem(mi.id) : undefined}
-                  onCorrect={scannedItemIds.has(item.id) ? () => { setCorrectingItemId(item.id); setActiveOverlay('describe-correct'); } : undefined}
+          <div style={{ padding: '24px 20px 24px 20px' }}>
+            <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
+            <div className="space-y-4">
+              {meal.items.map((mi) => {
+                const item = itemsById.get(mi.foodItemId);
+                if (!item) return null;
+                return (
+                  <PantryItemCard
+                    key={mi.id}
+                    name={item.name}
+                    nutrition={nutritionFor(item, mi.quantity)}
+                    servingLabel={servingLabelFor(item, mi.quantity)}
+                    onEdit={() => { setEditingItemId(item.id); setActiveOverlay('edit'); }}
+                    onRemove={meal.items.length > 1 ? () => void handleRemoveItem(mi.id) : undefined}
+                    onCorrect={scannedItemIds.has(item.id) ? () => { setCorrectingItemId(item.id); setActiveOverlay('describe-correct'); } : undefined}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Same collapsible module as Food item detail's "Create a meal"
+                and the Day's-log basket's "+ Add another item". */}
+            <div style={{ marginTop: '16px' }}>
+              <AddAnotherSection
+                label="Add a new food item"
+                helperText="Add another item"
+                open={addSectionOpen}
+                onToggle={() => setAddSectionOpen((o) => !o)}
+                onClose={() => setAddSectionOpen(false)}
+              >
+                <MethodCards
+                  onPantry={() => { setAddSectionOpen(false); setActiveOverlay('add-pantry'); }}
+                  onCamera={() => { setAddSectionOpen(false); void capture.handleCamera(); }}
+                  onPhoto={() => { setAddSectionOpen(false); void capture.handlePhoto(); }}
+                  onDescribe={() => { setAddSectionOpen(false); setActiveOverlay('describe'); }}
+                  onLabel={() => { setAddSectionOpen(false); capture.openLabelPicker(); }}
+                  onManual={() => { setAddSectionOpen(false); setActiveOverlay('add-manual'); }}
                 />
-              );
-            })}
-          </div>
+              </AddAnotherSection>
+            </div>
 
-          {/* Same collapsible module as Food item detail's "Create a meal"
-              and the Day's-log basket's "+ Add another item". */}
-          <div style={{ marginTop: '16px' }}>
-            <AddAnotherSection
-              label="Add a new food item"
-              helperText="Add another item"
-              open={addSectionOpen}
-              onToggle={() => setAddSectionOpen((o) => !o)}
-              onClose={() => setAddSectionOpen(false)}
-            >
-              <MethodCards
-                onPantry={() => { setAddSectionOpen(false); setActiveOverlay('add-pantry'); }}
-                onCamera={() => { setAddSectionOpen(false); void capture.handleCamera(); }}
-                onPhoto={() => { setAddSectionOpen(false); void capture.handlePhoto(); }}
-                onDescribe={() => { setAddSectionOpen(false); setActiveOverlay('describe'); }}
-                onLabel={() => { setAddSectionOpen(false); capture.openLabelPicker(); }}
-                onManual={() => { setAddSectionOpen(false); setActiveOverlay('add-manual'); }}
-              />
-            </AddAnotherSection>
-          </div>
-
-          <div style={{ marginTop: '16px' }}>
-            <Button size="lg" onClick={() => { void saveName(name); onClose(); }}>Save meal</Button>
+            <div style={{ marginTop: '16px' }}>
+              <Button size="lg" onClick={() => { void saveName(name); onClose(); }}>Save meal</Button>
+            </div>
           </div>
         </div>
       </div>

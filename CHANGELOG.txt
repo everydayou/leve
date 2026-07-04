@@ -1,4 +1,42 @@
 ================================================================
+ROUND 165 — EDGE-TO-EDGE BLEED + GREY NESTED BEHIND THE WHITE CARD (2026-07-04)
+================================================================
+Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+       (LogEntryContent, FoodForm)
+
+Two more fixes from Marco's on-device review of round 164:
+
+1. "the shadow container, and the grey container, need to go all the way
+   to edge, and not be affected by the 24px side margins." Both the white
+   card and the grey "Food items" panel now bleed past the Sheet's own
+   20px side padding via negative left/right margins, then each
+   re-applies 20px as its own content padding so text/inputs/item cards
+   still line up exactly where they did before — only the BACKGROUND
+   shapes reach the true screen edges, not the content itself.
+
+2. "the grey background needs to be completely under the white card,
+   otherwise you see the gap." Round 164 made the white card and the grey
+   panel plain SIBLINGS — so the white card's rounded bottom corners cut
+   away to reveal whatever was directly behind them, which was the
+   Sheet's own plain white background, not grey (siblings don't overlap
+   in normal flow, so nothing grey was actually behind the corners yet).
+   Fixed by nesting the white card back INSIDE the grey panel as its
+   first child (same full-bled width) — this is much closer to round
+   163's original nested structure, just without round 163's top
+   rounding/shadow (removed in round 164) and now with the edge-to-edge
+   bleed from fix #1. Grey is always directly behind the white card now,
+   so the rounded-corner cutouts correctly reveal grey instead of white.
+
+Also asked Marco for the actual image file behind his new placeholder
+mockup (a line-art plate/fork/knife illustration) — it isn't accessible
+as a file in this environment (pasted images in chat aren't written to
+the uploads folder the way attached files are), so ImageHero still shows
+the round-163 generic food icon placeholder pending that file.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 164 — REMOVE THE HEADER-TO-CARD SEAM (2026-07-04)
 ================================================================
 Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx

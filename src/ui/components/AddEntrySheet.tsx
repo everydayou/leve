@@ -853,62 +853,68 @@ function FoodForm({
         );
 
         return basket.length >= 2 ? (
-          /* Round 164 — the photo + meal-info block no longer has its own
-             top rounding/shadow/gap — it flows straight out of the Sheet's
-             header on the ambient white background (Marco: "I want the
-             modal sheet, the top part, to be part of the white card" —
-             round 163's rounded-ALL-corners card read as a second,
-             disconnected white box below the header). Rounded BOTTOM
-             corners + shadow-card-lg (downward-only, won't show above the
-             box) mark just the transition into the grey Food-items
-             section — Marco's "simple divider" fallback. */
-          <>
-          <div className="relative bg-surface shadow-card-lg rounded-b-main" style={{ paddingBottom: '20px' }}>
-            <ImageHero photos={sourcePhotos} />
-            <div style={{ marginTop: '24px' }}>
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <LabeledInput
-                    label="Meal name"
-                    value={mealName}
-                    onChange={(e) => setMealName(e.target.value)}
-                    placeholder={timeMealName()}
-                  />
+/* Round 165 — two more fixes from Marco's on-device review:
+             (1) both the white card and the grey panel need to bleed all
+             the way to the screen edges, ignoring the Sheet's own 20px
+             side padding — negative side margins cancel it, then each
+             piece re-applies 20px as its own content padding.
+             (2) "the grey background needs to be completely under the
+             white card, otherwise you see the gap" — round 164's white
+             card and grey panel were SIBLINGS, so the white card's rounded
+             bottom corners cut away to reveal the Sheet's plain white
+             background behind them, not grey. Nesting the white card
+             INSIDE the grey panel (as its first child, same full-bled
+             width) fixes this — grey is always directly behind it. */
+          <div style={{ marginLeft: '-20px', marginRight: '-20px' }} className="bg-surface-sunken">
+            <div
+              className="relative bg-surface shadow-card-lg rounded-b-main"
+              style={{ paddingLeft: '20px', paddingRight: '20px', paddingBottom: '20px' }}
+            >
+              <ImageHero photos={sourcePhotos} />
+              <div style={{ marginTop: '24px' }}>
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <LabeledInput
+                      label="Meal name"
+                      value={mealName}
+                      onChange={(e) => setMealName(e.target.value)}
+                      placeholder={timeMealName()}
+                    />
+                  </div>
+                  <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
+                    {totalNutrition.calories} kcal
+                  </span>
                 </div>
-                <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
-                  {totalNutrition.calories} kcal
-                </span>
+                <MacroSummaryLine nutrition={totalNutrition} className="mt-2" />
               </div>
-              <MacroSummaryLine nutrition={totalNutrition} className="mt-2" />
-            </div>
-            <label style={{ marginTop: '16px' }} className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
-              <input
-                type="checkbox"
-                checked={saveToPantry}
-                onChange={(e) => setSaveToPantry(e.target.checked)}
-                className="h-4 w-4 accent-accent"
-              />
-              Save to pantry
-            </label>
-          </div>
-
-          <div className="bg-surface-sunken" style={{ padding: '24px 16px 24px 16px' }}>
-            <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
-            <div className="space-y-3">
-              {basket.map((item, idx) => (
-                <BasketCard
-                  key={item.id}
-                  item={item}
-                  nutrition={basketNutrition(item)}
-                  onQtyChange={(qty) => updateQty(idx, qty)}
-                  onRemove={() => removeItem(idx)}
-                  onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+              <label style={{ marginTop: '16px' }} className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
+                <input
+                  type="checkbox"
+                  checked={saveToPantry}
+                  onChange={(e) => setSaveToPantry(e.target.checked)}
+                  className="h-4 w-4 accent-accent"
                 />
-              ))}
+                Save to pantry
+              </label>
             </div>
-            <div style={{ marginTop: '16px' }}>{addAnotherAndLog}</div>
+
+            <div style={{ padding: '24px 20px 24px 20px' }}>
+              <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
+              <div className="space-y-3">
+                {basket.map((item, idx) => (
+                  <BasketCard
+                    key={item.id}
+                    item={item}
+                    nutrition={basketNutrition(item)}
+                    onQtyChange={(qty) => updateQty(idx, qty)}
+                    onRemove={() => removeItem(idx)}
+                    onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+                  />
+                ))}
+              </div>
+              <div style={{ marginTop: '16px' }}>{addAnotherAndLog}</div>
+            </div>
           </div>
-          </>
         ) : (
           <>
             {/* Single Food item — no grey panel here, unchanged from
@@ -2230,85 +2236,92 @@ function LogEntryContent({
           );
 
           return basket.length >= 2 ? (
-/* Round 164 — the photo + meal-info block no longer has its own
-               top rounding/shadow/gap — it flows straight out of the
-               Sheet's header on the ambient white background (Marco: "I
-               want the modal sheet, the top part, to be part of the white
-               card" — round 163's rounded-ALL-corners card read as a
-               second, disconnected white box below the header). Rounded
-               BOTTOM corners + shadow-card-lg (downward-only, won't show
-               above the box) mark just the transition into the grey
-               Food-items section — Marco's "simple divider" fallback. */
-            <>
-            <div className="relative bg-surface shadow-card-lg rounded-b-main" style={{ paddingBottom: '20px' }}>
-              <ImageHero photos={localPhotos} />
-              <div style={{ marginTop: '24px' }}>
-                <div className="flex items-end gap-2">
-                  <div className="flex-1">
-                    <LabeledInput
-                      label="Meal name"
-                      value={localMealName}
-                      onChange={(e) => setLocalMealName(e.target.value)}
-                      placeholder={timeMealName()}
-                    />
+/* Round 165 — two more fixes from Marco's on-device review:
+               (1) both the white card and the grey panel need to bleed all
+               the way to the screen edges, ignoring the Sheet's own 20px
+               side padding — negative side margins cancel it, then each
+               piece re-applies 20px as its own content padding.
+               (2) "the grey background needs to be completely under the
+               white card, otherwise you see the gap" — round 164's white
+               card and grey panel were SIBLINGS, so the white card's
+               rounded bottom corners cut away to reveal the Sheet's plain
+               white background behind them, not grey. Nesting the white
+               card INSIDE the grey panel (as its first child, same
+               full-bled width) fixes this — grey is always directly
+               behind it. */
+            <div style={{ marginLeft: '-20px', marginRight: '-20px' }} className="bg-surface-sunken">
+              <div
+                className="relative bg-surface shadow-card-lg rounded-b-main"
+                style={{ paddingLeft: '20px', paddingRight: '20px', paddingBottom: '20px' }}
+              >
+                <ImageHero photos={localPhotos} />
+                <div style={{ marginTop: '24px' }}>
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <LabeledInput
+                        label="Meal name"
+                        value={localMealName}
+                        onChange={(e) => setLocalMealName(e.target.value)}
+                        placeholder={timeMealName()}
+                      />
+                    </div>
+                    {/* border-transparent (round 155): matches LabeledInput's own
+                        1px border so this badge is exactly the same height as
+                        the name field beside it. */}
+                    <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
+                      {totalNutrition.calories} kcal
+                    </span>
                   </div>
-                  {/* border-transparent (round 155): matches LabeledInput's own
-                      1px border so this badge is exactly the same height as
-                      the name field beside it. */}
-                  <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
-                    {totalNutrition.calories} kcal
-                  </span>
+                  {/* Round 156: 8px to the name row above, meal-summary-card only
+                      (Basket/Pantry item cards stay at 4px per round 155). */}
+                  <MacroSummaryLine nutrition={totalNutrition} className="mt-2" />
                 </div>
-                {/* Round 156: 8px to the name row above, meal-summary-card only
-                    (Basket/Pantry item cards stay at 4px per round 155). */}
-                <MacroSummaryLine nutrition={totalNutrition} className="mt-2" />
+                {/* Round 155: 16px from the badges above. */}
+                <label style={{ marginTop: '16px' }} className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
+                  <input
+                    type="checkbox"
+                    checked={saveToPantry}
+                    onChange={(e) => setSaveToPantry(e.target.checked)}
+                    className="h-4 w-4 accent-accent"
+                  />
+                  Save to pantry
+                </label>
               </div>
-              {/* Round 155: 16px from the badges above. */}
-              <label style={{ marginTop: '16px' }} className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
-                <input
-                  type="checkbox"
-                  checked={saveToPantry}
-                  onChange={(e) => setSaveToPantry(e.target.checked)}
-                  className="h-4 w-4 accent-accent"
-                />
-                Save to pantry
-              </label>
-            </div>
 
-            <div className="bg-surface-sunken" style={{ padding: '24px 16px 24px 16px' }}>
-              <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
-              <div className="space-y-3">
-                {basket.map((item, idx) => (
-                  <BasketCard
-                    key={item.id}
-                    item={item}
-                    nutrition={basketNutrition(item)}
-                    onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
-                    onRemove={() => {
-                      if (basket.length === 1) { void del(); return; }
-                      const removedItem = basket[idx];
-                      setBasket((prev) => prev.filter((_, i) => i !== idx));
-                      // Remove photo from localPhotos if no other basket item uses the same pantry photo
-                      if (removedItem.pantryItemId) {
-                        const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
-                        if (pantryPhoto) {
-                          const stillReferenced = basket
-                            .filter((_, i) => i !== idx)
-                            .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
-                          if (!stillReferenced) {
-                            setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+              <div style={{ padding: '24px 20px 24px 20px' }}>
+                <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
+                <div className="space-y-3">
+                  {basket.map((item, idx) => (
+                    <BasketCard
+                      key={item.id}
+                      item={item}
+                      nutrition={basketNutrition(item)}
+                      onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
+                      onRemove={() => {
+                        if (basket.length === 1) { void del(); return; }
+                        const removedItem = basket[idx];
+                        setBasket((prev) => prev.filter((_, i) => i !== idx));
+                        // Remove photo from localPhotos if no other basket item uses the same pantry photo
+                        if (removedItem.pantryItemId) {
+                          const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
+                          if (pantryPhoto) {
+                            const stillReferenced = basket
+                              .filter((_, i) => i !== idx)
+                              .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
+                            if (!stillReferenced) {
+                              setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+                            }
                           }
                         }
-                      }
-                    }}
-                    onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-                    onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
-                  />
-                ))}
+                      }}
+                      onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+                      onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
+                    />
+                  ))}
+                </div>
+                <div style={{ marginTop: '16px' }}>{addAnotherAndSave}</div>
               </div>
-              <div style={{ marginTop: '16px' }}>{addAnotherAndSave}</div>
             </div>
-            </>
           ) : (
             <>
               {/* Single Food item (round 157): same 24px gap from the photo

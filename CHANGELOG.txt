@@ -1,4 +1,53 @@
 ================================================================
+ROUND 166 — ADD-ANOTHER BORDER, FULL-HEIGHT GREY PANEL, PHOTO SHADOW RESTORED (2026-07-04)
+================================================================
+Files: src/ui/components/MethodCards.tsx, src/ui/kit/ImageHero.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+       (LogEntryContent, FoodForm)
+
+Three more items from Marco's on-device review:
+
+1. "+Add a new food item" needs a border darker than its background, but
+   ONLY for the Meal use case (not the Day's-log basket's "+ Add another
+   item," Pantry's "Create a meal," etc. — same shared AddAnotherSection
+   component, many contexts). Added an optional `bordered` prop
+   (border-border-field, the existing "darker, visible outline for flat
+   items with no shadow" token) — passed `bordered` unconditionally on
+   PantryMealDetail's instance (always a Meal), and
+   `bordered={basket.length >= 2}` on FoodForm's/LogEntryContent's shared
+   AddAnotherSection instances, since those serve both the single-item
+   and Meal cases from one call site. Every other call site (Pantry Food
+   item's "Create a meal") is unaffected — defaults to false.
+
+2. "the grey background is not going all the way to the end. also, if i
+   pull it up, the white becomes bigger." The grey panel's height was
+   sized to its own content only, so on a short Meal it ended early and
+   revealed the Sheet's plain white scroll-area background underneath.
+   Fixed with a standard CSS "fill remaining space, grow if needed"
+   pattern: each component's outer content wrapper is now `flex flex-col`
+   with `min-height: 100%` (it's a direct child of Sheet's own
+   `flex-1 overflow-y-auto` scroll area, so the percentage resolves), and
+   the grey panel itself gets `flex: 1` — it now always fills at least
+   the remaining visible height, and still grows further/scrolls normally
+   for longer Meals. space-y-* utilities are margin-based, so they keep
+   working unchanged inside the new flex column.
+
+3. "ive noticed that now the food photos have no shadow... can you ensure
+   that it goes back to them." Round 163 had dropped shadow-card-lg from
+   ImageHero's real photos, reasoning a second shadow would double up now
+   that it's nested inside the meal/food-item card's own shadow — reverted
+   specifically for real photos (single hero shot + the 2-4 photo collage
+   tiles); the no-photo placeholder box stays shadowless as before.
+
+Also: Marco added a "food placeholder.png" for the eventual default image
+but pasted/attached chat images still aren't reaching this environment as
+files — asked him to connect his project folder so it can be picked up
+directly next round.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 165 — EDGE-TO-EDGE BLEED + GREY NESTED BEHIND THE WHITE CARD (2026-07-04)
 ================================================================
 Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx

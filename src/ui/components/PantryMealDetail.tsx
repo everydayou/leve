@@ -438,7 +438,15 @@ function PantryMealDetailContent({
 
   return (
     <>
-      <div className="space-y-4 pb-2">
+      {/* Round 166 — flex flex-col + min-height:100% lets the grey
+          Food-items panel below stretch to fill any remaining space in
+          the Sheet's scroll area (via its own flex-1) instead of ending
+          right after its own content and revealing the Sheet's plain
+          white background underneath on short Meals — Marco: "the grey
+          background is not going all the way to the end... if i pull it
+          up, the white becomes bigger." space-y-4 is margin-based, so it
+          still works unchanged inside a flex column. */}
+      <div className="flex flex-col space-y-4 pb-2" style={{ minHeight: '100%' }}>
         {capture.hiddenInputs}
         {capture.servingModal && (
           <ServingModal
@@ -463,7 +471,7 @@ function PantryMealDetailContent({
             INSIDE the grey panel (as its first child, same full-bled
             width) fixes this: grey is always directly behind the white
             card, so the rounded-corner cutouts reveal grey correctly. */}
-        <div style={{ marginLeft: '-20px', marginRight: '-20px' }} className="bg-surface-sunken">
+        <div style={{ marginLeft: '-20px', marginRight: '-20px', flex: 1 }} className="bg-surface-sunken">
           <div
             className="relative bg-surface shadow-card-lg rounded-b-main"
             style={{ paddingLeft: '20px', paddingRight: '20px', paddingBottom: '20px' }}
@@ -522,6 +530,7 @@ function PantryMealDetailContent({
                 open={addSectionOpen}
                 onToggle={() => setAddSectionOpen((o) => !o)}
                 onClose={() => setAddSectionOpen(false)}
+                bordered
               >
                 <MethodCards
                   onPantry={() => { setAddSectionOpen(false); setActiveOverlay('add-pantry'); }}

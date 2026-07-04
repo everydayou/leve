@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 165 (White card + grey Food-items panel now bleed edge-to-edge and grey is nested BEHIND the white card so its rounded corners reveal grey, not the Sheet's white background — still pending the real placeholder image file)
+Last updated: 2026-07-04 — Round 166 ("Add a new food item" gets a border in the Meal case only; grey Food-items panel now flex-fills the remaining Sheet height instead of ending early; ImageHero real photos have shadow-card-lg back — still pending the real placeholder image file)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -163,18 +163,19 @@ changes, on the Mac: `npm install` → `npm test` → `npm run build` →
 KNOWN GAPS
 ----------------------------------------------------------------
 HIGH:
-- MEAL-CARD LAYERED HIERARCHY (round 165, partially verified): white
-  card + grey Food-items panel now bleed edge-to-edge and the white card
-  is nested INSIDE the grey panel so its rounded corners reveal grey
-  correctly (round 164's sibling layout revealed the Sheet's plain white
-  background at the corners instead). Still built without a visual
+- MEAL-CARD LAYERED HIERARCHY (round 166, partially verified): grey
+  Food-items panel now flex-fills the Sheet's remaining scroll height
+  (flex flex-col + min-height:100% on the outer wrapper, flex-1 on the
+  grey panel) instead of ending after its own content; "Add a new food
+  item" has a border-field outline in the Meal case only; ImageHero real
+  photos have their shadow-card-lg back. Still built without a visual
   preview in this environment — needs another on-device pass.
 - DEFAULT MEAL/FOOD-ITEM IMAGE (round 163, still pending real asset):
   ImageHero shows a flat bg-surface-muted placeholder (generic food icon,
-  no shadow). Marco shared a nicer line-art plate/fork/knife illustration
-  in round 165's chat, but pasted chat images aren't accessible as files
-  in this environment (unlike attached/uploaded files) — asked him for a
-  way to get the actual asset (e.g. a connected folder).
+  no shadow). Marco has a nicer line-art plate/fork/knife illustration
+  ("food placeholder.png") but pasted/attached chat images aren't
+  reaching this environment as files — asked him to connect his project
+  folder so it can be picked up directly.
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
 - SHEET SCROLL-SHADOW BUG (open, round 152/153): main Sheet header's shadow
@@ -287,6 +288,27 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 166 — ADD-ANOTHER BORDER, FULL-HEIGHT GREY PANEL, PHOTO SHADOW RESTORED (2026-07-04)
+Files: src/ui/components/MethodCards.tsx, src/ui/kit/ImageHero.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+       (LogEntryContent, FoodForm)
+- AddAnotherSection gained an optional `bordered` prop (border-field
+  outline) — on unconditionally for PantryMealDetail (always a Meal),
+  `bordered={basket.length >= 2}` for FoodForm's/LogEntryContent's shared
+  instance (serves both single-item and Meal cases). Every other call
+  site is unaffected (defaults to false).
+- Grey Food-items panel now flex-fills the Sheet's remaining scroll
+  height instead of ending after its own content and revealing white
+  underneath on short Meals — each component's outer wrapper is
+  `flex flex-col` + `min-height: 100%` (resolves against Sheet's own
+  `flex-1` scroll area), and the grey panel itself is `flex: 1`.
+- ImageHero real photos (single hero + the 2-4 photo collage) have their
+  shadow-card-lg restored — round 163 had dropped it, reasoning a second
+  shadow inside the meal-card's own shadow would double up; the no-photo
+  placeholder stays shadowless.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 165 — EDGE-TO-EDGE BLEED + GREY NESTED BEHIND THE WHITE CARD (2026-07-04)
 Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
        (LogEntryContent, FoodForm)
@@ -314,26 +336,6 @@ Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.t
   BOTTOM corners (rounded-b-main) + shadow-card-lg (downward-only shadow,
   won't show above the box) now mark just the transition into the grey
   "Food items" section, per Marco's "simple divider" fallback suggestion.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 163 — MEAL-CARD LAYERING REBUILT ON THE GAUGE-CARD PATTERN + DEFAULT IMAGE PLACEHOLDER (2026-07-04)
-Files: src/ui/kit/ImageHero.tsx, src/ui/components/AddEntrySheet.tsx (LogEntryContent,
-       FoodForm), src/ui/components/PantryMealDetail.tsx
-- Replaced round 162's negative-margin/peek-overlap implementation with
-  TodayScreen's existing, proven Gauge-card pattern: plain nested boxes,
-  same width — shadowed white card (rounded-main, shadow-card-lg) sits
-  flush at the top of a taller rounded-main bg-surface-sunken container;
-  grey shows through wherever the white card doesn't reach. No negative
-  margins, no z-index/positioning tricks.
-- Photo (ImageHero) now merges INTO the same white card as the meal name/
-  kcal/macros/"Save to pantry" block (previously two separate boxes).
-  Single Food item (no meal card) is unaffected — image stays standalone.
-- ImageHero always renders now instead of returning null with no photo —
-  shows a flat bg-surface-muted placeholder (food icon, no shadow) per
-  Marco's "flat muted grey and no shadow" spec, applied to both Meal and
-  Food-item views. Real photos also dropped their own shadow (now nested
-  inside the card's shadow — one elevation per card, not shadow-in-shadow).
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 

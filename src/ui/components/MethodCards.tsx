@@ -41,7 +41,7 @@ export function MethodPickerModal({
  *  inside the same rounded sunken surface. Used both for "+ Add another item"
  *  (Day's-log basket) and "+ Create a meal" / "+ Add a new food item" (Pantry). */
 export function AddAnotherSection({
-  open, onToggle, onClose, children, label = 'Add another item', helperText,
+  open, onToggle, onClose, children, label = 'Add another item', helperText, bordered = false,
 }: {
   open: boolean;
   onToggle: () => void;
@@ -53,9 +53,14 @@ export function AddAnotherSection({
    *  surfaces pass "Add another item" here (round 126) so the collapsed pill
    *  reads e.g. "+ Create a meal" / "Add another item", matching spec copy. */
   helperText?: string;
+  /** Round 166: adds a border-field outline (darker than the sunken
+   *  background) — only for the Meal use case, where this module now sits
+   *  inside the Meal card's own grey Food-items panel and would otherwise
+   *  blend invisibly into that identical bg-surface-sunken backdrop. */
+  bordered?: boolean;
 }) {
   return (
-    <div className="rounded-[24px] bg-surface-sunken overflow-hidden">
+    <div className={`rounded-[24px] bg-surface-sunken overflow-hidden${bordered ? ' border border-border-field' : ''}`}>
       {/* Heading row */}
       <button
         onClick={onToggle}

@@ -28,7 +28,7 @@ export function AnalyzingIndicator({ label }: { label: string }) {
 // the Day's-log basket, so qty stepping/removal look and behave identically.
 
 export function CaptureReviewOverlay({
-  title, onBack, items, onQtyChange, onRemove, onEdit, onConfirm, confirmLabel, confirming,
+  title, onBack, items, onQtyChange, onRemove, onEdit, onCorrect, onConfirm, confirmLabel, confirming,
 }: {
   title: string;
   onBack: () => void;
@@ -36,6 +36,10 @@ export function CaptureReviewOverlay({
   onQtyChange: (idx: number, qty: number) => void;
   onRemove: (idx: number) => void;
   onEdit: (idx: number) => void;
+  /** Shows a "Change" button on scanned/described/label-scanned cards
+   *  (anything with a sourceId) — same as the Day's-log basket. Re-runs
+   *  Describe to replace just that card instead of removing + re-adding. */
+  onCorrect?: (idx: number) => void;
   onConfirm: () => void | Promise<void>;
   confirmLabel: string;
   confirming?: boolean;
@@ -55,6 +59,7 @@ export function CaptureReviewOverlay({
               onQtyChange={(qty) => onQtyChange(idx, qty)}
               onRemove={() => onRemove(idx)}
               onEdit={() => onEdit(idx)}
+              onCorrect={item.sourceId && onCorrect ? () => onCorrect(idx) : undefined}
             />
           ))}
         </div>

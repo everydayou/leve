@@ -114,6 +114,7 @@ function PantryMealDetailContent({
   const [scanSaveToPantry, setScanSaveToPantry] = useState<Record<string, boolean>>({});
   const [scanPhotoOverrides, setScanPhotoOverrides] = useState<Record<string, string | undefined>>({});
   const [editingScanIdx, setEditingScanIdx] = useState<number | null>(null);
+  const [correctingScanIdx, setCorrectingScanIdx] = useState<number | null>(null);
   const [addingScanItems, setAddingScanItems] = useState(false);
 
   function resetScanBasket() {
@@ -135,7 +136,17 @@ function PantryMealDetailContent({
 
   async function handleDescribeAnalyzeForMeal(text: string) {
     const newItems = await capture.handleDescribeAnalyze(text);
-    setScanBasket((prev) => [...prev, ...newItems]);
+    if (correctingScanIdx !== null) {
+      // "Change" on an existing card: replace just that card, don't append.
+      setScanBasket((prev) => [
+        ...prev.slice(0, correctingScanIdx),
+        ...newItems,
+        ...prev.slice(correctingScanIdx + 1),
+      ]);
+      setCorrectingScanIdx(null);
+    } else {
+      setScanBasket((prev) => [...prev, ...newItems]);
+    }
     setActiveOverlay('add-scan');
   }
 
@@ -333,7 +344,7 @@ function PantryMealDetailContent({
       </div>
     ) : activeOverlay === 'describe' ? (
       <DescribeOverlay
-        onBack={() => setActiveOverlay(scanBasket.length > 0 ? 'add-scan' : null)}
+        onBack={() => { setCorrectingScanIdx(null); setActiveOverlay(scanBasket.length > 0 ? 'add-scan' : null); }}
         onAnalyze={handleDescribeAnalyzeForMeal}
       />
     ) : activeOverlay === 'add-scan' ? (
@@ -344,6 +355,7 @@ function PantryMealDetailContent({
         onQtyChange={(idx, qty) => setScanBasket((prev) => prev.map((it, i) => (i === idx ? { ...it, qty } : it)))}
         onRemove={(idx) => setScanBasket((prev) => prev.filter((_, i) => i !== idx))}
         onEdit={(idx) => { setEditingScanIdx(idx); setActiveOverlay('edit-scan-item'); }}
+        onCorrect={(idx) => { setCorrectingScanIdx(idx); setActiveOverlay('describe'); }}
         onConfirm={confirmAddScanItems}
         confirmLabel="Add to meal"
         confirming={addingScanItems}

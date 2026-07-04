@@ -1,4 +1,59 @@
 ================================================================
+ROUND 162 — LAYERED MEAL-CARD HIERARCHY ACROSS ALL 3 BASKET MEAL VIEWS (2026-07-04)
+================================================================
+Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+       (LogEntryContent, FoodForm)
+
+Marco's new design concept: create clearer visual hierarchy between the
+meal-summary card and its contents by making the card look like it's
+floating ON TOP of the "Food items" section below, instead of the two
+reading as separate, similarly-weighted white boxes on the same
+background. Confirmed via follow-up questions:
+  - Individual food-item cards (BasketCard/PantryItemCard) keep their
+    existing white shadow-card styling, unchanged.
+  - The grey section is UNDER the meal card, its rounded top corners
+    peeking out from behind/around the card rather than starting flush
+    below it.
+  - Grey bleeds edge-to-edge (full sheet width), not just card-width.
+  - Applies to all 3 Basket Meal views: PantryMealDetail, LogEntryContent
+    (Day's-log edit Meal), FoodForm (FAB fresh-capture Meal results).
+
+Actually inverted what was backwards before: the meal-summary card
+previously had NO shadow (round 152/153 — "outline only"), while the
+item cards below it already had shadow-card — so the children looked
+more elevated than their own parent. Now: the meal card gets
+border-border-subtle + shadow-card + `relative` (round 152's
+border-card-no-shadow removed here specifically); everything under it —
+"Food items" heading, item list, "Add a new food item", the Log/Save
+CTA — moves into one new rounded-t-sheet bg-surface-sunken panel that:
+  - bleeds past the Sheet's own 20px side padding (negative left/right
+    margin, padding reapplied on its content so nothing touches the
+    screen edges),
+  - pulls up 16px under the card's bottom edge (negative top margin) so
+    it appears to run behind the card instead of starting right after it,
+  - keeps the established 24px card-to-heading gap via paddingTop = 16px
+    (the overlap) + 24px.
+The card being `relative` (positioned) is what makes it paint above the
+plain, non-positioned grey panel in that overlapping band — no z-index
+needed, just CSS's own positioned-vs-static paint order.
+
+LogEntryContent and FoodForm both restructured their basket.length>=2 /
+<2 branching so "Add a new food item"/CTA render once (as a shared JSX
+value placed inside the grey panel for 2+ items, or below the single
+item's card unchanged for 1 item) instead of duplicating that JSX.
+PantryMealDetail's version is unconditional (a Meal is always 2+ items
+structurally), so no branching was needed there.
+
+Built without on-device visual verification (no headless-browser preview
+available in this environment) — overlap amount (16px), corner radius
+(rounded-t-sheet, the existing 24px "big surfaces" token), and grey shade
+(bg-surface-sunken) are first-pass, reasoned choices, not pixel-confirmed.
+Flagged to Marco to review on his phone and give exact adjustments.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 161 — DAY'S LOG: QUANTITY SUFFIX "(2x)" NOW REGULAR WEIGHT (2026-07-04)
 ================================================================
 Files: src/ui/screens/TodayScreen.tsx

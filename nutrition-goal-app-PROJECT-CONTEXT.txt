@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 161 (Day's-log Food row's "(2x)"/"(150g)" quantity suffix is now regular weight, not inherited-bold)
+Last updated: 2026-07-04 — Round 162 (All 3 Basket Meal views: meal-summary card is now the elevated shadow-card surface, with a full-bleed grey panel peeking from behind it holding Food items/Add/CTA — NOT yet pixel-confirmed on device)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -163,6 +163,12 @@ changes, on the Mac: `npm install` → `npm test` → `npm run build` →
 KNOWN GAPS
 ----------------------------------------------------------------
 HIGH:
+- MEAL-CARD LAYERED HIERARCHY (round 162, unverified): the new
+  card-peeking-over-grey-panel treatment on PantryMealDetail/
+  LogEntryContent/FoodForm was built without any visual preview (no
+  headless browser available that round) — overlap amount, radius, and
+  grey shade are reasoned first-pass values only. Needs Marco's on-device
+  review before considering this done.
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
 - SHEET SCROLL-SHADOW BUG (open, round 152/153): main Sheet header's shadow
@@ -275,6 +281,25 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 162 — LAYERED MEAL-CARD HIERARCHY ACROSS ALL 3 BASKET MEAL VIEWS (2026-07-04)
+Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+       (LogEntryContent, FoodForm)
+- Meal-summary card is now the elevated one (border-subtle + shadow-card +
+  relative, replacing round 152/153's flat outline-only treatment) —
+  previously the item cards below it were MORE elevated than their own
+  parent card, which is what this fixes. Item cards themselves unchanged.
+- Everything under the card ("Food items" heading, item list, "Add a new
+  food item", Log/Save CTA) now sits inside one full-bleed
+  rounded-t-sheet bg-surface-sunken panel that bleeds past the Sheet's
+  20px side padding and pulls up 16px under the card's bottom edge so it
+  appears to peek out from behind the card rather than starting flush
+  below it. Applied to PantryMealDetail, LogEntryContent, and FoodForm.
+- Built without on-device/headless-browser preview this round — overlap
+  (16px), radius (rounded-t-sheet), and grey shade (bg-surface-sunken)
+  are first-pass reasoned values, not pixel-confirmed. See Known Gaps.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 161 — DAY'S LOG: QUANTITY SUFFIX "(2x)" NOW REGULAR WEIGHT (2026-07-04)
 Files: src/ui/screens/TodayScreen.tsx
 - The "(2x)"/"(150g)" quantity suffix next to a Food row's name was
@@ -308,16 +333,6 @@ Files: src/ui/kit/useNumericDoneBar.tsx (new), src/ui/kit/NumberField.tsx,
 - Also this round: Day's-log Activity list-item row's name/kcal weights
   were backwards vs. the Food row convention (name bold, amount regular) —
   swapped to match (src/ui/screens/TodayScreen.tsx).
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 159 — KEYBOARD PLAYGROUND ROW 4: FORCE "." SEPARATOR, 24PX DONE SPACING (2026-07-04)
-Files: src/ui/components/DevMenu.tsx
-- Row 4 (decimal + custom Done bar) confirmed as the one Marco wants. Fixed
-  the decimal key showing "," instead of "." (iOS region-dependent, not
-  app-language-dependent) via lang="en-US" on that input, plus an onChange
-  safety net replacing any "," with ".". Done button's spacing from the
-  right edge is now a precise 24px (was 16px all around).
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 

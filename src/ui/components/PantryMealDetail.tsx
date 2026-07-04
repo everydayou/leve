@@ -464,7 +464,7 @@ function PantryMealDetailContent({
             scale gives us"). */}
         <div
           style={{ marginTop: '24px' }}
-          className="rounded-[20px] border border-border-card-no-shadow bg-surface p-4"
+          className="relative rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card"
         >
           <div className="flex items-end gap-2">
             <div className="flex-1">
@@ -488,12 +488,24 @@ function PantryMealDetailContent({
           <MacroSummaryLine nutrition={mealNutritionFor(meal, itemsById)} className="mt-2" />
         </div>
 
-        {/* "Food items" + its list, in their own wrapper so the 24px-top /
-            8px-bottom spacing around the heading (round 154) is exact and
-            immune to the outer space-y-4's own margin — the inner space-y-4
-            below reproduces the SAME gap the item cards always had between
-            each other, unrelated to this change. */}
-        <div style={{ marginTop: '24px' }}>
+        {/* Round 162 — layered hierarchy: the meal card above is now the
+            one elevated (shadow-card, `relative` so it paints above this
+            sunken panel) surface; everything belonging to it — Food items,
+            "Add a new food item", Save meal — sits inside one full-bleed
+            grey panel that appears to run BEHIND the card. Bleeds past the
+            Sheet's own 20px side padding (mx: -20px, then re-applies it as
+            padding) and pulls up 16px underneath the card's bottom edge
+            (marginTop: -16px) so its rounded top corners peek out from
+            around the card instead of touching it edge-on; paddingTop
+            (40px = 16px overlap + the established 24px card-to-heading
+            gap) keeps the heading clear of the overlapped region. */}
+        <div
+          className="rounded-t-sheet bg-surface-sunken"
+          style={{
+            marginLeft: '-20px', marginRight: '-20px', marginTop: '-16px',
+            paddingLeft: '20px', paddingRight: '20px', paddingTop: '40px', paddingBottom: '24px',
+          }}
+        >
           <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
           <div className="space-y-4">
             {meal.items.map((mi) => {
@@ -512,28 +524,34 @@ function PantryMealDetailContent({
               );
             })}
           </div>
+
+          {/* Same collapsible module as Food item detail's "Create a meal"
+              and the Day's-log basket's "+ Add another item". marginTop
+              16px matches the outer space-y-4 gap it used to get for free
+              before moving inside this panel. */}
+          <div style={{ marginTop: '16px' }}>
+            <AddAnotherSection
+              label="Add a new food item"
+              helperText="Add another item"
+              open={addSectionOpen}
+              onToggle={() => setAddSectionOpen((o) => !o)}
+              onClose={() => setAddSectionOpen(false)}
+            >
+              <MethodCards
+                onPantry={() => { setAddSectionOpen(false); setActiveOverlay('add-pantry'); }}
+                onCamera={() => { setAddSectionOpen(false); void capture.handleCamera(); }}
+                onPhoto={() => { setAddSectionOpen(false); void capture.handlePhoto(); }}
+                onDescribe={() => { setAddSectionOpen(false); setActiveOverlay('describe'); }}
+                onLabel={() => { setAddSectionOpen(false); capture.openLabelPicker(); }}
+                onManual={() => { setAddSectionOpen(false); setActiveOverlay('add-manual'); }}
+              />
+            </AddAnotherSection>
+          </div>
+
+          <div style={{ marginTop: '16px' }}>
+            <Button size="lg" onClick={() => { void saveName(name); onClose(); }}>Save meal</Button>
+          </div>
         </div>
-
-        {/* Same collapsible module as Food item detail's "Create a meal" and
-            the Day's-log basket's "+ Add another item". */}
-        <AddAnotherSection
-          label="Add a new food item"
-          helperText="Add another item"
-          open={addSectionOpen}
-          onToggle={() => setAddSectionOpen((o) => !o)}
-          onClose={() => setAddSectionOpen(false)}
-        >
-          <MethodCards
-            onPantry={() => { setAddSectionOpen(false); setActiveOverlay('add-pantry'); }}
-            onCamera={() => { setAddSectionOpen(false); void capture.handleCamera(); }}
-            onPhoto={() => { setAddSectionOpen(false); void capture.handlePhoto(); }}
-            onDescribe={() => { setAddSectionOpen(false); setActiveOverlay('describe'); }}
-            onLabel={() => { setAddSectionOpen(false); capture.openLabelPicker(); }}
-            onManual={() => { setAddSectionOpen(false); setActiveOverlay('add-manual'); }}
-          />
-        </AddAnotherSection>
-
-        <Button size="lg" onClick={() => { void saveName(name); onClose(); }}>Save meal</Button>
       </div>
 
       {pendingUpdate && (

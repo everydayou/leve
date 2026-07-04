@@ -781,7 +781,7 @@ function FoodForm({
       {basket.length >= 2 && (
         <div
           style={{ marginTop: '24px' }}
-          className="space-y-3 rounded-[20px] border border-border-card-no-shadow bg-surface p-4"
+          className="relative space-y-3 rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card"
         >
           <div>
             <div className="flex items-end gap-2">
@@ -809,39 +809,6 @@ function FoodForm({
             Save to pantry
           </label>
         </div>
-      )}
-
-      {/* "Food items" + its list share a wrapper (round 157) so the 24px
-          top / 8px bottom spacing around the heading is exact — same
-          pattern as LogEntryContent. Single-item basket (not yet a Meal)
-          skips both the heading and this wrapper, unchanged from before. */}
-      {basket.length >= 2 ? (
-        <div style={{ marginTop: '24px' }}>
-          <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
-          <div className="space-y-3">
-            {basket.map((item, idx) => (
-              <BasketCard
-                key={item.id}
-                item={item}
-                nutrition={basketNutrition(item)}
-                onQtyChange={(qty) => updateQty(idx, qty)}
-                onRemove={() => removeItem(idx)}
-                onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-              />
-            ))}
-          </div>
-        </div>
-      ) : (
-        basket.map((item, idx) => (
-          <BasketCard
-            key={item.id}
-            item={item}
-            nutrition={basketNutrition(item)}
-            onQtyChange={(qty) => updateQty(idx, qty)}
-            onRemove={() => removeItem(idx)}
-            onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-          />
-        ))
       )}
 
       {/* Serving size modal (Label scan — shown over the basket) */}
@@ -878,43 +845,98 @@ function FoodForm({
         />
       )}
 
-      {/* ── Non-empty basket: "Add another item" anchor + picker ──────── */}
-      {/* Copy matches Pantry's own module: "Create a meal" while this is
-          still a single item (about to become one), "Add a new food item"
-          once it already is one (spec §6/§12). */}
-      {basket.length > 0 && (
-        <AddAnotherSection
-          label={basket.length >= 2 ? 'Add a new food item' : 'Create a meal'}
-          helperText={basket.length >= 2 ? undefined : 'Add another item'}
-          open={pickerOpen}
-          onToggle={() => setPickerOpen((v) => !v)}
-          onClose={() => setPickerOpen(false)}
-        >
-          <FoodPicker
-            bare
-            items={items}
-            allItems={allItems}
-            meals={meals}
-            frequentItems={frequentItems}
-            onPickItem={addPantryItem}
-            onPickMeal={addPantryMeal}
-            onCamera={() => void handleCamera()}
-            onPhoto={() => void handlePhoto()}
-            onDescribe={() => { setPickerOpen(false); setActiveOverlay('describe'); }}
-            onLabel={() => { labelInputRef.current?.click(); }}
-            onManual={() => { setPickerOpen(false); setActiveOverlay('manual'); }}
-          />
-        </AddAnotherSection>
-      )}
+      {(() => {
+        if (basket.length === 0) return null;
 
-      {/* ── Log CTA — always last, 24px above it ─────────────────────── */}
-      {basket.length > 0 && !activeOverlay && !analyzing && (
-        <div style={{ paddingTop: '24px' }}>
-          <Button size="lg" onClick={() => void logRef.current()}>
-            {basket.length >= 2 ? 'Log meal' : 'Log food'}
-          </Button>
-        </div>
-      )}
+        /* Copy matches Pantry's own module: "Create a meal" while this is
+           still a single item (about to become one), "Add a new food item"
+           once it already is one (spec §6/§12). */
+        const addAnotherAndLog = (
+          <>
+            <AddAnotherSection
+              label={basket.length >= 2 ? 'Add a new food item' : 'Create a meal'}
+              helperText={basket.length >= 2 ? undefined : 'Add another item'}
+              open={pickerOpen}
+              onToggle={() => setPickerOpen((v) => !v)}
+              onClose={() => setPickerOpen(false)}
+            >
+              <FoodPicker
+                bare
+                items={items}
+                allItems={allItems}
+                meals={meals}
+                frequentItems={frequentItems}
+                onPickItem={addPantryItem}
+                onPickMeal={addPantryMeal}
+                onCamera={() => void handleCamera()}
+                onPhoto={() => void handlePhoto()}
+                onDescribe={() => { setPickerOpen(false); setActiveOverlay('describe'); }}
+                onLabel={() => { labelInputRef.current?.click(); }}
+                onManual={() => { setPickerOpen(false); setActiveOverlay('manual'); }}
+              />
+            </AddAnotherSection>
+            {!activeOverlay && !analyzing && (
+              <div style={{ marginTop: '24px' }}>
+                <Button size="lg" onClick={() => void logRef.current()}>
+                  {basket.length >= 2 ? 'Log meal' : 'Log food'}
+                </Button>
+              </div>
+            )}
+          </>
+        );
+
+        return basket.length >= 2 ? (
+          /* Round 162 — layered hierarchy: the meal card above is now the
+             one elevated (shadow-card, `relative`) surface; everything
+             belonging to it — Food items, "Add a new food item", Log meal —
+             sits inside one full-bleed grey panel that runs behind it.
+             Bleeds past the Sheet's own 20px side padding (mx: -20px,
+             reapplied as padding) and pulls up 16px under the card's
+             bottom edge so its rounded top corners peek out around the
+             card rather than touching it edge-on; paddingTop (40px = 16px
+             overlap + the established 24px card-to-heading gap) keeps the
+             heading clear of the overlapped region. */
+          <div
+            className="rounded-t-sheet bg-surface-sunken"
+            style={{
+              marginLeft: '-20px', marginRight: '-20px', marginTop: '-16px',
+              paddingLeft: '20px', paddingRight: '20px', paddingTop: '40px', paddingBottom: '24px',
+            }}
+          >
+            <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
+            <div className="space-y-3">
+              {basket.map((item, idx) => (
+                <BasketCard
+                  key={item.id}
+                  item={item}
+                  nutrition={basketNutrition(item)}
+                  onQtyChange={(qty) => updateQty(idx, qty)}
+                  onRemove={() => removeItem(idx)}
+                  onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+                />
+              ))}
+            </div>
+            <div style={{ marginTop: '16px' }}>{addAnotherAndLog}</div>
+          </div>
+        ) : (
+          <>
+            {/* Single Food item — no grey panel here, unchanged from
+                before: that hierarchy only applies once there's an actual
+                meal-summary card above to layer it against. */}
+            {basket.map((item, idx) => (
+              <BasketCard
+                key={item.id}
+                item={item}
+                nutrition={basketNutrition(item)}
+                onQtyChange={(qty) => updateQty(idx, qty)}
+                onRemove={() => removeItem(idx)}
+                onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+              />
+            ))}
+            <div style={{ marginTop: '12px' }}>{addAnotherAndLog}</div>
+          </>
+        );
+      })()}
     </div>
   );
 }
@@ -2185,7 +2207,7 @@ function LogEntryContent({
         {basket.length >= 2 && (
           <div
             style={{ marginTop: '24px' }}
-            className="space-y-3 rounded-[20px] border border-border-card-no-shadow bg-surface p-4"
+            className="relative space-y-3 rounded-[20px] border border-border-subtle bg-surface p-4 shadow-card"
           >
             <div>
               <div className="flex items-end gap-2">
@@ -2229,106 +2251,132 @@ function LogEntryContent({
             other. Single-item basket (still building/editing a Food item,
             not a Meal) skips both the heading and this wrapper entirely —
             unchanged from before. */}
-        {basket.length >= 2 ? (
-          <div style={{ marginTop: '24px' }}>
-            <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
-            <div className="space-y-3">
-              {basket.map((item, idx) => (
-                <BasketCard
-                  key={item.id}
-                  item={item}
-                  nutrition={basketNutrition(item)}
-                  onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
-                  onRemove={() => {
-                    if (basket.length === 1) { void del(); return; }
-                    const removedItem = basket[idx];
-                    setBasket((prev) => prev.filter((_, i) => i !== idx));
-                    // Remove photo from localPhotos if no other basket item uses the same pantry photo
-                    if (removedItem.pantryItemId) {
-                      const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
-                      if (pantryPhoto) {
-                        const stillReferenced = basket
-                          .filter((_, i) => i !== idx)
-                          .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
-                        if (!stillReferenced) {
-                          setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+        {(() => {
+          const addAnotherAndSave = (
+            <>
+              {/* Inline add-another with full FoodPicker — same copy rule as
+                  FoodForm: "Create a meal" while still a single item, "Add a
+                  new food item" once it already is one. */}
+              <AddAnotherSection
+                label={basket.length >= 2 ? 'Add a new food item' : 'Create a meal'}
+                helperText={basket.length >= 2 ? undefined : 'Add another item'}
+                open={pickerOpen}
+                onToggle={() => setPickerOpen((v) => !v)}
+                onClose={() => setPickerOpen(false)}
+              >
+                <FoodPicker
+                  items={pantryItems}
+                  allItems={allItems}
+                  meals={meals}
+                  frequentItems={frequentItems}
+                  onPickItem={addPantryItem}
+                  onPickMeal={addPantryMeal}
+                  onCamera={() => void handleCamera()}
+                  onPhoto={() => void handlePhoto()}
+                  onDescribe={() => setActiveOverlay('describe')}
+                  onLabel={() => labelInputRef.current?.click()}
+                  onManual={() => setActiveOverlay('manual')}
+                  bare
+                />
+              </AddAnotherSection>
+              {hasChanges && (
+                <div style={{ marginTop: '24px' }}>
+                  <Button size="lg" onClick={() => void save()}>Save changes</Button>
+                </div>
+              )}
+            </>
+          );
+
+          return basket.length >= 2 ? (
+            /* Round 162 — layered hierarchy: the meal card above is now the
+               one elevated (shadow-card, `relative`) surface; everything
+               belonging to it — Food items, "Add a new food item", Save
+               changes — sits inside one full-bleed grey panel that runs
+               behind it. Bleeds past the Sheet's own 20px side padding
+               (mx: -20px, reapplied as padding) and pulls up 16px under the
+               card's bottom edge so its rounded top corners peek out around
+               the card rather than touching it edge-on; paddingTop (40px =
+               16px overlap + the established 24px card-to-heading gap)
+               keeps the heading clear of the overlapped region. */
+            <div
+              className="rounded-t-sheet bg-surface-sunken"
+              style={{
+                marginLeft: '-20px', marginRight: '-20px', marginTop: '-16px',
+                paddingLeft: '20px', paddingRight: '20px', paddingTop: '40px', paddingBottom: '24px',
+              }}
+            >
+              <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
+              <div className="space-y-3">
+                {basket.map((item, idx) => (
+                  <BasketCard
+                    key={item.id}
+                    item={item}
+                    nutrition={basketNutrition(item)}
+                    onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
+                    onRemove={() => {
+                      if (basket.length === 1) { void del(); return; }
+                      const removedItem = basket[idx];
+                      setBasket((prev) => prev.filter((_, i) => i !== idx));
+                      // Remove photo from localPhotos if no other basket item uses the same pantry photo
+                      if (removedItem.pantryItemId) {
+                        const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
+                        if (pantryPhoto) {
+                          const stillReferenced = basket
+                            .filter((_, i) => i !== idx)
+                            .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
+                          if (!stillReferenced) {
+                            setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+                          }
                         }
                       }
-                    }
-                  }}
-                  onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-                  onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
-                />
-              ))}
+                    }}
+                    onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+                    onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
+                  />
+                ))}
+              </div>
+              <div style={{ marginTop: '16px' }}>{addAnotherAndSave}</div>
             </div>
-          </div>
-        ) : (
-          // Single Food item (round 157): same 24px gap from the photo
-          // above as the Meal case's summary card, via an explicit
-          // marginTop rather than the ambient space-y-3 (Marco flagged this
-          // one as still showing the old, larger gap).
-          <div style={{ marginTop: '24px' }}>
-            {basket.map((item, idx) => (
-              <BasketCard
-                key={item.id}
-                item={item}
-                nutrition={basketNutrition(item)}
-                onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
-                onRemove={() => {
-                  if (basket.length === 1) { void del(); return; }
-                  const removedItem = basket[idx];
-                  setBasket((prev) => prev.filter((_, i) => i !== idx));
-                  if (removedItem.pantryItemId) {
-                    const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
-                    if (pantryPhoto) {
-                      const stillReferenced = basket
-                        .filter((_, i) => i !== idx)
-                        .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
-                      if (!stillReferenced) {
-                        setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+          ) : (
+            <>
+              {/* Single Food item (round 157): same 24px gap from the photo
+                  above as the Meal case's summary card, via an explicit
+                  marginTop rather than the ambient space-y-3 (Marco flagged
+                  this one as still showing the old, larger gap). No grey
+                  panel here — that hierarchy only applies once there's an
+                  actual meal-summary card above to layer it against. */}
+              <div style={{ marginTop: '24px' }}>
+                {basket.map((item, idx) => (
+                  <BasketCard
+                    key={item.id}
+                    item={item}
+                    nutrition={basketNutrition(item)}
+                    onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
+                    onRemove={() => {
+                      if (basket.length === 1) { void del(); return; }
+                      const removedItem = basket[idx];
+                      setBasket((prev) => prev.filter((_, i) => i !== idx));
+                      if (removedItem.pantryItemId) {
+                        const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
+                        if (pantryPhoto) {
+                          const stillReferenced = basket
+                            .filter((_, i) => i !== idx)
+                            .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
+                          if (!stillReferenced) {
+                            setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+                          }
+                        }
                       }
-                    }
-                  }
-                }}
-                onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-                onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Inline add-another with full FoodPicker — same copy rule as
-            FoodForm: "Create a meal" while still a single item, "Add a new
-            food item" once it already is one. */}
-        <AddAnotherSection
-          label={basket.length >= 2 ? 'Add a new food item' : 'Create a meal'}
-          helperText={basket.length >= 2 ? undefined : 'Add another item'}
-          open={pickerOpen}
-          onToggle={() => setPickerOpen((v) => !v)}
-          onClose={() => setPickerOpen(false)}
-        >
-          <FoodPicker
-            items={pantryItems}
-            allItems={allItems}
-            meals={meals}
-            frequentItems={frequentItems}
-            onPickItem={addPantryItem}
-            onPickMeal={addPantryMeal}
-            onCamera={() => void handleCamera()}
-            onPhoto={() => void handlePhoto()}
-            onDescribe={() => setActiveOverlay('describe')}
-            onLabel={() => labelInputRef.current?.click()}
-            onManual={() => setActiveOverlay('manual')}
-            bare
-          />
-        </AddAnotherSection>
-
-        {/* Save CTA — 24px gap above (space-y-3=12px + pt-3=12px) */}
-        {hasChanges && (
-          <div className="pt-3">
-            <Button size="lg" onClick={() => void save()}>Save changes</Button>
-          </div>
-        )}
+                    }}
+                    onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+                    onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
+                  />
+                ))}
+              </div>
+              <div style={{ marginTop: '12px' }}>{addAnotherAndSave}</div>
+            </>
+          );
+        })()}
       </div>
 
       {/* Label-scan serving modal */}

@@ -2151,8 +2151,9 @@ function LogEntryContent({
                   {totalNutrition.calories} kcal
                 </span>
               </div>
-              {/* Round 155: 4px to the name row above (was 10px). */}
-              <MacroSummaryLine nutrition={totalNutrition} className="mt-1" />
+              {/* Round 156: 8px to the name row above, meal-summary-card only
+                  (Basket/Pantry item cards stay at 4px per round 155). */}
+              <MacroSummaryLine nutrition={totalNutrition} className="mt-2" />
             </div>
             {/* Round 155: 16px from the badges above (was space-y-3's 12px;
                 inline overrides it the same way the card's own marginTop does). */}

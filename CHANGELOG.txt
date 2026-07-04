@@ -1,4 +1,19 @@
 ================================================================
+ROUND 156 — MEAL-SUMMARY-CARD SPACING TWEAK: NAME ROW -> BADGES TO 8PX (2026-07-04)
+================================================================
+Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+
+Marco: round 155 set the name-row-to-badges gap to 4px everywhere (matching
+Basket/Pantry item cards, which he confirmed are "perfect" as-is) — but for
+the meal-summary card specifically, that gap should be 8px instead. Changed
+MacroSummaryLine's className from mt-1 to mt-2 in both meal-summary card
+instances (Day's-log's Meal view and Pantry's own Meal detail) only;
+BasketCard/PantryItemCard untouched, still 4px.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 155 — CARD INTERNAL SPACING (4px/16px) + KCAL BADGE HEIGHT MATCH (2026-07-04)
 ================================================================
 Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/PantryItemCard.tsx,

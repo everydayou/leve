@@ -447,8 +447,9 @@ function PantryMealDetailContent({
               {mealNutritionFor(meal, itemsById).calories} kcal
             </span>
           </div>
-          {/* Round 155: 4px to the name row above (was 10px). */}
-          <MacroSummaryLine nutrition={mealNutritionFor(meal, itemsById)} className="mt-1" />
+          {/* Round 156: 8px to the name row above, meal-summary-card only
+              (Basket/Pantry item cards stay at 4px per round 155). */}
+          <MacroSummaryLine nutrition={mealNutritionFor(meal, itemsById)} className="mt-2" />
         </div>
 
         {/* "Food items" + its list, in their own wrapper so the 24px-top /

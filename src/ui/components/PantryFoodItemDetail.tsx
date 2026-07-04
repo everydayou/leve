@@ -65,22 +65,52 @@ export function PantryFoodItemDetail({
   // forward a stable ref so the header button can trigger it.
   const deleteRef = useRef<() => void>(() => undefined);
 
+  // Round 157: closing (X / scrim / swipe-down) a freshly scan-created item
+  // without tapping "Save food" used to leave it in the Pantry anyway — it
+  // was already written to the DB the instant the scan committed (round
+  // 149's "commit immediately"). Marco wants X to mean "discard, don't
+  // keep this" instead, with a confirm so a stray tap can't silently lose
+  // it. "Save food" needs no change — the item's already correctly saved,
+  // so it just closes as before.
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+
+  async function discard() {
+    await repos.foodItems.remove(item.id);
+    onDeleted();
+  }
+
   return (
-    <Sheet
-      title="Food item"
-      onClose={onClose}
-      forceExpanded
-      rightAction={
-        <button data-no-drag onClick={() => deleteRef.current()} aria-label="Delete food item" className="-m-1 p-1 text-content-secondary active:text-danger">
-          <DeleteIcon size={20} />
-        </button>
-      }
-    >
-      <PantryFoodItemDetailContent
-        item={item} items={items} allItems={allItems} meals={meals} justCreated={justCreated} onClose={onClose} onDeleted={onDeleted}
-        onMealCreated={onMealCreated} showToast={showToast} deleteRef={deleteRef}
-      />
-    </Sheet>
+    <>
+      <Sheet
+        title="Food item"
+        onClose={justCreated ? () => setConfirmingDiscard(true) : onClose}
+        forceExpanded
+        rightAction={
+          justCreated ? undefined : (
+            <button data-no-drag onClick={() => deleteRef.current()} aria-label="Delete food item" className="-m-1 p-1 text-content-secondary active:text-danger">
+              <DeleteIcon size={20} />
+            </button>
+          )
+        }
+      >
+        <PantryFoodItemDetailContent
+          item={item} items={items} allItems={allItems} meals={meals} justCreated={justCreated} onClose={onClose} onDeleted={onDeleted}
+          onMealCreated={onMealCreated} showToast={showToast} deleteRef={deleteRef}
+        />
+      </Sheet>
+
+      {confirmingDiscard && (
+        <Sheet title="Discard this food?" onClose={() => setConfirmingDiscard(false)}>
+          <div className="space-y-3 pb-2">
+            <p className="text-subhead text-content-secondary">
+              <span className="font-medium text-content">"{item.name}"</span> won't be saved to your pantry.
+            </p>
+            <Button variant="destructive" onClick={() => void discard()}>Discard</Button>
+            <Button variant="outline" onClick={() => setConfirmingDiscard(false)}>Keep editing</Button>
+          </div>
+        </Sheet>
+      )}
+    </>
   );
 }
 
@@ -193,7 +223,11 @@ function PantryFoodItemDetailContent({
         const meal: Meal = { id: newId(), name: uniquePantryName(newItems[0].name, items, meals), isArchived: false, items: mealFoodItems };
         await repos.meals.put(meal);
         showToast?.('Meal created');
-        onMealCreated(meal);
+        // Round 157: pass the new ingredient ids along too, same as
+        // commitScannedItems below — keeps this Meal eligible for the
+        // discard-confirm + "Change" treatment on PantryMealDetail even
+        // though it arrived via a correction rather than a fresh capture.
+        onMealCreated(meal, mealFoodItems.map((mi) => mi.foodItemId));
       }
     } finally {
       setCorrecting(false);
@@ -385,13 +419,18 @@ function PantryFoodItemDetailContent({
         )}
         <ImageHero photos={item.photo ? [item.photo] : []} />
 
-        <PantryItemCard
-          name={item.name}
-          nutrition={nutrition}
-          servingLabel={servingLabelFor(item)}
-          onEdit={() => setActiveOverlay('edit')}
-          onCorrect={justCreated ? () => setActiveOverlay('describe-correct') : undefined}
-        />
+        {/* Round 157: 24px gap from the photo above, matching the Meal
+            summary card's own spacing (was relying on the ambient
+            space-y-4, which read as noticeably larger). */}
+        <div style={{ marginTop: '24px' }}>
+          <PantryItemCard
+            name={item.name}
+            nutrition={nutrition}
+            servingLabel={servingLabelFor(item)}
+            onEdit={() => setActiveOverlay('edit')}
+            onCorrect={justCreated ? () => setActiveOverlay('describe-correct') : undefined}
+          />
+        </div>
 
         {/* Same collapsible module as the Day's-log basket's "+ Add another
             item" — "Pantry" is now a real card in the method row (pick an

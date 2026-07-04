@@ -64,26 +64,62 @@ export function PantryMealDetail({
 
   // Meal was deleted elsewhere (or from this sheet) — close automatically.
   useEffect(() => { if (!meal) onClose(); }, [meal, onClose]);
+
+  // Round 157: same reasoning as PantryFoodItemDetail's own discard-confirm
+  // — closing (X / scrim / swipe-down) a freshly scan-created Meal without
+  // tapping "Save meal" used to leave it in the Pantry anyway, since round
+  // 149 commits scan results immediately. `justCreatedItemIds` is only ever
+  // set (by the parent) right after a scan produced this exact Meal, so its
+  // presence doubles as "was this Meal just created" — no separate flag
+  // needed. Discarding removes the Meal itself; its ingredient Food items
+  // are left in place (same "leave orphans" precedent as removing a single
+  // item from a meal already does) rather than hunting down and deleting
+  // each one.
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const justCreated = justCreatedItemIds !== undefined;
+
+  async function discard() {
+    if (!meal) return;
+    await repos.meals.remove(meal.id);
+    onClose();
+  }
+
   if (!meal) return null;
 
   const itemsById = itemsByIdMap(allItems);
 
   return (
-    <Sheet
-      title="Meal"
-      onClose={onClose}
-      forceExpanded
-      rightAction={
-        <button data-no-drag onClick={() => deleteRef.current()} aria-label="Delete meal" className="-m-1 p-1 text-content-secondary active:text-danger">
-          <DeleteIcon size={20} />
-        </button>
-      }
-    >
-      <PantryMealDetailContent
-        meal={meal} items={items} allItems={allItems} meals={meals} photos={mealPhotosFor(meal, itemsById)}
-        justCreatedItemIds={justCreatedItemIds} onClose={onClose} showToast={showToast} deleteRef={deleteRef}
-      />
-    </Sheet>
+    <>
+      <Sheet
+        title="Meal"
+        onClose={justCreated ? () => setConfirmingDiscard(true) : onClose}
+        forceExpanded
+        rightAction={
+          justCreated ? undefined : (
+            <button data-no-drag onClick={() => deleteRef.current()} aria-label="Delete meal" className="-m-1 p-1 text-content-secondary active:text-danger">
+              <DeleteIcon size={20} />
+            </button>
+          )
+        }
+      >
+        <PantryMealDetailContent
+          meal={meal} items={items} allItems={allItems} meals={meals} photos={mealPhotosFor(meal, itemsById)}
+          justCreatedItemIds={justCreatedItemIds} onClose={onClose} showToast={showToast} deleteRef={deleteRef}
+        />
+      </Sheet>
+
+      {confirmingDiscard && (
+        <Sheet title="Discard this meal?" onClose={() => setConfirmingDiscard(false)}>
+          <div className="space-y-3 pb-2">
+            <p className="text-subhead text-content-secondary">
+              <span className="font-medium text-content">"{meal.name}"</span> won't be saved to your pantry.
+            </p>
+            <Button variant="destructive" onClick={() => void discard()}>Discard</Button>
+            <Button variant="outline" onClick={() => setConfirmingDiscard(false)}>Keep editing</Button>
+          </div>
+        </Sheet>
+      )}
+    </>
   );
 }
 

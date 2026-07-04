@@ -714,6 +714,18 @@ function FoodForm({
   }
   overlayBackRef.current = overlayBack; // intentional ref update mid-render so swipe handler always calls latest overlayBack
 
+  // Round 157: total nutrition for the meal-summary card — same shape as
+  // LogEntryContent's own (this is FoodForm, the FRESH-build flow reached
+  // from the FAB; LogEntryContent is the separate "edit an already-logged
+  // entry" flow — they don't share state, so each needs its own copy).
+  const totalNutrition: NutritionSnapshot = basket.reduce((acc, b) => {
+    const n = basketNutrition(b);
+    return {
+      calories: acc.calories + n.calories, protein: acc.protein + n.protein,
+      carbs: acc.carbs + n.carbs, fiber: acc.fiber + n.fiber, fat: acc.fat + n.fat,
+    };
+  }, { calories: 0, protein: 0, carbs: 0, fiber: 0, fat: 0 });
+
   // ── Analysing state ───────────────────────────────────────────────────────
   if (analyzing) {
     return (
@@ -761,16 +773,33 @@ function FoodForm({
       {/* Photo collage */}
       {sourcePhotos.length > 0 && <ImageHero photos={sourcePhotos} />}
 
-      {/* Meal name + save to pantry (2+ items) */}
+      {/* Meal summary (round 157) — same treatment as LogEntryContent's own
+          Meal view / Pantry's Meal detail: name + total kcal + macro
+          breakdown + "Save to pantry" in one outlined (not shadowed) card.
+          marginTop is inline, deliberately overriding the outer
+          space-y-3, so the gap from the photo above is exactly 24px. */}
       {basket.length >= 2 && (
-        <div>
-          <LabeledInput
-            label="Meal name"
-            value={mealName}
-            onChange={(e) => setMealName(e.target.value)}
-            placeholder={timeMealName()}
-          />
-          <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary mt-2">
+        <div
+          style={{ marginTop: '24px' }}
+          className="space-y-3 rounded-[20px] border border-border-card-no-shadow bg-surface p-4"
+        >
+          <div>
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <LabeledInput
+                  label="Meal name"
+                  value={mealName}
+                  onChange={(e) => setMealName(e.target.value)}
+                  placeholder={timeMealName()}
+                />
+              </div>
+              <span className="shrink-0 rounded-field border border-transparent bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content-secondary">
+                {totalNutrition.calories} kcal
+              </span>
+            </div>
+            <MacroSummaryLine nutrition={totalNutrition} className="mt-2" />
+          </div>
+          <label style={{ marginTop: '16px' }} className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
             <input
               type="checkbox"
               checked={saveToPantry}
@@ -782,17 +811,38 @@ function FoodForm({
         </div>
       )}
 
-      {/* Basket cards */}
-      {basket.map((item, idx) => (
-        <BasketCard
-          key={item.id}
-          item={item}
-          nutrition={basketNutrition(item)}
-          onQtyChange={(qty) => updateQty(idx, qty)}
-          onRemove={() => removeItem(idx)}
-          onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-        />
-      ))}
+      {/* "Food items" + its list share a wrapper (round 157) so the 24px
+          top / 8px bottom spacing around the heading is exact — same
+          pattern as LogEntryContent. Single-item basket (not yet a Meal)
+          skips both the heading and this wrapper, unchanged from before. */}
+      {basket.length >= 2 ? (
+        <div style={{ marginTop: '24px' }}>
+          <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
+          <div className="space-y-3">
+            {basket.map((item, idx) => (
+              <BasketCard
+                key={item.id}
+                item={item}
+                nutrition={basketNutrition(item)}
+                onQtyChange={(qty) => updateQty(idx, qty)}
+                onRemove={() => removeItem(idx)}
+                onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        basket.map((item, idx) => (
+          <BasketCard
+            key={item.id}
+            item={item}
+            nutrition={basketNutrition(item)}
+            onQtyChange={(qty) => updateQty(idx, qty)}
+            onRemove={() => removeItem(idx)}
+            onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+          />
+        ))
+      )}
 
       {/* Serving size modal (Label scan — shown over the basket) */}
       {servingModal && (
@@ -2210,32 +2260,38 @@ function LogEntryContent({
             </div>
           </div>
         ) : (
-          basket.map((item, idx) => (
-            <BasketCard
-              key={item.id}
-              item={item}
-              nutrition={basketNutrition(item)}
-              onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
-              onRemove={() => {
-                if (basket.length === 1) { void del(); return; }
-                const removedItem = basket[idx];
-                setBasket((prev) => prev.filter((_, i) => i !== idx));
-                if (removedItem.pantryItemId) {
-                  const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
-                  if (pantryPhoto) {
-                    const stillReferenced = basket
-                      .filter((_, i) => i !== idx)
-                      .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
-                    if (!stillReferenced) {
-                      setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+          // Single Food item (round 157): same 24px gap from the photo
+          // above as the Meal case's summary card, via an explicit
+          // marginTop rather than the ambient space-y-3 (Marco flagged this
+          // one as still showing the old, larger gap).
+          <div style={{ marginTop: '24px' }}>
+            {basket.map((item, idx) => (
+              <BasketCard
+                key={item.id}
+                item={item}
+                nutrition={basketNutrition(item)}
+                onQtyChange={(v) => setBasket((prev) => prev.map((b, i) => i === idx ? { ...b, qty: v } : b))}
+                onRemove={() => {
+                  if (basket.length === 1) { void del(); return; }
+                  const removedItem = basket[idx];
+                  setBasket((prev) => prev.filter((_, i) => i !== idx));
+                  if (removedItem.pantryItemId) {
+                    const pantryPhoto = pantryItems.find((p) => p.id === removedItem.pantryItemId)?.photo;
+                    if (pantryPhoto) {
+                      const stillReferenced = basket
+                        .filter((_, i) => i !== idx)
+                        .some((b) => pantryItems.find((p) => p.id === b.pantryItemId)?.photo === pantryPhoto);
+                      if (!stillReferenced) {
+                        setLocalPhotos((prev) => prev.filter((p) => p !== pantryPhoto));
+                      }
                     }
                   }
-                }
-              }}
-              onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-              onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
-            />
-          ))
+                }}
+                onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+                onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
+              />
+            ))}
+          </div>
         )}
 
         {/* Inline add-another with full FoodPicker — same copy rule as

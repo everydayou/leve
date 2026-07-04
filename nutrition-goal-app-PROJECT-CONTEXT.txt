@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 156 (meal-summary card's name-row-to-badges gap is 8px, distinct from Basket/Pantry item cards' 4px)
+Last updated: 2026-07-04 — Round 157 (single-Food-item views get the same 24px image spacing as the Meal card; "+ New food" X now discards a freshly scan-created item/meal with confirm instead of silently keeping it; FAB's Camera meal-results screen gets the meal-summary-card treatment too)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -275,12 +275,55 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 157 — DISCARD-ON-X FOR SCAN RESULTS, SPACING PARITY, FAB MEAL-CARD PARITY (2026-07-04)
+Files: src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryMealDetail.tsx,
+       src/ui/components/AddEntrySheet.tsx
+- Image-to-container 24px spacing (rounds 152-156) extended to the
+  single-Food-item views: LogEntryContent's own "Food item" edit (Day's-log)
+  and PantryFoodItemDetail — both were still on the old, larger, ambient gap.
+- "+ New food": X on a freshly scan-created item/meal now shows a "Discard
+  this food/meal?" confirm instead of just closing — previously the item
+  was already written to the DB the instant the scan committed (round 149),
+  so X'ing out still kept it. Confirming actually deletes the record before
+  closing; header delete button hidden in this state (X serves that role).
+  "Save food"/"Save meal" unchanged — already correctly saved. Chose this
+  over a true "draft, not yet persisted" mode — much smaller, equally
+  correct given nothing else could reference a record created moments ago.
+- Name-conflict error while editing an existing item: investigated, both
+  edit paths already correctly exclude the item's own id from the
+  duplicate check. If it still fires, there's a genuine second item/meal
+  with that name already in the pantry (likely a pre-round-152 leftover
+  duplicate) — flagged back to Marco to check rather than changing logic
+  that's already correct.
+- FAB → Camera's "Meal results" (FoodForm, separate from LogEntryContent)
+  never got rounds 152-156's meal-summary-card treatment — applied now:
+  outlined card, kcal + macro badges, "Save to pantry", "Food items"
+  heading, and the single-item 24px gap.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 156 — MEAL-SUMMARY-CARD SPACING TWEAK: NAME ROW -> BADGES TO 8PX (2026-07-04)
 Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
 - Round 155 set name-row-to-badges to 4px everywhere; Marco wants the
   meal-summary card specifically at 8px instead (Basket/Pantry item cards
   stay at 4px, confirmed "perfect"). MacroSummaryLine's className: mt-1 ->
   mt-2 in both meal-summary card instances only.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
+ROUND 155 — CARD INTERNAL SPACING (4px/16px) + KCAL BADGE HEIGHT MATCH (2026-07-04)
+Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/PantryItemCard.tsx,
+       src/ui/components/PantryMealDetail.tsx
+- BasketCard/PantryItemCard: name+kcal row -> badges tightened to 4px (was
+  8px); badges -> stepper/buttons row widened to 16px (was 10px). Same
+  ratio applied inside the meal-summary card (both views): 4px name row ->
+  badges; Day's-log's "Save to pantry" checkbox below the badges widened to
+  16px via inline style (was capped at 12px by the parent's space-y-3 —
+  same collapse-proofing pattern as round 154). Pantry's Meal detail has no
+  row below its badges, so only the top gap applied.
+- Kcal badge (beside the meal name field) given `border border-transparent`
+  to match LabeledInput's own 1px border — the one structural difference
+  that was making it render very slightly shorter than the name field.
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 

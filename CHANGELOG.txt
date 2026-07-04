@@ -1,4 +1,66 @@
 ================================================================
+ROUND 157 — DISCARD-ON-X FOR SCAN RESULTS, SPACING PARITY, FAB MEAL-CARD PARITY (2026-07-04)
+================================================================
+Files: src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryMealDetail.tsx,
+       src/ui/components/AddEntrySheet.tsx
+
+Four items from one round of feedback:
+
+1. IMAGE-TO-CONTAINER SPACING PARITY for single Food items. The 24px gap
+   established for the Meal-summary card (rounds 152-156) hadn't reached
+   the single-item views — Marco flagged both LogEntryContent's own "Food
+   item" edit view (Day's-log) and PantryFoodItemDetail (Pantry) as still
+   showing the old, larger, ambient space-y-driven gap. Both now wrap their
+   item card in `style={{ marginTop: '24px' }}`, same technique as the Meal
+   case. Scoped to just these two Food-item surfaces per Marco's "only for
+   the food items."
+
+2. "+ NEW FOOD": X NO LONGER KEEPS THE SCAN RESULT. Since round 149,
+   Camera/Photo/Describe/Nutri-scan commit straight to the DB the instant a
+   result comes back — there's no separate "confirm" step, the landing Food
+   item / Meal detail IS the confirmation. But that meant tapping the X on
+   that landing screen still left the item/meal sitting in the Pantry,
+   since it was already written before the user ever saw it. Rather than
+   rearchitect into a true "draft, not yet persisted" mode (a much larger
+   change touching every sub-flow of these two already-complex detail
+   screens), took the simpler, equally-correct route: X on a freshly
+   scan-created item/meal (`justCreated` / `justCreatedItemIds`) now shows
+   a "Discard this food/meal?" confirm Sheet instead of closing directly;
+   confirming actually deletes the just-written record
+   (repos.foodItems.remove / repos.meals.remove) before closing. The header
+   delete (trash) button is hidden in this state too, since X now serves
+   that role. "Save food"/"Save meal" need no change — the record's already
+   correctly saved, tapping them just closes as before. A Meal ingredient
+   set by a "Change" correction (round 151) that expands 1 item into 2+ now
+   also passes its new ingredient ids through onMealCreated, so that
+   resulting Meal is equally eligible for both this discard-confirm and the
+   existing "Change" treatment — it was previously falling through that
+   gap since it arrived via a correction rather than a fresh capture.
+
+3. NAME-CONFLICT ERROR WHEN EDITING AN ALREADY-SAVED ITEM — investigated,
+   not a code bug. Both "Edit food item" overlays (PantryFoodItemDetail's
+   own item, and PantryMealDetail's per-ingredient edit) already pass
+   existingItemId correctly through to findPantryNameConflict, which
+   explicitly excludes that id from the conflict check. If the warning
+   still appears while editing without renaming, it means there's a
+   genuinely different existing item/meal sharing that exact name already
+   in the pantry — most likely a leftover duplicate from before round 152's
+   uniquePantryName fix (which only prevents FUTURE duplicates, not existing
+   ones). Flagged back to Marco to check for a second item/meal with the
+   same name rather than changing logic that's already correct.
+
+4. FAB → CAMERA "MEAL RESULTS" STILL SHOWED THE OLD CARD. The FAB's fresh
+   scan flow uses FoodForm (its own component, separate from
+   LogEntryContent, which only handles editing an ALREADY-LOGGED entry) —
+   rounds 152-156's meal-summary-card work never touched it. Applied the
+   identical treatment here too: outlined summary card (name + total kcal +
+   macro badges + "Save to pantry"), "Food items" heading + spacing, and
+   the same 24px single-item gap from point 1.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 156 — MEAL-SUMMARY-CARD SPACING TWEAK: NAME ROW -> BADGES TO 8PX (2026-07-04)
 ================================================================
 Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx

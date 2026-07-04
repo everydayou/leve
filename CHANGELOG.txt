@@ -1,4 +1,18 @@
 ================================================================
+ROUND 161 — DAY'S LOG: QUANTITY SUFFIX "(2x)" NOW REGULAR WEIGHT (2026-07-04)
+================================================================
+Files: src/ui/screens/TodayScreen.tsx
+
+The "(2x)"/"(150g)" quantity suffix next to a Food row's name was rendering
+bold — it sits nested inside the name's `font-bold` span and had no weight
+class of its own, so it inherited the bold instead of staying the regular
+secondary-text style everywhere else on that row uses. Added `font-normal`
+directly on that suffix span to override the inherited bold.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 160 — NUMERIC-KEYBOARD "DONE" BAR PROMOTED APP-WIDE (2026-07-04)
 ================================================================
 Files: src/ui/kit/useNumericDoneBar.tsx (new), src/ui/kit/NumberField.tsx,

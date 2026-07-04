@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 160 (Every numeric-keyboard input app-wide now uses the Keyboard-playground row-4 pattern: decimal/numeric keypad + custom "Done" bar, via a shared useNumericDoneBar hook)
+Last updated: 2026-07-04 — Round 161 (Day's-log Food row's "(2x)"/"(150g)" quantity suffix is now regular weight, not inherited-bold)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -275,6 +275,15 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 161 — DAY'S LOG: QUANTITY SUFFIX "(2x)" NOW REGULAR WEIGHT (2026-07-04)
+Files: src/ui/screens/TodayScreen.tsx
+- The "(2x)"/"(150g)" quantity suffix next to a Food row's name was
+  inheriting font-bold from its parent name span (had no weight class of
+  its own). Added font-normal directly on it to match the rest of the
+  secondary-text styling on that row.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 160 — NUMERIC-KEYBOARD "DONE" BAR PROMOTED APP-WIDE (2026-07-04)
 Files: src/ui/kit/useNumericDoneBar.tsx (new), src/ui/kit/NumberField.tsx,
        src/ui/kit/index.ts, src/ui/components/AddEntrySheet.tsx,
@@ -309,20 +318,6 @@ Files: src/ui/components/DevMenu.tsx
   app-language-dependent) via lang="en-US" on that input, plus an onChange
   safety net replacing any "," with ".". Done button's spacing from the
   right edge is now a precise 24px (was 16px all around).
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 158 — DEV: KEYBOARD PLAYGROUND (2026-07-04)
-Files: src/ui/components/DevMenu.tsx
-- New "Keyboards" section in Account > Developers (mirrors "Native
-  pickers"/Picker playground exactly, same PickerRow/numRange helpers).
-  "Keyboard playground" Sheet with 4 number-input rows: inputMode=numeric,
-  inputMode=decimal (current app-wide approach), type=tel, and
-  inputMode=decimal + a custom "Done" toolbar sliding in above the keyboard
-  on focus (using the same useKeyboardInset() hook Sheet.tsx already uses)
-  — addresses Marco's ask for a numeric keyboard with a closing/confirming
-  action, since iOS's native number pad has no Return key at all. Doubles
-  as a working reference for the long-standing "KEYBOARD TOOLBAR" Known Gap.
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 

@@ -1169,7 +1169,7 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
                             <span className="truncate text-callout font-bold text-content">
                               {entry.manualName ?? entry.mealData?.name ?? labelFor(items, entry.foodItemId)}
                               {foodItem && entry.quantity != null && (
-                                <span className="ml-1 text-content-secondary">
+                                <span className="ml-1 font-normal text-content-secondary">
                                   ({entry.quantity}{foodItem.measurementType === 'per_100g' ? 'g' : 'x'})
                                 </span>
                               )}

@@ -13,6 +13,7 @@ import { resetOnboarding } from '../../lib/onboarding';
 import { ScanResults, type ResultItem } from './AddEntrySheet';
 import { repos } from '../../state/repos';
 import { newId, todayISO, addDays } from '../../data/ids';
+import { useKeyboardInset } from '../../lib/useKeyboardInset';
 import type { GoalStatus } from '../../domain/types';
 
 // ── Dev scan-preview data ─────────────────────────────────────────────────────
@@ -373,6 +374,7 @@ export function DevMenu() {
   const [showScanPreview, setShowScanPreview] = useState(false);
   const [scanPreviewItems, setScanPreviewItems] = useState<ResultItem[]>(DUMMY_SCAN_ITEMS_INITIAL);
   const [showPickerPlayground, setShowPickerPlayground] = useState(false);
+  const [showKeyboardPlayground, setShowKeyboardPlayground] = useState(false);
   // Track original theme to restore on unmount
   const origDark = useRef(document.documentElement.classList.contains('dark'));
 
@@ -513,6 +515,31 @@ export function DevMenu() {
         </Sheet>
       )}
 
+      {/* ── Keyboards ─────────────────────────────────────────────────────── */}
+      <div className="mb-5 overflow-hidden rounded-control border border-border-subtle">
+        <div className="bg-surface px-4 py-2.5 border-b border-border-subtle">
+          <p className="text-micro font-semibold uppercase tracking-wider text-content-muted">Keyboards</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowKeyboardPlayground(true)}
+          className="flex w-full items-center gap-3 bg-surface px-4 py-3 text-left active:bg-surface-sunken transition-colors"
+        >
+          <Icon name="edit" size={18} className="shrink-0 text-content-secondary" />
+          <div>
+            <p className="text-subhead font-medium text-content">Keyboard playground</p>
+            <p className="text-caption text-content-muted">Compare number keyboards, including one with a Done bar</p>
+          </div>
+          <Icon name="chevronRight" size={16} className="ml-auto shrink-0 text-content-muted" />
+        </button>
+      </div>
+
+      {showKeyboardPlayground && (
+        <Sheet title="Keyboard playground" onClose={() => setShowKeyboardPlayground(false)} forceExpanded>
+          <KeyboardPlayground />
+        </Sheet>
+      )}
+
       {/* Mode toggle */}
       <div className="mb-4">
         <SegmentedControl<EditMode>
@@ -646,6 +673,81 @@ function PickerPlayground() {
         <input type="range" min={30} max={200} step={0.1} value={rangeVal} onChange={e => setRangeVal(e.target.value)} className="w-full" />
         <p className="mt-1.5 text-caption text-content-muted">Value: {Number(rangeVal).toFixed(1)} kg</p>
       </PickerRow>
+    </div>
+  );
+}
+
+function KeyboardPlayground() {
+  const [wholeVal, setWholeVal] = useState('69');
+  const [decVal,   setDecVal]   = useState('69.2');
+  const [telVal,   setTelVal]   = useState('69.2');
+  const [doneVal,  setDoneVal]  = useState('69.2');
+  const [doneFocused, setDoneFocused] = useState(false);
+  const doneInputRef = useRef<HTMLInputElement>(null);
+  // Real keyboard height from the Capacitor Keyboard plugin on device — same
+  // hook Sheet.tsx uses to pad its own scroll area. Positions the demo "Done"
+  // bar flush against the top of the keyboard, however tall it is.
+  const keyboardInset = useKeyboardInset();
+
+  const inputCls = 'w-full rounded-field border border-border-field bg-surface px-3 py-2.5 text-subhead font-semibold text-content outline-none focus:border-accent';
+
+  return (
+    <div className="space-y-3 pb-4">
+      <p className="text-caption text-content-muted">
+        iOS's native number/decimal keypad has no Return key, so it never
+        closes itself. Compare the two ways to give it a closing action —
+        an <code>inputMode</code> variant with a Return key, vs. a custom
+        toolbar pinned above the keyboard (row 4).
+      </p>
+
+      <PickerRow label="1 · inputMode=numeric" description="Whole-number keypad — no decimal point key, no Return.">
+        <input type="text" inputMode="numeric" pattern="[0-9]*" value={wholeVal} onChange={e => setWholeVal(e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} />
+        <p className="mt-1.5 text-caption text-content-muted">Value: {wholeVal}</p>
+      </PickerRow>
+
+      <PickerRow label="2 · inputMode=decimal" description="Current app-wide approach (NumberField) — adds a decimal point key, still no Return.">
+        <input type="text" inputMode="decimal" value={decVal} onChange={e => setDecVal(e.target.value)} className={inputCls} />
+        <p className="mt-1.5 text-caption text-content-muted">Value: {decVal}</p>
+      </PickerRow>
+
+      <PickerRow label="3 · type=tel" description="Phone keypad — has a “#” key some users tap by mistake, still no Return.">
+        <input type="tel" value={telVal} onChange={e => setTelVal(e.target.value)} className={inputCls} />
+        <p className="mt-1.5 text-caption text-content-muted">Value: {telVal}</p>
+      </PickerRow>
+
+      <PickerRow label="4 · decimal + custom Done bar" description="A small toolbar slides in above the keyboard on focus — tap Done (or Return-equivalent) to dismiss.">
+        <input
+          ref={doneInputRef}
+          type="text"
+          inputMode="decimal"
+          value={doneVal}
+          onChange={e => setDoneVal(e.target.value)}
+          onFocus={() => setDoneFocused(true)}
+          onBlur={() => setDoneFocused(false)}
+          className={inputCls}
+        />
+        <p className="mt-1.5 text-caption text-content-muted">Value: {doneVal}</p>
+      </PickerRow>
+
+      {/* The "accessory bar" itself — fixed to the viewport, sitting exactly
+          on top of the keyboard via the same inset the Sheet component
+          already tracks. onMouseDown (not onClick) fires BEFORE the input's
+          onBlur on iOS/WebKit, so preventDefault here stops the blur from
+          racing the tap and dismissing before the value settles. */}
+      {doneFocused && (
+        <div
+          className="fixed inset-x-0 z-[400] flex justify-end border-t border-border-subtle bg-surface-elevated px-4 py-2"
+          style={{ bottom: keyboardInset }}
+        >
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); doneInputRef.current?.blur(); }}
+            className="text-subhead font-semibold text-accent-hover active:opacity-70"
+          >
+            Done
+          </button>
+        </div>
+      )}
     </div>
   );
 }

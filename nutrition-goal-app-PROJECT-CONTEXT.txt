@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 157 (single-Food-item views get the same 24px image spacing as the Meal card; "+ New food" X now discards a freshly scan-created item/meal with confirm instead of silently keeping it; FAB's Camera meal-results screen gets the meal-summary-card treatment too)
+Last updated: 2026-07-04 — Round 158 (new Keyboard playground in Account > Developers — compares numeric keyboard types, including a custom "Done" bar above the keyboard)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -275,6 +275,20 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 158 — DEV: KEYBOARD PLAYGROUND (2026-07-04)
+Files: src/ui/components/DevMenu.tsx
+- New "Keyboards" section in Account > Developers (mirrors "Native
+  pickers"/Picker playground exactly, same PickerRow/numRange helpers).
+  "Keyboard playground" Sheet with 4 number-input rows: inputMode=numeric,
+  inputMode=decimal (current app-wide approach), type=tel, and
+  inputMode=decimal + a custom "Done" toolbar sliding in above the keyboard
+  on focus (using the same useKeyboardInset() hook Sheet.tsx already uses)
+  — addresses Marco's ask for a numeric keyboard with a closing/confirming
+  action, since iOS's native number pad has no Return key at all. Doubles
+  as a working reference for the long-standing "KEYBOARD TOOLBAR" Known Gap.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 157 — DISCARD-ON-X FOR SCAN RESULTS, SPACING PARITY, FAB MEAL-CARD PARITY (2026-07-04)
 Files: src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryMealDetail.tsx,
        src/ui/components/AddEntrySheet.tsx
@@ -299,6 +313,15 @@ Files: src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryMealD
   never got rounds 152-156's meal-summary-card treatment — applied now:
   outlined card, kcal + macro badges, "Save to pantry", "Food items"
   heading, and the single-item 24px gap.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
+ROUND 156 — MEAL-SUMMARY-CARD SPACING TWEAK: NAME ROW -> BADGES TO 8PX (2026-07-04)
+Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+- Round 155 set name-row-to-badges to 4px everywhere; Marco wants the
+  meal-summary card specifically at 8px instead (Basket/Pantry item cards
+  stay at 4px, confirmed "perfect"). MacroSummaryLine's className: mt-1 ->
+  mt-2 in both meal-summary card instances only.
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 

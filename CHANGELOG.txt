@@ -1,4 +1,35 @@
 ================================================================
+ROUND 158 — DEV: KEYBOARD PLAYGROUND (2026-07-04)
+================================================================
+Files: src/ui/components/DevMenu.tsx
+
+New "Keyboards" section in Account > Developers, mirroring the existing
+"Native pickers" section / Picker playground pattern exactly (same
+PickerRow/numRange helpers reused). Opens a "Keyboard playground" Sheet
+with 4 rows, all starting at a number value, to compare on-device:
+  1. inputMode="numeric" — whole-number keypad, no decimal key, no Return.
+  2. inputMode="decimal" — the app's current everywhere-used approach
+     (NumberField); adds a decimal point key, still no Return.
+  3. type="tel" — phone keypad, has a stray "#" key, still no Return.
+  4. inputMode="decimal" + a custom "Done" toolbar that slides in above the
+     keyboard on focus, addressing Marco's ask for a numeric keyboard with
+     a closing/confirming action — iOS's native number pad has no Return
+     key at all, so this is the standard web/hybrid workaround. Built with
+     the SAME useKeyboardInset() hook Sheet.tsx already uses (Capacitor
+     Keyboard plugin on device — exact height regardless of resize mode),
+     so the bar sits flush against the real keyboard top rather than
+     guessing a fixed offset. Uses onMouseDown (not onClick) + preventDefault
+     on the Done button, since onMouseDown fires before the input's onBlur
+     on iOS/WebKit — without it the blur can race and dismiss oddly.
+
+This is a working reference for the long-standing "KEYBOARD TOOLBAR"
+Known Gap (prev/next field nav + dismiss button above the keyboard) —
+row 4 demonstrates the exact mechanism that gap would use.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 157 — DISCARD-ON-X FOR SCAN RESULTS, SPACING PARITY, FAB MEAL-CARD PARITY (2026-07-04)
 ================================================================
 Files: src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryMealDetail.tsx,

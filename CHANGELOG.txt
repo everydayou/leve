@@ -1,4 +1,63 @@
 ================================================================
+ROUND 160 — NUMERIC-KEYBOARD "DONE" BAR PROMOTED APP-WIDE (2026-07-04)
+================================================================
+Files: src/ui/kit/useNumericDoneBar.tsx (new), src/ui/kit/NumberField.tsx,
+       src/ui/kit/index.ts, src/ui/components/AddEntrySheet.tsx,
+       src/ui/screens/GoalSetupScreen.tsx, src/ui/screens/TodayScreen.tsx,
+       src/ui/screens/AccountScreen.tsx
+
+Marco: "let's then swap or update all instances of the keyboard with
+numbers only by the new one please" — referring to option 4 from round
+158/159's Dev > Keyboards playground (decimal keypad + a custom "Done"
+bar sliding in above the keyboard on focus), which he'd already confirmed
+as the one he wants.
+
+Extracted that pattern out of DevMenu.tsx into a reusable kit hook,
+`useNumericDoneBar()` (src/ui/kit/useNumericDoneBar.tsx): tracks whether
+a bound input is focused via `bind` (onFocus/onBlur, composable with a
+field's own handlers), and renders a fixed, keyboard-pinned "Done" bar
+(via the same useKeyboardInset() Sheet.tsx already uses) that blurs
+whichever input is currently focused when tapped — same onMouseDown +
+preventDefault trick as before, since onMouseDown fires before onBlur on
+iOS/WebKit.
+
+Applied it everywhere a numeric keyboard appears in the real app (left
+the Dev > Pickers/Keyboards playgrounds and the Shadow-playground/
+Styleguide dev-only number inputs alone, since those are deliberately
+side-by-side comparisons, not production fields):
+
+- NumberField (src/ui/kit/NumberField.tsx) — the app's shared decimal
+  input, already used by FoodItemForm's Serving size/Calories/Protein/
+  Carbs/Fat/Fiber and AddEntrySheet's scan-result editor fields. Now also
+  carries lang="en-US" (round 159's "," -> "." fix) and gained an
+  optional `placeholder` prop (previously dropped silently) to preserve
+  the two fields below that relied on one.
+- Day's-log basket quantity stepper's tap-to-type input (BasketStepper in
+  AddEntrySheet.tsx) — kept its own inline input (doesn't fit NumberField's
+  labeled-field shape) but wired the same hook directly, plus lang="en-US".
+- GoalSetupScreen's Height/Age fields — previously raw LabeledInput +
+  inputMode="numeric"; converted to NumberField outright.
+- Activity "Calories" field — previously raw LabeledInput + type="number"
+  in BOTH TodayScreen's edit-activity sheet and AddEntrySheet's manual-add
+  form; both converted to NumberField.
+- AccountScreen's protein-target field — previously raw LabeledInput +
+  inputMode="numeric"; converted to NumberField.
+
+Net effect: one shared numeric-input implementation for the whole app
+(instead of ~6 hand-rolled variants), and every numeric keyboard now has
+a way to close itself, closing the "no closing action" half of the
+long-standing KEYBOARD TOOLBAR known gap (prev/next field navigation
+between inputs remains open).
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+Also this round: Day's-log Activity list-item row had its name/kcal weights
+backwards relative to the Food row convention (established round 152 — name
+bold, amount regular). Swapped: activity name is now font-bold, kcal is now
+regular weight, matching the Food row exactly (src/ui/screens/TodayScreen.tsx).
+
+================================================================
 ROUND 159 — KEYBOARD PLAYGROUND ROW 4: FORCE "." SEPARATOR, 24PX DONE SPACING (2026-07-04)
 ================================================================
 Files: src/ui/components/DevMenu.tsx

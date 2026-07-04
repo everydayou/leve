@@ -13,7 +13,7 @@ import { mifflinStJeorBMR } from '../../domain/bmr';
 import { kgToLbs } from '../../domain/units';
 import { prefersReducedMotion } from '../../lib/motion';
 import {
-  Card, Badge, Button, LabeledInput,
+  Card, Badge, Button, LabeledInput, NumberField,
   Icon, GaugeArc, Sheet, Skeleton, ProgressBar, FilterPills, WheelPicker,
   useSheetSetOverlay, useSheetSetOverlayBack, OverlayNav,
 } from '../kit';
@@ -1191,9 +1191,9 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
                         >
                           <span className="flex min-w-0 items-center gap-2">
                             <Icon name="activityIcon" size={16} className="shrink-0 text-content-secondary" />
-                            <span className="truncate text-subhead text-content">{act.name ?? 'Activity'}</span>
+                            <span className="truncate text-subhead font-bold text-content">{act.name ?? 'Activity'}</span>
                           </span>
-                          <span className="shrink-0 text-subhead font-bold text-content">{gainGoal ? '−' : '+'}{act.activeCalories} kcal</span>
+                          <span className="shrink-0 text-subhead text-content">{gainGoal ? '−' : '+'}{act.activeCalories} kcal</span>
                         </button>
                       </li>
                     );
@@ -1585,12 +1585,11 @@ function EditActivitySheet({ entry, onClose, showToast }: {
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Morning run"
         />
-        <LabeledInput
-          label="Calories (kcal)"
+        <NumberField
+          label="Calories"
+          unit="kcal"
           value={kcal}
-          onChange={(e) => setKcal(e.target.value)}
-          type="number"
-          inputMode="decimal"
+          set={setKcal}
           min={0}
           max={3000}
           step={5}

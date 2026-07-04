@@ -13,7 +13,7 @@ import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { kgToLbs, lbsToKg } from '../../domain/units';
 import { markOnboardingSeen } from '../../lib/onboarding';
 import { useKeyboardInset, scrollFocusedAboveKeyboard } from '../../lib/useKeyboardInset';
-import { Button, LabeledInput, WheelPicker, Icon, SegmentedControl, FilterPills } from '../kit';
+import { Button, LabeledInput, NumberField, WheelPicker, Icon, SegmentedControl, FilterPills } from '../kit';
 import type { Goal, GoalType, MacroStyle, Units, Sex } from '../../domain/types';
 
 // ── Local types ───────────────────────────────────────────────────────────────
@@ -789,20 +789,17 @@ export function GoalSetupForm({
                   </p>
                   <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface p-4">
                     <div className="space-y-3">
-                      <LabeledInput
-                        label="Height (cm)"
+                      <NumberField
+                        label="Height"
+                        unit="cm"
                         value={offerHeight !== null ? String(offerHeight) : ''}
-                        onChange={(e) => { const v = e.target.value; setOfferHeight(v ? Number(v) : null); }}
-                        type="number"
-                        inputMode="numeric"
+                        set={(v) => setOfferHeight(v ? Number(v) : null)}
                         placeholder="e.g. 175"
                       />
-                      <LabeledInput
+                      <NumberField
                         label="Age"
                         value={offerAge !== null ? String(offerAge) : ''}
-                        onChange={(e) => { const v = e.target.value; setOfferAge(v ? Number(v) : null); }}
-                        type="number"
-                        inputMode="numeric"
+                        set={(v) => setOfferAge(v ? Number(v) : null)}
                         placeholder="e.g. 30"
                       />
                       <div>

@@ -16,7 +16,7 @@ import { hapticLight } from '../../lib/haptics';
 import {
   SegmentedControl, Button, LabeledInput, NumberField, WheelPicker,
   Icon, Sheet, useSheetSetFooter, useSheetSetOverlay, useOverlaySetFooter,
-  useSheetSetOverlayBack, OverlayNav, ImageHero, MacroSummaryLine,
+  useSheetSetOverlayBack, OverlayNav, ImageHero, MacroSummaryLine, useNumericDoneBar,
 } from '../kit';
 import type { ShowToast } from './Toaster';
 import type { FoodItem, FoodEntry, Meal, MealFoodItem, MealItem, NutritionSnapshot } from '../../domain/types';
@@ -945,6 +945,7 @@ function BasketStepper({
   // reasoning.
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const doneBar = useNumericDoneBar();
 
   function adj(delta: number) {
     hapticLight();
@@ -1014,14 +1015,15 @@ function BasketStepper({
           data-no-drag
           type="text"
           inputMode="decimal"
+          lang="en-US"
           autoFocus
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
           value={draft}
-          onFocus={(e) => e.target.select()}
+          onFocus={(e) => { e.target.select(); doneBar.bind.onFocus(); }}
           onChange={(e) => handleDraftChange(e.target.value)}
-          onBlur={commitDraft}
+          onBlur={() => { commitDraft(); doneBar.bind.onBlur(); }}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
           className={`${valueCls} border-none bg-transparent p-0`}
           // Inline, not a Tailwind class: the app's global `:focus-visible`
@@ -1038,6 +1040,7 @@ function BasketStepper({
       <button data-no-drag onClick={() => adj(step)} className={btnCls} aria-label="Increase">
         <Icon name="plus" size={20} strokeWidth={2} />
       </button>
+      {doneBar.doneBar}
     </div>
   );
 }
@@ -2658,12 +2661,11 @@ function ActivityForm({ date, onDone, showToast }: {
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Morning run"
           />
-          <LabeledInput
-            label="Calories (kcal)"
+          <NumberField
+            label="Calories"
+            unit="kcal"
             value={kcal}
-            onChange={(e) => setKcal(e.target.value)}
-            type="number"
-            inputMode="decimal"
+            set={setKcal}
             min={0}
             max={3000}
             step={5}

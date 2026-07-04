@@ -1,4 +1,5 @@
 import { LabeledInput } from './LabeledInput';
+import { useNumericDoneBar } from './useNumericDoneBar';
 
 /* Numeric input field — decimal keyboard via inputMode (type=text, NOT
    type=number — round 136: some locales' decimal keyboards produce "," for
@@ -6,16 +7,22 @@ import { LabeledInput } from './LabeledInput';
    outright rather than accepting and needing conversion. type=text lets us
    normalize "," -> "." ourselves and still gets the same numeric keypad via
    inputMode=decimal. min/max/step are kept as harmless passthrough attrs
-   for backwards compatibility (meaningless on a text input; not enforced). */
+   for backwards compatibility (meaningless on a text input; not enforced).
+   Round 160: lang="en-US" pins the keypad's decimal key to "." regardless
+   of the device's REGION setting (some regions show "," instead), and a
+   custom "Done" bar (useNumericDoneBar) slides in above the keyboard while
+   focused, since this keypad has no built-in Return key — see Dev >
+   Keyboards playground, option 4, which Marco picked as the app-wide one. */
 export function NumberField({
-  label, value, set, min = 0, max = 9999, step = 1, unit,
+  label, value, set, min = 0, max = 9999, step = 1, unit, placeholder,
 }: {
   label?: string; value: string; set: (s: string) => void;
-  min?: number; max?: number; step?: number; unit?: string;
+  min?: number; max?: number; step?: number; unit?: string; placeholder?: string;
   /** Accepted for backwards compatibility; no longer used. */
   centerAt?: number;
 }) {
   const displayLabel = unit ? `${label ?? ''} (${unit})`.trim() : label;
+  const { bind, doneBar } = useNumericDoneBar();
 
   function handleChange(raw: string) {
     // Normalize a locale decimal comma to a period, then strip anything
@@ -30,15 +37,21 @@ export function NumberField({
   }
 
   return (
-    <LabeledInput
-      label={displayLabel}
-      value={value}
-      onChange={(e) => handleChange(e.target.value)}
-      type="text"
-      inputMode="decimal"
-      min={min}
-      max={max}
-      step={step}
-    />
+    <>
+      <LabeledInput
+        label={displayLabel}
+        value={value}
+        onChange={(e) => handleChange(e.target.value)}
+        type="text"
+        inputMode="decimal"
+        lang="en-US"
+        placeholder={placeholder}
+        min={min}
+        max={max}
+        step={step}
+        {...bind}
+      />
+      {doneBar}
+    </>
   );
 }

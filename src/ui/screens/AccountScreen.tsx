@@ -4,7 +4,7 @@ import { useLive } from '../../state/live';
 import { useNavigate } from 'react-router-dom';
 import { repos } from '../../state/repos';
 import { exportAsJson } from '../../data/exportJson';
-import { Card, SectionLabel, Badge, SegmentedControl, Button, LabeledInput, Sheet, ListRow, Skeleton, Icon } from '../kit';
+import { Card, SectionLabel, Badge, SegmentedControl, Button, NumberField, Sheet, ListRow, Skeleton, Icon } from '../kit';
 import { displayWeight } from '../../domain/units';
 import { getThemePref, setThemePref, type ThemePref } from '../../lib/theme';
 import { hapticLight, getHapticsPref, setHapticsPref } from '../../lib/haptics';
@@ -209,11 +209,11 @@ function ProteinGoalSheet({ current, onClose }: { current?: number; onClose: () 
   return (
     <Sheet title="Daily protein target" onClose={onClose} forceExpanded footer={<Button size="lg" onClick={save}>Save</Button>}>
       <div className="space-y-3 pb-2">
-        <LabeledInput
-          label="Target (g / day)"
+        <NumberField
+          label="Target"
+          unit="g / day"
           value={val}
-          onChange={(e) => setVal(e.target.value)}
-          inputMode="numeric"
+          set={setVal}
           placeholder="e.g. 120"
         />
         <p className="text-caption text-content-secondary">

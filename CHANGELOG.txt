@@ -1,4 +1,51 @@
 ================================================================
+ROUND 141 — KCAL DECIMALS FIXED, PHOTO BRIGHTNESS EXPERIMENT (2026-07-04)
+================================================================
+Files: src/domain/{calc,calc.test}.ts, src/ui/screens/PantryScreen.tsx,
+       src/ui/components/AddEntrySheet.tsx, src/ui/kit/ImageHero.tsx
+
+── DECIMALS LEAKED BACK INTO KCAL / LIST-ROW PROTEIN ────────────────────────
+Marco: Day's-log total kcal showing e.g. "50.2 kcal" instead of "50 kcal";
+same decimal leak on Pantry list row protein and the Recent/search rows in
+the add-food picker. Root cause: calc.ts's shared `round()` helper rounds
+to 1 DECIMAL (matches the established macro-gram convention: protein/carbs/
+fiber/fat allow 1 decimal), but round 138 used the SAME helper for calories
+too in the new mealItemNutrition() and the pre-existing nutritionFor()/
+sumSnapshots() — calories are supposed to always be a clean whole number.
+Fixed: new `roundKcal()` (plain Math.round) used for calories specifically
+in all three functions; `round()` stays 1-decimal for macros only. Also
+fixed protein specifically in the Pantry list row and the Recent/search
+picker rows to whole numbers (Math.round) — those are list/summary
+contexts, not the 1-decimal detail view (MacroSummaryLine, untouched,
+still correctly shows e.g. "Protein 5.6g"). One test updated (413 instead
+of 412.5 — same math, now rounded to a whole kcal instead of a decimal).
+
+── PHOTO "TOO BRIGHT" — EXPERIMENT, NOT A CONFIRMED FIX ─────────────────────
+Marco clarified with a sharp diagnostic: the photo itself is fine — tap-
+and-hold (iOS's native long-press preview) shows it correctly exposed, but
+the app's normal on-screen rendering looks washed out. This rules out a
+DATA/encoding problem (round 137's canvas colorSpace fix was addressing
+the wrong layer) — the bytes are fine, since a raw-decode preview looks
+right. Searched every food-photo render site + all of index.css: found
+ZERO CSS filters, blend modes, overlays, or loading-state effects anywhere
+in the codebase. Leading remaining theory: a WebKit/iOS compositing quirk
+where an <img> clipped via a wrapping `overflow-hidden` + `border-radius`
++ `box-shadow` container gets promoted to its own GPU-composited layer,
+which iOS's native long-press preview (a different, non-WebKit render
+path) bypasses entirely — this would explain the exact symptom without
+any app-code cause.
+EXPERIMENT: in ImageHero.tsx (the Food item/Meal detail hero photo —
+exactly what Marco's screenshot showed), moved `rounded-[20px]` from the
+wrapping `overflow-hidden` div onto the `<img>` itself, removing the
+`overflow-hidden` (an img can clip its own corners directly since it's a
+replaced element — no need for a parent to do it). Visually identical
+either way — this is a structural change only, not a guaranteed fix. Needs
+Marco to test and report back whether it changes anything.
+
+tsc: clean. lint: clean. vitest: 48 passed (1 updated). `npm run build`
+verified clean.
+
+================================================================
 ROUND 140 — STEPPER INPUT: FIXED WIDTH + KILL THE FOCUS OUTLINE (2026-07-03)
 ================================================================
 Files: src/ui/components/AddEntrySheet.tsx

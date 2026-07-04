@@ -13,7 +13,7 @@ export function nutritionFor(item: FoodItem, quantity: number): NutritionSnapsho
       ? quantity / item.referenceAmount // referenceAmount is 100
       : quantity; // servings
   return {
-    calories: round(item.calories * factor),
+    calories: roundKcal(item.calories * factor),
     protein: round(item.protein * factor),
     carbs: round(item.carbs * factor),
     fiber: round(item.fiber * factor),
@@ -65,11 +65,11 @@ export function unscaleSnapshot(
 function sumSnapshots(list: NutritionSnapshot[]): NutritionSnapshot {
   return list.reduce(
     (acc, n) => ({
-      calories: round(acc.calories + n.calories),
-      protein: round((acc.protein + n.protein) * 10) / 10,
-      carbs: round((acc.carbs + n.carbs) * 10) / 10,
-      fiber: round((acc.fiber + n.fiber) * 10) / 10,
-      fat: round((acc.fat + n.fat) * 10) / 10,
+      calories: roundKcal(acc.calories + n.calories),
+      protein: round(acc.protein + n.protein),
+      carbs: round(acc.carbs + n.carbs),
+      fiber: round(acc.fiber + n.fiber),
+      fat: round(acc.fat + n.fat),
     }),
     { calories: 0, protein: 0, carbs: 0, fiber: 0, fat: 0 },
   );
@@ -130,7 +130,7 @@ export function mealItemNutrition(mi: MealItem): NutritionSnapshot {
     ? (mi.measurementType === 'per_100g' ? qty / (mi.referenceAmount || 1) : qty)
     : qty;
   return {
-    calories: round(mi.calories * factor),
+    calories: roundKcal(mi.calories * factor),
     protein: round(mi.protein * factor),
     carbs: round(mi.carbs * factor),
     fiber: round(mi.fiber * factor),
@@ -235,3 +235,10 @@ export function summarizeDay(
 
 const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0);
 const round = (n: number): number => Math.round(n * 10) / 10;
+// Calories are always displayed as a whole number, never a decimal — unlike
+// protein/carbs/fiber/fat, which allow up to 1 decimal place. Several call
+// sites in this file were rounding calories through the same 1-decimal
+// `round()` used for macros (round 138's mealItemNutrition and the older
+// nutritionFor/sumSnapshots), which leaked a decimal into "50.2 kcal"-style
+// display wherever the raw number wasn't re-rounded at render time.
+const roundKcal = (n: number): number => Math.round(n);

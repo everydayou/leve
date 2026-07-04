@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-03 — Round 140 (fixed the tap-to-type stepper input's width changing + green focus outline that a global CSS rule kept re-adding)
+Last updated: 2026-07-04 — Round 141 (fixed kcal/protein decimals leaking into whole-number list contexts; photo brightness is an open experiment — see Known Gaps)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -174,6 +174,18 @@ HIGH:
   Day's-log basket's BasketItem[]/sources data model.
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
+- PHOTO BRIGHTNESS (open, round 137/141): Marco reports food photos render
+  "too bright" in-app; iOS's native long-press preview shows the same photo
+  correctly exposed, ruling out a data/encoding problem. Round 137's canvas
+  colorSpace fix (src/lib/image.ts) did NOT resolve it per Marco's retest.
+  No CSS filter/overlay found anywhere in the codebase after a full search.
+  Round 141 tried an experimental fix (moved rounded corners from a
+  wrapping overflow-hidden div onto the <img> itself in ImageHero.tsx, on
+  the theory that WebKit promotes clipped+shadowed containers to a
+  differently-color-managed GPU layer) — unconfirmed, awaiting Marco's
+  on-device test. If that doesn't help, next steps: try the same img-level
+  rounding fix on PhotoPicker's Thumb/thumbnail images too, or test
+  disabling `shadow-card-lg` on the hero photo as a further isolation step.
 
 MED:
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
@@ -280,6 +292,26 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 141 — KCAL DECIMALS FIXED, PHOTO BRIGHTNESS EXPERIMENT (2026-07-04)
+Files: src/domain/{calc,calc.test}.ts, src/ui/screens/PantryScreen.tsx,
+       src/ui/components/AddEntrySheet.tsx, src/ui/kit/ImageHero.tsx
+- Kcal/protein decimals: calc.ts's shared `round()` (1-decimal, correct for
+  macros) was also being used for CALORIES in nutritionFor/sumSnapshots/
+  round-138's mealItemNutrition — added `roundKcal()` (plain Math.round)
+  for calories specifically. Also fixed Pantry list row + Recent/search
+  picker row protein to whole numbers (list contexts; detail view's
+  1-decimal MacroSummaryLine is untouched/correct).
+- Photo brightness: Marco confirmed round 137's fix didn't resolve it, and
+  gave a key diagnostic — iOS's native long-press preview shows the photo
+  correctly exposed, only the app's normal render looks washed out. Found
+  NO CSS filter/overlay anywhere in the codebase. Leading theory: a WebKit
+  GPU-compositing-layer quirk from `overflow-hidden`+`rounded`+`shadow` on
+  the image wrapper. EXPERIMENT (not confirmed): moved the rounding onto
+  the <img> itself in ImageHero.tsx, removing the wrapper's overflow-hidden
+  — visually identical, needs Marco to test.
+- tsc: clean. lint: clean. vitest: 48 passed (1 updated). `npm run build`
+  verified clean.
+
 ROUND 140 — STEPPER INPUT: FIXED WIDTH + KILL THE FOCUS OUTLINE (2026-07-03)
 Files: src/ui/components/AddEntrySheet.tsx
 - Round 139's tap-to-type input was rendering wider than the pill (min-w
@@ -303,35 +335,6 @@ Files: src/ui/components/AddEntrySheet.tsx
   — the Pantry Food item/Meal detail stepper is a separate static display
   left untouched (defines the recipe, not a consumed amount).
 - tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
-  verified clean.
-
-ROUND 138 — MEAL NAME NOT STICKING + GRAMS-TO-SERVINGS RUNAWAY KCAL (2026-07-03)
-Files: src/domain/{types,calc}.ts(+test), src/ui/components/AddEntrySheet.tsx
-- Meal name edits never stuck: LogEntryContent.save()'s "stay a meal"
-  branch wrote the edited name into mealData.name but never updated
-  entry.manualName, which TodayScreen's Day's-log row reads FIRST — so the
-  row (and reopened name field context) stayed frozen on whatever it was
-  at first save. Fixed: manualName now kept in sync on every save
-  (`saveToPantry ? undefined : mealName`), matching logBasket's first-save
-  behavior.
-- Grams silently became "servings" via the stepper (one meal hit 58,000
-  kcal): MealItem never stored measurementType/referenceAmount, only a
-  flattened TOTAL + optional plain qty multiplier. entryToBasket() always
-  hardcoded reopened items to per_serving/referenceAmount:1 — "1 serving"
-  secretly meant "the whole scanned total" — so each +0.5 stepper tap
-  multiplied the ENTIRE total instead of nudging a few grams. Fixed by
-  giving MealItem the same measurementType/referenceAmount treatment round
-  136 gave FoodEntry: new items store a real RATE + qty (grams/servings);
-  new mealItemNutrition() (calc.ts) scales correctly by that factor,
-  wired into effectiveNutrition() and LogEntryContent.save()'s snapshot
-  calc; entryToBasket() reconstructs the right measurementType/step on
-  reopen. Older items (no measurementType) keep their exact old behavior —
-  no migration needed. Bonus fix found in the same code: entryToBasket()
-  never carried a linked ingredient's pantryItemId back into the edit
-  basket, so resaving a meal with a pantry-linked ingredient silently
-  unlinked it (or duplicated the Food item if "Save to pantry" was
-  checked) — restored.
-- tsc: clean. lint: clean. vitest: 48 passed (3 new). `npm run build`
   verified clean.
 
 ================================================================

@@ -141,7 +141,7 @@ export function PantryScreen() {
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="text-callout font-bold leading-[1.2] text-content">{row.nutrition.calories} kcal</p>
-                      <p className="mt-[4px] text-subhead leading-none text-content-secondary">{row.nutrition.protein}g Protein</p>
+                      <p className="mt-[4px] text-subhead leading-none text-content-secondary">{Math.round(row.nutrition.protein)}g Protein</p>
                     </div>
                   </button>
                 </li>

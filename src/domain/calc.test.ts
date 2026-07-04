@@ -162,7 +162,7 @@ describe('effectiveNutrition — Meal entries (round 123)', () => {
       },
     };
     const n = effectiveNutrition(entry, itemsByIdMap([]));
-    expect(n.calories).toBe(412.5); // 165 * 2.5 — NOT 165 * 250
+    expect(n.calories).toBe(413); // 165 * 2.5 = 412.5, rounded to a whole kcal — NOT 165 * 250
   });
 
   it('round 138: reopening the stepper and bumping qty scales the same gram-based item correctly', () => {

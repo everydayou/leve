@@ -1171,16 +1171,18 @@ function FoodPicker({
     ? [
         ...items.filter((i) => !i.isArchived && i.name.toLowerCase().includes(q)).map((item): PickerRow => {
           const n = nutritionFor(item, item.referenceAmount);
-          return { type: 'item', id: item.id, name: item.name, photo: item.photo, calories: Math.round(n.calories), protein: Math.round(n.protein * 10) / 10 };
+          // Whole numbers only in this list row — 1-decimal protein is a
+          // detail-view convention (MacroSummaryLine), not a list one.
+          return { type: 'item', id: item.id, name: item.name, photo: item.photo, calories: Math.round(n.calories), protein: Math.round(n.protein) };
         }),
         ...meals.filter((m) => !m.isArchived && m.name.toLowerCase().includes(q)).map((meal): PickerRow => {
           const n = mealNutritionFor(meal, itemsById);
-          return { type: 'meal', id: meal.id, name: meal.name, photo: mealPhotoFor(meal, itemsById), calories: Math.round(n.calories), protein: Math.round(n.protein * 10) / 10 };
+          return { type: 'meal', id: meal.id, name: meal.name, photo: mealPhotoFor(meal, itemsById), calories: Math.round(n.calories), protein: Math.round(n.protein) };
         }),
       ].sort((a, b) => a.name.localeCompare(b.name))
     : recent.map((item): PickerRow => {
         const n = nutritionFor(item, item.referenceAmount);
-        return { type: 'item', id: item.id, name: item.name, photo: item.photo, calories: Math.round(n.calories), protein: Math.round(n.protein * 10) / 10 };
+        return { type: 'item', id: item.id, name: item.name, photo: item.photo, calories: Math.round(n.calories), protein: Math.round(n.protein) };
       });
 
   function pickRow(row: PickerRow) {

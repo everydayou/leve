@@ -1,4 +1,67 @@
 ================================================================
+ROUND 167 — FIX GREY-FILL BUG (JS-MEASURED), DARKER BORDER, EMPTY-FAB IMAGE, ADD-PHOTO CTA (2026-07-04)
+================================================================
+Files: src/lib/useFillToBottom.ts (new), src/ui/components/PantryMealDetail.tsx,
+       src/ui/components/AddEntrySheet.tsx (FoodForm, LogEntryContent),
+       src/ui/components/MethodCards.tsx, src/ui/components/FoodItemForm.tsx
+
+1. "the grey background is not going all the way to the end... i'm afraid
+   not, the problem still persists." Round 166's CSS-only fix (flex
+   flex-col + min-height:100% on the outer wrapper, flex:1 on the grey
+   panel) didn't hold up on-device. Replaced it with a JS-measured
+   approach: a new `useFillToBottom` hook (src/lib/useFillToBottom.ts)
+   reads the panel's actual `getBoundingClientRect().top` and returns
+   `window.innerHeight - top` as a min-height in px, re-measuring on
+   resize and shortly after mount (for the sheet's slide-up animation and
+   any late image loads). This sidesteps the whole percentage/flexbox
+   resolution question entirely by computing the exact remaining space
+   directly. Wired into all 3 Basket Meal views (PantryMealDetail,
+   FoodForm, LogEntryContent) in place of the old flex:1 grey wrapper.
+   Caught and fixed a Rules-of-Hooks ordering bug along the way in both
+   PantryMealDetail and FoodForm — each has an early-return spinner state
+   (analysing/committing) above where the hook needed to live, so the
+   call was relocated up to sit alongside each component's other
+   top-level hooks, unconditionally before any early return.
+
+2. "can you please go to the next darkest border color please" (for the
+   Meal-only "+Add a new food item" border from round 166). Swapped
+   AddAnotherSection's `bordered` styling from border-border-field to
+   border-border-strong, the next step down in the light-theme border
+   scale.
+
+3. "for the empty sheet, so when i tap on the fab button, it shouldn't
+   have any image." FoodForm's ImageHero was showing (placeholder or
+   real) whenever the basket had 0 or 1 items; changed the condition to
+   only show it once there's exactly 1 item, so a freshly-opened FAB with
+   nothing picked yet shows no image slot at all.
+
+4. "the modal sheet edit view of a food item, we have a CTA saying 'add
+   photo' with a camera icon. could we change this CTA to match the
+   actual photo. 256x256." Replaced FoodItemForm's thin outlined
+   "Add photo" button with a 256x256 box using the same food-placeholder
+   image and rounded-[20px] treatment as the real-photo state (no shadow,
+   matching the placeholder spec), with a centered "Add photo" pill
+   overlay (camera icon + label) so it stays discoverable as tappable —
+   the same overlay pattern the with-photo state already uses for
+   "Change photo."
+
+Also answered two factual questions in chat (no code changes): image
+corner radius is 20px (rounded-[20px]) everywhere ImageHero/FoodItemForm
+render a photo or placeholder; on the Diary screen, vertical spacing from
+the screen top to the gauge card is 4px (mt-1), and from the gauge/macro
+section to the Day's-log section is 16px (mt-4) when no weight-reminder
+banner is showing (the banner inserts itself between them first when
+present).
+
+tsc: clean. lint: clean (one eslint-disable-line react-hooks/refs added
+in PantryMealDetail for the new grey-fill div — a pre-existing
+during-render ref write earlier in that same component trips the
+analyzer's conservative ref-taint tracking for unrelated ref/state reads
+later in render; same suppression pattern already used elsewhere in this
+file). vitest: 48 passed, 8 skipped (unchanged). `npm run build` verified
+clean.
+
+================================================================
 ROUND 166 — ADD-ANOTHER BORDER, FULL-HEIGHT GREY PANEL, PHOTO SHADOW RESTORED (2026-07-04)
 ================================================================
 Files: src/ui/components/MethodCards.tsx, src/ui/kit/ImageHero.tsx,

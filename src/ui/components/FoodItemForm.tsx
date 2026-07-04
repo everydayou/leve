@@ -12,6 +12,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { findPantryNameConflict } from '../../domain/pantry';
+import foodPlaceholder from '../../assets/food-placeholder.png';
 import { Button, Icon, LabeledInput, MeasurementTypeSelector, NumberField } from '../kit';
 import type { FoodItem, Meal, MeasurementType } from '../../domain/types';
 
@@ -267,13 +268,25 @@ export function FoodItemFormContent({
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => fileRef.current?.click()}
-          className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-border-field py-4 text-subhead font-medium text-content-secondary active:border-accent active:text-accent"
-        >
-          <Icon name="camera" size={18} strokeWidth={1.8} />
-          Add photo
-        </button>
+        <div className="flex justify-center">
+          {/* Round 167 — matches the real-photo box exactly (256x256,
+              rounded-[20px]) instead of a thin outlined button, so the
+              "no photo yet" state reads the same way it does everywhere
+              else in the app (see ImageHero's own placeholder). No shadow
+              here, per Marco's placeholder-image spec ("flat muted grey
+              and no shadow for when there are no images"). */}
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="relative h-64 w-64 overflow-hidden rounded-[20px]"
+            aria-label="Add photo"
+          >
+            <img src={foodPlaceholder} alt="" className="h-full w-full object-cover" />
+            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white px-4 py-1.5 text-[16px] font-semibold text-white bg-black/20">
+              <Icon name="camera" size={16} strokeWidth={1.8} />
+              Add photo
+            </span>
+          </button>
+        </div>
       )}
 
       {/* ── Name ──────────────────────────────────────────────────────────── */}

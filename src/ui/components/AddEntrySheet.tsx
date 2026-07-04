@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useFillToBottom } from '../../lib/useFillToBottom';
 import { createPortal } from 'react-dom';
 import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
@@ -726,6 +727,11 @@ function FoodForm({
     };
   }, { calories: 0, protein: 0, carbs: 0, fiber: 0, fat: 0 });
 
+  // Round 167 — measures actual remaining viewport space for the grey
+  // Food-items panel below (see useFillToBottom's own doc comment). Must
+  // be called unconditionally, before the "analyzing" early return below.
+  const greyFill = useFillToBottom<HTMLDivElement>();
+
   // ── Analysing state ───────────────────────────────────────────────────────
   if (analyzing) {
     return (
@@ -737,13 +743,9 @@ function FoodForm({
   }
 
   // ── Main basket view ──────────────────────────────────────────────────────
-  // Round 166 — flex flex-col + min-height:100% lets the grey Food-items
-  // panel below stretch to fill any remaining Sheet scroll-area space via
-  // its own flex-1, instead of ending after its own content and revealing
-  // white underneath on short Meals. space-y-3 is margin-based, so it
-  // still works unchanged inside a flex column.
+
   return (
-    <div className="flex flex-col space-y-3 pb-2" style={{ minHeight: '100%' }}>
+    <div className="space-y-3 pb-2">
       {/* Hidden file input for web Camera/Photo (both use same picker) */}
       {SCAN_ENABLED && (
         <input
@@ -780,8 +782,12 @@ function FoodForm({
           — see ImageHero's own placeholder). Round 163: for a Meal (2+
           items) this moves INSIDE the meal-summary card below, sharing its
           shadow rather than sitting as its own separate box above it —
-          single Food item keeps it standalone. */}
-      {basket.length < 2 && <ImageHero photos={sourcePhotos} />}
+          single Food item keeps it standalone. Round 167: a freshly-opened
+          FAB (basket still empty, nothing picked yet) shows no image slot
+          at all — the placeholder only appears once there's exactly one
+          item, matching what the Meal-card ("basket.length >= 2") branch
+          already does below. */}
+      {basket.length === 1 && <ImageHero photos={sourcePhotos} />}
 
       {/* Serving size modal (Label scan — shown over the basket) */}
       {servingModal && (
@@ -871,7 +877,7 @@ function FoodForm({
              background behind them, not grey. Nesting the white card
              INSIDE the grey panel (as its first child, same full-bled
              width) fixes this — grey is always directly behind it. */
-          <div style={{ marginLeft: '-20px', marginRight: '-20px', flex: 1 }} className="bg-surface-sunken">
+          <div ref={greyFill.ref} style={{ marginLeft: '-20px', marginRight: '-20px', minHeight: greyFill.minHeight }} className="bg-surface-sunken">
             <div
               className="relative bg-surface shadow-card-lg rounded-b-main"
               style={{ paddingLeft: '20px', paddingRight: '20px', paddingBottom: '20px' }}
@@ -2147,6 +2153,12 @@ function LogEntryContent({
     };
   }, { calories: 0, protein: 0, carbs: 0, fiber: 0, fat: 0 });
 
+  // Round 167 — measures actual remaining viewport space for the grey
+  // Food-items panel below (see useFillToBottom's own doc comment).
+  // LogEntryContent has no early return before this point, so it's safe
+  // to call unconditionally here.
+  const greyFill = useFillToBottom<HTMLDivElement>();
+
   return (
     <>
       {/* Hidden file inputs */}
@@ -2193,13 +2205,7 @@ function LogEntryContent({
         </div>
       )}
 
-      {/* Round 166 — flex flex-col + min-height:100% lets the grey
-          Food-items panel below stretch to fill any remaining Sheet
-          scroll-area space via its own flex-1, instead of ending after its
-          own content and revealing white underneath on short Meals.
-          space-y-3 is margin-based, so it still works inside a flex
-          column. */}
-      <div className="flex flex-col space-y-3 pb-4" style={{ minHeight: '100%' }}>
+      <div className="space-y-3 pb-4">
 
 {/* Photos — multi-photo collage. Round 162: ImageHero always renders
             (Meal/Food-item views always show an image slot now, even with
@@ -2262,7 +2268,7 @@ function LogEntryContent({
                card INSIDE the grey panel (as its first child, same
                full-bled width) fixes this — grey is always directly
                behind it. */
-            <div style={{ marginLeft: '-20px', marginRight: '-20px', flex: 1 }} className="bg-surface-sunken">
+            <div ref={greyFill.ref} style={{ marginLeft: '-20px', marginRight: '-20px', minHeight: greyFill.minHeight }} className="bg-surface-sunken">
               <div
                 className="relative bg-surface shadow-card-lg rounded-b-main"
                 style={{ paddingLeft: '20px', paddingRight: '20px', paddingBottom: '20px' }}

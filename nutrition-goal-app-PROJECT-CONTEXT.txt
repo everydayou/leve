@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 166 ("Add a new food item" gets a border in the Meal case only; grey Food-items panel now flex-fills the remaining Sheet height; ImageHero real photos have shadow-card-lg back; real default placeholder image (food-placeholder.png) now wired in, replacing the generic icon)
+Last updated: 2026-07-04 — Round 167 (grey Food-items panel now fills remaining Sheet space via a JS-measured hook, not CSS flex, after round 166's approach failed on-device; "Add a new food item" border one step darker (border-strong); FoodForm's FAB-empty state (0 items) shows no image; FoodItemForm's "Add photo" CTA now a 256x256 box matching the real-photo/placeholder treatment)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -288,6 +288,32 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 167 — FIX GREY-FILL BUG (JS-MEASURED), DARKER BORDER, EMPTY-FAB IMAGE, ADD-PHOTO CTA (2026-07-04)
+Files: src/lib/useFillToBottom.ts (new), src/ui/components/PantryMealDetail.tsx,
+       src/ui/components/AddEntrySheet.tsx (FoodForm, LogEntryContent),
+       src/ui/components/MethodCards.tsx, src/ui/components/FoodItemForm.tsx
+- Round 166's CSS-only grey-panel-fill (flex flex-col + min-height:100% +
+  flex:1) didn't hold up on-device. Replaced with a new `useFillToBottom`
+  hook that measures the panel's actual distance to the viewport bottom
+  via getBoundingClientRect() and returns it as a min-height in px —
+  sidesteps the CSS percentage/flexbox resolution question entirely.
+  Wired into all 3 Basket Meal views; fixed two Rules-of-Hooks ordering
+  bugs found along the way (PantryMealDetail and FoodForm each have an
+  early-return spinner state above where the hook needed to live).
+- AddAnotherSection's Meal-only `bordered` styling: border-border-field
+  -> border-border-strong (next darker step).
+- FoodForm's ImageHero only shows once the basket has exactly 1 item
+  (was: 0 or 1) — a freshly-opened FAB with nothing picked yet now shows
+  no image slot at all.
+- FoodItemForm's "Add photo" CTA is now a 256x256 rounded-[20px] box with
+  the food-placeholder image and a centered "Add photo" pill overlay,
+  matching the real-photo state's look instead of a thin outlined button.
+- tsc: clean. lint: clean (one eslint-disable-line react-hooks/refs added
+  in PantryMealDetail — pre-existing during-render ref write earlier in
+  that component trips the analyzer's conservative ref-taint tracking).
+  vitest: 48 passed, 8 skipped (unchanged). `npm run build` verified
+  clean.
+
 ROUND 166 — ADD-ANOTHER BORDER, FULL-HEIGHT GREY PANEL, PHOTO SHADOW RESTORED (2026-07-04)
 Files: src/ui/components/MethodCards.tsx, src/ui/kit/ImageHero.tsx,
        src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
@@ -326,19 +352,6 @@ Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.t
 - Asked Marco for the actual placeholder image file (line-art plate/fork/
   knife) — pasted chat images aren't accessible as files in this
   environment; ImageHero still shows the generic food-icon placeholder.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 164 — REMOVE THE HEADER-TO-CARD SEAM (2026-07-04)
-Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
-       (LogEntryContent, FoodForm)
-- Marco's on-device screenshot showed round 163's rounded-ALL-corners
-  white card reading as a second, disconnected box floating below the
-  Sheet's (also white) header. Fix: photo + meal-info no longer has its
-  own top rounding/shadow/gap — flows flush out of the header. Rounded
-  BOTTOM corners (rounded-b-main) + shadow-card-lg (downward-only shadow,
-  won't show above the box) now mark just the transition into the grey
-  "Food items" section, per Marco's "simple divider" fallback suggestion.
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 

@@ -53,14 +53,16 @@ export function AddAnotherSection({
    *  surfaces pass "Add another item" here (round 126) so the collapsed pill
    *  reads e.g. "+ Create a meal" / "Add another item", matching spec copy. */
   helperText?: string;
-  /** Round 166: adds a border-field outline (darker than the sunken
-   *  background) — only for the Meal use case, where this module now sits
-   *  inside the Meal card's own grey Food-items panel and would otherwise
-   *  blend invisibly into that identical bg-surface-sunken backdrop. */
+  /** Round 166: adds a border outline (darker than the sunken background)
+   *  — only for the Meal use case, where this module now sits inside the
+   *  Meal card's own grey Food-items panel and would otherwise blend
+   *  invisibly into that identical bg-surface-sunken backdrop. Round 167:
+   *  Marco asked to go one step darker still, from border-field to
+   *  border-strong. */
   bordered?: boolean;
 }) {
   return (
-    <div className={`rounded-[24px] bg-surface-sunken overflow-hidden${bordered ? ' border border-border-field' : ''}`}>
+    <div className={`rounded-[24px] bg-surface-sunken overflow-hidden${bordered ? ' border border-border-strong' : ''}`}>
       {/* Heading row */}
       <button
         onClick={onToggle}

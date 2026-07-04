@@ -12,6 +12,7 @@
 // AddEntrySheet's FoodForm. Split into an outer Sheet wrapper + inner
 // content component so the content is a true child of Sheet's context.
 import { useEffect, useRef, useState } from 'react';
+import { useFillToBottom } from '../../lib/useFillToBottom';
 import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
 import { convertFoodItemReferences } from '../../data/quantityConversion';
@@ -164,6 +165,12 @@ function PantryMealDetailContent({
   const [scannedItemIds, setScannedItemIds] = useState<Set<string>>(() => new Set(justCreatedItemIds));
   const [correctingItemId, setCorrectingItemId] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState(false);
+
+  // Round 167 — measures actual remaining viewport space for the grey
+  // Food-items panel below (see useFillToBottom's own doc comment). Must
+  // be called unconditionally, before the analysing/committing early
+  // return further down.
+  const greyFill = useFillToBottom<HTMLDivElement>();
 
   const capture = useFoodCapture({
     showToast,
@@ -438,15 +445,7 @@ function PantryMealDetailContent({
 
   return (
     <>
-      {/* Round 166 — flex flex-col + min-height:100% lets the grey
-          Food-items panel below stretch to fill any remaining space in
-          the Sheet's scroll area (via its own flex-1) instead of ending
-          right after its own content and revealing the Sheet's plain
-          white background underneath on short Meals — Marco: "the grey
-          background is not going all the way to the end... if i pull it
-          up, the white becomes bigger." space-y-4 is margin-based, so it
-          still works unchanged inside a flex column. */}
-      <div className="flex flex-col space-y-4 pb-2" style={{ minHeight: '100%' }}>
+      <div className="space-y-4 pb-2">
         {capture.hiddenInputs}
         {capture.servingModal && (
           <ServingModal
@@ -471,7 +470,7 @@ function PantryMealDetailContent({
             INSIDE the grey panel (as its first child, same full-bled
             width) fixes this: grey is always directly behind the white
             card, so the rounded-corner cutouts reveal grey correctly. */}
-        <div style={{ marginLeft: '-20px', marginRight: '-20px', flex: 1 }} className="bg-surface-sunken">
+        <div ref={greyFill.ref} style={{ marginLeft: '-20px', marginRight: '-20px', minHeight: greyFill.minHeight }} className="bg-surface-sunken"> {/* eslint-disable-line react-hooks/refs -- greyFill.ref/.minHeight are plain values from useFillToBottom, not a raw ref read; this file already has a during-render ref write above (deleteRef) that trips the analyzer's conservative ref-taint tracking for the rest of the render. */}
           <div
             className="relative bg-surface shadow-card-lg rounded-b-main"
             style={{ paddingLeft: '20px', paddingRight: '20px', paddingBottom: '20px' }}

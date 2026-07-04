@@ -143,11 +143,11 @@ export function PantryScreen() {
                   <button onClick={() => openRow(row)} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-sunken">
                     <Thumb photo={row.photo} radius="rounded-[8px]" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-callout font-normal leading-[1.2] text-content">{row.name}</p>
+                      <p className="truncate text-callout font-bold leading-[1.2] text-content">{row.name}</p>
                       <p className="mt-[4px] text-subhead leading-none text-content-secondary">{row.type === 'item' ? 'Food item' : 'Meal'}</p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-callout font-bold leading-[1.2] text-content">{row.nutrition.calories} kcal</p>
+                      <p className="text-callout leading-[1.2] text-content">{row.nutrition.calories} kcal</p>
                       <p className="mt-[4px] text-subhead leading-none text-content-secondary">{Math.round(row.nutrition.protein)}g Protein</p>
                     </div>
                   </button>
@@ -174,6 +174,8 @@ export function PantryScreen() {
 
       {newFoodOpen && (
         <PantryNewFood
+          items={items}
+          meals={meals}
           onClose={() => setNewFoodOpen(false)}
           onManual={() => { setNewFoodOpen(false); setAdding(true); }}
           onFoodCreated={(id) => { setNewFoodOpen(false); setJustCreatedId(id); setOpenItemId(id); }}

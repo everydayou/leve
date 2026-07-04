@@ -1013,8 +1013,8 @@ export function BasketCard({
       style={{ cursor: 'pointer' }}
     >
       <div className="flex items-center gap-2 mb-2">
-        <span className="flex-1 truncate text-callout text-content">{item.name}</span>
-        <span className="shrink-0 text-callout font-bold text-content">{nutrition.calories} kcal</span>
+        <span className="flex-1 truncate text-callout font-bold text-content">{item.name}</span>
+        <span className="shrink-0 text-callout text-content">{nutrition.calories} kcal</span>
       </div>
       <MacroSummaryLine nutrition={nutrition} className="mb-2.5" />
       {/* Bottom row: stepper (left) + action buttons (right) */}
@@ -1156,13 +1156,13 @@ function FoodPicker({
                     <div className="h-11 w-11 shrink-0 rounded-[10px] bg-surface-sunken" />
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-subhead leading-[1.2] text-content">{row.name}</p>
+                    <p className="truncate text-subhead font-bold leading-[1.2] text-content">{row.name}</p>
                     <p className="mt-[4px] text-subhead leading-none text-content-secondary">
                       {row.type === 'item' ? 'Food item' : 'Meal'}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="text-subhead font-bold leading-[1.2] text-content">{row.calories} kcal</p>
+                    <p className="text-subhead leading-[1.2] text-content">{row.calories} kcal</p>
                     <p className="mt-[4px] text-subhead leading-none text-content-secondary">{row.protein}g Protein</p>
                   </div>
                   <button
@@ -1513,8 +1513,27 @@ export function LogEntrySheet({
     </button>
   );
 
+  // Round 152: date subtitle on the header — same badge styling as the main
+  // "Add" sheet's own dateSubtitle (a past date gets the danger-soft pill,
+  // today gets the plain grey one) — this Sheet had none before, and it's
+  // useful context when reviewing an entry logged on a day other than today.
+  // Pantry's own Meal detail (a dateless reusable template) intentionally
+  // does NOT get this — only this Day's-log view has a date to show.
+  const isNotToday = entry.date !== todayISO();
+  const dateSubtitle = isNotToday ? (
+    <span className="inline-flex items-center gap-1.5 rounded-pill bg-danger-soft px-2.5 py-1 text-subhead font-semibold text-danger">
+      <Icon name="calendar" size={14} />
+      {fmtDiaryDate(entry.date)}
+    </span>
+  ) : (
+    <div className="flex items-center gap-1.5">
+      <Icon name="calendar" size={14} className="text-content-secondary" />
+      <span className="text-subhead text-content-secondary">{fmtDiaryDate(entry.date)}</span>
+    </div>
+  );
+
   return (
-    <Sheet title={title} onClose={onClose} forceExpanded rightAction={trashBtn}>
+    <Sheet title={title} subtitle={dateSubtitle} onClose={onClose} forceExpanded rightAction={trashBtn}>
       {/* LogEntryContent is a child of Sheet so Sheet's context (overlay, footer, etc.) is available */}
       <LogEntryContent
         entry={entry}
@@ -2037,6 +2056,17 @@ function LogEntryContent({
   }
   delRef.current = del;
 
+  // Round 152: total nutrition for the meal-summary card — same shape as
+  // Pantry's own mealNutritionFor(), just summed straight over the basket's
+  // current (possibly not-yet-saved) items rather than a persisted Meal's.
+  const totalNutrition: NutritionSnapshot = basket.reduce((acc, b) => {
+    const n = basketNutrition(b);
+    return {
+      calories: acc.calories + n.calories, protein: acc.protein + n.protein,
+      carbs: acc.carbs + n.carbs, fiber: acc.fiber + n.fiber, fat: acc.fat + n.fat,
+    };
+  }, { calories: 0, protein: 0, carbs: 0, fiber: 0, fat: 0 });
+
   return (
     <>
       {/* Hidden file inputs */}
@@ -2090,16 +2120,28 @@ function LogEntryContent({
           <ImageHero photos={localPhotos} className="mb-1" />
         )}
 
-        {/* Editable meal name — shown when 2+ items */}
+        {/* Meal summary — shown when 2+ items (round 152). Wraps the meal
+            name field, its total kcal, the macro breakdown, and "Save to
+            pantry" in one card — same treatment as Pantry's own Meal detail. */}
         {basket.length >= 2 && (
-          <div>
-            <LabeledInput
-              label="Meal name"
-              value={localMealName}
-              onChange={(e) => setLocalMealName(e.target.value)}
-              placeholder={timeMealName()}
-            />
-            <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary mt-2">
+          <div className="space-y-3 rounded-[20px] bg-surface-sunken p-4">
+            <div>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <LabeledInput
+                    label="Meal name"
+                    value={localMealName}
+                    onChange={(e) => setLocalMealName(e.target.value)}
+                    placeholder={timeMealName()}
+                  />
+                </div>
+                <span className="shrink-0 rounded-field bg-surface px-3 py-2.5 text-subhead font-semibold text-content-secondary">
+                  {totalNutrition.calories} kcal
+                </span>
+              </div>
+              <MacroSummaryLine nutrition={totalNutrition} className="mt-2.5" />
+            </div>
+            <label className="flex cursor-pointer select-none items-center gap-2 text-subhead text-content-secondary">
               <input
                 type="checkbox"
                 checked={saveToPantry}
@@ -2109,6 +2151,10 @@ function LogEntryContent({
               Save to pantry
             </label>
           </div>
+        )}
+
+        {basket.length >= 2 && (
+          <p className="text-callout font-bold text-content">Food items</p>
         )}
 
         {/* Basket cards */}

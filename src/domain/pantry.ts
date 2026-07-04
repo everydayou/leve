@@ -24,3 +24,18 @@ export function findPantryNameConflict(
   if (meal) return { type: 'meal', name: meal.name };
   return undefined;
 }
+
+/** Auto-disambiguates a candidate Pantry name against existing Food items
+ *  and Meals — "Couscous" -> "Couscous (2)" -> "Couscous (3)"... Used by the
+ *  scan/AI-capture commit paths (round 152), which create a Food item or
+ *  Meal straight from an AI-suggested name with no form step to show an
+ *  inline "name already exists" error in (unlike Manual, which blocks Save
+ *  via findPantryNameConflict instead of renaming around it). */
+export function uniquePantryName(name: string, items: FoodItem[], meals: Meal[], excludeId?: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return trimmed;
+  if (!findPantryNameConflict(items, meals, trimmed, excludeId)) return trimmed;
+  let n = 2;
+  while (findPantryNameConflict(items, meals, `${trimmed} (${n})`, excludeId)) n++;
+  return `${trimmed} (${n})`;
+}

@@ -96,11 +96,11 @@ export function PantryPicker({
           >
             <Thumb photo={row.photo} radius="rounded-[10px]" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-subhead leading-[1.2] text-content">{row.name}</p>
+              <p className="truncate text-subhead font-bold leading-[1.2] text-content">{row.name}</p>
               <p className="mt-[4px] text-subhead leading-none text-content-secondary">{row.type === 'item' ? 'Food item' : 'Meal'}</p>
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-subhead font-bold leading-[1.2] text-content">{row.nutrition.calories} kcal</p>
+              <p className="text-subhead leading-[1.2] text-content">{row.nutrition.calories} kcal</p>
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); pick(row); }}

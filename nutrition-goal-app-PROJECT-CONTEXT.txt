@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 151 (the "Change" button is back on scan-captured Pantry items — Food item detail's own card, and each correctable ingredient card inside a Meal — for as long as that item's detail Sheet stays open after the capture)
+Last updated: 2026-07-04 — Round 152 (meal summary card + "Food items" heading on both Meal views, individual macro badges, bold food names, two Sheet scroll-shadow fixes, duplicate-name guard on scan-created items)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -271,6 +271,38 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 152 — SIX-PART UI/UX BATCH: BADGES, BOLD NAMES, MEAL SUMMARY CARD, SHADOWS, DUPES (2026-07-04)
+Files: src/domain/pantry.ts, src/ui/kit/MacroSummaryLine.tsx, src/ui/kit/Sheet.tsx,
+       src/ui/components/AddEntrySheet.tsx, src/ui/components/PantryMealDetail.tsx,
+       src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryItemCard.tsx,
+       src/ui/components/PantryPicker.tsx, src/ui/components/PantryNewFoodScan.tsx,
+       src/ui/screens/PantryScreen.tsx, src/ui/screens/TodayScreen.tsx
+- Six independent items validated point-by-point with Marco before building:
+  (1) "+ New food" method cards moved up 16px, compensated with a 16px
+  spacer so the sheet's total height is unchanged. (2) MacroSummaryLine
+  (shared by BasketCard/PantryItemCard) now renders 4 individual badges
+  (px-2 py-0.5 each) instead of one long dot-separated pill. (3) Bold food
+  name / regular kcal (was backwards) across every card pairing the two —
+  Basket card, Pantry item card, Pantry list row, both pantry-picker
+  variants, Diary log row. (4) Long-standing meal-summary TODO (since round
+  123) resolved on BOTH Day's-log's "Meal" view (LogEntrySheet/
+  LogEntryContent — also gained a date subtitle it was missing) and
+  Pantry's own Meal detail (same summary card, minus the Save-to-pantry
+  checkbox and minus any date — Marco was explicit: no date there, it's a
+  dateless reusable template). (5) Two Sheet.tsx scroll-shadow bugs: the
+  main header's shadow was disappearing under scrolled content because the
+  header had no background of its own (fixed: explicit bg-surface);
+  OverlayLayer's nav bar had a stray shadow bleeding onto the grab handle
+  above it from a `-mt-1` overlap (fixed: removed the negative margin).
+  (6) Duplicate pantry names from repeat scans (same photo -> same
+  AI-suggested name every time, no check before committing) — added
+  uniquePantryName() (auto-suffixes "(2)", "(3)"...) to domain/pantry.ts,
+  wired into every scan-driven Food-item/Meal creation path; left Manual/
+  pick-existing paths alone (not what was reported, already a deliberate
+  user action each time).
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 151 — BRING BACK THE "CHANGE" BUTTON ON SCAN-CAPTURED PANTRY ITEMS (2026-07-04)
 Files: src/ui/components/PantryItemCard.tsx, src/ui/components/PantryFoodItemDetail.tsx,
        src/ui/components/PantryMealDetail.tsx, src/ui/screens/PantryScreen.tsx
@@ -328,29 +360,6 @@ Files: src/ui/components/PantryNewFoodScan.tsx (rewritten), src/ui/screens/Pantr
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
 
-ROUND 149 — PANTRY SCAN METHODS: DROP THE REVIEW SCREEN, COMMIT IMMEDIATELY (2026-07-04)
-Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/PantryFoodItemDetail.tsx,
-       src/ui/components/PantryNewFoodScan.tsx, src/ui/components/FoodCapture.tsx
-- Marco (with a flow diagram): rounds 145/147/148's Camera/Photo/Describe/
-  Nutri-scan wiring added a "review these items, then confirm" screen
-  (CaptureReviewOverlay) before committing — but that screen is only
-  correct for Manual, where the user actually has to type in macros. The
-  AI methods already HAVE the macros the moment a result comes back, so
-  there's nothing to review before committing — same shape as Manual's own
-  "Save & add to meal" (one tap, done) and Add-from-pantry (pick, done).
-  Fixed: each capture now commits straight to the Meal (or, for "+ New
-  food," to a new Food item / Meal per the existing 1-vs-2+ rule) the
-  moment it's captured, landing directly back on the Meal/Food item detail
-  — no intermediate confirm tap. Correcting a wrong AI read now happens the
-  same way as any other item: tap it afterward to edit (existing
-  pantry-edit flow, with its own "This will update all records…" confirm).
-  This also retires round 148's "Change" (onCorrect) card button in these
-  3 surfaces — there's no longer a pre-commit card to attach it to; removed
-  CaptureReviewOverlay from FoodCapture.tsx as dead code rather than leave
-  an unused review component around.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
 ================================================================
 TODO / FUTURE WORK
 ================================================================
@@ -367,12 +376,6 @@ TODO / FUTURE WORK
   (Nutri-scan also reads whole food, not just labels, making its
   always-ask-per-100g/serving behaviour feel inconsistent with the other 3
   methods) — Marco decided (round 151) to leave this alone for now.
-- MEAL NUTRITION SUMMARY: Meal detail (and the Day's-log Meal review, once
-  that's wired) currently only shows per-item cards — no dedicated
-  total-macro breakdown for the Meal as a whole. Marco flagged this as
-  missing (round 123); needs a design pass (where it sits relative to the
-  per-item cards, whether it matches the existing macro-line style or the
-  Diary's fuller gauge/breakdown treatment).
 - BASKET-VIEW UNIFICATION (partially done, round 124): DeleteIcon/EditIcon and
   AddAnotherSection/MethodCards are now genuinely shared (icons.tsx,
   MethodCards.tsx) between the Day's-log basket and every Pantry surface —

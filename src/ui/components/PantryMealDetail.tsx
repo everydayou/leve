@@ -15,9 +15,9 @@ import { useEffect, useRef, useState } from 'react';
 import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
 import { convertFoodItemReferences } from '../../data/quantityConversion';
-import { itemsByIdMap, mealPhotosFor, nutritionFor } from '../../domain/calc';
+import { itemsByIdMap, mealNutritionFor, mealPhotosFor, nutritionFor } from '../../domain/calc';
 import { findPantryNameConflict } from '../../domain/pantry';
-import { Button, ImageHero, LabeledInput, Sheet, OverlayNav, useSheetSetOverlay } from '../kit';
+import { Button, ImageHero, LabeledInput, MacroSummaryLine, Sheet, OverlayNav, useSheetSetOverlay } from '../kit';
 import { PantryItemCard } from './PantryItemCard';
 import { AddAnotherSection, MethodCards } from './MethodCards';
 import { PantryPicker } from './PantryPicker';
@@ -415,12 +415,29 @@ function PantryMealDetailContent({
         )}
         <ImageHero photos={photos} />
 
-        <LabeledInput
-          label="Meal name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => void saveName(name)}
-        />
+        {/* Meal summary (round 152) — same treatment as the Day's-log's own
+            Meal view: name + total kcal + macro breakdown in one card. No
+            "Save to pantry" checkbox here — this Meal already IS a pantry
+            object, unlike a Day's-log entry that's only optionally saved
+            into it. */}
+        <div className="rounded-[20px] bg-surface-sunken p-4">
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <LabeledInput
+                label="Meal name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={() => void saveName(name)}
+              />
+            </div>
+            <span className="shrink-0 rounded-field bg-surface px-3 py-2.5 text-subhead font-semibold text-content-secondary">
+              {mealNutritionFor(meal, itemsById).calories} kcal
+            </span>
+          </div>
+          <MacroSummaryLine nutrition={mealNutritionFor(meal, itemsById)} className="mt-2.5" />
+        </div>
+
+        <p className="text-callout font-bold text-content">Food items</p>
 
         {meal.items.map((mi) => {
           const item = itemsById.get(mi.foodItemId);

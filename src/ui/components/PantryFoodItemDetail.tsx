@@ -12,6 +12,7 @@ import { useRef, useState } from 'react';
 import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
 import { convertFoodItemReferences } from '../../data/quantityConversion';
+import { uniquePantryName } from '../../domain/pantry';
 import { Button, ImageHero, Sheet, OverlayNav, useSheetSetOverlay } from '../kit';
 import { PantryItemCard } from './PantryItemCard';
 import { AddAnotherSection, MethodCards } from './MethodCards';
@@ -137,7 +138,7 @@ function PantryFoodItemDetailContent({
         newMealItems.push({ id: newId(), foodItemId: newItemId, quantity: bi.qty });
         newlyScannedItemIds.push(newItemId);
       }
-      const meal: Meal = { id: newId(), name: item.name, isArchived: false, items: newMealItems };
+      const meal: Meal = { id: newId(), name: uniquePantryName(item.name, items, meals), isArchived: false, items: newMealItems };
       await repos.meals.put(meal);
       showToast?.('Meal created');
       onMealCreated(meal, newlyScannedItemIds);
@@ -189,7 +190,7 @@ function PantryFoodItemDetailContent({
           mealFoodItems.push({ id: newId(), foodItemId: id, quantity: bi.qty });
         }
         await repos.foodItems.remove(item.id);
-        const meal: Meal = { id: newId(), name: newItems[0].name, isArchived: false, items: mealFoodItems };
+        const meal: Meal = { id: newId(), name: uniquePantryName(newItems[0].name, items, meals), isArchived: false, items: mealFoodItems };
         await repos.meals.put(meal);
         showToast?.('Meal created');
         onMealCreated(meal);

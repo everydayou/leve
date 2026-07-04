@@ -1,4 +1,78 @@
 ================================================================
+ROUND 152 — SIX-PART UI/UX BATCH: BADGES, BOLD NAMES, MEAL SUMMARY CARD, SHADOWS, DUPES (2026-07-04)
+================================================================
+Files: src/domain/pantry.ts, src/ui/kit/MacroSummaryLine.tsx, src/ui/kit/Sheet.tsx,
+       src/ui/components/AddEntrySheet.tsx, src/ui/components/PantryMealDetail.tsx,
+       src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryItemCard.tsx,
+       src/ui/components/PantryPicker.tsx, src/ui/components/PantryNewFoodScan.tsx,
+       src/ui/screens/PantryScreen.tsx, src/ui/screens/TodayScreen.tsx
+
+Six independent fixes/changes from one round of feedback, validated with Marco
+point-by-point before implementing:
+
+1. "+ New food" method cards moved up 16px (helper-text bottom padding
+   pb-6 -> pb-2) with a 16px spacer added after the cards so the sheet's
+   total height is unchanged — Marco wanted the shift purely visual, not a
+   net resize.
+
+2. MacroSummaryLine (shared by BasketCard and PantryItemCard) changed from
+   one long "Protein 3.5g · Carbs 30g · Fibre 1g · Fat 6g" pill to four
+   individual badges, each `px-2 py-0.5` per Marco's exact spec.
+
+3. Food name now bold / kcal now regular weight (previously the reverse)
+   across every card that pairs the two: Basket card, Pantry item card, the
+   Pantry list row, the Add-from-pantry picker rows (both the Pantry-side
+   PantryPicker and the Day's-log basket's own inline pantry-search rows),
+   and the Diary's own per-entry log row.
+
+4. Meal nutrition summary — the long-standing TODO (flagged since round
+   123). Both places that show a Meal's own item list now open with a
+   summary card wrapping the meal name, its total kcal (disabled-looking
+   badge beside the name field), and a macro breakdown, followed by a
+   "Food items" section label before the per-item cards:
+     - Day's-log's "Meal" view (LogEntrySheet/LogEntryContent, editing an
+       already-logged meal entry) — this one ALSO gained a date subtitle
+       on the Sheet header (calendar icon + the entry's own date, same
+       badge styling as the main "Add" sheet's dateSubtitle) since it was
+       missing one entirely.
+     - Pantry's own Meal detail (PantryMealDetail) — same summary-card
+       treatment, minus the "Save to pantry" checkbox (a Pantry Meal
+       already IS a pantry object) and minus any date (a reusable template
+       has none — Marco was explicit this stays exactly as-is, no date
+       added here).
+
+5. Two scroll-shadow bugs in Sheet.tsx:
+     - The main Sheet's own header shadow was disappearing once scrolled
+       content reached the top and touched it. Cause: the header wrapper
+       had no background of its own (just showing the panel's bg-surface
+       through it) — later-painted, opaque scrolled content covered the
+       shadow bleeding into that space. Fixed by giving the header wrapper
+       its own explicit `bg-surface`.
+     - OverlayLayer's nav bar (used by DescribeOverlay, "Edit food item",
+       etc.) had a stray shadow appearing to sit ABOVE the nav bar. Cause:
+       a `-mt-1` negative margin pulled the nav up to overlap the grab
+       handle above it, and since box-shadow blurs in every direction (not
+       just downward), that overlap showed the shadow bleeding onto the
+       handle. Removed the negative margin.
+
+6. Duplicate pantry names from repeat scans. Manual entry already blocks
+   Save on a name collision via findPantryNameConflict, but the AI-capture
+   commit paths (round 149's "commit immediately," no form to show an
+   inline error in) had no equivalent check — scanning the same photo
+   repeatedly (deterministic AI naming) silently created several Food
+   items or Meals all named identically. Added `uniquePantryName()` to
+   domain/pantry.ts (auto-suffixes "(2)", "(3)"...) and wired it into every
+   scan-driven Food-item/Meal creation path: both branches of PantryNewFood's
+   commitCaptured, and PantryFoodItemDetail's commitScannedItems +
+   handleDescribeAnalyzeForCorrection. Deliberately NOT applied to Manual/
+   pick-existing-item/pick-existing-meal paths in the same files — those
+   aren't what Marco reported, and already involve an explicit user action
+   each time rather than a silently-repeatable scan.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
 ROUND 151 — BRING BACK THE "CHANGE" BUTTON ON SCAN-CAPTURED PANTRY ITEMS (2026-07-04)
 ================================================================
 Files: src/ui/components/PantryItemCard.tsx, src/ui/components/PantryFoodItemDetail.tsx,

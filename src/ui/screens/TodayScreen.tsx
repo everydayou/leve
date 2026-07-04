@@ -1166,7 +1166,7 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
                         >
                           <span className="flex min-w-0 items-center gap-2">
                             <Icon name="foodIcon" size={16} className="shrink-0 text-content-secondary" />
-                            <span className="truncate text-callout text-content">
+                            <span className="truncate text-callout font-bold text-content">
                               {entry.manualName ?? entry.mealData?.name ?? labelFor(items, entry.foodItemId)}
                               {foodItem && entry.quantity != null && (
                                 <span className="ml-1 text-content-secondary">
@@ -1175,7 +1175,7 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
                               )}
                             </span>
                           </span>
-                          <span className="shrink-0 text-callout font-bold text-content">
+                          <span className="shrink-0 text-callout text-content">
                             {gainGoal ? '' : '−'}{effectiveNutrition(entry, day.itemsById).calories} kcal
                           </span>
                         </button>

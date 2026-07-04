@@ -25,17 +25,24 @@
 import { useState } from 'react';
 import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
+import { uniquePantryName } from '../../domain/pantry';
 import { Sheet } from '../kit';
 import { MethodCards } from './MethodCards';
 import { useFoodCapture } from './useFoodCapture';
 import { AnalyzingIndicator, DescribeOverlay, ServingModal } from './FoodCapture';
 import type { BasketItem } from './FoodCapture';
 import type { ShowToast } from './Toaster';
-import type { Meal } from '../../domain/types';
+import type { FoodItem, Meal } from '../../domain/types';
 
 export function PantryNewFood({
-  onClose, onManual, onFoodCreated, onMealCreated, showToast,
+  items, meals, onClose, onManual, onFoodCreated, onMealCreated, showToast,
 }: {
+  /** VISIBLE Food items / Meals — for the round-152 duplicate-name check
+   *  against a freshly scanned name (Manual already blocks on this via its
+   *  own form; the AI methods commit with no form to show that in, so they
+   *  auto-disambiguate instead). */
+  items: FoodItem[];
+  meals: Meal[];
   onClose: () => void;
   /** Manual still hands off to its own separate (forceExpanded) form Sheet
    *  — the one case that genuinely needs a full screen to fill in macros. */
@@ -60,7 +67,7 @@ export function PantryNewFood({
         const bi = newItems[0];
         const id = newId();
         await repos.foodItems.put({
-          id, name: bi.name, measurementType: bi.measurementType, referenceAmount: bi.referenceAmount,
+          id, name: uniquePantryName(bi.name, items, meals), measurementType: bi.measurementType, referenceAmount: bi.referenceAmount,
           calories: bi.calories, protein: bi.protein, carbs: bi.carbs, fiber: bi.fiber, fat: bi.fat, photo,
           // "+ New food" always creates a real, visible pantry item — unlike
           // the meal builder's captured ingredients, there's no meal for
@@ -82,7 +89,10 @@ export function PantryNewFood({
           });
           mealFoodItems.push({ id: newId(), foodItemId: id, quantity: bi.qty });
         }
-        const meal: Meal = { id: newId(), name: newItems[0].name, isArchived: false, items: mealFoodItems };
+        // Round 152: same photo scanned repeatedly (deterministic AI naming)
+        // was creating multiple Meals all named identically — disambiguate,
+        // same as the single-item branch above.
+        const meal: Meal = { id: newId(), name: uniquePantryName(newItems[0].name, items, meals), isArchived: false, items: mealFoodItems };
         await repos.meals.put(meal);
         showToast?.('Meal created');
         onMealCreated(meal);
@@ -123,7 +133,9 @@ export function PantryNewFood({
         <DescribeOverlay onBack={onClose} onAnalyze={handleDescribeAnalyzeForNewFood} />
       ) : (
         <>
-          <p className="pt-2 pb-6 text-center text-subhead text-content-secondary">Choose one way to add this food</p>
+          {/* Cards moved up 16px (pb-6 -> pb-2) per Marco's request; the
+              16px spacer below keeps the sheet's total height unchanged. */}
+          <p className="pt-2 pb-2 text-center text-subhead text-content-secondary">Choose one way to add this food</p>
           <MethodCards
             onManual={onManual}
             onCamera={() => void capture.handleCamera()}
@@ -131,6 +143,7 @@ export function PantryNewFood({
             onDescribe={() => setDescribing(true)}
             onLabel={() => capture.openLabelPicker()}
           />
+          <div className="h-4" aria-hidden="true" />
         </>
       )}
     </Sheet>

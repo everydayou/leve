@@ -1,4 +1,63 @@
 ================================================================
+ROUND 148 — "CHANGE" CTA ON SCANNED PANTRY ITEMS (2026-07-04) — SUPERSEDED BY ROUND 149
+================================================================
+Files: src/ui/components/FoodCapture.tsx, src/ui/components/PantryMealDetail.tsx,
+       src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryNewFoodScan.tsx
+
+Added the Day's-log basket's "Change" button (re-run Describe to replace one
+card, instead of removing + re-adding) to round 145's review screen for
+scanned Pantry items — gated the same way, on item.sourceId. CaptureReviewOverlay
+gained an optional onCorrect prop wired to BasketCard exactly like the
+Day's-log basket, and all three Pantry surfaces (PantryMealDetail,
+PantryFoodItemDetail, PantryNewFoodScan) wired it to re-open Describe in
+"replace this card" mode via a new correctingScanIdx state.
+
+Short-lived: round 149, immediately after in the same session, removed the
+review screen this button lived on entirely — see below. tsc/lint/vitest
+were clean at the time but this is superseded, not a standalone shipped
+state worth re-verifying independently.
+
+================================================================
+ROUND 149 — PANTRY SCAN METHODS: DROP THE REVIEW SCREEN, COMMIT IMMEDIATELY (2026-07-04)
+================================================================
+Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/PantryFoodItemDetail.tsx,
+       src/ui/components/PantryNewFoodScan.tsx, src/ui/components/FoodCapture.tsx
+
+Marco caught this with a flow diagram: rounds 145/147/148's Camera/Photo/
+Describe/Nutri-scan wiring added a "review these items, then confirm" screen
+(CaptureReviewOverlay, built on BasketCard) before committing anything — but
+that screen is only correct for Manual, where the user actually has to type
+in macros by hand. The AI methods already HAVE the macros the moment a
+result comes back; there's nothing to review before committing, and the
+review step diverged from how every other add-method in the meal builder
+already works: Manual's "Save & add to meal" and Add-from-pantry's picker
+both commit in a single action and land straight back on the Meal/Food item
+— no separate confirm tap in between.
+
+Fixed by matching that exact shape: each capture (Camera/Photo/Describe/
+Nutri-scan) now commits straight to the database the moment it's captured —
+PantryMealDetail appends to the existing Meal, PantryFoodItemDetail creates
+a new Meal combining the existing item + the captured one(s), and
+PantryNewFoodScan applies the existing 1-vs-2+ rule (1 item -> new Food
+item, 2+ -> new Meal) — then each Sheet lands directly back on the
+resulting Meal/Food item detail. No intermediate review list, no separate
+confirm button. Correcting a wrong AI read now happens the same way as
+correcting any other meal item: tap it afterward to edit, using the
+existing pantry-edit flow (with its own "This will update all records…"
+confirm-before-save step) — this is also why round 148's "Change" button is
+retired here: there's no longer a pre-commit card for it to live on.
+CaptureReviewOverlay removed from FoodCapture.tsx entirely as dead code
+rather than left around unused; FoodCapture.tsx now only exports
+AnalyzingIndicator, DescribeOverlay, and ServingModal.
+
+Behaviour unchanged: captured meal-builder ingredients still default
+isArchived: true (round 130/144); "+ New food" still always creates a
+visible item (Food item or Meal). Only the intermediate screen is gone.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged). `npm run
+build` verified clean.
+
+================================================================
 ROUND 147 — PANTRY "+ NEW FOOD": CAMERA/PHOTO/DESCRIBE/NUTRI-SCAN (2026-07-04)
 ================================================================
 Files: src/ui/components/PantryNewFoodScan.tsx (NEW), src/ui/screens/PantryScreen.tsx

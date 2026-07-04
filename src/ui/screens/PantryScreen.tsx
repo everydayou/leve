@@ -183,8 +183,6 @@ export function PantryScreen() {
       {scanMethod && (
         <PantryNewFoodScan
           method={scanMethod}
-          items={items}
-          meals={meals}
           onClose={() => setScanMethod(null)}
           onFoodCreated={(id) => { setScanMethod(null); setOpenItemId(id); }}
           onMealCreated={(meal) => { setScanMethod(null); setOpenMealId(meal.id); }}

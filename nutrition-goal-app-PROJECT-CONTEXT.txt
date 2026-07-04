@@ -2,7 +2,7 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 147 (Pantry's top-level "+ New food" Camera/Photo/Describe/Nutri-scan now wired up too — 1 detected item becomes a Food item, 2+ becomes a Meal, closing the gap round 145 deliberately left open)
+Last updated: 2026-07-04 — Round 149 (Pantry's Camera/Photo/Describe/Nutri-scan no longer show a review/confirm screen — they commit immediately, same one-tap shape as Manual/Add-from-pantry; the "Add item to meal" form is Manual-only)
 Full change history: see CHANGELOG.txt (rounds 1–106).
 
 HOW TO READ THIS DOC:
@@ -271,6 +271,37 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 148 — "CHANGE" CTA ON SCANNED PANTRY ITEMS (2026-07-04) — SUPERSEDED BY ROUND 149
+Files: src/ui/components/FoodCapture.tsx, src/ui/components/PantryMealDetail.tsx,
+       src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryNewFoodScan.tsx
+- Added the Day's-log basket's "Change" button (re-run Describe to replace
+  one card) to the round-145 review screen's scanned cards. Short-lived:
+  round 149 (immediately after, same session) removed the review screen
+  entirely, which this button lived on — see round 149.
+
+ROUND 149 — PANTRY SCAN METHODS: DROP THE REVIEW SCREEN, COMMIT IMMEDIATELY (2026-07-04)
+Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/PantryFoodItemDetail.tsx,
+       src/ui/components/PantryNewFoodScan.tsx, src/ui/components/FoodCapture.tsx
+- Marco (with a flow diagram): rounds 145/147/148's Camera/Photo/Describe/
+  Nutri-scan wiring added a "review these items, then confirm" screen
+  (CaptureReviewOverlay) before committing — but that screen is only
+  correct for Manual, where the user actually has to type in macros. The
+  AI methods already HAVE the macros the moment a result comes back, so
+  there's nothing to review before committing — same shape as Manual's own
+  "Save & add to meal" (one tap, done) and Add-from-pantry (pick, done).
+  Fixed: each capture now commits straight to the Meal (or, for "+ New
+  food," to a new Food item / Meal per the existing 1-vs-2+ rule) the
+  moment it's captured, landing directly back on the Meal/Food item detail
+  — no intermediate confirm tap. Correcting a wrong AI read now happens the
+  same way as any other item: tap it afterward to edit (existing
+  pantry-edit flow, with its own "This will update all records…" confirm).
+  This also retires round 148's "Change" (onCorrect) card button in these
+  3 surfaces — there's no longer a pre-commit card to attach it to; removed
+  CaptureReviewOverlay from FoodCapture.tsx as dead code rather than leave
+  an unused review component around.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+  `npm run build` verified clean.
+
 ROUND 147 — PANTRY "+ NEW FOOD": CAMERA/PHOTO/DESCRIBE/NUTRI-SCAN (2026-07-04)
 Files: src/ui/components/PantryNewFoodScan.tsx (NEW), src/ui/screens/PantryScreen.tsx
 - Round 145 wired Camera/Photo/Describe/Nutri-scan into the Pantry MEAL
@@ -293,70 +324,6 @@ Files: src/ui/components/PantryNewFoodScan.tsx (NEW), src/ui/screens/PantryScree
   commit path or PantryScreen.
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
-
-ROUND 146 — STALE NATIVE BUNDLE, TAKE 2: NATIVE-LAYER CACHE CLEAR (2026-07-04)
-Files: ios/App/App/AppDelegate.swift
-- Round 145's fix (stop registering the PWA service worker on native,
-  self-unregister from main.tsx) turned out not to be reliably enough on
-  its own: once a service worker is ALREADY controlling the WKWebView
-  (from an earlier build, before round 145), it can keep serving its OWN
-  precached bundle indefinitely — including on every subsequent app
-  relaunch — without ever giving the NEW build's JS (which contains the
-  unregister-itself code) an actual chance to run. A pure-JS self-heal
-  depends on WebKit's own service-worker update-check timing, which isn't
-  guaranteed to happen promptly for locally-bundled Capacitor content, and
-  evidently didn't here even after a real Xcode rebuild + a few relaunches.
-  Fixed at the native layer instead, which sidesteps the chicken-and-egg
-  problem entirely: AppDelegate's didFinishLaunchingWithOptions now clears
-  WKWebsiteDataStore's ServiceWorkerRegistrations + FetchCache (the Cache
-  Storage API Workbox precaches into) + Disk/Memory/OfflineWebApplication
-  caches, BEFORE the web view ever loads a page — so there's no cached
-  service worker left to decide what to serve in the first place. Runs on
-  every launch (cheap no-op once already clean, so no downside to leaving
-  it in permanently). Deliberately does NOT touch IndexedDB, LocalStorage,
-  SessionStorage, or Cookies — none of the real app data (goals, foods,
-  weigh-ins) lives in any of the cleared types.
-- Not verified compiling in Xcode from this session (no Mac/Xcode
-  toolchain available) — flag any build error from this file immediately.
-
-ROUND 145 — PANTRY MEAL BUILDER: CAMERA/PHOTO/DESCRIBE/NUTRI-SCAN + STALE NATIVE BUNDLE FIX (2026-07-04)
-Files: src/lib/foodScan.ts, src/ui/kit/FloatingTabBar.tsx,
-       src/ui/components/AddEntrySheet.tsx, src/ui/components/MethodCards.tsx,
-       src/ui/components/basketHelpers.ts (NEW), src/ui/components/useFoodCapture.tsx (NEW),
-       src/ui/components/FoodCapture.tsx (NEW), src/ui/components/PantryMealDetail.tsx,
-       src/ui/components/PantryFoodItemDetail.tsx, vite.config.ts, src/main.tsx
-- Closed the last piece of the meals-in-pantry Known Gap: Camera/Photo/
-  Describe/Nutri-scan in the Pantry meal builder ("Create a meal" / "Add a
-  new food item") no longer toast "coming soon" — they reuse the exact same
-  scan/describe/label-scan mechanics, copy, and error handling as the
-  Day's-log basket. Extracted the mechanics (runScan/handleCamera/
-  handlePhoto/handleDescribeAnalyze/handleLabelScan, verbatim from
-  AddEntrySheet.tsx) into a new `useFoodCapture()` hook, generalised behind
-  an `onCaptured` callback; BasketItem + its pure helpers moved to
-  basketHelpers.ts; BasketCard/DescribeOverlay/EditOverlay/ServingModal
-  exported from AddEntrySheet.tsx for reuse instead of being copied again.
-  FoodForm/LogEntryContent's OWN scan logic is untouched (still two
-  duplicate copies there) — deliberately not risking a rushed refactor of
-  Marco's live daily-use flow, same reasoning as round 122's BasketCard/
-  PantryItemCard split. Pantry-side captured items are staged in a review
-  list (reusing BasketCard) before being committed as real Food items —
-  `isArchived: true` by default (matches round 130/144), opt-out via the
-  per-item "Save to pantry" checkbox on the (also reused) EditOverlay.
-  Scope note: PantryScreen's "+ New food" scan is intentionally still
-  "coming soon" — see Known Gaps.
-- SEPARATE BUG found while verifying on-device: after `npm run ios:sync` +
-  a real Xcode rebuild/run, the app kept showing pre-round-145 behaviour —
-  a leftover PWA service worker (registered by earlier installs) was still
-  serving its OWN stale cached bundle, exactly the failure mode
-  INSTALL-iOS.md already flagged as a known risk. Fixed: vite.config.ts now
-  sets `injectRegister: false` so the PWA plugin no longer auto-injects an
-  unconditional registration script; main.tsx registers the service worker
-  ONLY on the browser/PWA path, and on native actively unregisters any
-  existing service worker + clears its Cache Storage on every launch
-  (self-healing for installs already affected — doesn't touch IndexedDB,
-  where the real app data lives, only the SW's own cache).
-- tsc: clean. lint: clean. vitest: 48 passed (unchanged). `npm run build`
-  verified clean.
 
 ================================================================
 TODO / FUTURE WORK

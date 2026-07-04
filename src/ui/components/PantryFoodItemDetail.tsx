@@ -20,10 +20,7 @@ import { DeleteIcon } from './icons';
 import { FoodItemFormContent } from './FoodItemForm';
 import type { FoodItemFormValues } from './FoodItemForm';
 import { useFoodCapture } from './useFoodCapture';
-import {
-  AnalyzingIndicator, CaptureReviewOverlay,
-  DescribeOverlay, EditOverlay, ServingModal,
-} from './FoodCapture';
+import { AnalyzingIndicator, DescribeOverlay, ServingModal } from './FoodCapture';
 import type { BasketItem } from './FoodCapture';
 import type { ShowToast } from './Toaster';
 import type { FoodItem, Meal } from '../../domain/types';
@@ -32,7 +29,7 @@ function servingLabelFor(item: FoodItem): string {
   return item.measurementType === 'per_100g' ? `${item.referenceAmount}g` : '1 Srv';
 }
 
-type OverlayKey = 'edit' | 'add-manual' | 'add-pantry' | 'describe' | 'add-scan' | 'edit-scan-item';
+type OverlayKey = 'edit' | 'add-manual' | 'add-pantry' | 'describe';
 
 export function PantryFoodItemDetail({
   item, items, allItems, meals, onClose, onDeleted, onMealCreated, showToast,
@@ -96,75 +93,49 @@ function PantryFoodItemDetailContent({
   const [manualDirty, setManualDirty] = useState(false);
   const [confirmingDiscardManual, setConfirmingDiscardManual] = useState(false);
 
-  // ── Camera/Photo/Describe/Nutri-scan — captured items are staged here
-  //    (not yet real Food items) until "Create meal" is confirmed. ────────
-  const [scanBasket, setScanBasket] = useState<BasketItem[]>([]);
-  const [scanSources, setScanSources] = useState<Record<string, string>>({});
-  const [scanSaveToPantry, setScanSaveToPantry] = useState<Record<string, boolean>>({});
-  const [scanPhotoOverrides, setScanPhotoOverrides] = useState<Record<string, string | undefined>>({});
-  const [editingScanIdx, setEditingScanIdx] = useState<number | null>(null);
-  const [correctingScanIdx, setCorrectingScanIdx] = useState<number | null>(null);
-  const [addingScanItems, setAddingScanItems] = useState(false);
-
-  function resetScanBasket() {
-    setScanBasket([]); setScanSources({}); setScanSaveToPantry({}); setScanPhotoOverrides({});
-  }
-  function resolveScanPhoto(bi: BasketItem): string | undefined {
-    if (bi.id in scanPhotoOverrides) return scanPhotoOverrides[bi.id];
-    return bi.sourceId ? scanSources[bi.sourceId] : undefined;
-  }
+  // ── Camera/Photo/Describe/Nutri-scan — the macros already come from AI,
+  //    so (unlike Manual) there's no form to fill in: each capture commits
+  //    straight into a brand-new Meal (combined with this existing item)
+  //    and this Sheet hands off to that Meal, same one-tap-and-done shape
+  //    as Manual's "Save & add to meal". Correcting a wrong AI read happens
+  //    afterward, the same way as any other item: tap it to edit. ────────
+  const [committingScan, setCommittingScan] = useState(false);
 
   const capture = useFoodCapture({
     showToast,
-    onCaptured: (newItems, source) => {
-      setScanBasket((prev) => [...prev, ...newItems]);
-      if (source) setScanSources((prev) => ({ ...prev, [source.id]: source.photo }));
-      setActiveOverlay('add-scan');
-    },
+    onCaptured: (newItems, source) => { void commitScannedItems(newItems, source?.photo); },
   });
 
-  async function handleDescribeAnalyzeForMeal(text: string) {
-    const newItems = await capture.handleDescribeAnalyze(text);
-    if (correctingScanIdx !== null) {
-      // "Change" on an existing card: replace just that card, don't append.
-      setScanBasket((prev) => [
-        ...prev.slice(0, correctingScanIdx),
-        ...newItems,
-        ...prev.slice(correctingScanIdx + 1),
-      ]);
-      setCorrectingScanIdx(null);
-    } else {
-      setScanBasket((prev) => [...prev, ...newItems]);
-    }
-    setActiveOverlay('add-scan');
-  }
-
-  async function confirmAddScanItems() {
-    setAddingScanItems(true);
+  async function commitScannedItems(newItems: BasketItem[], photo?: string) {
+    setCommittingScan(true);
     try {
       const newMealItems = [newMealItem(item.id, item)];
-      for (const bi of scanBasket) {
+      for (const bi of newItems) {
         const newItemId = newId();
         // Hidden from the Pantry's own Food-items list by default (round
-        // 130/144) — unless opted in via "Save to pantry" while editing.
+        // 130/144) — same as every other meal-builder add path; opt in by
+        // editing the item afterward and ticking "Save to pantry".
         await repos.foodItems.put({
           id: newItemId, name: bi.name, measurementType: bi.measurementType,
           referenceAmount: bi.referenceAmount, calories: bi.calories, protein: bi.protein,
-          carbs: bi.carbs, fiber: bi.fiber, fat: bi.fat,
-          photo: resolveScanPhoto(bi),
-          isArchived: !scanSaveToPantry[bi.id],
+          carbs: bi.carbs, fiber: bi.fiber, fat: bi.fat, photo,
+          isArchived: true,
         });
         newMealItems.push({ id: newId(), foodItemId: newItemId, quantity: bi.qty });
       }
       const meal: Meal = { id: newId(), name: item.name, isArchived: false, items: newMealItems };
       await repos.meals.put(meal);
-      resetScanBasket();
-      setActiveOverlay(null);
       showToast?.('Meal created');
       onMealCreated(meal);
     } finally {
-      setAddingScanItems(false);
+      setCommittingScan(false);
     }
+  }
+
+  async function handleDescribeAnalyzeForMeal(text: string) {
+    const newItems = await capture.handleDescribeAnalyze(text);
+    setActiveOverlay(null); // close the Describe overlay before showing the commit spinner
+    await commitScannedItems(newItems);
   }
 
   const nutrition = {
@@ -279,50 +250,18 @@ function PantryFoodItemDetailContent({
       </div>
     ) : activeOverlay === 'describe' ? (
       <DescribeOverlay
-        onBack={() => { setCorrectingScanIdx(null); setActiveOverlay(scanBasket.length > 0 ? 'add-scan' : null); }}
+        onBack={() => setActiveOverlay(null)}
         onAnalyze={handleDescribeAnalyzeForMeal}
       />
-    ) : activeOverlay === 'add-scan' ? (
-      <CaptureReviewOverlay
-        title="Add items"
-        onBack={() => { resetScanBasket(); setActiveOverlay(null); }}
-        items={scanBasket}
-        onQtyChange={(idx, qty) => setScanBasket((prev) => prev.map((it, i) => (i === idx ? { ...it, qty } : it)))}
-        onRemove={(idx) => setScanBasket((prev) => prev.filter((_, i) => i !== idx))}
-        onEdit={(idx) => { setEditingScanIdx(idx); setActiveOverlay('edit-scan-item'); }}
-        onCorrect={(idx) => { setCorrectingScanIdx(idx); setActiveOverlay('describe'); }}
-        onConfirm={confirmAddScanItems}
-        confirmLabel="Create meal"
-        confirming={addingScanItems}
-      />
-    ) : activeOverlay === 'edit-scan-item' && editingScanIdx !== null && scanBasket[editingScanIdx] ? (
-      <EditOverlay
-        item={scanBasket[editingScanIdx]}
-        currentPhoto={resolveScanPhoto(scanBasket[editingScanIdx])}
-        existingItems={items}
-        existingMeals={meals}
-        onBack={() => setActiveOverlay('add-scan')}
-        onSave={(patch, saveToPantryChecked, photo) => {
-          const scanId = scanBasket[editingScanIdx].id;
-          setScanBasket((prev) => prev.map((it, i) => (i === editingScanIdx ? { ...it, ...patch } : it)));
-          setScanSaveToPantry((prev) => ({ ...prev, [scanId]: saveToPantryChecked }));
-          setScanPhotoOverrides((prev) => ({ ...prev, [scanId]: photo }));
-          setEditingScanIdx(null);
-          setActiveOverlay('add-scan');
-        }}
-        onPhotoChange={(dataUrl) => {
-          const scanId = scanBasket[editingScanIdx].id;
-          setScanPhotoOverrides((prev) => ({ ...prev, [scanId]: dataUrl }));
-        }}
-      />
     ) : null,
-    [activeOverlay, item, items, allItems, meals, manualDirty, scanBasket, editingScanIdx, scanPhotoOverrides],
+    [activeOverlay, item, items, allItems, meals, manualDirty],
   );
 
-  // ── Analysing state — same early-return spinner as the Day's-log basket
-  //    while a scan/describe/label call is in flight. ─────────────────────
-  if (capture.analyzing) {
-    return <AnalyzingIndicator label={capture.analyzeLabel} />;
+  // ── Analysing / committing — same early-return spinner shape as the
+  //    Day's-log basket, extended to cover the brief write-to-DB moment
+  //    right after a scan/describe/label result comes back. ─────────────
+  if (capture.analyzing || committingScan) {
+    return <AnalyzingIndicator label={committingScan ? 'Creating meal…' : capture.analyzeLabel} />;
   }
 
   deleteRef.current = () => setConfirmingDelete(true); // eslint-disable-line react-hooks/refs

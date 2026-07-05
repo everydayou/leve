@@ -5,7 +5,7 @@ import { repos } from '../../state/repos';
 import { newId } from '../../data/ids';
 import { itemsByIdMap, mealNutritionFor, mealPhotoFor, nutritionFor } from '../../domain/calc';
 
-import { Button, FilterPills, Sheet, EmptyState, Icon } from '../kit';
+import { Button, Sheet, EmptyState, Icon } from '../kit';
 import { Thumb } from '../components/PhotoPicker';
 import { FoodItemFormContent } from '../components/FoodItemForm';
 import type { FoodItemFormValues } from '../components/FoodItemForm';
@@ -17,15 +17,45 @@ import { hapticLight } from '../../lib/haptics';
 import type { DayContext } from '../AppShell';
 import type { FoodItem, Meal, NutritionSnapshot } from '../../domain/types';
 
-type PantryFilter = 'all' | 'items' | 'meals';
+/* Round 177: replaced the old single-select All/Food items/Meals radio
+   pills with 3 independent toggle pills — Food items / Meals / My own.
+   None checked = no restriction (show everything); "Food items" and
+   "Meals" union together when both are checked (same effect as neither);
+   "My own" is a separate, independent restriction to origin:'user' items,
+   layered on top of whichever type(s) are showing — not a 3-way OR across
+   all three pills. Meals have no app-provided concept (only Food items get
+   seeded), so "My own" is meaningless — and disabled — whenever the type
+   selection resolves to Meals-only. */
 type PantryRow =
-  | { type: 'item'; id: string; name: string; photo?: string; nutrition: NutritionSnapshot }
+  | { type: 'item'; id: string; name: string; photo?: string; nutrition: NutritionSnapshot; origin?: 'app' | 'user' }
   | { type: 'meal'; id: string; name: string; photo?: string; nutrition: NutritionSnapshot };
 
 export function PantryScreen() {
   const { showToast } = useOutletContext<DayContext>();
   const [q, setQ] = useState('');
-  const [filter, setFilter] = useState<PantryFilter>('all');
+  const [showItems, setShowItems] = useState(false);
+  const [showMeals, setShowMeals] = useState(false);
+  const [mineOnly, setMineOnly] = useState(false);
+  const mealsOnly = showMeals && !showItems;
+  // Meals-only has no origin distinction to filter by (every Meal is
+  // user-made) — auto-uncheck "My own" the moment that state is entered,
+  // from either direction. Done inline in each toggle handler (not a
+  // useEffect+setState, which reliably cascades an extra render for what
+  // is really just one user action with two state updates).
+  function toggleShowItems() {
+    setShowItems((v) => {
+      const next = !v;
+      if (!next && showMeals) setMineOnly(false); // entering meals-only
+      return next;
+    });
+  }
+  function toggleShowMeals() {
+    setShowMeals((v) => {
+      const next = !v;
+      if (next && !showItems) setMineOnly(false); // entering meals-only
+      return next;
+    });
+  }
   const [newFoodOpen, setNewFoodOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
@@ -59,15 +89,24 @@ export function PantryScreen() {
   const loading = rawItems == null || rawMeals == null;
 
   const itemRows: PantryRow[] = items.map((i: FoodItem) => ({
-    type: 'item', id: i.id, name: i.name, photo: i.photo,
+    type: 'item', id: i.id, name: i.name, photo: i.photo, origin: i.origin,
     nutrition: nutritionFor(i, i.measurementType === 'per_100g' ? i.referenceAmount : 1),
   }));
   const mealRows: PantryRow[] = meals.map((m: Meal) => ({
     type: 'meal', id: m.id, name: m.name, photo: mealPhotoFor(m, itemsById), nutrition: mealNutritionFor(m, itemsById),
   }));
   const allRows = [...itemRows, ...mealRows].sort((a, b) => a.name.localeCompare(b.name));
-  const rowsForFilter = filter === 'items' ? itemRows : filter === 'meals' ? mealRows : allRows;
-  const rows = rowsForFilter.filter((r) => r.name.toLowerCase().includes(q.toLowerCase()));
+  // Food items/Meals union together (checking both = same result as
+  // checking neither); "My own" then independently narrows the result to
+  // origin:'user' items, always passing Meal rows through untouched since
+  // every Meal is inherently "my own".
+  const typeRows = !showItems && !showMeals
+    ? allRows
+    : [...(showItems ? itemRows : []), ...(showMeals ? mealRows : [])].sort((a, b) => a.name.localeCompare(b.name));
+  const originRows = mineOnly
+    ? typeRows.filter((r) => r.type === 'meal' || (r.origin ?? 'user') === 'user')
+    : typeRows;
+  const rows = originRows.filter((r) => r.name.toLowerCase().includes(q.toLowerCase()));
 
   const openItem = openItemId ? items.find((i) => i.id === openItemId) : undefined;
   const isEmpty = items.length === 0 && meals.length === 0;
@@ -118,24 +157,42 @@ export function PantryScreen() {
             </button>
           )}
         </div>
-        {/* All / Food items / Meals — replaces the old All/per100g/perServing
-            pills (round 123): the meaningful split in Pantry is now what KIND
-            of reusable object something is, not its serving-unit setup. */}
-        <FilterPills<PantryFilter>
-          className="mt-3"
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: 'all', label: 'All' },
-            { value: 'items', label: 'Food items' },
-            { value: 'meals', label: 'Meals' },
-          ]}
-        />
+        {/* Food items / Meals / My own — round 177's 3 independent toggle
+            pills, replacing the old single-select All/Food items/Meals
+            radio (round 123 had replaced All/per100g/perServing with that).
+            Same pill look as FilterPills' selected/unselected states
+            (kept bespoke here rather than extending the shared component,
+            since FilterPills' other 3 call sites are all single-select and
+            shouldn't have to carry this toggle-plus-disabled behaviour). */}
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(
+            [
+              { key: 'items' as const, label: 'Food items', active: showItems, disabled: false, toggle: toggleShowItems },
+              { key: 'meals' as const, label: 'Meals', active: showMeals, disabled: false, toggle: toggleShowMeals },
+              { key: 'mine' as const, label: 'My own', active: mineOnly, disabled: mealsOnly, toggle: () => setMineOnly((v) => !v) },
+            ]
+          ).map((pill) => (
+            <button
+              key={pill.key}
+              disabled={pill.disabled}
+              onClick={() => { hapticLight(); pill.toggle(); }}
+              aria-pressed={pill.active}
+              className={`rounded-pill border px-3.5 py-1.5 text-subhead font-medium transition active:scale-95
+                ${pill.disabled
+                  ? 'border-transparent bg-surface-sunken text-content-muted opacity-50'
+                  : pill.active
+                  ? 'border-border-field bg-surface text-accent-hover shadow-card'
+                  : 'border-transparent bg-surface-sunken text-content'}`}
+            >
+              {pill.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {!loading && (
         <>
-          <p className="px-6 pt-4 text-callout font-bold text-content">{rows.length} {filter === 'meals' ? 'meals' : 'items'}</p>
+          <p className="px-6 pt-4 text-callout font-bold text-content">{rows.length} {mealsOnly ? 'meals' : 'items'}</p>
           <div className="mx-6 mt-1 overflow-hidden rounded-card border border-border-subtle bg-surface">
             <ul className="divide-y divide-border-subtle">
               {rows.map((row) => (
@@ -163,7 +220,7 @@ export function PantryScreen() {
                       action={<Button icon="plus" onClick={() => setNewFoodOpen(true)}>New food</Button>}
                     />
                   ) : (
-                    <p className="px-6 py-10 text-center text-subhead text-content-muted">No {filter === 'meals' ? 'meals' : filter === 'items' ? 'foods' : 'results'} match.</p>
+                    <p className="px-6 py-10 text-center text-subhead text-content-muted">No {mealsOnly ? 'meals' : showItems ? 'foods' : 'results'} match.</p>
                   )}
                 </li>
               )}

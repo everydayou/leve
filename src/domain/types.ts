@@ -84,6 +84,12 @@ export interface FoodItem {
   fat: number;
   photo?: string; // optional data URL (camera/file); thumbnail in lists
   isArchived: boolean;
+  /** Round 177: 'app' marks one of the bundled default Pantry items (fixed
+   *  macros, not user-editable) vs 'user' for anything someone added
+   *  themselves. Optional/undefined on every item created before this
+   *  field existed — always treated as 'user' when read, so no migration
+   *  is needed; only a future seeding script would ever write 'app'. */
+  origin?: 'app' | 'user';
 }
 
 /** One Food item's quantity inside a reusable Pantry Meal.

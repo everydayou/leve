@@ -423,7 +423,7 @@ function PantryMealDetailContent({
             name: editingItem.name, measurementType: editingItem.measurementType, referenceAmount: editingItem.referenceAmount,
             calories: editingItem.calories, protein: editingItem.protein, carbs: editingItem.carbs,
             fiber: editingItem.fiber, fat: editingItem.fat, photo: editingItem.photo,
-            isArchived: editingItem.isArchived,
+            isArchived: editingItem.isArchived, origin: editingItem.origin,
           }}
           existingItems={items}
           existingMeals={meals}

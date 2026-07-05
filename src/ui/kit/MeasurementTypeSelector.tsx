@@ -5,9 +5,15 @@ import type { MeasurementType } from '../../domain/types';
 export function MeasurementTypeSelector({
   value,
   onChange,
+  disabled,
 }: {
   value: MeasurementType;
   onChange: (v: MeasurementType) => void;
+  /** Round 179: greys both options out and blocks switching — used for
+   *  origin:'app' Pantry items, whose measurement basis is fixed along
+   *  with their macros (switching basis would need the numbers to change
+   *  to match, which locked macros can't do). */
+  disabled?: boolean;
 }) {
   const options: { value: MeasurementType; label: string }[] = [
     { value: 'per_100g', label: 'per 100g' },
@@ -22,7 +28,9 @@ export function MeasurementTypeSelector({
           <button
             key={option.value}
             onClick={() => onChange(option.value)}
+            disabled={disabled}
             className={`flex items-center gap-2 rounded-pill px-4 py-2 transition-all border-2
+              ${disabled ? 'opacity-50' : ''}
               ${
                 active
                   ? 'border-border-subtle bg-surface text-content shadow-card'

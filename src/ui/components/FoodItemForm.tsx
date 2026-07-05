@@ -60,6 +60,10 @@ export type FoodItemFormInitial = {
    *  the Pantry list (round 130 — created purely to complete a meal). Shows
    *  a "Save to pantry" checkbox so the user can opt it in explicitly. */
   isArchived?: boolean;
+  /** Round 179: 'app' locks measurement type + every macro field (name and
+   *  photo stay editable) — one of the ~150 bundled default Pantry items,
+   *  whose nutrition facts are meant to be fixed, not user-editable. */
+  origin?: 'app' | 'user';
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -96,6 +100,9 @@ export function FoodItemFormContent({
    *  — CTA reads "Save food" instead of "Add to meal". */
   soleItem?: boolean;
 }) {
+  // Round 179: one of the ~150 bundled default Pantry items — measurement
+  // basis and every macro field are fixed, name/photo aren't.
+  const locked = initial.origin === 'app';
   const [name, setName]   = useState(initial.name ?? '');
   const [mType, setMType] = useState<MeasurementType>(initial.measurementType ?? 'per_100g');
   const [srvG, setSrvG]   = useState(
@@ -335,25 +342,30 @@ export function FoodItemFormContent({
       ) : null}
 
       {/* ── Measurement type ──────────────────────────────────────────────── */}
-      <MeasurementTypeSelector value={mType} onChange={setMType} />
+      <MeasurementTypeSelector value={mType} onChange={setMType} disabled={locked} />
 
       {/* ── Calories (paired with serving size when per_serving) ──────────── */}
       {isSrv ? (
         <div className="grid grid-cols-2 gap-2">
-          <NumberField label="Serving size (g)"  value={srvG} set={setSrvG} centerAt={100} />
-          <NumberField label="Calories (kcal)"   value={cal}  set={setCal}  centerAt={350} />
+          <NumberField label="Serving size (g)"  value={srvG} set={setSrvG} centerAt={100} disabled={locked} />
+          <NumberField label="Calories (kcal)"   value={cal}  set={setCal}  centerAt={350} disabled={locked} />
         </div>
       ) : (
-        <NumberField label="Calories (kcal · per 100g)" value={cal} set={setCal} max={5000} step={1} centerAt={350} />
+        <NumberField label="Calories (kcal · per 100g)" value={cal} set={setCal} max={5000} step={1} centerAt={350} disabled={locked} />
       )}
 
       {/* ── Macros ────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-2">
-        <NumberField label="Protein (g)" value={pro}  set={setPro}  max={500} step={1} centerAt={25} />
-        <NumberField label="Carbs (g)"   value={carb} set={setCarb} max={800} step={1} centerAt={30} />
-        <NumberField label="Fat (g)"     value={fat}  set={setFat}  max={400} step={1} centerAt={12} />
-        <NumberField label="Fiber (g)"   value={fib}  set={setFib}  max={200} step={1} centerAt={5}  />
+        <NumberField label="Protein (g)" value={pro}  set={setPro}  max={500} step={1} centerAt={25} disabled={locked} />
+        <NumberField label="Carbs (g)"   value={carb} set={setCarb} max={800} step={1} centerAt={30} disabled={locked} />
+        <NumberField label="Fat (g)"     value={fat}  set={setFat}  max={400} step={1} centerAt={12} disabled={locked} />
+        <NumberField label="Fiber (g)"   value={fib}  set={setFib}  max={200} step={1} centerAt={5}  disabled={locked} />
       </div>
+      {locked && (
+        <p className="text-caption text-content-secondary">
+          This is a default Pantry food — its nutrition facts are fixed and can't be edited.
+        </p>
+      )}
 
       {/* ── Basket-edit context hint ───────────────────────────────────────── */}
       {isBasketEdit && (

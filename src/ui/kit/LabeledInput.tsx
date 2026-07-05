@@ -25,7 +25,7 @@ export function LabeledInput({
   }
 
   return (
-    <label htmlFor={inputId} className={`block ${wrapClassName}`}>
+    <label htmlFor={inputId} className={`block ${wrapClassName} ${input.disabled ? 'cursor-default' : ''}`}>
       {label && (
         <span className={labelClassName ?? 'text-subhead font-normal text-content-secondary'}>
           {label}
@@ -38,10 +38,11 @@ export function LabeledInput({
           id={inputId}
           className={`w-full rounded-field border bg-surface-sunken px-3 py-2.5 text-subhead font-semibold
             text-content outline-none transition placeholder:text-content-muted
-            ${hasValue ? 'pr-8' : ''}
+            ${hasValue && !input.disabled ? 'pr-8' : ''}
+            ${input.disabled ? 'opacity-50' : ''}
             ${invalid ? 'border-danger' : 'border-transparent focus:border-accent'} ${className}`}
         />
-        {hasValue && (
+        {hasValue && !input.disabled && (
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}

@@ -6,6 +6,7 @@ import { Toaster, useToast, type ShowToast } from './components/Toaster';
 import { todayISO } from '../data/ids';
 import { PREVIEW } from '../state/repos';
 import { runMealsMigrationIfNeeded } from '../data/mealsMigration';
+import { runDefaultPantrySeedIfNeeded } from '../data/defaultPantrySeed';
 
 /** Shape shared with screens via the Outlet context. Today reads/sets the
  *  viewed date here so the + Add-entry sheet logs to the day being viewed
@@ -34,11 +35,15 @@ export function AppShell() {
   const { toast, showToast, dismissToast } = useToast();
 
   // One-time data migrations against the real (Dexie) store — round 123's
-  // "Meals in Pantry" foundation. Runs once per device via a localStorage
-  // flag; the preview build boots a fresh in-memory store every load, so
-  // there's nothing to migrate there.
+  // "Meals in Pantry" foundation, and round 179's default-Pantry seeding.
+  // Both run once per device via their own localStorage flag; the preview
+  // build boots a fresh in-memory store every load, so there's nothing to
+  // migrate/seed there.
   useEffect(() => {
-    if (!PREVIEW) void runMealsMigrationIfNeeded();
+    if (!PREVIEW) {
+      void runMealsMigrationIfNeeded();
+      void runDefaultPantrySeedIfNeeded();
+    }
   }, []);
   const mainRef = useRef<HTMLElement>(null);
   const fadeRef = useRef<HTMLDivElement>(null);

@@ -327,7 +327,7 @@ function PantryFoodItemDetailContent({
           initial={{
             name: item.name, measurementType: item.measurementType, referenceAmount: item.referenceAmount,
             calories: item.calories, protein: item.protein, carbs: item.carbs, fiber: item.fiber, fat: item.fat,
-            photo: item.photo,
+            photo: item.photo, origin: item.origin,
           }}
           existingItems={items}
           existingMeals={meals}

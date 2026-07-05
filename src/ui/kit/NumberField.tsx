@@ -14,10 +14,13 @@ import { useNumericDoneBar } from './useNumericDoneBar';
    focused, since this keypad has no built-in Return key — see Dev >
    Keyboards playground, option 4, which Marco picked as the app-wide one. */
 export function NumberField({
-  label, value, set, min = 0, max = 9999, step = 1, unit, placeholder,
+  label, value, set, min = 0, max = 9999, step = 1, unit, placeholder, disabled,
 }: {
   label?: string; value: string; set: (s: string) => void;
   min?: number; max?: number; step?: number; unit?: string; placeholder?: string;
+  /** Round 179: greys the field out and blocks editing — used for
+   *  origin:'app' Pantry items, whose macros are fixed. */
+  disabled?: boolean;
   /** Accepted for backwards compatibility; no longer used. */
   centerAt?: number;
 }) {
@@ -49,6 +52,7 @@ export function NumberField({
         min={min}
         max={max}
         step={step}
+        disabled={disabled}
         {...bind}
       />
       {doneBar}

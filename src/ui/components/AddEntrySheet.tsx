@@ -1466,6 +1466,11 @@ export function EditOverlay({
           fat:             item.fat,
           photo:           currentPhoto,
           pantryItemId:    item.pantryItemId,
+          // Round 179: this basket item is linked to a real Pantry Food
+          // item (pantryItemId) — look up ITS origin so editing a basket
+          // entry backed by a default Pantry food locks macros exactly
+          // the same as editing it from the Pantry itself.
+          origin:          existingItems?.find((i) => i.id === item.pantryItemId)?.origin,
         }}
         existingItems={existingItems}
         existingMeals={existingMeals}

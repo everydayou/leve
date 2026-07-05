@@ -104,19 +104,19 @@ export function AccountScreen() {
         <div className="flex items-start justify-between px-4 py-3">
           <div>
             <div className="flex items-center gap-1.5">
+              <span className="text-subhead font-medium text-content">BMR</span>
               <button
                 onClick={(e) => { e.stopPropagation(); setShowBmrInfo(true); }}
-                className="shrink-0 text-content-secondary active:opacity-70"
+                className="shrink-0 text-content active:opacity-70"
                 aria-label="BMR info"
               >
                 <Icon name="info" size={14} strokeWidth={1.75} />
               </button>
-              <span className="text-subhead font-medium text-content">BMR</span>
             </div>
             <p className="mt-0.5 text-subhead text-content-secondary">(resting burn)</p>
           </div>
           <div className="text-right">
-            <span className="text-headline font-semibold text-content">
+            <span className="text-callout font-semibold text-content">
               {user.bmr > 0 ? user.bmr : <span className="text-content-muted">—</span>}
             </span>
             <p className="mt-0.5 text-subhead text-content-secondary">kcal / day</p>
@@ -532,7 +532,7 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between">
       <span className="text-subhead font-medium text-content">{label}</span>
-      <span className="text-right text-headline font-semibold text-content">{value}</span>
+      <span className="text-right text-callout font-semibold text-content">{value}</span>
     </div>
   );
 }

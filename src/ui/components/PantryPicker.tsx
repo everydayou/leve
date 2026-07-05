@@ -1,17 +1,18 @@
-// "Add from pantry" — search + All/Food items/Meal pills + row list for
+// "Add from pantry" — search + Food items/Meals/My own pills + row list for
 // picking an EXISTING reusable Food item or Meal to add into a meal that's
 // being built (round 124). Deliberately reuses the exact same row shape and
-// filter pills as PantryScreen's own list — same visual language whether
-// you're browsing the Pantry or picking from it mid-flow.
+// filter pills as PantryScreen's own list (round 177's 3 independent toggle
+// pills, see that file's doc comment for the full union/origin logic) —
+// same visual language whether you're browsing the Pantry or picking from
+// it mid-flow.
 import { useState } from 'react';
 import { itemsByIdMap, mealNutritionFor, mealPhotoFor, nutritionFor } from '../../domain/calc';
-import { FilterPills, Icon } from '../kit';
+import { Icon } from '../kit';
 import { Thumb } from './PhotoPicker';
 import type { FoodItem, Meal, NutritionSnapshot } from '../../domain/types';
 
-type PantryFilter = 'all' | 'items' | 'meals';
 type PantryRow =
-  | { type: 'item'; id: string; name: string; photo?: string; nutrition: NutritionSnapshot }
+  | { type: 'item'; id: string; name: string; photo?: string; nutrition: NutritionSnapshot; origin?: 'app' | 'user' }
   | { type: 'meal'; id: string; name: string; photo?: string; nutrition: NutritionSnapshot };
 
 export function PantryPicker({
@@ -33,22 +34,47 @@ export function PantryPicker({
   onPickMeal: (meal: Meal) => void;
 }) {
   const [q, setQ] = useState('');
-  const [filter, setFilter] = useState<PantryFilter>('all');
+  const [showItems, setShowItems] = useState(false);
+  const [showMeals, setShowMeals] = useState(false);
+  const [mineOnly, setMineOnly] = useState(false);
+  const mealsOnly = showMeals && !showItems;
+  // See PantryScreen.tsx (round 177) — same inline-in-handler auto-uncheck,
+  // not a useEffect+setState, for the same "one user action, not a
+  // reactive external sync" reasoning the hooks linter calls out.
+  function toggleShowItems() {
+    setShowItems((v) => {
+      const next = !v;
+      if (!next && showMeals) setMineOnly(false);
+      return next;
+    });
+  }
+  function toggleShowMeals() {
+    setShowMeals((v) => {
+      const next = !v;
+      if (next && !showItems) setMineOnly(false);
+      return next;
+    });
+  }
   const itemsById = itemsByIdMap(allItems ?? items);
 
   const visibleItems = items.filter((i) => !excludeItemIds.includes(i.id));
   const visibleMeals = meals.filter((m) => !excludeMealIds.includes(m.id));
 
   const itemRows: PantryRow[] = visibleItems.map((i) => ({
-    type: 'item', id: i.id, name: i.name, photo: i.photo,
+    type: 'item', id: i.id, name: i.name, photo: i.photo, origin: i.origin,
     nutrition: nutritionFor(i, i.measurementType === 'per_100g' ? i.referenceAmount : 1),
   }));
   const mealRows: PantryRow[] = visibleMeals.map((m) => ({
     type: 'meal', id: m.id, name: m.name, photo: mealPhotoFor(m, itemsById), nutrition: mealNutritionFor(m, itemsById),
   }));
   const allRows = [...itemRows, ...mealRows].sort((a, b) => a.name.localeCompare(b.name));
-  const rowsForFilter = filter === 'items' ? itemRows : filter === 'meals' ? mealRows : allRows;
-  const rows = rowsForFilter.filter((r) => r.name.toLowerCase().includes(q.toLowerCase()));
+  const typeRows = !showItems && !showMeals
+    ? allRows
+    : [...(showItems ? itemRows : []), ...(showMeals ? mealRows : [])].sort((a, b) => a.name.localeCompare(b.name));
+  const originRows = mineOnly
+    ? typeRows.filter((r) => r.type === 'meal' || (r.origin ?? 'user') === 'user')
+    : typeRows;
+  const rows = originRows.filter((r) => r.name.toLowerCase().includes(q.toLowerCase()));
 
   function pick(row: PantryRow) {
     if (row.type === 'item') {
@@ -77,15 +103,30 @@ export function PantryPicker({
         />
       </div>
 
-      <FilterPills<PantryFilter>
-        value={filter}
-        onChange={setFilter}
-        options={[
-          { value: 'all', label: 'All' },
-          { value: 'items', label: 'Food items' },
-          { value: 'meals', label: 'Meals' },
-        ]}
-      />
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { key: 'items' as const, label: 'Food items', active: showItems, disabled: false, toggle: toggleShowItems },
+            { key: 'meals' as const, label: 'Meals', active: showMeals, disabled: false, toggle: toggleShowMeals },
+            { key: 'mine' as const, label: 'My own', active: mineOnly, disabled: mealsOnly, toggle: () => setMineOnly((v) => !v) },
+          ]
+        ).map((pill) => (
+          <button
+            key={pill.key}
+            disabled={pill.disabled}
+            onClick={pill.toggle}
+            aria-pressed={pill.active}
+            className={`rounded-pill border px-3.5 py-1.5 text-subhead font-medium transition active:scale-95
+              ${pill.disabled
+                ? 'border-transparent bg-surface-sunken text-content-muted opacity-50'
+                : pill.active
+                ? 'border-border-field bg-surface text-accent-hover shadow-card'
+                : 'border-transparent bg-surface-sunken text-content'}`}
+          >
+            {pill.label}
+          </button>
+        ))}
+      </div>
 
       <div className="overflow-hidden rounded-[16px] bg-surface divide-y divide-border-subtle">
         {rows.map((row) => (

@@ -81,47 +81,52 @@ export function AccountScreen() {
           Edit
         </button>
       </div>
-      {/* Whole card opens Edit profile on tap; the BMR info icon inside
-          stops propagation so it still opens its own explainer sheet. */}
+      {/* Gauge-card layered pattern: white profile card floats on a grey
+          container; BMR sits directly on the grey reveal below (matches
+          TodayScreen.tsx ~L943). Whole thing opens Edit profile on tap; the
+          BMR info icon inside stops propagation so it still opens its own
+          explainer sheet. */}
       <div
         role="button"
         tabIndex={0}
         onClick={() => setEditingProfile(true)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingProfile(true); } }}
-        className="w-full rounded-sheet border border-border-subtle bg-surface p-4 text-left shadow-card-lg"
+        className="w-full rounded-sheet bg-surface-sunken text-left"
       >
-        <div className="space-y-3">
-          <ProfileRow label="Height" value={user.heightCm > 0 ? `${user.heightCm} cm` : 'Not set'} />
-          <ProfileRow label="Age" value={user.age != null ? `${user.age}` : 'Not set'} />
-          <ProfileRow label="Sex" value={user.sex ? cap(user.sex) : 'Not set'} />
-          <ProfileRow label="Weight" value={weightKg != null ? displayWeight(weightKg, user.units ?? 'kg') : 'Not set'} />
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setShowBmrInfo(true); }}
-                  className="shrink-0 text-content-secondary active:opacity-70"
-                  aria-label="BMR info"
-                >
-                  <Icon name="info" size={14} strokeWidth={1.75} />
-                </button>
-                <span className="text-subhead font-medium text-content">BMR</span>
-              </div>
-              <p className="mt-0.5 text-subhead text-content-secondary">(resting burn)</p>
-            </div>
-            <div className="text-right">
-              <span className="text-headline font-semibold text-content">
-                {user.bmr > 0 ? user.bmr : <span className="text-content-muted">—</span>}
-              </span>
-              <p className="mt-0.5 text-subhead text-content-secondary">kcal / day</p>
-            </div>
+        <div className="rounded-sheet border border-border-subtle bg-surface p-4 shadow-card-lg">
+          <div className="space-y-3">
+            <ProfileRow label="Height" value={user.heightCm > 0 ? `${user.heightCm} cm` : 'Not set'} />
+            <ProfileRow label="Age" value={user.age != null ? `${user.age}` : 'Not set'} />
+            <ProfileRow label="Sex" value={user.sex ? cap(user.sex) : 'Not set'} />
+            <ProfileRow label="Weight" value={weightKg != null ? displayWeight(weightKg, user.units ?? 'kg') : 'Not set'} />
           </div>
-          {user.bmr <= 0 && (
-            <p className="text-caption text-content-secondary">
-              Set height, age &amp; sex in your profile to enable auto-calculation.
-            </p>
-          )}
         </div>
+        <div className="flex items-start justify-between px-4 py-3">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowBmrInfo(true); }}
+                className="shrink-0 text-content-secondary active:opacity-70"
+                aria-label="BMR info"
+              >
+                <Icon name="info" size={14} strokeWidth={1.75} />
+              </button>
+              <span className="text-subhead font-medium text-content">BMR</span>
+            </div>
+            <p className="mt-0.5 text-subhead text-content-secondary">(resting burn)</p>
+          </div>
+          <div className="text-right">
+            <span className="text-headline font-semibold text-content">
+              {user.bmr > 0 ? user.bmr : <span className="text-content-muted">—</span>}
+            </span>
+            <p className="mt-0.5 text-subhead text-content-secondary">kcal / day</p>
+          </div>
+        </div>
+        {user.bmr <= 0 && (
+          <p className="px-4 pb-3 text-caption text-content-secondary">
+            Set height, age &amp; sex in your profile to enable auto-calculation.
+          </p>
+        )}
       </div>
 
       {SHOW_GOAL_SECTION && (
@@ -250,14 +255,16 @@ function ProfileSheet({ user, currentWeightKg: weightKg, onClose }: { user: User
               known weight; upserts by date so today stays a single entry. */}
           <div>
             <span className="text-subhead font-normal text-content-secondary">Weight</span>
-            <div className="mt-1 flex items-center justify-between rounded-field bg-surface-sunken px-3 py-2.5">
+            <button
+              type="button"
+              onClick={() => setShowWeightSheet(true)}
+              className="mt-1 flex w-full items-center justify-between rounded-field bg-surface-sunken px-3 py-2.5 text-left active:opacity-70"
+            >
               <span className="text-subhead font-semibold text-content">
                 {weightKg != null ? displayWeight(weightKg, user.units ?? 'kg') : 'Not set'}
               </span>
-              <Button variant="subtle" size="xs" fullWidth={false} onClick={() => setShowWeightSheet(true)}>
-                {weightKg != null ? 'Log' : 'Add'}
-              </Button>
-            </div>
+              <Icon name="chevronRight" size={18} className="shrink-0 text-content-muted" />
+            </button>
           </div>
         </div>
       </Sheet>

@@ -89,10 +89,12 @@ export function PantryFoodItemDetail({
         // (for a justCreated item) shows a confirm dialog instead of
         // actually closing -- leaving this Sheet permanently stuck
         // mid-"closing" (invisible but still mounted, still holding its
-        // full-screen scrim + body scroll lock). closeImmediately skips
-        // straight to onClose on every dismiss path, so a justCreated item
-        // stays fully visible/interactive behind the confirm dialog.
-        closeImmediately={justCreated}
+        // full-screen scrim + body scroll lock). Unconditional (not just
+        // when justCreated) for the same reason PantryMealDetail's version
+        // of this fix is unconditional now: it removes any chance of a
+        // stale/lagging value, since the onClose handler above is
+        // reassigned fresh on every render and decides correctly either way.
+        closeImmediately
         forceExpanded
         rightAction={
           justCreated ? undefined : (

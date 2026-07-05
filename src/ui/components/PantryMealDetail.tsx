@@ -77,21 +77,6 @@ export function PantryMealDetail({
   // beyond scans in round 170).
   const justCreated = justCreatedItemIds !== undefined;
 
-  // Round 171 bug fix: mirrors closeRef, but as actual render state rather
-  // than an imperative ref, because Sheet's closeImmediately prop below
-  // needs the right value AT RENDER TIME, not just "whenever someone next
-  // calls a function". Without this, X/scrim/swipe would play this Sheet's
-  // full close animation BEFORE PantryMealDetailContent's onClose callback
-  // (via closeRef) got a chance to show "discard changes?" instead of
-  // closing -- leaving this Sheet stuck permanently mid-"closing"
-  // (invisible but still mounted, still holding its full-screen scrim +
-  // body scroll lock, blocking all further taps) once the user picked
-  // "Keep editing". Seeded from `justCreated` (known immediately, no need
-  // to wait for an effect); PantryMealDetailContent reports the fuller
-  // "justCreated || hasChanges" once it's computed that on its own first
-  // render.
-  const [shouldConfirmClose, setShouldConfirmClose] = useState(justCreated);
-
   if (!meal) return null;
 
   const itemsById = itemsByIdMap(allItems);
@@ -100,7 +85,22 @@ export function PantryMealDetail({
     <Sheet
       title="Meal"
       onClose={() => closeRef.current()}
-      closeImmediately={shouldConfirmClose}
+      // Round 171 (v2): unconditional, not tied to justCreated/hasChanges.
+      // The first version of this fix computed hasChanges in
+      // PantryMealDetailContent and lifted it up to this prop via a
+      // callback + useState -- but that lift always lags one render cycle
+      // behind the live-query update that changes hasChanges (e.g. right
+      // after picking an item from "Add from pantry"), so a fast X tap
+      // could still land while this prop was momentarily still `false`,
+      // reproducing the exact freeze this was meant to fix. Making it
+      // always true removes that race entirely: X/scrim/swipe now always
+      // hand off synchronously to closeRef.current() below, which is
+      // reassigned fresh on every render and reads the CURRENT
+      // justCreated/hasChanges directly -- no lift, no lag, no stale
+      // value possible. The one trade-off is the plain "nothing changed"
+      // close no longer gets Sheet's slide-down animation; closeRef calls
+      // onClose directly instead. Worth it to never freeze the app again.
+      closeImmediately
       forceExpanded
       scrollAreaPaddingBottom="0px"
       rightAction={
@@ -114,14 +114,13 @@ export function PantryMealDetail({
       <PantryMealDetailContent
         meal={meal} items={items} allItems={allItems} meals={meals} photos={mealPhotosFor(meal, itemsById)}
         justCreatedItemIds={justCreatedItemIds} onClose={onClose} showToast={showToast} deleteRef={deleteRef} closeRef={closeRef}
-        onShouldConfirmCloseChange={setShouldConfirmClose}
       />
     </Sheet>
   );
 }
 
 function PantryMealDetailContent({
-  meal, items, allItems, meals, photos, justCreatedItemIds, onClose, showToast, deleteRef, closeRef, onShouldConfirmCloseChange,
+  meal, items, allItems, meals, photos, justCreatedItemIds, onClose, showToast, deleteRef, closeRef,
 }: {
   meal: Meal;
   items: FoodItem[];
@@ -134,10 +133,6 @@ function PantryMealDetailContent({
   showToast?: ShowToast;
   deleteRef: React.MutableRefObject<() => void>;
   closeRef: React.MutableRefObject<() => void>;
-  /** Reports "should X/scrim/swipe be intercepted instead of closing?" up
-   *  to the parent's render-time closeImmediately prop (see its own
-   *  comment for why this can't just be a ref like closeRef/deleteRef). */
-  onShouldConfirmCloseChange: (v: boolean) => void;
 }) {
   const justCreated = justCreatedItemIds !== undefined;
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
@@ -367,12 +362,6 @@ function PantryMealDetailContent({
     return !!current && foodItemFieldsChanged(orig, current);
   });
   const hasChanges = nameChanged || itemsChanged || foodItemsChanged;
-
-  // Keep the parent's closeImmediately prop in sync -- see
-  // onShouldConfirmCloseChange's own doc comment for why.
-  useEffect(() => {
-    onShouldConfirmCloseChange(justCreated || hasChanges);
-  }, [justCreated, hasChanges, onShouldConfirmCloseChange]);
 
   async function saveName(next: string) {
     const trimmed = next.trim();

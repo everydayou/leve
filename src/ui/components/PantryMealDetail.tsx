@@ -62,71 +62,49 @@ export function PantryMealDetail({
 }) {
   const meal = meals.find((m) => m.id === mealId);
   const deleteRef = useRef<() => void>(() => undefined);
+  // X / scrim / swipe-down — PantryMealDetailContent owns the actual
+  // decision (plain close vs. "discard changes?" confirm), since it's the
+  // one that knows whether anything changed this session. Same
+  // ref-forwarding shape as deleteRef above.
+  const closeRef = useRef<() => void>(() => undefined);
 
   // Meal was deleted elsewhere (or from this sheet) — close automatically.
   useEffect(() => { if (!meal) onClose(); }, [meal, onClose]);
 
-  // Round 157: same reasoning as PantryFoodItemDetail's own discard-confirm
-  // — closing (X / scrim / swipe-down) a freshly scan-created Meal without
-  // tapping "Save meal" used to leave it in the Pantry anyway, since round
-  // 149 commits scan results immediately. `justCreatedItemIds` is only ever
-  // set (by the parent) right after a scan produced this exact Meal, so its
-  // presence doubles as "was this Meal just created" — no separate flag
-  // needed. Discarding removes the Meal itself; its ingredient Food items
-  // are left in place (same "leave orphans" precedent as removing a single
-  // item from a meal already does) rather than hunting down and deleting
-  // each one.
-  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  // `justCreatedItemIds` is only ever set (by the parent) right after a
+  // scan/manual-add/add-from-pantry flow produced this exact Meal — its
+  // presence doubles as "was this Meal just created" (round 157, extended
+  // beyond scans in round 170).
   const justCreated = justCreatedItemIds !== undefined;
-
-  async function discard() {
-    if (!meal) return;
-    await repos.meals.remove(meal.id);
-    onClose();
-  }
 
   if (!meal) return null;
 
   const itemsById = itemsByIdMap(allItems);
 
   return (
-    <>
-      <Sheet
-        title="Meal"
-        onClose={justCreated ? () => setConfirmingDiscard(true) : onClose}
-        forceExpanded
-        scrollAreaPaddingBottom="0px"
-        rightAction={
-          justCreated ? undefined : (
-            <button data-no-drag onClick={() => deleteRef.current()} aria-label="Delete meal" className="-m-1 p-1 text-content-secondary active:text-danger">
-              <DeleteIcon size={20} />
-            </button>
-          )
-        }
-      >
-        <PantryMealDetailContent
-          meal={meal} items={items} allItems={allItems} meals={meals} photos={mealPhotosFor(meal, itemsById)}
-          justCreatedItemIds={justCreatedItemIds} onClose={onClose} showToast={showToast} deleteRef={deleteRef}
-        />
-      </Sheet>
-
-      {confirmingDiscard && (
-        <Sheet title="Discard this meal?" onClose={() => setConfirmingDiscard(false)}>
-          <div className="space-y-3 pb-2">
-            <p className="text-subhead text-content-secondary">
-              <span className="font-medium text-content">"{meal.name}"</span> won't be saved to your pantry.
-            </p>
-            <Button variant="destructive" onClick={() => void discard()}>Discard</Button>
-            <Button variant="outline" onClick={() => setConfirmingDiscard(false)}>Keep editing</Button>
-          </div>
-        </Sheet>
-      )}
-    </>
+    <Sheet
+      title="Meal"
+      onClose={() => closeRef.current()}
+      forceExpanded
+      scrollAreaPaddingBottom="0px"
+      rightAction={
+        justCreated ? undefined : (
+          <button data-no-drag onClick={() => deleteRef.current()} aria-label="Delete meal" className="-m-1 p-1 text-content-secondary active:text-danger">
+            <DeleteIcon size={20} />
+          </button>
+        )
+      }
+    >
+      <PantryMealDetailContent
+        meal={meal} items={items} allItems={allItems} meals={meals} photos={mealPhotosFor(meal, itemsById)}
+        justCreatedItemIds={justCreatedItemIds} onClose={onClose} showToast={showToast} deleteRef={deleteRef} closeRef={closeRef}
+      />
+    </Sheet>
   );
 }
 
 function PantryMealDetailContent({
-  meal, items, allItems, meals, photos, justCreatedItemIds, onClose, showToast, deleteRef,
+  meal, items, allItems, meals, photos, justCreatedItemIds, onClose, showToast, deleteRef, closeRef,
 }: {
   meal: Meal;
   items: FoodItem[];
@@ -138,7 +116,10 @@ function PantryMealDetailContent({
   onClose: () => void;
   showToast?: ShowToast;
   deleteRef: React.MutableRefObject<() => void>;
+  closeRef: React.MutableRefObject<() => void>;
 }) {
+  const justCreated = justCreatedItemIds !== undefined;
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const [name, setName] = useState(meal.name);
   const [activeOverlay, setActiveOverlay] = useState<OverlayKey | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -166,6 +147,26 @@ function PantryMealDetailContent({
   const [scannedItemIds, setScannedItemIds] = useState<Set<string>>(() => new Set(justCreatedItemIds));
   const [correctingItemId, setCorrectingItemId] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState(false);
+
+  // Snapshot this meal's saved name/items and its ingredients' own fields
+  // the moment this view opens. Item add/remove/edit-macros/"Change" all
+  // still persist immediately as they happen elsewhere in this file
+  // (unchanged) -- this snapshot only exists so X can offer to silently
+  // revert everything back to it if the user backs out without tapping
+  // Save meal, instead of leaving mid-session edits stuck in the pantry.
+  // Lazy useRef init (not useState) so it's captured once on the first
+  // render and never recomputed as meal/allItems update live afterward --
+  // same one-time-snapshot shape as Sheet.tsx's own scrollSnapshot.
+  const originalRef = useRef<{ name: string; items: Meal['items']; foodItems: Map<string, FoodItem> } | null>(null);
+  if (originalRef.current === null) {
+    const foodItemsSnapshot = new Map<string, FoodItem>();
+    for (const mi of meal.items) {
+      const fi = allItems.find((i) => i.id === mi.foodItemId);
+      if (fi) foodItemsSnapshot.set(fi.id, fi);
+    }
+    originalRef.current = { name: meal.name, items: meal.items, foodItems: foodItemsSnapshot };
+  }
+  const original = originalRef.current;
 
   // Round 167 — measures actual remaining viewport space for the grey
   // Food-items panel below (see useFillToBottom's own doc comment). Must
@@ -326,7 +327,25 @@ function PantryMealDetailContent({
     onClose();
   }
 
-  const hasChanges = name.trim() !== '' && name.trim() !== meal.name;
+  function itemsEqual(a: Meal['items'], b: Meal['items']): boolean {
+    if (a.length !== b.length) return false;
+    return a.every((mi, i) => mi.foodItemId === b[i].foodItemId && mi.quantity === b[i].quantity);
+  }
+
+  function foodItemFieldsChanged(a: FoodItem, b: FoodItem): boolean {
+    return a.name !== b.name || a.calories !== b.calories || a.protein !== b.protein
+      || a.carbs !== b.carbs || a.fiber !== b.fiber || a.fat !== b.fat || a.photo !== b.photo
+      || a.measurementType !== b.measurementType || a.referenceAmount !== b.referenceAmount;
+  }
+
+  // eslint-disable-next-line react-hooks/refs -- original (== originalRef.current) is written exactly once on first render (see the lazy-init block above) and never mutated again for this component's lifetime; safe despite the analyzer's conservative can't-prove-it ref-taint check.
+  const nameChanged = name.trim() !== '' && name.trim() !== original.name;
+  const itemsChanged = !itemsEqual(meal.items, original.items); // eslint-disable-line react-hooks/refs
+  const foodItemsChanged = [...original.foodItems.values()].some((orig) => { // eslint-disable-line react-hooks/refs
+    const current = allItems.find((i) => i.id === orig.id);
+    return !!current && foodItemFieldsChanged(orig, current);
+  });
+  const hasChanges = nameChanged || itemsChanged || foodItemsChanged;
 
   async function saveName(next: string) {
     const trimmed = next.trim();
@@ -445,6 +464,47 @@ function PantryMealDetailContent({
   }
 
   deleteRef.current = () => setConfirmingDeleteMeal(true); // eslint-disable-line react-hooks/refs
+
+  // X / scrim / swipe-down: a brand-new meal (justCreated) or a session
+  // with any unsaved change asks for confirmation first; otherwise it's a
+  // no-op close, same as always.
+  closeRef.current = () => { // eslint-disable-line react-hooks/refs
+    if (justCreated || hasChanges) setConfirmingDiscard(true);
+    else onClose();
+  };
+
+  async function discardSessionChanges() {
+    if (justCreated) {
+      // Brand new meal (round 157's original case, now also reached from
+      // Food item -> add-from-pantry/add-manual/pick-existing-meal, round
+      // 170) -- discard the whole thing. Its ingredient Food items are
+      // left in place (same "leave orphans" precedent as removing a
+      // single item from a meal already does) rather than hunting down
+      // and deleting each one.
+      await repos.meals.remove(meal.id);
+    } else {
+      // Pre-existing meal with session edits -- restore its ingredients'
+      // own fields where they were changed. Skipped when the measurement
+      // basis itself changed (measurementType/referenceAmount): that
+      // already triggered a one-way unit conversion across every log
+      // entry/meal referencing this item (convertFoodItemReferences), so
+      // reverting just this field would leave those already-converted
+      // quantities silently wrong.
+      for (const orig of original.foodItems.values()) {
+        const current = allItems.find((i) => i.id === orig.id);
+        if (
+          current
+          && current.measurementType === orig.measurementType
+          && current.referenceAmount === orig.referenceAmount
+          && foodItemFieldsChanged(orig, current)
+        ) {
+          await repos.foodItems.put(orig);
+        }
+      }
+      await repos.meals.put({ ...meal, name: original.name, items: original.items });
+    }
+    onClose();
+  }
 
   return (
     <>
@@ -582,6 +642,22 @@ function PantryMealDetailContent({
             <p className="text-subhead text-content-secondary">You haven't saved this food item yet. Discard your changes?</p>
             <Button variant="destructive" onClick={() => { setConfirmingDiscardManual(false); setActiveOverlay(null); }}>Discard</Button>
             <Button variant="outline" onClick={() => setConfirmingDiscardManual(false)}>Keep editing</Button>
+          </div>
+        </Sheet>
+      )}
+
+      {confirmingDiscard && (
+        <Sheet title={justCreated ? 'Discard this meal?' : 'Discard changes?'} onClose={() => setConfirmingDiscard(false)}>
+          <div className="space-y-3 pb-2">
+            <p className="text-subhead text-content-secondary">
+              {justCreated ? (
+                <><span className="font-medium text-content">"{meal.name}"</span> won't be saved to your pantry.</>
+              ) : (
+                <>Your changes to <span className="font-medium text-content">"{original.name}"</span> won't be saved.</> // eslint-disable-line react-hooks/refs
+              )}
+            </p>
+            <Button variant="destructive" onClick={() => void discardSessionChanges()}>Discard</Button>
+            <Button variant="outline" onClick={() => setConfirmingDiscard(false)}>Keep editing</Button>
           </div>
         </Sheet>
       )}

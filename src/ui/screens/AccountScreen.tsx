@@ -333,7 +333,7 @@ function AppearanceCard() {
   }
   return (
     <OutlineCard>
-      <p className="mb-2 text-subhead font-bold text-content">Theme</p>
+      <p className="mb-2 text-callout font-bold text-content">Theme</p>
       <SegmentedControl<ThemePref>
         value={pref}
         onChange={pick}
@@ -341,7 +341,7 @@ function AppearanceCard() {
       />
       <div className="mt-3 flex items-center justify-between border-t border-border-subtle pt-3">
         <div>
-          <p className="text-subhead font-bold">Haptic feedback</p>
+          <p className="text-callout font-bold">Haptic feedback</p>
           <p className="text-label text-content-secondary">Vibration on taps and interactions</p>
         </div>
         <button
@@ -461,7 +461,7 @@ function WeightUnitsCard({ user }: { user: User }) {
   }
   return (
     <OutlineCard>
-      <p className="mb-2 text-subhead font-bold text-content">Weight units</p>
+      <p className="mb-2 text-callout font-bold text-content">Weight units</p>
       <SegmentedControl<Units>
         value={units}
         onChange={save}
@@ -494,7 +494,7 @@ function WeightCadenceCard({ user }: { user: User }) {
 
   return (
     <OutlineCard>
-      <p className="mb-2 text-subhead font-bold text-content">Weigh-in frequency</p>
+      <p className="mb-2 text-callout font-bold text-content">Weigh-in frequency</p>
       <SegmentedControl<'daily' | 'weekly'>
         value={cadence}
         onChange={saveCadence}
@@ -502,7 +502,7 @@ function WeightCadenceCard({ user }: { user: User }) {
       />
       {cadence === 'weekly' && (
         <div className="mt-3">
-          <p className="mb-2 text-subhead font-bold text-content">Which day?</p>
+          <p className="mb-2 text-callout font-bold text-content">Which day?</p>
           <div className="flex gap-1.5" role="group" aria-label="Day of week">
             {DOW_LABELS.map((label, i) => (
               <button
@@ -629,7 +629,7 @@ function MacroDiaryCard({ goal }: { goal: Goal }) {
       className="overflow-hidden rounded-card bg-surface"
       style={{ boxShadow: 'inset 0 0 0 1px var(--color-border-field)' }}
     >
-      <p className="px-4 pt-3 pb-2 text-subhead font-bold text-content">Diary macros</p>
+      <p className="px-4 pt-3 pb-2 text-callout font-bold text-content">Diary macros</p>
       {macros.map(({ label, field }) => {
         const enabled = goal[field] !== false;
         return (

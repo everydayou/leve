@@ -1,4 +1,6 @@
 import { WheelPicker } from '../kit';
+import { WeightLogSheet } from '../components/WeightLogSheet';
+import { todayISO } from '../../data/ids';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLive } from '../../state/live';
 import { useNavigate } from 'react-router-dom';
@@ -70,39 +72,55 @@ export function AccountScreen() {
     <div className="px-6 pb-6">
       <h1 onClick={handleTitleTap} className="select-none pt-4 text-title font-semibold">Account</h1>
 
-      <AccountSectionHeading>Profile</AccountSectionHeading>
-      {/* Layered card: white profile card floats on a grey container; BMR
-          sits directly on the grey reveal below, matching the gauge-card /
-          Basket-Meal reference pattern (TodayScreen.tsx ~L943). */}
-      <div className="rounded-main bg-surface-sunken">
-        <div className="rounded-main bg-surface border border-border-subtle shadow-card-lg p-4">
+      <div className="mb-3 mt-6 flex items-center justify-between">
+        <p className="text-headline font-semibold text-content">Profile</p>
+        <button
+          onClick={() => setEditingProfile(true)}
+          className="text-headline font-medium text-accent-hover active:opacity-70"
+        >
+          Edit
+        </button>
+      </div>
+      {/* Whole card opens Edit profile on tap; the BMR info icon inside
+          stops propagation so it still opens its own explainer sheet. */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setEditingProfile(true)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingProfile(true); } }}
+        className="w-full rounded-sheet border border-border-subtle bg-surface p-4 text-left shadow-card-lg"
+      >
+        <div className="space-y-3">
+          <ProfileRow label="Height" value={user.heightCm > 0 ? `${user.heightCm} cm` : 'Not set'} />
+          <ProfileRow label="Age" value={user.age != null ? `${user.age}` : 'Not set'} />
+          <ProfileRow label="Sex" value={user.sex ? cap(user.sex) : 'Not set'} />
+          <ProfileRow label="Weight" value={weightKg != null ? displayWeight(weightKg, user.units ?? 'kg') : 'Not set'} />
           <div className="flex items-start justify-between">
-            <div className="space-y-3">
-              <ProfileRow label="Height" value={user.heightCm > 0 ? `${user.heightCm} cm` : 'Not set'} />
-              <ProfileRow label="Age" value={user.age != null ? `${user.age}` : 'Not set'} />
-              <ProfileRow label="Sex" value={user.sex ? cap(user.sex) : 'Not set'} />
-              <ProfileRow label="Weight" value={weightKg != null ? displayWeight(weightKg, user.units ?? 'kg') : 'Not set'} />
+            <div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowBmrInfo(true); }}
+                  className="shrink-0 text-content-secondary active:opacity-70"
+                  aria-label="BMR info"
+                >
+                  <Icon name="info" size={14} strokeWidth={1.75} />
+                </button>
+                <span className="text-subhead font-medium text-content">BMR</span>
+              </div>
+              <p className="mt-0.5 text-subhead text-content-secondary">(resting burn)</p>
             </div>
-            <Button variant="subtle" size="xs" fullWidth={false} onClick={() => setEditingProfile(true)}>Edit</Button>
+            <div className="text-right">
+              <span className="text-headline font-semibold text-content">
+                {user.bmr > 0 ? user.bmr : <span className="text-content-muted">—</span>}
+              </span>
+              <p className="mt-0.5 text-subhead text-content-secondary">kcal / day</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center justify-between px-4 py-3">
-          <div>
-            <p className="text-label font-medium text-content-secondary">BMR (resting burn)</p>
-            <p className="text-title font-semibold">
-              {user.bmr > 0
-                ? <>{user.bmr} <span className="text-subhead font-normal text-content-secondary">kcal / day</span></>
-                : <span className="text-content-muted">—</span>}
+          {user.bmr <= 0 && (
+            <p className="text-caption text-content-secondary">
+              Set height, age &amp; sex in your profile to enable auto-calculation.
             </p>
-            {user.bmr <= 0 && (
-              <p className="mt-1 text-caption text-content-secondary">
-                Set height, age &amp; sex in your profile to enable auto-calculation.
-              </p>
-            )}
-          </div>
-          <button onClick={() => setShowBmrInfo(true)} className="shrink-0 p-1 text-content-muted active:opacity-70" aria-label="BMR info">
-            <Icon name="info" size={20} strokeWidth={1.75} />
-          </button>
+          )}
         </div>
       </div>
 
@@ -192,7 +210,8 @@ function ProfileSheet({ user, currentWeightKg: weightKg, onClose }: { user: User
   const [height, setHeight] = useState(String(user.heightCm));
   const [age, setAge] = useState(user.age != null ? String(user.age) : '');
   const [sex, setSex] = useState<Sex | undefined>(user.sex);
-  const [units, setUnits] = useState<Units>(user.units ?? 'kg');
+  // Units now lives in Tracking > Weight units (WeightUnitsCard) — not edited here.
+  const [showWeightSheet, setShowWeightSheet] = useState(false);
   async function save() {
     const heightCm = Number(height) || user.heightCm;
     const ageNum   = age ? Number(age) : undefined;
@@ -206,38 +225,44 @@ function ProfileSheet({ user, currentWeightKg: weightKg, onClose }: { user: User
       heightCm,
       age: ageNum,
       sex,
-      units,
       bmr: newBmr,
     });
     onClose();
   }
   return (
-    <Sheet title="Edit profile" onClose={onClose} forceExpanded footer={<Button size="lg" onClick={save}>Save profile</Button>}>
-      <div className="space-y-3 pb-2">
-        <WheelPicker label="Height (cm)" value={height} onChange={setHeight} min={100} max={250} step={1} unit="cm" centerAt={170} />
-        <WheelPicker label="Age" value={age} onChange={setAge} min={10} max={100} step={1} centerAt={30} />
-        <div>
-          <span className="text-subhead font-normal text-content-secondary">Sex</span>
-          <div className="mt-1">
-            <SegmentedControl<Sex>
-              value={(sex ?? '') as Sex}
-              onChange={setSex}
-              options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]}
-            />
+    <>
+      <Sheet title="Edit profile" onClose={onClose} forceExpanded footer={<Button size="lg" onClick={save}>Save profile</Button>}>
+        <div className="space-y-3 pb-2">
+          <WheelPicker label="Height (cm)" value={height} onChange={setHeight} min={100} max={250} step={1} unit="cm" centerAt={170} />
+          <WheelPicker label="Age" value={age} onChange={setAge} min={10} max={100} step={1} centerAt={30} />
+          <div>
+            <span className="text-subhead font-normal text-content-secondary">Sex</span>
+            <div className="mt-1">
+              <SegmentedControl<Sex>
+                value={(sex ?? '') as Sex}
+                onChange={setSex}
+                options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]}
+              />
+            </div>
+          </div>
+          {/* Reuses the same weight-logging sheet as Today/Goal ("Log weight"):
+              pre-fills from today's entry if one exists, else the latest
+              known weight; upserts by date so today stays a single entry. */}
+          <div>
+            <span className="text-subhead font-normal text-content-secondary">Weight</span>
+            <div className="mt-1 flex items-center justify-between rounded-field bg-surface-sunken px-3 py-2.5">
+              <span className="text-subhead font-semibold text-content">
+                {weightKg != null ? displayWeight(weightKg, user.units ?? 'kg') : 'Not set'}
+              </span>
+              <Button variant="subtle" size="xs" fullWidth={false} onClick={() => setShowWeightSheet(true)}>
+                {weightKg != null ? 'Log' : 'Add'}
+              </Button>
+            </div>
           </div>
         </div>
-        <div>
-          <span className="text-subhead font-normal text-content-secondary">Units</span>
-          <div className="mt-1">
-            <SegmentedControl<Units>
-              value={units}
-              onChange={setUnits}
-              options={[{ value: 'kg', label: 'kg' }, { value: 'lbs', label: 'lbs' }]}
-            />
-          </div>
-        </div>
-      </div>
-    </Sheet>
+      </Sheet>
+      {showWeightSheet && <WeightLogSheet date={todayISO()} onClose={() => setShowWeightSheet(false)} />}
+    </>
   );
 }
 
@@ -301,7 +326,7 @@ function AppearanceCard() {
   }
   return (
     <OutlineCard>
-      <p className="mb-2 text-subhead font-medium text-content-secondary">Theme</p>
+      <p className="mb-2 text-subhead font-medium text-content">Theme</p>
       <SegmentedControl<ThemePref>
         value={pref}
         onChange={pick}
@@ -429,7 +454,7 @@ function WeightUnitsCard({ user }: { user: User }) {
   }
   return (
     <OutlineCard>
-      <p className="mb-2 text-subhead font-medium text-content-secondary">Weight units</p>
+      <p className="mb-2 text-subhead font-medium text-content">Weight units</p>
       <SegmentedControl<Units>
         value={units}
         onChange={save}
@@ -459,7 +484,7 @@ function WeightCadenceCard({ user }: { user: User }) {
 
   return (
     <OutlineCard>
-      <p className="mb-2 text-subhead font-medium text-content-secondary">Weigh-in frequency</p>
+      <p className="mb-2 text-subhead font-medium text-content">Weigh-in frequency</p>
       <SegmentedControl<'daily' | 'weekly'>
         value={cadence}
         onChange={saveCadence}
@@ -467,7 +492,7 @@ function WeightCadenceCard({ user }: { user: User }) {
       />
       {cadence === 'weekly' && (
         <div className="mt-3">
-          <p className="mb-2 text-label text-content-secondary">Which day?</p>
+          <p className="mb-2 text-subhead font-medium text-content">Which day?</p>
           <div className="flex gap-1.5" role="group" aria-label="Day of week">
             {DOW_LABELS.map((label, i) => (
               <button
@@ -477,7 +502,7 @@ function WeightCadenceCard({ user }: { user: User }) {
                 className={[
                   'flex-1 rounded-control py-1.5 text-caption font-medium transition-colors',
                   day === i
-                    ? 'bg-accent text-on-accent'
+                    ? 'segmented-active text-accent-hover shadow-sm'
                     : 'bg-surface-sunken text-content-secondary active:opacity-70',
                 ].join(' ')}
               >
@@ -487,7 +512,7 @@ function WeightCadenceCard({ user }: { user: User }) {
           </div>
         </div>
       )}
-      <p className="mt-3 text-caption text-content-secondary">
+      <p className="mt-3 text-subhead text-content-secondary">
         {cadence === 'daily'
           ? "You'll see a weight reminder each evening until you log."
           : `You'll see a weight reminder on ${DOW_LABELS[day]}s.`}
@@ -499,8 +524,8 @@ function WeightCadenceCard({ user }: { user: User }) {
 function ProfileRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between">
-      <span className="text-subhead font-medium text-content-secondary">{label}</span>
-      <span className="text-headline font-semibold text-content">{value}</span>
+      <span className="text-subhead font-medium text-content">{label}</span>
+      <span className="text-right text-headline font-semibold text-content">{value}</span>
     </div>
   );
 }
@@ -521,7 +546,7 @@ function AccountSectionHeading({ children }: { children: ReactNode }) {
 function OutlineCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={`rounded-main bg-surface p-4 ${className}`}
+      className={`rounded-card bg-surface p-4 ${className}`}
       style={{ boxShadow: 'inset 0 0 0 1px var(--color-border-field)' }}
     >
       {children}
@@ -591,10 +616,10 @@ function MacroDiaryCard({ goal }: { goal: Goal }) {
 
   return (
     <div
-      className="overflow-hidden rounded-main bg-surface divide-y divide-border-subtle"
+      className="overflow-hidden rounded-card bg-surface"
       style={{ boxShadow: 'inset 0 0 0 1px var(--color-border-field)' }}
     >
-      <p className="px-4 pt-3 pb-2 text-subhead font-medium text-content-secondary">Diary macros</p>
+      <p className="px-4 pt-3 pb-2 text-subhead font-medium text-content">Diary macros</p>
       {macros.map(({ label, field }) => {
         const enabled = goal[field] !== false;
         return (

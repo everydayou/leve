@@ -506,6 +506,24 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
 
   function close() {
     if (closing) return;
+    // Round 171 bug fix: closeImmediately previously only short-circuited
+    // the X button's own onClick (see below) -- the scrim tap and
+    // swipe-to-dismiss gestures both call this close() function directly,
+    // so a caller relying on closeImmediately (to intercept every dismiss
+    // path and possibly show a confirm instead, e.g. PantryMealDetail's
+    // "discard changes?" flow) still got the animated path from those two
+    // gestures. That's what caused Marco's frozen-app report: this Sheet
+    // played its full slide-down + set closing=true, called the caller's
+    // onClose after CLOSE_MS, the caller decided NOT to actually unmount
+    // (it showed a confirm dialog instead) -- so `closing` stayed true
+    // forever with this Sheet still mounted, permanently invisible but
+    // still rendering its full-screen scrim button and holding the body
+    // scroll lock, blocking all further taps. Checking closeImmediately
+    // here too means every dismiss path (X, scrim, swipe) now consistently
+    // hands off to the caller with this Sheet untouched (never animated,
+    // never marked closing) whenever the caller wants a chance to
+    // intercept the close.
+    if (closeImmediately) { onClose(); return; }
     setClosing(true);
     setTimeout(onClose, CLOSE_MS);
   }

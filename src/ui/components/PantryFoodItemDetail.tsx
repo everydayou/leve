@@ -84,6 +84,15 @@ export function PantryFoodItemDetail({
       <Sheet
         title="Food item"
         onClose={justCreated ? () => setConfirmingDiscard(true) : onClose}
+        // Round 171: without this, X/scrim/swipe would all play this
+        // Sheet's full close animation BEFORE calling onClose above, which
+        // (for a justCreated item) shows a confirm dialog instead of
+        // actually closing -- leaving this Sheet permanently stuck
+        // mid-"closing" (invisible but still mounted, still holding its
+        // full-screen scrim + body scroll lock). closeImmediately skips
+        // straight to onClose on every dismiss path, so a justCreated item
+        // stays fully visible/interactive behind the confirm dialog.
+        closeImmediately={justCreated}
         forceExpanded
         rightAction={
           justCreated ? undefined : (

@@ -171,7 +171,7 @@ function PantryMealDetailContent({
   // Food-items panel below (see useFillToBottom's own doc comment). Must
   // be called unconditionally, before the analysing/committing early
   // return further down.
-  const greyFill = useFillToBottom<HTMLDivElement>();
+  const greyFill = useFillToBottom<HTMLDivElement>(36);
 
   const capture = useFoodCapture({
     showToast,
@@ -501,7 +501,7 @@ function PantryMealDetailContent({
             </div>
           </div>
 
-          <div style={{ paddingTop: '24px', paddingLeft: '20px', paddingRight: '20px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
+          <div style={{ padding: '24px 20px 24px 20px' }}>
             <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
             <div className="space-y-4">
               {meal.items.map((mi) => {

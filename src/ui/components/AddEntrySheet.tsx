@@ -730,7 +730,7 @@ function FoodForm({
   // Round 167 — measures actual remaining viewport space for the grey
   // Food-items panel below (see useFillToBottom's own doc comment). Must
   // be called unconditionally, before the "analyzing" early return below.
-  const greyFill = useFillToBottom<HTMLDivElement>();
+  const greyFill = useFillToBottom<HTMLDivElement>(36);
 
   // ── Analysing state ───────────────────────────────────────────────────────
   if (analyzing) {
@@ -910,7 +910,7 @@ function FoodForm({
               </label>
             </div>
 
-            <div style={{ paddingTop: '24px', paddingLeft: '20px', paddingRight: '20px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
+            <div style={{ padding: '24px 20px 24px 20px' }}>
               <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
               <div className="space-y-3">
                 {basket.map((item, idx) => (
@@ -2157,7 +2157,7 @@ function LogEntryContent({
   // Food-items panel below (see useFillToBottom's own doc comment).
   // LogEntryContent has no early return before this point, so it's safe
   // to call unconditionally here.
-  const greyFill = useFillToBottom<HTMLDivElement>();
+  const greyFill = useFillToBottom<HTMLDivElement>(36);
 
   return (
     <>
@@ -2307,7 +2307,7 @@ function LogEntryContent({
                 </label>
               </div>
 
-              <div style={{ paddingTop: '24px', paddingLeft: '20px', paddingRight: '20px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
+              <div style={{ padding: '24px 20px 24px 20px' }}>
                 <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
                 <div className="space-y-3">
                   {basket.map((item, idx) => (

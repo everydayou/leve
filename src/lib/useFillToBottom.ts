@@ -21,15 +21,30 @@ import { useEffect, useRef, useState } from 'react';
  * leaving a plain white gap below the grey panel — exactly what Marco
  * kept seeing. Rather than guess a single "safe" delay, this now polls
  * across the whole settle window and also re-measures on every
- * `transitionend` bubbling up from anywhere in the document (cheap, and
- * catches the panel's transform transition ending directly regardless of
- * its exact duration).
+ * `transitionend` bubbling up in the document.
  *
- * Usage: `const fill = useFillToBottom<HTMLDivElement>();` then spread
+ * Round 170 — bottomGapPx: rounds 167/168 targeted a flush fill (grey's
+ * bottom edge = viewport bottom), which worked but left the Save button
+ * however far *above* that edge the content's own padding happened to
+ * put it. Two problems fell out of that: (1) when content is short
+ * (e.g. no Save button showing, just "+ Add a new food item"), the flush
+ * target let the grey panel — and the gap below its last real content —
+ * stretch to fill however much screen was left, which read as a huge
+ * dead zone; (2) any residual white after the panel (stray padding
+ * elsewhere) always showed past a flush edge, since there was zero
+ * margin for error. `bottomGapPx` folds Marco's "~60px from the bottom,
+ * max" requirement directly into the fill target itself — the panel now
+ * stretches to (viewport bottom − bottomGapPx), never further, so short
+ * content gets capped at a small, fixed gap instead of "whatever's left."
+ * Long content (natural height already exceeds the target) is unaffected
+ * — the min-height simply has no effect and the panel's own trailing
+ * padding is all that shows.
+ *
+ * Usage: `const fill = useFillToBottom<HTMLDivElement>(36);` then spread
  * `ref={fill.ref}` and `style={{ minHeight: fill.minHeight }}` (merge with
  * any other inline styles) onto the panel that should reach the bottom.
  */
-export function useFillToBottom<T extends HTMLElement>() {
+export function useFillToBottom<T extends HTMLElement>(bottomGapPx = 0) {
   const ref = useRef<T>(null);
   const [minHeight, setMinHeight] = useState(0);
 
@@ -38,7 +53,7 @@ export function useFillToBottom<T extends HTMLElement>() {
       const el = ref.current;
       if (!el) return;
       const top = el.getBoundingClientRect().top;
-      setMinHeight(Math.max(0, window.innerHeight - top));
+      setMinHeight(Math.max(0, window.innerHeight - top - bottomGapPx));
     }
 
     measure();
@@ -60,7 +75,7 @@ export function useFillToBottom<T extends HTMLElement>() {
       document.removeEventListener('transitionend', measure);
       pollIds.forEach(clearTimeout);
     };
-  }, []);
+  }, [bottomGapPx]);
 
   return { ref, minHeight };
 }

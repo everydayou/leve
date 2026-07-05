@@ -72,7 +72,7 @@ export function AccountScreen() {
     <div className="px-6 pb-6">
       <h1 onClick={handleTitleTap} className="select-none pt-4 text-title font-semibold">Account</h1>
 
-      <div className="mb-3 mt-6 flex items-center justify-between">
+      <div className="mb-2 mt-6 flex items-center justify-between">
         <p className="text-headline font-semibold text-content">Profile</p>
         <button
           onClick={() => setEditingProfile(true)}
@@ -333,7 +333,7 @@ function AppearanceCard() {
   }
   return (
     <OutlineCard>
-      <p className="mb-2 text-subhead font-medium text-content">Theme</p>
+      <p className="mb-2 text-subhead font-bold text-content">Theme</p>
       <SegmentedControl<ThemePref>
         value={pref}
         onChange={pick}
@@ -341,7 +341,7 @@ function AppearanceCard() {
       />
       <div className="mt-3 flex items-center justify-between border-t border-border-subtle pt-3">
         <div>
-          <p className="text-subhead font-medium">Haptic feedback</p>
+          <p className="text-subhead font-bold">Haptic feedback</p>
           <p className="text-label text-content-secondary">Vibration on taps and interactions</p>
         </div>
         <button
@@ -461,7 +461,7 @@ function WeightUnitsCard({ user }: { user: User }) {
   }
   return (
     <OutlineCard>
-      <p className="mb-2 text-subhead font-medium text-content">Weight units</p>
+      <p className="mb-2 text-subhead font-bold text-content">Weight units</p>
       <SegmentedControl<Units>
         value={units}
         onChange={save}
@@ -494,7 +494,7 @@ function WeightCadenceCard({ user }: { user: User }) {
 
   return (
     <OutlineCard>
-      <p className="mb-2 text-subhead font-medium text-content">Weigh-in frequency</p>
+      <p className="mb-2 text-subhead font-bold text-content">Weigh-in frequency</p>
       <SegmentedControl<'daily' | 'weekly'>
         value={cadence}
         onChange={saveCadence}
@@ -502,7 +502,7 @@ function WeightCadenceCard({ user }: { user: User }) {
       />
       {cadence === 'weekly' && (
         <div className="mt-3">
-          <p className="mb-2 text-subhead font-medium text-content">Which day?</p>
+          <p className="mb-2 text-subhead font-bold text-content">Which day?</p>
           <div className="flex gap-1.5" role="group" aria-label="Day of week">
             {DOW_LABELS.map((label, i) => (
               <button
@@ -546,7 +546,7 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
  * (small grey uppercase caption) used on Today/Goal/Pantry — left untouched
  * there so this doesn't ripple to other screens. */
 function AccountSectionHeading({ children }: { children: ReactNode }) {
-  return <p className="mb-3 mt-6 text-headline font-semibold text-content">{children}</p>;
+  return <p className="mb-2 mt-6 text-headline font-semibold text-content">{children}</p>;
 }
 
 /* Outline card used on Account only — matches GoalScreen.tsx's goal-overview
@@ -629,7 +629,7 @@ function MacroDiaryCard({ goal }: { goal: Goal }) {
       className="overflow-hidden rounded-card bg-surface"
       style={{ boxShadow: 'inset 0 0 0 1px var(--color-border-field)' }}
     >
-      <p className="px-4 pt-3 pb-2 text-subhead font-medium text-content">Diary macros</p>
+      <p className="px-4 pt-3 pb-2 text-subhead font-bold text-content">Diary macros</p>
       {macros.map(({ label, field }) => {
         const enabled = goal[field] !== false;
         return (

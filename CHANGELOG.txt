@@ -1,4 +1,276 @@
 ================================================================
+ROUND 179 — SEED 150 DEFAULT PANTRY FOODS; LOCK THEIR MACROS (2026-07-05)
+================================================================
+Files: src/data/defaultPantry.ts (new), src/data/defaultPantrySeed.ts (new),
+       src/data/defaultPantrySeed.test.ts (new), src/ui/AppShell.tsx,
+       src/ui/components/FoodItemForm.tsx, src/ui/components/PantryFoodItemDetail.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/kit/NumberField.tsx, src/ui/kit/LabeledInput.tsx,
+       src/ui/kit/MeasurementTypeSelector.tsx
+
+Follow-up to round 177's origin field/filter, which had nothing to filter
+against yet — this actually populates the app side of "My own" vs default.
+
+Conceptual discussion first (Marco wanted to think it through before any
+code): settled on a ~120-150 food cap, no images for v1, free/bundled
+data (no live API dependency), fixed/non-editable macros for app-provided
+items, and no duplicate-detection UX beyond normal pantry naming — "if
+the user wants their own, they just need their own name." Landed on 150
+("a rounder number") after the initial 120 proposal.
+
+Implementation:
+- defaultPantry.ts: 150 common staples (proteins, grains, fruits,
+  vegetables, dairy, fats/nuts/seeds, pantry basics), standard per-100g
+  USDA-style macro figures. Stable hand-picked slug IDs (e.g.
+  app-chicken-breast-cooked) rather than random UUIDs, specifically so a
+  future update can add or correct entries without ever re-seeding or
+  duplicating a row that's already on someone's device.
+- defaultPantrySeed.ts: one-time migration mirroring mealsMigration.ts's
+  own localStorage-flag-gated pattern (own flag key, own guarded runner +
+  directly-testable inner function). Skips seeding any default whose name
+  exactly matches (case-insensitive, trimmed — same rule the rest of the
+  app already uses for pantry name uniqueness) an item a user already
+  has, of either origin, so nobody ends up with two identically-named
+  rows — their own item always wins, untouched. Wired into AppShell.tsx
+  alongside the existing meals migration. 3 new tests: seed-from-empty,
+  name-collision skip, and idempotency on a second run.
+- FoodItemForm.tsx: origin:'app' items now lock measurement type and
+  every macro field (calories/protein/carbs/fiber/fat) — name and photo
+  stay editable — with a caption explaining why. Added `disabled` support
+  to NumberField/LabeledInput and MeasurementTypeSelector to back this.
+  Wired the new `origin` field through from every call site that edits an
+  EXISTING item: PantryFoodItemDetail, PantryMealDetail, and
+  AddEntrySheet's basket EditOverlay (via a lookup on the basket item's
+  linked pantryItemId). Create-new-item call sites (pantry-new,
+  meal-add-item, basket-manual) don't need it — nothing to lock yet.
+
+Known, accepted trade-offs (see KNOWN GAPS): nutrition is computed live
+from each Food item's current fields every time (nutritionFor in
+calc.ts), never snapshotted at log time — so any future correction to a
+seeded value would retroactively change historical diary entries for
+everyone who logged it. Name-collision skip is exact-match only, not
+fuzzy, so near-duplicate names (e.g. "Chicken Breast" vs the seeded
+"Chicken breast, cooked") will both appear rather than merge. Macro data
+was drawn from established nutrition-science figures, not verified
+against a live USDA FoodData Central pull for each of the 150 items.
+
+tsc: clean. lint: clean. vitest: 51 passed (3 new), 8 skipped.
+`npm run build` verified clean (+~17KB JS, no images — matches the
+"should be free and super light" brief).
+
+================================================================
+ROUND 178 — MIRROR THE 3-PILL PANTRY FILTER IN PANTRYPICKER (2026-07-05)
+================================================================
+Files: src/ui/components/PantryPicker.tsx
+
+PantryPicker ("Add from pantry" mid-flow, used when building a meal)
+deliberately mirrors PantryScreen's own filter for visual consistency —
+brought it in line with round 177's Food items/Meals/My own toggle pills
+so the two surfaces don't drift apart. Same union/origin filter logic,
+same Meals-only disable + auto-uncheck behavior for "My own", same pill
+visual treatment, bespoke (not the shared FilterPills component) for the
+same reason as PantryScreen.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+
+================================================================
+ROUND 177 — 3-PILL PANTRY FILTER: FOOD ITEMS / MEALS / MY OWN (2026-07-05)
+================================================================
+Files: src/domain/types.ts, src/ui/screens/PantryScreen.tsx
+
+Marco wanted a filter that could eventually distinguish app-provided vs
+user-added pantry items, alongside the existing Food item/Meal split.
+Design discussion first: considered a tap-to-open-modal-per-filter
+pattern (radio/checkbox lists), then simplified to 3 always-visible,
+independently-toggleable pills reusing the exact look of FilterPills'
+existing selected/unselected states:
+
+- "Food items" and "Meals" union together — checking both, or neither,
+  shows everything (same as the old single-select "All").
+- "My own" is a separate, independent restriction to origin:'user' items,
+  layered on top of whichever type(s) are showing — not a flat OR across
+  all three pills. Meal rows always pass it through untouched, since
+  every Meal is inherently user-made.
+- "My own" is disabled and force-unchecked the moment the view enters a
+  Meals-only state (from either direction — checking Meals off Food
+  items, or unchecking Food items while Meals stays on), since there's no
+  app-provided-Meal concept to filter by. Done inline in the two
+  type-toggle handlers rather than a useEffect+setState, which the hooks
+  linter flags as an unnecessary cascading-render pattern for what's
+  really one user action with two state updates.
+
+Built bespoke in PantryScreen rather than extending the shared
+FilterPills component, since FilterPills' other 3 call sites
+(PantryPicker, TodayScreen, GoalSetupScreen) are all single-select radio
+and shouldn't inherit toggle/disabled behavior they don't need.
+
+Also added an optional `origin?: 'app' | 'user'` field to FoodItem —
+undefined on every existing item (always read as 'user', no migration
+needed) — laying the groundwork for round 179's default-pantry seed;
+nothing seeded 'app' yet at this point.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified clean.
+
+================================================================
+ROUND 176 — DARKER DEDICATED SHADOW FOR FOOD/MEAL PHOTOS (2026-07-05)
+================================================================
+Files: src/index.css, src/ui/kit/ImageHero.tsx, src/ui/components/FoodItemForm.tsx,
+       src/ui/components/AddEntrySheet.tsx, src/ui/components/DevMenu.tsx
+
+Marco asked for the photo shadow to read more clearly. New --shadow-photo
+token (light + dark theme values, ~1.7x the opacity of shadow-card-lg on
+both layers) plus a .shadow-photo utility, following the same
+dynamic-binding pattern already used for shadow-card/shadow-card-lg (an
+override rule outside any @layer so --tw-shadow resolves from the CSS
+variable at runtime) so dark mode and the DevMenu shadow sliders both
+work on it. Added a DevMenu SHADOW_DEFS entry for live tuning.
+
+Applied ONLY to the 4 real-photo shadow usages (ImageHero's single-photo
+and collage branches, FoodItemForm's with-photo box, AddEntrySheet's
+basket single-item branch) — left shadow-card-lg itself untouched, since
+it's shared with unrelated cards (gauge, goal chart, meal-summary card,
+PastGoals/Onboarding/Goal screens) that weren't part of this ask.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+`npm run build` verified the .shadow-photo utility compiles and the
+override wins (checked the built CSS directly).
+
+================================================================
+ROUND 175 — FULLY REVERT THE 12PX PHOTO-SPACING CHANGE (2026-07-05)
+================================================================
+Files: src/ui/kit/ImageHero.tsx, src/assets/food-placeholder.png,
+       src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+
+Rounds 172-174 (12px ImageHero marginTop, the flushTop workaround, and
+the placeholder white-point correction chasing the resulting shadow
+artifact) were fully reverted at Marco's request ("we're missing the
+point completely") rather than continuing to patch the symptom. ImageHero
+restored verbatim to its pre-172 state (round 168's version); the 3
+Meal-card call sites' flushTop prop and grey-panel paddingTop:12px
+removed; food-placeholder.png restored to its original round-168 bytes.
+Round 173's UNRELATED AddAnotherSection 16px scroll-margin fix
+(MethodCards.tsx) was deliberately left in place — Marco liked that one.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+
+================================================================
+ROUND 174 — CORRECT FOOD-PLACEHOLDER.PNG BACKGROUND TO TRUE WHITE (2026-07-05, REVERTED ROUND 175)
+================================================================
+Files: src/assets/food-placeholder.png
+
+Attempt to fix the shadow artifact reported after round 172/173: measured
+the placeholder's background at a flat ~248/255 (not pure white, and
+suspiciously close to the app's own grey-panel color #F3F3F3), applied a
+linear white-point stretch (248 -> 255) so the asset's background reads
+as true white against the app's actual white card. Turned out not to be
+the real fix Marco wanted — see round 175.
+
+================================================================
+ROUND 173 — 16PX SCROLL MARGIN; SHADOW-ARTIFACT FIX ATTEMPT (2026-07-05, PARTIALLY REVERTED ROUND 175)
+================================================================
+Files: src/ui/components/MethodCards.tsx, src/ui/kit/ImageHero.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
+
+Two asks from Marco's on-device review of round 172: (1) the
+AddAnotherSection auto-scroll should leave 16px of breathing room instead
+of snapping flush to the viewport edge — fixed via `scrollMarginBottom:
+'16px'` on the section's root element, which scrollIntoView respects for
+its "nearest edge" calculation. This part was kept.
+
+(2) The new 12px photo top-margin created a visible shadow/vignette on
+Meal-view photos. Diagnosed as the photo's own box-shadow bleeding onto a
+newly-created flat white gap directly above it inside the Meal card
+(which has its own shadow-card-lg + zero top padding). Attempted fix:
+added a `flushTop` prop to ImageHero so the 3 Meal-card call sites keep
+the photo flush against the card's own top edge, moving the 12px to the
+grey panel's paddingTop instead. Turned out to only relocate the same
+underlying issue (the CARD's own shadow, not just the photo's, still had
+room to bleed) rather than solve it — see rounds 174-175.
+
+================================================================
+ROUND 172 — 12PX PHOTO TOP-SPACING; AUTO-SCROLL ADDANOTHERSECTION (2026-07-05, PARTIALLY REVERTED ROUND 175)
+================================================================
+Files: src/ui/kit/ImageHero.tsx, src/ui/components/MethodCards.tsx
+
+Two small UX requests: every food/meal photo gets 12px more top spacing
+(added as a flat marginTop in ImageHero, single source of truth for all 6
+call sites) — this part was later fully reverted (round 175) once it
+turned out to cause a shadow artifact on Meal-view photos that took two
+more rounds to properly diagnose. And: expanding "+ Add a new food item"
+(AddAnotherSection) now smoothly scrolls itself into view via
+scrollIntoView on a rAF after the expanded content lands in the DOM —
+this part was kept and later refined (round 173's scroll margin).
+
+================================================================
+ROUND 171 — FIX APP-FREEZE BUG ON X -> DISCARD -> KEEP EDITING (2026-07-05)
+================================================================
+Files: src/ui/kit/Sheet.tsx, src/ui/components/PantryMealDetail.tsx,
+       src/ui/components/PantryFoodItemDetail.tsx
+
+Critical bug: tapping X on an already-open Meal/Food-item detail Sheet
+visibly closed it, the discard-confirm Sheet appeared on top, and tapping
+"Keep editing" left the entire app unresponsive. Took two attempts plus a
+debug-logging pass to fix for real, after an earlier attempt looked
+correct in code but was never actually confirmed on-device (a build never
+got pushed before Marco re-tested it — an process mistake, acknowledged
+mid-session).
+
+Root cause: Sheet.tsx's close() function always played its animated
+close regardless of caller intent — only the X button's own onClick
+respected the `closeImmediately` prop; scrim-tap and swipe-dismiss always
+animated. Combined with a second bug where lifting `hasChanges` via a
+callback+useState pattern lagged behind live-query updates, the parent
+Sheet would sometimes still be mid-close when the confirm Sheet tried to
+reopen it, wedging the UI. Fix: close() now checks `closeImmediately`
+itself before deciding whether to animate, and `closeImmediately` is
+unconditionally `true` on both affected Sheets (PantryMealDetail,
+PantryFoodItemDetail) — no lifted state, decision made synchronously and
+fresh on every render. Verified via temporary debug logging read through
+Safari Web Inspector against a real device build, then removed once
+confirmed working.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+
+================================================================
+ROUND 170 — 5 PANTRY BUGS; SESSION-CHANGES REVERT-ON-X; GREY-FILL CAP (2026-07-05)
+================================================================
+Files: src/lib/useFillToBottom.ts, src/ui/components/AddEntrySheet.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/components/PantryFoodItemDetail.tsx
+
+Grey-fill/white-gap follow-up to round 168's on-device confirmation pass:
+useFillToBottom now takes a `bottomGapPx` parameter (36, combined with
+24px of the panel's own padding for a ~60px total gap) so the grey panel
+stretches to fill short content WITHOUT overshooting past a small, fixed
+gap from the true bottom — long content is unaffected (its own trailing
+padding already handles the gap). Applied to all 3 grey-panel call sites
+(FoodForm, LogEntryContent, PantryMealDetail).
+
+5 Pantry Meal/Food-item bugs fixed in the same pass: consistent 24px
+spacing; hide the "Add another item" helper text and Save CTA in
+PantryMealDetail when nothing's actually changed; X now cancels (not
+saves) an in-progress name edit; removed a redundant "Close" button in
+PantryFoodItemDetail; fixed a naming-uniqueness violation and an
+eager-save bug when converting a Food item into a Meal via "add from
+pantry" (now runs through uniquePantryName and is treated as
+justCreated).
+
+Escalated further mid-round: X on an already-saved Meal was only
+guarding the name field — any other session change (item add/remove,
+ingredient macro edits) still saved immediately regardless of Save vs X.
+Added a full snapshot/revert mechanism: PantryMealDetailContent captures
+the meal's original name/items/ingredient-FoodItem state once on mount,
+derives hasChanges from it every render, and X now triggers
+discardSessionChanges() (delete if brand new, else restore original
+name/items and any changed ingredient fields) instead of a silent save —
+Save is the only path that persists. Deliberately does NOT revert a
+measurementType/referenceAmount change, since that already triggered a
+one-way cross-database unit conversion (convertFoodItemReferences) that
+reverting would leave silently wrong.
+
+tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+
+================================================================
 ROUND 169 — ACTIVITY-SCALED CARB TARGET MODEL (2026-07-04)
 ================================================================
 Files: src/domain/goal.ts, src/ui/screens/TodayScreen.tsx,

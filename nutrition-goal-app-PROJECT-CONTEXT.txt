@@ -2,8 +2,11 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-04 — Round 169 (replaced the residual "whatever's left after protein/fat" carb-target formula for Balanced/Performance macro styles with a continuous body-weight-baseline + activity-scaled model — activityCarbTargetG in domain/goal.ts — fixing Marco's report of a 340g carb target on a near-zero-activity day)
-Full change history: see CHANGELOG.txt (rounds 1-169).
+Last updated: 2026-07-05 — Round 179 (seeded 150 default Pantry foods with
+fixed/locked macros, origin:'app' vs 'user'; new 3-pill Pantry filter —
+Food items / Meals / My own — replacing the old single-select All/Food
+items/Meals radio)
+Full change history: see CHANGELOG.txt (rounds 1-179).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -113,31 +116,45 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 169, 2026-07-04)
+7. CURRENT STATUS (as of round 179, 2026-07-05)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only —
-detailed round-by-round history lives in CHANGELOG.txt (rounds 1-169)
+detailed round-by-round history lives in CHANGELOG.txt (rounds 1-179)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
 - Diary/Today gauge-card + macro-bars layered pattern (rounds 162-165) is
   now also the shared reference pattern for the 3 Basket Meal views
   (PantryMealDetail, FoodForm, LogEntryContent): a white meal-summary
   card floats on a grey Food-items panel below it.
-- Grey Food-items panel now correctly fills the remaining Sheet height —
-  round 168 found and fixed the actual root cause (a JS-measured hook,
-  useFillToBottom, was re-measuring before Sheet's own 420ms open
-  transition finished). Pending Marco's on-device confirmation.
+- Grey Food-items panel fill CONFIRMED working on-device (round 170's
+  bottomGapPx cap on top of round 168's root-cause fix) — no further
+  reports since. The app-freeze bug on X -> discard-confirm -> "Keep
+  editing" is also confirmed fixed on-device (round 171,
+  closeImmediately race condition in Sheet.tsx).
+- PANTRY now ships with 150 default ("origin:'app'") Food items, seeded
+  once per device on first load after this update (round 179,
+  src/data/defaultPantry.ts + defaultPantrySeed.ts) — common staples
+  across proteins/grains/fruits/veg/dairy/fats, per-100g macros, no
+  images. Their measurement type + macro fields are locked/greyed-out in
+  FoodItemForm (name/photo stay editable). PantryScreen and PantryPicker
+  both now filter via 3 independent toggle pills — Food items / Meals /
+  My own (round 177-178) — replacing the old single-select All/Food
+  items/Meals radio; "My own" restricts to origin:'user' and is disabled
+  whenever the view is Meals-only (no app-provided Meals exist).
 - Default placeholder image: src/assets/food-placeholder.png (569KB,
-  round 168). Image corner radius is 32px everywhere a photo or
-  placeholder renders (round 168), matching radius-main.
-- Carb targets for Balanced/Performance macro styles now scale with body
+  round 168, unchanged — a round 174 attempt to recolor it was reverted
+  round 175). Image corner radius is 32px everywhere a photo or
+  placeholder renders (round 168), matching radius-main. Real photos
+  (not the placeholder) now use a dedicated, darker --shadow-photo token
+  (round 176) instead of the shared shadow-card-lg.
+- Carb targets for Balanced/Performance macro styles scale with body
   weight + today's actual activity (activityCarbTargetG, round 169),
   replacing the old "whatever's left after protein/fat" residual formula.
   Baseline g/kg and activity-share constants are initial estimates —
   see KNOWN GAPS.
 - .env.local: gitignored, must be recreated if folder is deleted.
   VITE_FOOD_SCAN_API_URL=https://food-scan-api-delta.vercel.app
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped.
+- tsc: clean. lint: clean. vitest: 51 passed, 8 skipped.
 
 ----------------------------------------------------------------
 8. ARCHITECTURE NOTES
@@ -167,12 +184,6 @@ changes, on the Mac: `npm install` → `npm test` → `npm run build` →
 KNOWN GAPS
 ----------------------------------------------------------------
 HIGH:
-- GREY-FILL ON-DEVICE CONFIRMATION (round 168, fix shipped/not yet
-  confirmed): the grey Food-items panel's actual root cause (useFillToBottom
-  re-measuring before Sheet's 420ms open transition finished) is fixed and
-  verified by code-reading, but hasn't had a fresh on-device pass since —
-  round 167's earlier attempt LOOKED right in code too and still failed
-  live, so treat as open until Marco confirms on the round 168+ build.
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
 - SHEET SCROLL-SHADOW BUG (open, round 152/153): main Sheet header's shadow
@@ -186,6 +197,20 @@ MED:
   share of active kcal) are initial estimates, not yet validated against
   Marco's real day-to-day numbers — likely needs tuning after a few days
   of use (see CARB_MODEL in domain/goal.ts to adjust).
+- RETROACTIVE MACRO-CORRECTION RISK (round 179, new): nutrition is always
+  computed LIVE from a Food item's current fields (nutritionFor in
+  calc.ts) — never snapshotted at the moment something's logged. This
+  predates round 179 but matters much more now: any future correction to
+  one of the 150 seeded default-pantry values would silently change the
+  numbers on every past diary entry that referenced it, for everyone who
+  logged it. Accepted trade-off for now (see round 179's CHANGELOG entry)
+  — revisit if a real correction is ever needed post-launch.
+- DEFAULT-PANTRY SEED IS V1-ONLY (round 179, new): defaultPantrySeed.ts
+  seeds once per device via a single localStorage flag
+  (ngt-default-pantry-seed-v1-done) and never runs again. Adding new
+  default foods or correcting existing ones later needs its own new
+  versioned flag/migration step (same pattern as mealsMigration.ts) —
+  nothing currently re-syncs an already-seeded device.
 - PLACEHOLDER IMAGE SIZE (round 168): food-placeholder.png is 569KB
   (down from round 166's 812KB) but still sizeable for a UI placeholder
   rendered at 256×256 — worth compressing further if bundle size becomes
@@ -198,6 +223,24 @@ MED:
   folder is deleted. Contains VITE_FOOD_SCAN_API_URL (Vercel scan API URL).
 
 LOW:
+- DEFAULT-PANTRY NAME-COLLISION CHECK IS EXACT-MATCH (round 179, new):
+  defaultPantrySeed.ts skips a default only when its name exactly matches
+  (case-insensitive, trimmed) an existing item. Near-duplicate names
+  (e.g. a user's own "Chicken Breast" vs the seeded "Chicken breast,
+  cooked") both appear as separate rows rather than merging — Marco
+  flagged this explicitly; decided to leave as-is rather than add fuzzy
+  matching (real false-positive risk, e.g. "chicken thigh" vs "chicken
+  breast").
+- DEFAULT-PANTRY ITEMS HAVE NO IMAGES (round 179, deliberate v1 scope):
+  discussed sourcing real photos vs. a matching icon/illustration set for
+  the 150 defaults; decided to skip images entirely for v1. Revisit if
+  wanted later — see the round 179 discussion in this session's history
+  for the icon-set vs. photography trade-offs considered.
+- PANTRY FILTER PILLS DUPLICATED, NOT SHARED (round 177-178): the 3-pill
+  Food items/Meals/My own toggle row is bespoke, separately implemented
+  in both PantryScreen.tsx and PantryPicker.tsx (deliberately, so
+  FilterPills' other single-select call sites aren't affected) — a future
+  change to this behavior needs to be applied by hand in both places.
 - GoalOutcomeView: no haptic on appearance.
 - App.tsx still has /past-goals and /past-goals/:id stub routes (now unused;
   PastGoalsPortal is portal-based). Safe to remove eventually.
@@ -205,6 +248,45 @@ LOW:
 - GoalForkScreen (/goal-fork): built but not device-reviewed.
 - ProfileSetupSheet height select always shows cm. Low priority.
 - Estimated BMR (weight-only) assumes pop-avg 170 cm / 35 yr / neutral sex.
+
+DONE (r170-179):
+- ✓ GREY-FILL FULLY CONFIRMED: round 170's bottomGapPx cap on
+  useFillToBottom (36px + 24px panel padding = ~60px max gap from true
+  bottom) confirmed working on-device across all 3 grey-panel views, no
+  further reports.
+- ✓ 5 PANTRY BUGS (round 170): consistent 24px spacing; hide "Add
+  another item" helper text + Save CTA in PantryMealDetail when nothing
+  changed; X cancels (not saves) an in-progress name edit; removed
+  redundant "Close" button in PantryFoodItemDetail; fixed naming-
+  uniqueness + eager-save bug converting a Food item into a Meal via
+  "add from pantry."
+- ✓ SESSION-CHANGES REVERT-ON-X (round 170): X on an already-saved
+  Meal now reverts ALL session changes (item add/remove, ingredient macro
+  edits), not just the name field — only Save persists. Deliberately
+  does not revert a measurementType/referenceAmount change (already
+  triggered a one-way unit conversion elsewhere that reverting would
+  leave silently wrong).
+- ✓ APP-FREEZE BUG FIXED (round 171): X → discard-confirm →
+  "Keep editing" no longer wedges the app. Root cause: Sheet.tsx's
+  close() didn't respect closeImmediately for scrim-tap/swipe-dismiss,
+  only the X button did; fixed + confirmed on-device via temporary debug
+  logging.
+- ✓ ADDANOTHERSECTION AUTO-SCROLL (round 172-173): expanding "+ Add a
+  new food item" smoothly scrolls itself into view, with 16px of
+  breathing room below.
+- ✓ 12PX PHOTO TOP-SPACING: added (round 172), caused a shadow
+  artifact on Meal-view photos, chased through 2 more rounds (173-174),
+  then fully reverted (round 175) rather than keep patching around it —
+  net no change from round 168's photo spacing.
+- ✓ DARKER PHOTO SHADOW (round 176): new dedicated --shadow-photo
+  token for real food/meal photos only, ~1.7x shadow-card-lg's opacity;
+  shadow-card-lg itself untouched for its other (unrelated) card uses.
+- ✓ 3-PILL PANTRY FILTER (round 177-178): Food items / Meals / My own
+  independent toggle pills, replacing the old single-select All/Food
+  items/Meals radio, in both PantryScreen and PantryPicker. New
+  origin?: 'app' | 'user' field on FoodItem.
+- ✓ 150 DEFAULT PANTRY FOODS SEEDED + MACROS LOCKED (round 179): see
+  CURRENT STATUS above and CHANGELOG round 179 for full detail.
 
 DONE (r168-169):
 - ✓ MEAL-CARD LAYERED HIERARCHY: white meal-summary card + grey Food-items
@@ -311,74 +393,63 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
-ROUND 169 — ACTIVITY-SCALED CARB TARGET MODEL (2026-07-04)
-Files: src/domain/goal.ts, src/ui/screens/TodayScreen.tsx,
-       src/ui/screens/GoalSetupScreen.tsx
-- Balanced/Performance carb target was a pure residual — (totalBurn −
-  protein_kcal − fat_kcal) ÷ 4 — so nearly the whole BMR-driven calorie
-  envelope landed in carbs regardless of activity (Marco: 340g on a
-  420-active-kcal day). Replaced with `activityCarbTargetG` in
-  domain/goal.ts: a sedentary body-weight baseline (2.2g/kg Balanced,
-  2.4g/kg Performance) plus a share of today's active calories converted
-  to grams (55%/75% of active kcal ÷ 4) — continuous, not a fixed bucket
-  table, so it scales with the person rather than needing new buckets
-  when weight/goals change. Lower-carb untouched (its own explicit,
-  user-editable carbLimitG already existed).
-- Wired into TodayScreen's live effectiveCarbLimit (real activeKcal +
-  current weight) and GoalSetupScreen's setup preview (activeKcal=0
-  baseline) — Balanced now shows a base number too, previously it showed
-  no number at all.
-- Sanity check at 70kg: 0 active kcal -> 154g/168g (Balanced/Performance);
-  420 active kcal -> 212g/247g; 1000 active kcal -> 292g/356g.
+ROUND 179 — SEED 150 DEFAULT PANTRY FOODS; LOCK THEIR MACROS (2026-07-05)
+Files: src/data/defaultPantry.ts (new), src/data/defaultPantrySeed.ts (new),
+       src/data/defaultPantrySeed.test.ts (new), src/ui/AppShell.tsx,
+       src/ui/components/FoodItemForm.tsx, src/ui/components/PantryFoodItemDetail.tsx,
+       src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/kit/NumberField.tsx, src/ui/kit/LabeledInput.tsx,
+       src/ui/kit/MeasurementTypeSelector.tsx
+- Populated the app side of round 177's origin field: 150 common staple
+  foods (proteins, grains, fruits, veg, dairy, fats/nuts, pantry basics),
+  standard per-100g macros, stable slug IDs (app-chicken-breast-cooked,
+  etc.), seeded once per device via a new localStorage-flag-gated
+  migration (defaultPantrySeed.ts, same pattern as mealsMigration.ts).
+- Skips seeding any default whose name exactly matches (case-insensitive,
+  trimmed) an item the user already has, of either origin — their own
+  item always wins, no duplicate created. Exact-match only, not fuzzy —
+  see KNOWN GAPS.
+- FoodItemForm.tsx locks measurement type + every macro field for
+  origin:'app' items (name/photo stay editable), with an explanatory
+  caption. Added `disabled` support to NumberField/LabeledInput and
+  MeasurementTypeSelector; wired `origin` through every edit-existing-item
+  call site (PantryFoodItemDetail, PantryMealDetail, AddEntrySheet's
+  basket EditOverlay via its linked pantryItemId).
+- Known trade-off: nutrition is computed live from a Food item's current
+  fields (never snapshotted at log time) — a future correction to a
+  seeded value would retroactively change historical diary entries. See
+  KNOWN GAPS (MED).
+- tsc: clean. lint: clean. vitest: 51 passed (3 new), 8 skipped.
+  `npm run build` verified clean (+~17KB JS, no images).
+
+ROUND 178 — MIRROR THE 3-PILL PANTRY FILTER IN PANTRYPICKER (2026-07-05)
+Files: src/ui/components/PantryPicker.tsx
+- PantryPicker ("Add from pantry" mid-flow) deliberately mirrors
+  PantryScreen's own filter for visual consistency — brought it in line
+  with round 177's Food items/Meals/My own toggle pills. Same
+  union/origin logic, same Meals-only disable + auto-uncheck behavior,
+  same pill visual treatment.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
+
+ROUND 177 — 3-PILL PANTRY FILTER: FOOD ITEMS / MEALS / MY OWN (2026-07-05)
+Files: src/domain/types.ts, src/ui/screens/PantryScreen.tsx
+- Replaced the old single-select All/Food items/Meals radio with 3
+  independent toggle pills, reusing FilterPills' exact visual states but
+  built bespoke (FilterPills' other 3 call sites are all single-select
+  and shouldn't inherit toggle/disabled behavior).
+- "Food items"/"Meals" union together (both or neither = show
+  everything); "My own" is a separate, independent restriction to
+  origin:'user', layered on top rather than a flat 3-way OR; Meal rows
+  always pass "My own" through untouched (every Meal is user-made).
+  "My own" is disabled + force-unchecked whenever the view resolves to
+  Meals-only, done inline in the type-toggle handlers (not a
+  useEffect+setState, which the hooks linter flags as unnecessary for a
+  single user action).
+- Added optional `origin?: 'app' | 'user'` to FoodItem — undefined on
+  every existing item (read as 'user', no migration needed) — groundwork
+  for round 179's seed; nothing seeded 'app' at this point yet.
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
   `npm run build` verified clean.
-
-ROUND 168 — GREY-FILL ROOT-CAUSE FIX, NEW PLACEHOLDER, 32PX RADIUS, SPACING (2026-07-04)
-Files: src/lib/useFillToBottom.ts, src/assets/food-placeholder.png (replaced),
-       src/ui/kit/ImageHero.tsx, src/ui/components/FoodItemForm.tsx,
-       src/ui/components/MethodCards.tsx, src/ui/screens/TodayScreen.tsx
-- Root cause of the grey-panel-fill bug found: Sheet.tsx's own open
-  transition runs for OPEN_MS = 420ms, but round 167's hook re-measured
-  at 50ms/350ms — both before the panel finished sliding up, so it
-  captured a mid-animation `top` and undersized the fill. Now polls
-  across the full settle window (up to 850ms) and also re-measures on
-  every `transitionend` bubbling up in the document.
-- New placeholder image (food_item_placeholder_2.png, 569KB) replaces
-  the old food-placeholder.png (812KB); same import path, no code churn
-  beyond the asset swap. Old placeholder + interim 1.5MB upload deleted.
-- Image corner radius 20px -> 32px everywhere (ImageHero, FoodItemForm) —
-  now matches radius-main (32px), same as the Meal-summary card these
-  images sit inside.
-- AddAnotherSection: 16px radius collapsed, 24px (unchanged) expanded.
-- Day's-log section bottom padding: 12px -> 8px.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 167 — FIX GREY-FILL BUG (JS-MEASURED), DARKER BORDER, EMPTY-FAB IMAGE, ADD-PHOTO CTA (2026-07-04)
-Files: src/lib/useFillToBottom.ts (new), src/ui/components/PantryMealDetail.tsx,
-       src/ui/components/AddEntrySheet.tsx (FoodForm, LogEntryContent),
-       src/ui/components/MethodCards.tsx, src/ui/components/FoodItemForm.tsx
-- Round 166's CSS-only grey-panel-fill (flex flex-col + min-height:100% +
-  flex:1) didn't hold up on-device. Replaced with a new `useFillToBottom`
-  hook that measures the panel's actual distance to the viewport bottom
-  via getBoundingClientRect() and returns it as a min-height in px —
-  sidesteps the CSS percentage/flexbox resolution question entirely.
-  Wired into all 3 Basket Meal views; fixed two Rules-of-Hooks ordering
-  bugs found along the way (PantryMealDetail and FoodForm each have an
-  early-return spinner state above where the hook needed to live).
-- AddAnotherSection's Meal-only `bordered` styling: border-border-field
-  -> border-border-strong (next darker step).
-- FoodForm's ImageHero only shows once the basket has exactly 1 item
-  (was: 0 or 1) — a freshly-opened FAB with nothing picked yet now shows
-  no image slot at all.
-- FoodItemForm's "Add photo" CTA is now a 256x256 rounded-[20px] box with
-  the food-placeholder image and a centered "Add photo" pill overlay,
-  matching the real-photo state's look instead of a thin outlined button.
-- tsc: clean. lint: clean (one eslint-disable-line react-hooks/refs added
-  in PantryMealDetail — pre-existing during-render ref write earlier in
-  that component trips the analyzer's conservative ref-taint tracking).
-  vitest: 48 passed, 8 skipped (unchanged). `npm run build` verified
-  clean.
 
 ================================================================
 TODO / FUTURE WORK

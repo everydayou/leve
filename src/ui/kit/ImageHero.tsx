@@ -14,11 +14,18 @@ import foodPlaceholder from '../../assets/food-placeholder.png';
  *
  *  Figma x/y values are bounding-box positions (top-left of the axis-aligned
  *  rect around the rotated element). CSS left/top is the unrotated box position,
- *  so each coordinate is offset inward by (bbox_size − image_size) / 2. */
+ *  so each coordinate is offset inward by (bbox_size − image_size) / 2.
+ *
+ *  Round 172: every render branch's wrapper carries a flat 12px marginTop —
+ *  Marco wants the photo pushed 12px further down everywhere it appears
+ *  (Meal/Food-item detail, FoodForm, LogEntryContent), on top of whatever
+ *  spacing each call site already had above it. Set once here rather than
+ *  at each of the 6 call sites so it can never drift out of sync between
+ *  them. */
 export function ImageHero({ photos, className }: { photos: string[]; className?: string }) {
   if (photos.length === 0) {
     return (
-      <div className={`flex justify-center ${className ?? ''}`}>
+      <div className={`flex justify-center ${className ?? ''}`} style={{ marginTop: '12px' }}>
         <div className="h-64 w-64 overflow-hidden rounded-[32px]">
           <img src={foodPlaceholder} alt="" className="h-full w-full object-cover" />
         </div>
@@ -28,7 +35,7 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
 
   if (photos.length === 1) {
     return (
-      <div className={`flex justify-center ${className ?? ''}`}>
+      <div className={`flex justify-center ${className ?? ''}`} style={{ marginTop: '12px' }}>
         {/* Round 141 tried moving rounding onto the <img> directly (removing
            this overflow-hidden wrapper) to test a GPU-compositing-layer
            theory for reported photo brightness — reverted (round 142):
@@ -69,7 +76,7 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
   const cfg = photos.length === 2 ? cfg2 : photos.length === 4 ? cfg4 : cfg3;
 
   return (
-    <div className={`flex justify-center ${className ?? ''}`}>
+    <div className={`flex justify-center ${className ?? ''}`} style={{ marginTop: '12px' }}>
       <div className="relative" style={{ width: 256, height: 256 }}>
         {photos.slice(0, 4).map((photo, i) => {
           const c = cfg[i];

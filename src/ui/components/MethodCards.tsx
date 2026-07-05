@@ -3,6 +3,7 @@
 // (PantryFoodItemDetail / PantryMealDetail) render the exact same collapsible
 // module and method buttons. One place to change either, and it reflects
 // everywhere it's used.
+import { useEffect, useRef } from 'react';
 import { Icon, Sheet } from '../kit';
 
 // ── MethodPickerModal ─────────────────────────────────────────────────────────
@@ -63,8 +64,25 @@ export function AddAnotherSection({
 }) {
   // Round 168: 16px corner radius while collapsed (smaller pill), the
   // existing 24px once expanded (roomier surface for the picker content).
+  // Round 172: scroll this whole section into view once it expands, so
+  // Marco doesn't have to manually scroll down to see the method-picker
+  // grid it just revealed. rAF lets the newly-rendered children (this
+  // render's `open && <div>{children}</div>` below) actually land in the
+  // DOM/layout first, so scrollIntoView measures the fully-expanded
+  // height, not the collapsed one. block: 'nearest' scrolls the minimum
+  // amount needed to reveal the whole section when it fits the viewport,
+  // rather than always snapping it to an edge.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const id = requestAnimationFrame(() => {
+      rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [open]);
+
   return (
-    <div className={`${open ? 'rounded-[24px]' : 'rounded-[16px]'} bg-surface-sunken overflow-hidden${bordered ? ' border border-border-strong' : ''}`}>
+    <div ref={rootRef} className={`${open ? 'rounded-[24px]' : 'rounded-[16px]'} bg-surface-sunken overflow-hidden${bordered ? ' border border-border-strong' : ''}`}>
       {/* Heading row */}
       <button
         onClick={onToggle}

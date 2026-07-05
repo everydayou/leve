@@ -261,7 +261,7 @@ function PantryFoodItemDetailContent({
       isArchived: !values.saveToPantry,
     });
     const meal: Meal = {
-      id: newId(), name: item.name, isArchived: false,
+      id: newId(), name: uniquePantryName(item.name, items, meals), isArchived: false,
       items: [
         newMealItem(item.id, item),
         { id: newId(), foodItemId: newItemId, quantity: values.measurementType === 'per_100g' ? values.referenceAmount : 1 },
@@ -270,23 +270,28 @@ function PantryFoodItemDetailContent({
     await repos.meals.put(meal);
     setActiveOverlay(null);
     showToast?.('Meal created');
-    onMealCreated(meal);
+    // Empty array (not undefined) — this Meal was just created here, same
+    // as a scan-created one, so X should offer to discard it rather than
+    // silently keep it (round 157's justCreated precedent). Passing []
+    // rather than the ingredient ids also means neither item picks up an
+    // undeserved "Change" (re-describe) affordance -- nothing was scanned.
+    onMealCreated(meal, []);
   }
 
   async function handlePickExistingItem(picked: FoodItem) {
     const meal: Meal = {
-      id: newId(), name: item.name, isArchived: false,
+      id: newId(), name: uniquePantryName(item.name, items, meals), isArchived: false,
       items: [newMealItem(item.id, item), newMealItem(picked.id, picked)],
     };
     await repos.meals.put(meal);
     setActiveOverlay(null);
     showToast?.('Meal created');
-    onMealCreated(meal);
+    onMealCreated(meal, []);
   }
 
   async function handlePickExistingMeal(picked: Meal) {
     const meal: Meal = {
-      id: newId(), name: item.name, isArchived: false,
+      id: newId(), name: uniquePantryName(item.name, items, meals), isArchived: false,
       items: [
         newMealItem(item.id, item),
         // Meals can be added to Meals, but only as their individual Food
@@ -297,7 +302,7 @@ function PantryFoodItemDetailContent({
     await repos.meals.put(meal);
     setActiveOverlay(null);
     showToast?.(`Added ${picked.items.length} items from ${picked.name}`);
-    onMealCreated(meal);
+    onMealCreated(meal, []);
   }
 
   // ── Right-to-left overlays — cover this Sheet's header, same mechanism as
@@ -452,10 +457,10 @@ function PantryFoodItemDetailContent({
           />
         </AddAnotherSection>
 
-        {justCreated ? (
-          <Button size="lg" onClick={onClose}>Save food</Button>
-        ) : (
-          <Button size="lg" variant="outline" onClick={onClose}>Close</Button>
+        {justCreated && (
+          <div style={{ marginTop: '24px' }}>
+            <Button size="lg" onClick={onClose}>Save food</Button>
+          </div>
         )}
       </div>
 

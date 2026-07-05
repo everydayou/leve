@@ -326,6 +326,8 @@ function PantryMealDetailContent({
     onClose();
   }
 
+  const hasChanges = name.trim() !== '' && name.trim() !== meal.name;
+
   async function saveName(next: string) {
     const trimmed = next.trim();
     if (trimmed === meal.name) return;
@@ -484,7 +486,6 @@ function PantryMealDetailContent({
                     label="Meal name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    onBlur={() => void saveName(name)}
                   />
                 </div>
                 {/* border-transparent (round 155): LabeledInput's own input has a
@@ -526,7 +527,6 @@ function PantryMealDetailContent({
             <div style={{ marginTop: '16px' }}>
               <AddAnotherSection
                 label="Add a new food item"
-                helperText="Add another item"
                 open={addSectionOpen}
                 onToggle={() => setAddSectionOpen((o) => !o)}
                 onClose={() => setAddSectionOpen(false)}
@@ -543,9 +543,11 @@ function PantryMealDetailContent({
               </AddAnotherSection>
             </div>
 
-            <div style={{ marginTop: '16px' }}>
-              <Button size="lg" onClick={() => { void saveName(name); onClose(); }}>Save meal</Button>
-            </div>
+            {hasChanges && (
+              <div style={{ marginTop: '24px' }}>
+                <Button size="lg" onClick={() => { void saveName(name); onClose(); }}>Save meal</Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

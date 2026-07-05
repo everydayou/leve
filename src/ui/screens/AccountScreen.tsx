@@ -1,5 +1,5 @@
 import { WheelPicker } from '../kit';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLive } from '../../state/live';
 import { useNavigate } from 'react-router-dom';
 import { repos } from '../../state/repos';
@@ -8,11 +8,18 @@ import { Card, SectionLabel, Badge, SegmentedControl, Button, NumberField, Sheet
 import { displayWeight } from '../../domain/units';
 import { getThemePref, setThemePref, type ThemePref } from '../../lib/theme';
 import { hapticLight, getHapticsPref, setHapticsPref } from '../../lib/haptics';
+import { getDevRevealed, setDevRevealed } from '../../lib/devReveal';
 import { getWithingsService, type WithingsStatus } from '../../data/withings';
 import { DevMenu } from '../components/DevMenu';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { currentWeightKg } from '../../domain/goal';
 import type { User, Sex, Units, Goal } from '../../domain/types'; // Goal used in sub-components
+
+// Goal and Connections sections are hidden (not deleted) per the Account
+// redesign — Goal already lives in the Goal tab; Connections isn't needed
+// for now. Flip back to true to re-enable either without restoring code.
+const SHOW_GOAL_SECTION = false;
+const SHOW_CONNECTIONS_SECTION = false;
 
 
 export function AccountScreen() {
@@ -21,6 +28,27 @@ export function AccountScreen() {
   const [managingGoal, setManagingGoal] = useState(false);
   const [showBmrInfo, setShowBmrInfo] = useState(false);
   const [editingProtein, setEditingProtein] = useState(false);
+
+  // Triple-tap the "Account" title to reveal the hidden Developer section.
+  // Persists across reloads (setDevRevealed); tapping 3x again hides it.
+  const [showDeveloper, setShowDeveloper] = useState(getDevRevealed);
+  const titleTapCount = useRef(0);
+  const titleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function handleTitleTap() {
+    titleTapCount.current += 1;
+    if (titleTapTimer.current) clearTimeout(titleTapTimer.current);
+    if (titleTapCount.current >= 3) {
+      titleTapCount.current = 0;
+      setShowDeveloper((prev) => {
+        const next = !prev;
+        setDevRevealed(next);
+        hapticLight();
+        return next;
+      });
+      return;
+    }
+    titleTapTimer.current = setTimeout(() => { titleTapCount.current = 0; }, 500);
+  }
   const data = useLive(async () => {
     const [user, goal, weights] = await Promise.all([
       repos.user.get(), repos.goals.getActive(), repos.weights.all(),
@@ -40,24 +68,25 @@ export function AccountScreen() {
 
   return (
     <div className="px-6 pb-6">
-      <h1 className="pt-4 text-title font-semibold">Account</h1>
+      <h1 onClick={handleTitleTap} className="select-none pt-4 text-title font-semibold">Account</h1>
 
       <SectionLabel>Profile</SectionLabel>
-      <Card padded={false} className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <ProfileRow label="Height" value={user.heightCm > 0 ? `${user.heightCm} cm` : 'Not set'} />
-            <ProfileRow label="Age" value={user.age != null ? `${user.age}` : 'Not set'} />
-            <ProfileRow label="Sex" value={user.sex ? cap(user.sex) : 'Not set'} />
-            <ProfileRow label="Units" value={user.units} />
+      {/* Layered card: white profile card floats on a grey container; BMR
+          sits directly on the grey reveal below, matching the gauge-card /
+          Basket-Meal reference pattern (TodayScreen.tsx ~L943). */}
+      <div className="rounded-main bg-surface-sunken">
+        <div className="rounded-main bg-surface border border-border-subtle shadow-card-lg p-4">
+          <div className="flex items-start justify-between">
+            <div className="space-y-2">
+              <ProfileRow label="Height" value={user.heightCm > 0 ? `${user.heightCm} cm` : 'Not set'} />
+              <ProfileRow label="Age" value={user.age != null ? `${user.age}` : 'Not set'} />
+              <ProfileRow label="Sex" value={user.sex ? cap(user.sex) : 'Not set'} />
+              <ProfileRow label="Weight" value={weightKg != null ? displayWeight(weightKg, user.units ?? 'kg') : 'Not set'} />
+            </div>
+            <Button variant="subtle" size="xs" fullWidth={false} onClick={() => setEditingProfile(true)}>Edit</Button>
           </div>
-          <Button variant="subtle" size="xs" fullWidth={false} onClick={() => setEditingProfile(true)}>Edit</Button>
         </div>
-      </Card>
-
-      <SectionLabel>Energy</SectionLabel>
-      <Card padded={false} className="p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between px-4 py-3">
           <div>
             <p className="text-label font-medium text-content-secondary">BMR (resting burn)</p>
             <p className="text-title font-semibold">
@@ -75,64 +104,79 @@ export function AccountScreen() {
             <Icon name="info" size={20} strokeWidth={1.75} />
           </button>
         </div>
-      </Card>
+      </div>
 
-      <SectionLabel>Goal</SectionLabel>
-      <Card padded={false} className="p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-semibold">{goal?.name ?? 'No active goal'}</p>
-            {goal && <p className="text-label text-content-secondary">Active · lose {displayWeight(goal.startWeightKg - goal.targetWeightKg, user.units ?? 'kg')}</p>}
-          </div>
-          {goal ? (
-            <Button variant="subtle" size="xs" fullWidth={false} onClick={() => setManagingGoal(true)}>Manage</Button>
-          ) : (
-            <Button variant="subtle" size="xs" fullWidth={false} onClick={() => nav('/goal-setup')}>Set</Button>
+      {SHOW_GOAL_SECTION && (
+        <>
+          <SectionLabel>Goal</SectionLabel>
+          <Card padded={false} className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold">{goal?.name ?? 'No active goal'}</p>
+                {goal && <p className="text-label text-content-secondary">Active · lose {displayWeight(goal.startWeightKg - goal.targetWeightKg, user.units ?? 'kg')}</p>}
+              </div>
+              {goal ? (
+                <Button variant="subtle" size="xs" fullWidth={false} onClick={() => setManagingGoal(true)}>Manage</Button>
+              ) : (
+                <Button variant="subtle" size="xs" fullWidth={false} onClick={() => nav('/goal-setup')}>Set</Button>
+              )}
+            </div>
+            {/* Protein target sub-section */}
+            <div className="mt-3 flex items-center justify-between border-t border-border-subtle pt-3">
+              <div>
+                <p className="text-label font-medium text-content-secondary">Daily protein target</p>
+                <p className="text-subhead font-semibold">
+                  {user.proteinGoalG ? `${user.proteinGoalG} g` : <span className="text-content-muted">Not set</span>}
+                </p>
+              </div>
+              <Button variant="subtle" size="xs" fullWidth={false} onClick={() => setEditingProtein(true)}>
+                {user.proteinGoalG ? 'Edit' : 'Set'}
+              </Button>
+            </div>
+          </Card>
+          {!goal && (
+            <button onClick={() => nav('/goal-setup')} className="mt-2 w-full rounded-control border border-border-subtle py-3 text-subhead font-medium text-content-secondary">+ Set a goal</button>
           )}
-        </div>
-        {/* Protein target sub-section */}
-        <div className="mt-3 flex items-center justify-between border-t border-border-subtle pt-3">
-          <div>
-            <p className="text-label font-medium text-content-secondary">Daily protein target</p>
-            <p className="text-subhead font-semibold">
-              {user.proteinGoalG ? `${user.proteinGoalG} g` : <span className="text-content-muted">Not set</span>}
-            </p>
-          </div>
-          <Button variant="subtle" size="xs" fullWidth={false} onClick={() => setEditingProtein(true)}>
-            {user.proteinGoalG ? 'Edit' : 'Set'}
-          </Button>
-        </div>
-      </Card>
-      {!goal && (
-        <button onClick={() => nav('/goal-setup')} className="mt-2 w-full rounded-control border border-border-subtle py-3 text-subhead font-medium text-content-secondary">+ Set a goal</button>
-      )}
-      {goal && (
-        <button onClick={() => nav('/goal-setup?new=true')} className="mt-2 w-full rounded-control border border-border-subtle py-3 text-subhead font-medium text-content-secondary">+ Start a new goal</button>
+          {goal && (
+            <button onClick={() => nav('/goal-setup?new=true')} className="mt-2 w-full rounded-control border border-border-subtle py-3 text-subhead font-medium text-content-secondary">+ Start a new goal</button>
+          )}
+        </>
       )}
 
-      <SectionLabel>Connections</SectionLabel>
-      <WithingsCard />
+      {SHOW_CONNECTIONS_SECTION && (
+        <>
+          <SectionLabel>Connections</SectionLabel>
+          <WithingsCard />
+        </>
+      )}
 
       <SectionLabel>Tracking</SectionLabel>
-      <WeightCadenceCard user={user} />
+      <WeightUnitsCard user={user} />
+      <div className="mt-2">
+        <WeightCadenceCard user={user} />
+      </div>
       {goal?.macroStyle && (
         <div className="mt-2">
           <MacroDiaryCard goal={goal} />
         </div>
       )}
 
-      <SectionLabel>Appearance</SectionLabel>
+      <SectionLabel>Settings</SectionLabel>
       <AppearanceCard />
 
-      <SectionLabel>Data</SectionLabel>
-      <Card padded={false} className="overflow-hidden">
-        <ListRow title="Export all data (JSON)" chevron onClick={() => exportAsJson(repos)} />
-      </Card>
-
-      <SectionLabel>Developer</SectionLabel>
-      <Card padded={false} className="p-4">
-        <DevMenu />
-      </Card>
+      {showDeveloper && (
+        <>
+          <SectionLabel>Developer</SectionLabel>
+          <Card padded={false} className="overflow-hidden">
+            <ListRow title="Export all data (JSON)" chevron onClick={() => exportAsJson(repos)} />
+          </Card>
+          <div className="mt-2">
+            <Card padded={false} className="p-4">
+              <DevMenu />
+            </Card>
+          </div>
+        </>
+      )}
 
       <p className="mt-8 text-center text-micro text-content-muted">v0.1.0</p>
 
@@ -370,6 +414,27 @@ function WithingsCard() {
       )}
 
       {note && <p className="mt-2 text-label text-content-secondary">{note}</p>}
+    </Card>
+  );
+}
+
+/** Live weight-unit toggle — same field ProfileSheet edits, surfaced here per
+ *  the Account redesign so it doesn't require opening Edit profile. */
+function WeightUnitsCard({ user }: { user: User }) {
+  const [units, setUnits] = useState<Units>(user.units ?? 'kg');
+  async function save(next: Units) {
+    setUnits(next);
+    const u = await repos.user.get();
+    if (u) await repos.user.save({ ...u, units: next });
+  }
+  return (
+    <Card padded={false} className="p-4">
+      <p className="mb-2 text-label font-medium text-content-secondary">Weight units</p>
+      <SegmentedControl<Units>
+        value={units}
+        onChange={save}
+        options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
+      />
     </Card>
   );
 }

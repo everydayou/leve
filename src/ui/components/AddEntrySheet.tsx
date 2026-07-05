@@ -745,7 +745,7 @@ function FoodForm({
   // ── Main basket view ──────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-3 pb-2">
+    <div className={basket.length >= 2 ? 'space-y-3' : 'space-y-3 pb-2'}>
       {/* Hidden file input for web Camera/Photo (both use same picker) */}
       {SCAN_ENABLED && (
         <input
@@ -910,7 +910,7 @@ function FoodForm({
               </label>
             </div>
 
-            <div style={{ padding: '24px 20px 24px 20px' }}>
+            <div style={{ paddingTop: '24px', paddingLeft: '20px', paddingRight: '20px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
               <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
               <div className="space-y-3">
                 {basket.map((item, idx) => (
@@ -1619,7 +1619,7 @@ export function LogEntrySheet({
   );
 
   return (
-    <Sheet title={title} subtitle={dateSubtitle} onClose={onClose} forceExpanded rightAction={trashBtn}>
+    <Sheet title={title} subtitle={dateSubtitle} onClose={onClose} forceExpanded rightAction={trashBtn} scrollAreaPaddingBottom="0px">
       {/* LogEntryContent is a child of Sheet so Sheet's context (overlay, footer, etc.) is available */}
       <LogEntryContent
         entry={entry}
@@ -2205,7 +2205,7 @@ function LogEntryContent({
         </div>
       )}
 
-      <div className="space-y-3 pb-4">
+      <div className={basket.length >= 2 ? 'space-y-3' : 'space-y-3 pb-4'}>
 
 {/* Photos — multi-photo collage. Round 162: ImageHero always renders
             (Meal/Food-item views always show an image slot now, even with
@@ -2307,7 +2307,7 @@ function LogEntryContent({
                 </label>
               </div>
 
-              <div style={{ padding: '24px 20px 24px 20px' }}>
+              <div style={{ paddingTop: '24px', paddingLeft: '20px', paddingRight: '20px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
                 <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
                 <div className="space-y-3">
                   {basket.map((item, idx) => (
@@ -2377,7 +2377,7 @@ function LogEntryContent({
                   />
                 ))}
               </div>
-              <div style={{ marginTop: '12px' }}>{addAnotherAndSave}</div>
+              <div style={{ marginTop: '12px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}>{addAnotherAndSave}</div>
             </>
           );
         })()}

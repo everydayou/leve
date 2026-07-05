@@ -95,6 +95,7 @@ export function PantryMealDetail({
         title="Meal"
         onClose={justCreated ? () => setConfirmingDiscard(true) : onClose}
         forceExpanded
+        scrollAreaPaddingBottom="0px"
         rightAction={
           justCreated ? undefined : (
             <button data-no-drag onClick={() => deleteRef.current()} aria-label="Delete meal" className="-m-1 p-1 text-content-secondary active:text-danger">
@@ -445,7 +446,7 @@ function PantryMealDetailContent({
 
   return (
     <>
-      <div className="space-y-4 pb-2">
+      <div className="space-y-4">
         {capture.hiddenInputs}
         {capture.servingModal && (
           <ServingModal
@@ -500,7 +501,7 @@ function PantryMealDetailContent({
             </div>
           </div>
 
-          <div style={{ padding: '24px 20px 24px 20px' }}>
+          <div style={{ paddingTop: '24px', paddingLeft: '20px', paddingRight: '20px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
             <p style={{ marginBottom: '8px' }} className="text-headline font-bold text-content">Food items</p>
             <div className="space-y-4">
               {meal.items.map((mi) => {

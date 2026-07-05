@@ -505,7 +505,6 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
   }, []);
 
   function close() {
-    console.log('[DEBUG Sheet]', title, 'close() called. closing=', closing, 'closeImmediately=', closeImmediately);
     if (closing) return;
     // Round 171 bug fix: closeImmediately previously only short-circuited
     // the X button's own onClick (see below) -- the scrim tap and
@@ -524,8 +523,7 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
     // hands off to the caller with this Sheet untouched (never animated,
     // never marked closing) whenever the caller wants a chance to
     // intercept the close.
-    if (closeImmediately) { console.log('[DEBUG Sheet]', title, 'close(): closeImmediately=true, calling onClose() directly, NOT animating'); onClose(); return; }
-    console.log('[DEBUG Sheet]', title, 'close(): closeImmediately=false, playing animation, will call onClose() after', CLOSE_MS, 'ms');
+    if (closeImmediately) { onClose(); return; }
     setClosing(true);
     setTimeout(onClose, CLOSE_MS);
   }
@@ -680,7 +678,7 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
                 manage their own header (e.g. navigating sub-pages) omit title. */}
             {title !== undefined && (
               <div className="mb-4 flex items-center gap-2">
-                <button data-no-drag onClick={() => { console.log('[DEBUG Sheet]', title, 'X tapped. closeImmediately=', closeImmediately); (closeImmediately ? onClose : close)(); }} aria-label="Close" className="-m-3 p-3 text-content-secondary">
+                <button data-no-drag onClick={closeImmediately ? onClose : close} aria-label="Close" className="-m-3 p-3 text-content-secondary">
                   <Icon name="close" size={22} strokeWidth={2.25} />
                 </button>
                 <div className="flex-1 flex flex-col items-center">

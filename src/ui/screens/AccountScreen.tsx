@@ -76,7 +76,7 @@ export function AccountScreen() {
         <p className="text-headline font-semibold text-content">Profile</p>
         <button
           onClick={() => setEditingProfile(true)}
-          className="text-headline font-medium text-accent-hover active:opacity-70"
+          className="text-subhead font-medium text-accent-hover active:opacity-70"
         >
           Edit
         </button>
@@ -472,6 +472,9 @@ function WeightUnitsCard({ user }: { user: User }) {
 }
 
 const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// Full plural day names for the "You'll see a reminder on ___" sentence —
+// DOW_LABELS stays abbreviated for the compact day-picker pills above.
+const DOW_FULL_PLURAL = ['Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays', 'Sundays'];
 
 function WeightCadenceCard({ user }: { user: User }) {
   const [cadence, setCadence] = useState<'daily' | 'weekly'>(user.weightCadence ?? 'weekly');
@@ -522,7 +525,7 @@ function WeightCadenceCard({ user }: { user: User }) {
       <p className="mt-3 text-subhead text-content-secondary">
         {cadence === 'daily'
           ? "You'll see a weight reminder each evening until you log."
-          : `You'll see a weight reminder on ${DOW_LABELS[day]}s.`}
+          : `You'll see a weight reminder on ${DOW_FULL_PLURAL[day]}.`}
       </p>
     </OutlineCard>
   );

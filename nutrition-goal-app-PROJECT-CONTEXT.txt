@@ -3,7 +3,7 @@ NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
 Last updated: 2026-07-04 — Round 169 (replaced the residual "whatever's left after protein/fat" carb-target formula for Balanced/Performance macro styles with a continuous body-weight-baseline + activity-scaled model — activityCarbTargetG in domain/goal.ts — fixing Marco's report of a 340g carb target on a near-zero-activity day)
-Full change history: see CHANGELOG.txt (rounds 1–106).
+Full change history: see CHANGELOG.txt (rounds 1-169).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -113,27 +113,31 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 122, 2026-07-02)
+7. CURRENT STATUS (as of round 169, 2026-07-04)
 ----------------------------------------------------------------
-All V1 features shipped and running on device. Round 122 introduced a unified
-FoodItemForm component (single source of truth for all 4 food-item edit
-surfaces), fully wired "Save to pantry" flow from basket-edit (including DB
-persistence), collage photo cap raised to 4, and multiple basket polish fixes.
-- Round 122 (2026-07-02): FoodItemForm.tsx (new shared component); PantryScreen
-  + EditOverlay + ManualOverlay replaced with thin wrappers; "Save to pantry"
-  fully wired (pantryItemId stamped on basket item, DB entry updated);
-  photo cap 3→4; frequentItems in LogEntryContent; delete-item photo cleanup;
-  fast-log bypass on search; collage position tweaks; nutri-scan "Change"
-  button removed.
-- Round 121 (2026-06-30): FAB de-animated; BasketCard always-visible edit+trash
-  buttons; EditIcon custom SVG; stepper 40px container; ImageHero collage
-  layouts for 2/3/4 photos with Figma-corrected coordinates.
-- Round 119 (2026-06-30): mealData.photos[] type added; FoodForm saves all
-  scan photos + timeMealName() fallback; LogEntryContent: init from photos[],
-  editable meal name, onCorrect scoped to item.sourceId.
+All V1 features shipped and running on device. This is a snapshot only —
+detailed round-by-round history lives in CHANGELOG.txt (rounds 1-169)
+and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
+
+- Diary/Today gauge-card + macro-bars layered pattern (rounds 162-165) is
+  now also the shared reference pattern for the 3 Basket Meal views
+  (PantryMealDetail, FoodForm, LogEntryContent): a white meal-summary
+  card floats on a grey Food-items panel below it.
+- Grey Food-items panel now correctly fills the remaining Sheet height —
+  round 168 found and fixed the actual root cause (a JS-measured hook,
+  useFillToBottom, was re-measuring before Sheet's own 420ms open
+  transition finished). Pending Marco's on-device confirmation.
+- Default placeholder image: src/assets/food-placeholder.png (569KB,
+  round 168). Image corner radius is 32px everywhere a photo or
+  placeholder renders (round 168), matching radius-main.
+- Carb targets for Balanced/Performance macro styles now scale with body
+  weight + today's actual activity (activityCarbTargetG, round 169),
+  replacing the old "whatever's left after protein/fat" residual formula.
+  Baseline g/kg and activity-share constants are initial estimates —
+  see KNOWN GAPS.
 - .env.local: gitignored, must be recreated if folder is deleted.
   VITE_FOOD_SCAN_API_URL=https://food-scan-api-delta.vercel.app
-- tsc: clean. lint: clean.
+- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped.
 
 ----------------------------------------------------------------
 8. ARCHITECTURE NOTES
@@ -163,19 +167,12 @@ changes, on the Mac: `npm install` → `npm test` → `npm run build` →
 KNOWN GAPS
 ----------------------------------------------------------------
 HIGH:
-- MEAL-CARD LAYERED HIERARCHY (round 166, partially verified): grey
-  Food-items panel now flex-fills the Sheet's remaining scroll height
-  (flex flex-col + min-height:100% on the outer wrapper, flex-1 on the
-  grey panel) instead of ending after its own content; "Add a new food
-  item" has a border-field outline in the Meal case only; ImageHero real
-  photos have their shadow-card-lg back. Still built without a visual
-  preview in this environment — needs another on-device pass.
-- DEFAULT MEAL/FOOD-ITEM IMAGE (round 166, resolved): ImageHero now uses
-  Marco's real "food-placeholder.png" (line-art plate/fork/knife,
-  src/assets/food-placeholder.png) instead of the round-163 generic icon
-  stand-in — he uploaded it directly via GitHub's web UI. It's a
-  1254×1254 PNG (~812KB) shown at 256×256 via object-cover; worth
-  compressing at some point but not blocking.
+- GREY-FILL ON-DEVICE CONFIRMATION (round 168, fix shipped/not yet
+  confirmed): the grey Food-items panel's actual root cause (useFillToBottom
+  re-measuring before Sheet's 420ms open transition finished) is fixed and
+  verified by code-reading, but hasn't had a fresh on-device pass since —
+  round 167's earlier attempt LOOKED right in code too and still failed
+  live, so treat as open until Marco confirms on the round 168+ build.
 - SHEET stickyHeader SLOT: verify SegmentedControl renders in the correct
   pinned-above-scroll position on device.
 - SHEET SCROLL-SHADOW BUG (open, round 152/153): main Sheet header's shadow
@@ -184,6 +181,15 @@ HIGH:
   rather than another source-only guess.
 
 MED:
+- CARB TARGET MODEL TUNING (round 169, new): activityCarbTargetG's
+  constants (2.2g/kg Balanced, 2.4g/kg Performance baseline; 55%/75%
+  share of active kcal) are initial estimates, not yet validated against
+  Marco's real day-to-day numbers — likely needs tuning after a few days
+  of use (see CARB_MODEL in domain/goal.ts to adjust).
+- PLACEHOLDER IMAGE SIZE (round 168): food-placeholder.png is 569KB
+  (down from round 166's 812KB) but still sizeable for a UI placeholder
+  rendered at 256×256 — worth compressing further if bundle size becomes
+  a concern; not blocking.
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
   entries. (Goal actions confirm via Sheet; entry deletes are immediate.)
 - ACCOUNT IA: layout still growing — grouping pass worthwhile when more
@@ -199,6 +205,23 @@ LOW:
 - GoalForkScreen (/goal-fork): built but not device-reviewed.
 - ProfileSetupSheet height select always shows cm. Low priority.
 - Estimated BMR (weight-only) assumes pop-avg 170 cm / 35 yr / neutral sex.
+
+DONE (r168-169):
+- ✓ MEAL-CARD LAYERED HIERARCHY: white meal-summary card + grey Food-items
+  panel structure finalized across all 3 Basket Meal views (rounds 162-166);
+  grey-fill root cause found and fixed round 168 (see HIGH — pending final
+  on-device confirmation, not the design itself).
+- ✓ DEFAULT MEAL/FOOD-ITEM IMAGE: real placeholder wired in round 166,
+  swapped for Marco's smaller/preferred image round 168
+  (src/assets/food-placeholder.png, 569KB); image radius bumped 20px→32px.
+- ✓ AddAnotherSection border darkened (round 167: field→strong) and corner
+  radius split 16px collapsed / 24px expanded (round 168).
+- ✓ FoodForm's FAB-empty state (0 items) shows no image (round 167).
+- ✓ FoodItemForm's "Add photo" CTA redesigned to match the real-photo box
+  (round 167).
+- ✓ Day's-log section bottom padding 12px→8px (round 168).
+- ✓ Carb target model: replaced the leftover-calories residual formula
+  with an activity-scaled body-weight-baseline model (round 169).
 
 DONE (r122):
 - ✓ FoodItemForm.tsx: unified shared form for all 4 food-item surfaces.
@@ -356,277 +379,6 @@ Files: src/lib/useFillToBottom.ts (new), src/ui/components/PantryMealDetail.tsx,
   that component trips the analyzer's conservative ref-taint tracking).
   vitest: 48 passed, 8 skipped (unchanged). `npm run build` verified
   clean.
-
-ROUND 156 — MEAL-SUMMARY-CARD SPACING TWEAK: NAME ROW -> BADGES TO 8PX (2026-07-04)
-Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
-- Round 155 set name-row-to-badges to 4px everywhere; Marco wants the
-  meal-summary card specifically at 8px instead (Basket/Pantry item cards
-  stay at 4px, confirmed "perfect"). MacroSummaryLine's className: mt-1 ->
-  mt-2 in both meal-summary card instances only.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 156 — MEAL-SUMMARY-CARD SPACING TWEAK: NAME ROW -> BADGES TO 8PX (2026-07-04)
-Files: src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
-- Round 155 set name-row-to-badges to 4px everywhere; Marco wants the
-  meal-summary card specifically at 8px instead (Basket/Pantry item cards
-  stay at 4px, confirmed "perfect"). MacroSummaryLine's className: mt-1 ->
-  mt-2 in both meal-summary card instances only.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 155 — CARD INTERNAL SPACING (4px/16px) + KCAL BADGE HEIGHT MATCH (2026-07-04)
-Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/PantryItemCard.tsx,
-       src/ui/components/PantryMealDetail.tsx
-- BasketCard/PantryItemCard: name+kcal row -> badges tightened to 4px (was
-  8px); badges -> stepper/buttons row widened to 16px (was 10px). Same
-  ratio applied inside the meal-summary card (both views): 4px name row ->
-  badges; Day's-log's "Save to pantry" checkbox below the badges widened to
-  16px via inline style (was capped at 12px by the parent's space-y-3 —
-  same collapse-proofing pattern as round 154). Pantry's Meal detail has no
-  row below its badges, so only the top gap applied.
-- Kcal badge (beside the meal name field) given `border border-transparent`
-  to match LabeledInput's own 1px border — the one structural difference
-  that was making it render very slightly shorter than the name field.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 155 — CARD INTERNAL SPACING (4px/16px) + KCAL BADGE HEIGHT MATCH (2026-07-04)
-Files: src/ui/components/AddEntrySheet.tsx, src/ui/components/PantryItemCard.tsx,
-       src/ui/components/PantryMealDetail.tsx
-- BasketCard/PantryItemCard: name+kcal row -> badges tightened to 4px (was
-  8px); badges -> stepper/buttons row widened to 16px (was 10px). Same
-  ratio applied inside the meal-summary card (both views): 4px name row ->
-  badges; Day's-log's "Save to pantry" checkbox below the badges widened to
-  16px via inline style (was capped at 12px by the parent's space-y-3 —
-  same collapse-proofing pattern as round 154). Pantry's Meal detail has no
-  row below its badges, so only the top gap applied.
-- Kcal badge (beside the meal name field) given `border border-transparent`
-  to match LabeledInput's own 1px border — the one structural difference
-  that was making it render very slightly shorter than the name field.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 154 — MACRO BADGE SIZE, MEAL-CARD BORDER TOKEN, EXACT PIXEL SPACING (2026-07-04)
-Files: src/ui/kit/MacroSummaryLine.tsx, src/ui/components/PantryMealDetail.tsx,
-       src/ui/components/AddEntrySheet.tsx
-- Macro badges: text stepped down to text-footnote (13px, was text-subhead
-  15px). Meal summary card border switched to border-border-card-no-shadow
-  (no literal "border-hover" token exists; this is the documented token for
-  a flat, no-shadow card — the exact category this card is in since round
-  153). Kcal badge next to the meal-name field now bg-surface-sunken,
-  matching the name input's own background.
-- Spacing made exact via inline styles instead of relying on the ambient
-  space-y utility, after Marco reported the rendered image-to-card gap was
-  only ~4px (not the 16-24px space-y implied) and inconsistent between the
-  Day's-log and Pantry views. Summary card: `marginTop: '24px'` inline, same
-  in both views. "Food items" heading + its item list share a small wrapper
-  so the heading's own 8px bottom margin doesn't collapse against the first
-  item card's auto margin-top — guarantees 24px-top/8px-bottom around the
-  label exactly as rendered. Between-item-card spacing is unchanged.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 154 — MACRO BADGE SIZE, MEAL-CARD BORDER TOKEN, EXACT PIXEL SPACING (2026-07-04)
-Files: src/ui/kit/MacroSummaryLine.tsx, src/ui/components/PantryMealDetail.tsx,
-       src/ui/components/AddEntrySheet.tsx
-- Macro badges: text stepped down to text-footnote (13px, was text-subhead
-  15px). Meal summary card border switched to border-border-card-no-shadow
-  (no literal "border-hover" token exists; this is the documented token for
-  a flat, no-shadow card — the exact category this card is in since round
-  153). Kcal badge next to the meal-name field now bg-surface-sunken,
-  matching the name input's own background.
-- Spacing made exact via inline styles instead of relying on the ambient
-  space-y utility, after Marco reported the rendered image-to-card gap was
-  only ~4px (not the 16-24px space-y implied) and inconsistent between the
-  Day's-log and Pantry views. Summary card: `marginTop: '24px'` inline, same
-  in both views. "Food items" heading + its item list share a small wrapper
-  so the heading's own 8px bottom margin doesn't collapse against the first
-  item card's auto margin-top — guarantees 24px-top/8px-bottom around the
-  label exactly as rendered. Between-item-card spacing is unchanged.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 153 — MACRO BADGE POLISH, MEAL-CARD OUTLINE, SHADOW REVERT (2026-07-04)
-Files: src/ui/kit/MacroSummaryLine.tsx, src/ui/kit/Sheet.tsx,
-       src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
-- Follow-up to round 152's feedback: macro badges now bg-surface-muted
-  (lighter than bg-surface-sunken) + rounded-[8px] (was 14px); text size
-  already matched his 15pt spec exactly (text-subhead = 0.9375rem = 15px),
-  no change needed. Meal summary card switched from a flat sunken fill to
-  an outlined card (border + bg-surface, no shadow) on both the Day's-log
-  Meal view and Pantry's Meal detail; "Food items" label bumped to
-  text-headline (18px).
-- Sheet.tsx's round-152 scroll-shadow changes were FULLY REVERTED — Marco
-  reported the fix didn't work and introduced a new bug. Confirmed via git
-  diff that the shadow edit was Sheet.tsx's only change since round 151, so
-  restoring that exact prior file was a clean, complete revert. The
-  original shadow issue (see round 152's entry / CHANGELOG) is still open.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 153 — MACRO BADGE POLISH, MEAL-CARD OUTLINE, SHADOW REVERT (2026-07-04)
-Files: src/ui/kit/MacroSummaryLine.tsx, src/ui/kit/Sheet.tsx,
-       src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx
-- Follow-up to round 152's feedback: macro badges now bg-surface-muted
-  (lighter than bg-surface-sunken) + rounded-[8px] (was 14px); text size
-  already matched his 15pt spec exactly (text-subhead = 0.9375rem = 15px),
-  no change needed. Meal summary card switched from a flat sunken fill to
-  an outlined card (border + bg-surface, no shadow) on both the Day's-log
-  Meal view and Pantry's Meal detail; "Food items" label bumped to
-  text-headline (18px).
-- Sheet.tsx's round-152 scroll-shadow changes were FULLY REVERTED — Marco
-  reported the fix didn't work and introduced a new bug. Confirmed via git
-  diff that the shadow edit was Sheet.tsx's only change since round 151, so
-  restoring that exact prior file was a clean, complete revert. The
-  original shadow issue (see round 152's entry / CHANGELOG) is still open.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 152 — SIX-PART UI/UX BATCH: BADGES, BOLD NAMES, MEAL SUMMARY CARD, SHADOWS, DUPES (2026-07-04)
-Files: src/domain/pantry.ts, src/ui/kit/MacroSummaryLine.tsx, src/ui/kit/Sheet.tsx,
-       src/ui/components/AddEntrySheet.tsx, src/ui/components/PantryMealDetail.tsx,
-       src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryItemCard.tsx,
-       src/ui/components/PantryPicker.tsx, src/ui/components/PantryNewFoodScan.tsx,
-       src/ui/screens/PantryScreen.tsx, src/ui/screens/TodayScreen.tsx
-- Six independent items validated point-by-point with Marco before building:
-  (1) "+ New food" method cards moved up 16px, compensated with a 16px
-  spacer so the sheet's total height is unchanged. (2) MacroSummaryLine
-  (shared by BasketCard/PantryItemCard) now renders 4 individual badges
-  (px-2 py-0.5 each) instead of one long dot-separated pill. (3) Bold food
-  name / regular kcal (was backwards) across every card pairing the two —
-  Basket card, Pantry item card, Pantry list row, both pantry-picker
-  variants, Diary log row. (4) Long-standing meal-summary TODO (since round
-  123) resolved on BOTH Day's-log's "Meal" view (LogEntrySheet/
-  LogEntryContent — also gained a date subtitle it was missing) and
-  Pantry's own Meal detail (same summary card, minus the Save-to-pantry
-  checkbox and minus any date — Marco was explicit: no date there, it's a
-  dateless reusable template). (5) Two Sheet.tsx scroll-shadow bugs: the
-  main header's shadow was disappearing under scrolled content because the
-  header had no background of its own (fixed: explicit bg-surface);
-  OverlayLayer's nav bar had a stray shadow bleeding onto the grab handle
-  above it from a `-mt-1` overlap (fixed: removed the negative margin).
-  (6) Duplicate pantry names from repeat scans (same photo -> same
-  AI-suggested name every time, no check before committing) — added
-  uniquePantryName() (auto-suffixes "(2)", "(3)"...) to domain/pantry.ts,
-  wired into every scan-driven Food-item/Meal creation path; left Manual/
-  pick-existing paths alone (not what was reported, already a deliberate
-  user action each time).
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 152 — SIX-PART UI/UX BATCH: BADGES, BOLD NAMES, MEAL SUMMARY CARD, SHADOWS, DUPES (2026-07-04)
-Files: src/domain/pantry.ts, src/ui/kit/MacroSummaryLine.tsx, src/ui/kit/Sheet.tsx,
-       src/ui/components/AddEntrySheet.tsx, src/ui/components/PantryMealDetail.tsx,
-       src/ui/components/PantryFoodItemDetail.tsx, src/ui/components/PantryItemCard.tsx,
-       src/ui/components/PantryPicker.tsx, src/ui/components/PantryNewFoodScan.tsx,
-       src/ui/screens/PantryScreen.tsx, src/ui/screens/TodayScreen.tsx
-- Six independent items validated point-by-point with Marco before building:
-  (1) "+ New food" method cards moved up 16px, compensated with a 16px
-  spacer so the sheet's total height is unchanged. (2) MacroSummaryLine
-  (shared by BasketCard/PantryItemCard) now renders 4 individual badges
-  (px-2 py-0.5 each) instead of one long dot-separated pill. (3) Bold food
-  name / regular kcal (was backwards) across every card pairing the two —
-  Basket card, Pantry item card, Pantry list row, both pantry-picker
-  variants, Diary log row. (4) Long-standing meal-summary TODO (since round
-  123) resolved on BOTH Day's-log's "Meal" view (LogEntrySheet/
-  LogEntryContent — also gained a date subtitle it was missing) and
-  Pantry's own Meal detail (same summary card, minus the Save-to-pantry
-  checkbox and minus any date — Marco was explicit: no date there, it's a
-  dateless reusable template). (5) Two Sheet.tsx scroll-shadow bugs: the
-  main header's shadow was disappearing under scrolled content because the
-  header had no background of its own (fixed: explicit bg-surface);
-  OverlayLayer's nav bar had a stray shadow bleeding onto the grab handle
-  above it from a `-mt-1` overlap (fixed: removed the negative margin).
-  (6) Duplicate pantry names from repeat scans (same photo -> same
-  AI-suggested name every time, no check before committing) — added
-  uniquePantryName() (auto-suffixes "(2)", "(3)"...) to domain/pantry.ts,
-  wired into every scan-driven Food-item/Meal creation path; left Manual/
-  pick-existing paths alone (not what was reported, already a deliberate
-  user action each time).
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 151 — BRING BACK THE "CHANGE" BUTTON ON SCAN-CAPTURED PANTRY ITEMS (2026-07-04)
-Files: src/ui/components/PantryItemCard.tsx, src/ui/components/PantryFoodItemDetail.tsx,
-       src/ui/components/PantryMealDetail.tsx, src/ui/screens/PantryScreen.tsx
-- Marco: round 149 removing the pre-commit review screen also took the
-  round-148 "Change" button down with it (nowhere left to attach it to).
-  Reintroduced it on the POST-commit item cards instead, scoped to the same
-  transient "just happened" window Change always had (never a permanent
-  per-item flag): PantryItemCard gained an `onCorrect` prop (same pill as
-  BasketCard's). PantryFoodItemDetail shows it on its own card while
-  `justCreated` (round 150) is true — tapping it re-describes and
-  overwrites that exact FoodItem in place, or converts to a Meal if the
-  correction yields 2+ foods (1-vs-2+ rule), deleting the now-superseded
-  single item (safe — nothing could reference it yet). PantryMealDetail
-  tracks a `scannedItemIds` set, seeded from a new `justCreatedItemIds`
-  prop (whole Meal just arrived from a scan) and grown as more items are
-  scanned in via "Add another item" while the Sheet stays open; "Change" on
-  one of those splices the correction into meal.items in that ingredient's
-  place, leaving the superseded FoodItem orphaned (same as removing an item
-  from a meal already does).
-- Also: Marco decided to leave the Nutri-scan-also-reads-whole-food
-  question (round 150's TODO) alone for now — not pursuing it.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 151 — BRING BACK THE "CHANGE" BUTTON ON SCAN-CAPTURED PANTRY ITEMS (2026-07-04)
-Files: src/ui/components/PantryItemCard.tsx, src/ui/components/PantryFoodItemDetail.tsx,
-       src/ui/components/PantryMealDetail.tsx, src/ui/screens/PantryScreen.tsx
-- Marco: round 149 removing the pre-commit review screen also took the
-  round-148 "Change" button down with it (nowhere left to attach it to).
-  Reintroduced it on the POST-commit item cards instead, scoped to the same
-  transient "just happened" window Change always had (never a permanent
-  per-item flag): PantryItemCard gained an `onCorrect` prop (same pill as
-  BasketCard's). PantryFoodItemDetail shows it on its own card while
-  `justCreated` (round 150) is true — tapping it re-describes and
-  overwrites that exact FoodItem in place, or converts to a Meal if the
-  correction yields 2+ foods (1-vs-2+ rule), deleting the now-superseded
-  single item (safe — nothing could reference it yet). PantryMealDetail
-  tracks a `scannedItemIds` set, seeded from a new `justCreatedItemIds`
-  prop (whole Meal just arrived from a scan) and grown as more items are
-  scanned in via "Add another item" while the Sheet stays open; "Change" on
-  one of those splices the correction into meal.items in that ingredient's
-  place, leaving the superseded FoodItem orphaned (same as removing an item
-  from a meal already does).
-- Also: Marco decided to leave the Nutri-scan-also-reads-whole-food
-  question (round 150's TODO) alone for now — not pursuing it.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
-
-ROUND 150 — "+ NEW FOOD": ONE PERSISTENT SHEET INSTEAD OF A SECOND BLANK ONE; "SAVE FOOD" CTA (2026-07-04)
-Files: src/ui/components/PantryNewFoodScan.tsx (rewritten), src/ui/screens/PantryScreen.tsx,
-       src/ui/components/PantryFoodItemDetail.tsx
-- Marco (two screenshots): tapping Camera/Photo/Describe/Nutri-scan from
-  "+ New food" opened a SECOND, blank, full-screen sheet on top of the
-  compact "New food" method picker, instead of the picker staying put with
-  a loader in place. Root cause: PantryScreen tracked `pickingMethod` and
-  `scanMethod` as two separate states, each rendering its OWN Sheet
-  (MethodPickerModal, then the old forceExpanded PantryNewFoodScan) — the
-  hand-off between them read as a flash of an empty full-height sheet, and
-  for Nutri-scan it appeared behind the native iOS photo-picker action
-  sheet too. Fixed by collapsing the whole flow into one `PantryNewFood`
-  component: a SINGLE, compact (non-forceExpanded) Sheet for its entire
-  lifetime, swapping only its inner content (picker -> spinner/Describe ->
-  commit). Manual is unaffected — still hands off to its own separate,
-  forceExpanded form Sheet. Describe's textarea renders as a plain Sheet
-  child rather than via useSheetSetOverlay (every other call site in the
-  app pairs that with forceExpanded; this Sheet must stay compact) —
-  DescribeOverlay's OverlayNav/useOverlaySetFooter calls no-op safely
-  without that context, so the only loss is the "< Describe" sub-header row
-  (the Sheet's own title + X already covered cancel).
-- Also added a `justCreated` prop to PantryFoodItemDetail so the CTA reads
-  primary "Save food" (not outline "Close") when landed on right after a
-  scan commit — those have no prior explicit save tap, unlike Manual.
-  PantryMealDetail needed no change (CTA was already unconditional "Save
-  meal").
-- NOT done: unifying the per-100g/per-serving prompt across all 4 methods
-  (Marco's "Nutri-scan also reads whole food" observation) — not
-  mechanically detectable from the current scan API response without
-  guessing; flagged back to Marco with concrete options instead.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
 
 ================================================================
 TODO / FUTURE WORK

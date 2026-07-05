@@ -2,11 +2,12 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-05 — Round 179 (seeded 150 default Pantry foods with
-fixed/locked macros, origin:'app' vs 'user'; new 3-pill Pantry filter —
-Food items / Meals / My own — replacing the old single-select All/Food
-items/Meals radio)
-Full change history: see CHANGELOG.txt (rounds 1-179).
+Last updated: 2026-07-05 — Round 180 (Account screen redesign: Profile+BMR
+merged into the gauge-card layered pattern at 24px radius, weight-units and
+weight-logging moved out of the Edit-profile sheet into Tracking, Goal/
+Connections hidden and Data relocated under a triple-tap-revealed Developer
+section, full type/radius/colour pass to match Marco's design spec)
+Full change history: see CHANGELOG.txt (rounds 1-180).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -116,12 +117,36 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 179, 2026-07-05)
+7. CURRENT STATUS (as of round 180, 2026-07-05)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only —
-detailed round-by-round history lives in CHANGELOG.txt (rounds 1-179)
+detailed round-by-round history lives in CHANGELOG.txt (rounds 1-180)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
+- ACCOUNT SCREEN REDESIGNED (round 180): Profile+BMR merged into the same
+  gauge-card layered pattern as Diary/Today (white profile card floats on
+  a grey reveal; BMR lives in the grey area — label, icon, then value +
+  "kcal / day", 16pt), now at 24px radius (rounded-sheet). Whole card
+  opens Edit profile; "Edit" moved above the card as a 15pt accent-hover
+  text label (no background). Weight-units toggle moved out of the
+  Edit-profile sheet into its own live Tracking card (WeightUnitsCard);
+  Edit-profile's Weight field now reuses the same WeightLogSheet as
+  Today/Goal ("tap the field" — no separate button), confirmed to
+  upsert-by-date so it always reflects the most recent calendar entry.
+  Goal and Connections sections are hidden, not deleted
+  (SHOW_GOAL_SECTION / SHOW_CONNECTIONS_SECTION consts in
+  AccountScreen.tsx) — Goal duplicated the Goal tab, Connections
+  (Withings) isn't needed yet. Data (export JSON) moved under a new
+  Developer section, hidden by default and revealed by triple-tapping
+  the "Account" title; the reveal persists across reloads via new
+  src/lib/devReveal.ts (localStorage) and toggles off the same way.
+  Tracking/Settings cards (Weight units, Weigh-in frequency, Diary
+  macros, Theme/Haptics) restyled to match GoalScreen's own outline-card
+  pattern: rounded-card (16px), white fill, inset border-field hairline,
+  no drop shadow; titles bold/16pt/text-content. Selected weigh-in day
+  pill now uses the shared segmented-active look (white + shadow +
+  accent-hover text) instead of a solid fill; its footer sentence spells
+  out full day names ("Mondays") instead of abbreviated + "s".
 - Diary/Today gauge-card + macro-bars layered pattern (rounds 162-165) is
   now also the shared reference pattern for the 3 Basket Meal views
   (PantryMealDetail, FoodForm, LogEntryContent): a white meal-summary
@@ -217,12 +242,23 @@ MED:
   a concern; not blocking.
 - NO CONFIRM on destructive deletes of food entries, pantry items, weight
   entries. (Goal actions confirm via Sheet; entry deletes are immediate.)
-- ACCOUNT IA: layout still growing — grouping pass worthwhile when more
-  prefs land.
 - .env.local is gitignored and must be recreated manually if the project
   folder is deleted. Contains VITE_FOOD_SCAN_API_URL (Vercel scan API URL).
+- PROFILE CARD NESTED INTERACTIVE CONTROL (round 180, new): the Profile
+  card is a div[role=button] wrapping the whole card to open Edit profile;
+  the BMR info icon inside is a real nested <button> that stopPropagation
+  s to open its own "About BMR" sheet instead. Works fine and is
+  keyboard-activatable, but nested interactive controls are a minor a11y
+  smell — revisit if VoiceOver testing surfaces an issue.
 
 LOW:
+- OUTLINE-CARD STYLE DUPLICATED (round 180, new): the rounded-card + inset
+  border-field hairline, no-shadow card style Marco asked for on Account
+  (Weight units/Weigh-in frequency/Diary macros/Theme, via the local
+  OutlineCard helper in AccountScreen.tsx) is hand-rolled independently of
+  GoalScreen.tsx's goal-overview container, which uses the same inset-
+  border technique on its own. Worth extracting into a shared kit atom if
+  a 3rd screen wants it — left as-is for now since only 2 screens use it.
 - DEFAULT-PANTRY NAME-COLLISION CHECK IS EXACT-MATCH (round 179, new):
   defaultPantrySeed.ts skips a default only when its name exactly matches
   (case-insensitive, trimmed) an existing item. Near-duplicate names
@@ -248,6 +284,14 @@ LOW:
 - GoalForkScreen (/goal-fork): built but not device-reviewed.
 - ProfileSetupSheet height select always shows cm. Low priority.
 - Estimated BMR (weight-only) assumes pop-avg 170 cm / 35 yr / neutral sex.
+
+DONE (r180):
+- ✓ ACCOUNT IA GROUPING PASS (round 180): resolved the long-standing
+  "layout still growing" gap — Profile+BMR merged into one gauge-card
+  layered component, Goal/Connections hidden, Data moved under a
+  triple-tap Developer section, weight-units + weight-logging surfaced
+  directly in Tracking. See CURRENT STATUS and CHANGELOG round 180 for
+  full detail.
 
 DONE (r170-179):
 - ✓ GREY-FILL FULLY CONFIRMED: round 170's bottomGapPx cap on
@@ -393,6 +437,42 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 180 — ACCOUNT SCREEN REDESIGN (2026-07-05)
+Files: src/ui/screens/AccountScreen.tsx, src/lib/devReveal.ts (new)
+- Merged Profile + Energy into one gauge-card layered component (white
+  profile card floats on a grey reveal; BMR — label, info icon, value +
+  "kcal / day" — lives directly on the grey area), matching the
+  Diary/Today reference pattern, now at 24px radius (rounded-sheet).
+  Added a Weight row (from currentWeightKg/weights repo). Whole card
+  opens Edit profile; "Edit" moved above the card as a 15pt accent-hover
+  text label (no background) instead of a button inside it.
+- Weight-units toggle moved out of the Edit-profile sheet into its own
+  live Tracking card (WeightUnitsCard) — edits repos.user directly, no
+  sheet needed. Edit-profile's Weight field now reuses the existing
+  WeightLogSheet (same one Today/Goal use — pre-fills from today's entry
+  or latest known weight, upserts by date) as a single tappable field
+  instead of a separate Log button.
+- Goal and Connections sections hidden, not deleted (SHOW_GOAL_SECTION /
+  SHOW_CONNECTIONS_SECTION consts) — Goal duplicated the Goal tab,
+  Connections (Withings) isn't needed yet. Data (export JSON) moved
+  under a new Developer section, hidden by default, revealed by
+  triple-tapping the "Account" title; persists via new
+  src/lib/devReveal.ts (localStorage), toggles off the same way.
+- Tracking/Settings cards (Weight units, Weigh-in frequency, Diary
+  macros, Theme/Haptics) restyled to match GoalScreen's own outline-card
+  pattern: rounded-card (16px), white fill, inset border-field hairline,
+  no drop shadow — vs. Profile's shadow-card-lg hero treatment. Card
+  titles bold/16pt(text-callout)/text-content. Selected weigh-in day
+  pill uses the shared segmented-active style (white + shadow +
+  accent-hover text) instead of a solid fill; its footer sentence spells
+  out full day names ("Mondays") instead of abbreviated + "s", at 15pt.
+  Diary macros row separators removed.
+- Section headings ("Profile"/"Tracking"/"Settings") given a bespoke
+  bold text-headline heading local to this screen (matching "Review your
+  goal" in GoalSetupScreen) — the shared SectionLabel atom used
+  everywhere else (Today/Goal/Pantry) is untouched.
+- tsc: clean. lint: clean. vitest: 51 passed, 8 skipped (unchanged).
+
 ROUND 179 — SEED 150 DEFAULT PANTRY FOODS; LOCK THEIR MACROS (2026-07-05)
 Files: src/data/defaultPantry.ts (new), src/data/defaultPantrySeed.ts (new),
        src/data/defaultPantrySeed.test.ts (new), src/ui/AppShell.tsx,
@@ -431,25 +511,6 @@ Files: src/ui/components/PantryPicker.tsx
   same pill visual treatment.
 - tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
 
-ROUND 177 — 3-PILL PANTRY FILTER: FOOD ITEMS / MEALS / MY OWN (2026-07-05)
-Files: src/domain/types.ts, src/ui/screens/PantryScreen.tsx
-- Replaced the old single-select All/Food items/Meals radio with 3
-  independent toggle pills, reusing FilterPills' exact visual states but
-  built bespoke (FilterPills' other 3 call sites are all single-select
-  and shouldn't inherit toggle/disabled behavior).
-- "Food items"/"Meals" union together (both or neither = show
-  everything); "My own" is a separate, independent restriction to
-  origin:'user', layered on top rather than a flat 3-way OR; Meal rows
-  always pass "My own" through untouched (every Meal is user-made).
-  "My own" is disabled + force-unchecked whenever the view resolves to
-  Meals-only, done inline in the type-toggle handlers (not a
-  useEffect+setState, which the hooks linter flags as unnecessary for a
-  single user action).
-- Added optional `origin?: 'app' | 'user'` to FoodItem — undefined on
-  every existing item (read as 'user', no migration needed) — groundwork
-  for round 179's seed; nothing seeded 'app' at this point yet.
-- tsc: clean. lint: clean. vitest: 48 passed, 8 skipped (unchanged).
-  `npm run build` verified clean.
 
 ================================================================
 TODO / FUTURE WORK

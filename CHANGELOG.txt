@@ -1,4 +1,105 @@
 ================================================================
+ROUND 180 — ACCOUNT SCREEN REDESIGN (2026-07-05)
+================================================================
+Files: src/ui/screens/AccountScreen.tsx, src/lib/devReveal.ts (new)
+
+Marco shared a new design for the Account screen and asked for a full
+match on data reuse, font sizes, container radius, shadows, and
+positioning — done in "careful mode" (read full files before editing,
+plan explicitly, small targeted edits, typecheck+lint after every
+meaningful change) across several iterative rounds of feedback.
+
+Interpretation-first: before writing any code, read AccountScreen.tsx in
+full plus the kit atoms (Surface/Card, SegmentedControl, SectionLabel)
+and confirmed two decisions with Marco before touching anything with
+app-wide blast radius — whether to change the shared SectionLabel atom
+(would ripple to Today/Goal/Pantry) vs. a bespoke Account-only heading,
+and whether the Tracking/Settings cards should match the Profile hero
+card's shadow or a plainer style. Marco pointed to two existing
+references instead of new one-offs: the "Review your goal" heading in
+GoalSetupScreen.tsx (text-headline/18pt, semibold) for section titles,
+and GoalScreen.tsx's goal-overview container (rounded-main + inset
+1px border via `boxShadow: inset 0 0 0 1px var(--color-border-field)`,
+no drop shadow) for the outline-card look. Both were reused directly
+rather than inventing new styles.
+
+Final layout, after several rounds of correction:
+- PROFILE: back to the gauge-card layered pattern (matches
+  Diary/Today's white-card-on-grey-reveal, TodayScreen.tsx ~L943) —
+  Height/Age/Sex/Weight rows in the white card, BMR living directly on
+  the grey reveal below it. Card radius 24px (rounded-sheet, not the
+  32px rounded-main used for Today's gauge). Added a Weight row (from
+  currentWeightKg over repos.weights — confirmed for Marco that this
+  resolves by most recent CALENDAR DATE, not insertion order: logging a
+  weight for 2 weeks ago never overrides a more recent entry from
+  yesterday). Row values are right-aligned, 16pt (text-callout), labels
+  text-content (not the muted secondary token). "Edit" moved out of the
+  card entirely — sits above it, next to the "Profile" heading, as a
+  15pt accent-hover text label with no background — and the entire card
+  is now a div[role=button] that opens Edit profile on tap anywhere. The
+  BMR row reads "BMR" then an info icon (text-content, stopPropagation so
+  it still opens its own "About BMR" sheet without also triggering
+  Edit), "(resting burn)" beneath at 15pt/text-content-secondary, and on
+  the right the value + "kcal / day" beneath it, same line-height as the
+  label side.
+- TRACKING: new WeightUnitsCard added (Kg/Lbs SegmentedControl, editable
+  live without opening Edit profile) — this field used to only be
+  editable inside the Edit-profile sheet's Units control, which is now
+  removed from that sheet entirely. Card titles ("Weight units",
+  "Weigh-in frequency", "Diary macros") and "Which day?" are all
+  bold/16pt(text-callout)/text-content. Selected weigh-in-day pill
+  switched from a solid accent fill to the shared segmented-active look
+  (white background + shadow-sm + accent-hover text) so it visually
+  matches the app's SegmentedControl convention. Footer sentence spells
+  out full day names ("You'll see a weight reminder on Mondays.")
+  instead of abbreviating + appending "s" ("Mons."), at 15pt. Diary
+  macros card lost its row separators (divide-y removed).
+- SETTINGS: renamed from "Appearance"; Theme label recoloured to
+  text-content; otherwise unchanged (Theme SegmentedControl + Haptic
+  feedback toggle).
+- GOAL / CONNECTIONS: both hidden, not deleted — gated behind
+  SHOW_GOAL_SECTION / SHOW_CONNECTIONS_SECTION module consts at the top
+  of AccountScreen.tsx. Goal duplicated what's already on the Goal tab;
+  Connections (Withings) isn't needed for now. Flip either const back to
+  true to restore without touching any other code.
+- DEVELOPER + DATA: Data (export JSON) moved from its own top-level
+  section into Developer. The whole Developer section is hidden by
+  default and revealed by triple-tapping the "Account" title (tap
+  counter with a 500ms reset window); the reveal persists across app
+  reloads via new src/lib/devReveal.ts (localStorage-backed
+  get/setDevRevealed, same pattern as lib/theme.ts and lib/haptics.ts)
+  and toggles back off the same way (another triple-tap).
+- EDIT-PROFILE SHEET: kg/lbs SegmentedControl removed (now lives only in
+  Tracking's WeightUnitsCard, avoiding two places editing the same
+  field). Weight field now reuses WeightLogSheet — the exact same
+  weight-logging sheet already used by Today's "Log" button and Goal's
+  "Log weight" button (pre-fills from today's entry or the latest known
+  weight, saves via repos.weights.upsertForDate, recalculates account
+  BMR) — as a Sheet-on-Sheet stacked on top of ProfileSheet. The field
+  is a single tappable row (chevron affordance, no separate Log/Add
+  button, per Marco's last-minute ask).
+
+All cards other than Profile (Weight units, Weigh-in frequency, Diary
+macros, Theme) share one local OutlineCard helper: rounded-card (16px),
+white fill, inset border-field hairline, no drop shadow — see KNOWN GAPS
+for the note that this duplicates GoalScreen's own hand-rolled version of
+the same pattern rather than a shared kit atom.
+
+Also handled mid-session: a user-provided GitHub PAT was pasted directly
+into chat ahead of schedule — held in memory only, used once for the
+final push via an inline authenticated remote URL (never written to git
+config), with a reminder to rotate it since it was shared in plaintext.
+A stale/leftover repo checkout was found in the sandbox before the real
+clone (owned by a different user, with pre-built node_modules/dist) —
+not trusted or read; a fresh clone into a new directory was verified
+against origin (HEAD hash + clean working tree) before any file was
+opened, given CLAUDE.md/PROJECT-CONTEXT files are read for guidance and
+could in principle be tampered with in a compromised sandbox.
+
+tsc: clean. lint: clean. vitest: 51 passed, 8 skipped (unchanged — no
+domain/data logic touched, UI-only round).
+
+================================================================
 ROUND 179 — SEED 150 DEFAULT PANTRY FOODS; LOCK THEIR MACROS (2026-07-05)
 ================================================================
 Files: src/data/defaultPantry.ts (new), src/data/defaultPantrySeed.ts (new),

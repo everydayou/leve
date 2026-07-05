@@ -362,6 +362,7 @@ function PantryMealDetailContent({
     return !!current && foodItemFieldsChanged(orig, current);
   });
   const hasChanges = nameChanged || itemsChanged || foodItemsChanged;
+  console.log('[DEBUG PantryMealDetailContent] render. justCreated=', justCreated, 'nameChanged=', nameChanged, 'itemsChanged=', itemsChanged, 'foodItemsChanged=', foodItemsChanged, 'hasChanges=', hasChanges);
 
   async function saveName(next: string) {
     const trimmed = next.trim();
@@ -485,8 +486,9 @@ function PantryMealDetailContent({
   // with any unsaved change asks for confirmation first; otherwise it's a
   // no-op close, same as always.
   closeRef.current = () => { // eslint-disable-line react-hooks/refs
-    if (justCreated || hasChanges) setConfirmingDiscard(true);
-    else onClose();
+    console.log('[DEBUG PantryMealDetailContent] closeRef.current() invoked. justCreated=', justCreated, 'hasChanges=', hasChanges);
+    if (justCreated || hasChanges) { console.log('[DEBUG PantryMealDetailContent] showing discard confirm'); setConfirmingDiscard(true); }
+    else { console.log('[DEBUG PantryMealDetailContent] no changes, calling real onClose()'); onClose(); }
   };
 
   async function discardSessionChanges() {

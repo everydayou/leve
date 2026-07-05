@@ -1,5 +1,5 @@
 import { WheelPicker } from '../kit';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLive } from '../../state/live';
 import { useNavigate } from 'react-router-dom';
 import { repos } from '../../state/repos';
@@ -70,14 +70,14 @@ export function AccountScreen() {
     <div className="px-6 pb-6">
       <h1 onClick={handleTitleTap} className="select-none pt-4 text-title font-semibold">Account</h1>
 
-      <SectionLabel>Profile</SectionLabel>
+      <AccountSectionHeading>Profile</AccountSectionHeading>
       {/* Layered card: white profile card floats on a grey container; BMR
           sits directly on the grey reveal below, matching the gauge-card /
           Basket-Meal reference pattern (TodayScreen.tsx ~L943). */}
       <div className="rounded-main bg-surface-sunken">
         <div className="rounded-main bg-surface border border-border-subtle shadow-card-lg p-4">
           <div className="flex items-start justify-between">
-            <div className="space-y-2">
+            <div className="space-y-3">
               <ProfileRow label="Height" value={user.heightCm > 0 ? `${user.heightCm} cm` : 'Not set'} />
               <ProfileRow label="Age" value={user.age != null ? `${user.age}` : 'Not set'} />
               <ProfileRow label="Sex" value={user.sex ? cap(user.sex) : 'Not set'} />
@@ -150,7 +150,7 @@ export function AccountScreen() {
         </>
       )}
 
-      <SectionLabel>Tracking</SectionLabel>
+      <AccountSectionHeading>Tracking</AccountSectionHeading>
       <WeightUnitsCard user={user} />
       <div className="mt-2">
         <WeightCadenceCard user={user} />
@@ -161,7 +161,7 @@ export function AccountScreen() {
         </div>
       )}
 
-      <SectionLabel>Settings</SectionLabel>
+      <AccountSectionHeading>Settings</AccountSectionHeading>
       <AppearanceCard />
 
       {showDeveloper && (
@@ -300,8 +300,8 @@ function AppearanceCard() {
     if (next) hapticLight();
   }
   return (
-    <Card padded={false} className="p-4">
-      <p className="mb-2 text-label font-medium text-content-secondary">Theme</p>
+    <OutlineCard>
+      <p className="mb-2 text-subhead font-medium text-content-secondary">Theme</p>
       <SegmentedControl<ThemePref>
         value={pref}
         onChange={pick}
@@ -344,7 +344,7 @@ function AppearanceCard() {
           />
         </button>
       </div>
-    </Card>
+    </OutlineCard>
   );
 }
 
@@ -428,14 +428,14 @@ function WeightUnitsCard({ user }: { user: User }) {
     if (u) await repos.user.save({ ...u, units: next });
   }
   return (
-    <Card padded={false} className="p-4">
-      <p className="mb-2 text-label font-medium text-content-secondary">Weight units</p>
+    <OutlineCard>
+      <p className="mb-2 text-subhead font-medium text-content-secondary">Weight units</p>
       <SegmentedControl<Units>
         value={units}
         onChange={save}
         options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
       />
-    </Card>
+    </OutlineCard>
   );
 }
 
@@ -458,8 +458,8 @@ function WeightCadenceCard({ user }: { user: User }) {
   }
 
   return (
-    <Card padded={false} className="p-4">
-      <p className="mb-2 text-label font-medium text-content-secondary">Weigh-in frequency</p>
+    <OutlineCard>
+      <p className="mb-2 text-subhead font-medium text-content-secondary">Weigh-in frequency</p>
       <SegmentedControl<'daily' | 'weekly'>
         value={cadence}
         onChange={saveCadence}
@@ -492,15 +492,39 @@ function WeightCadenceCard({ user }: { user: User }) {
           ? "You'll see a weight reminder each evening until you log."
           : `You'll see a weight reminder on ${DOW_LABELS[day]}s.`}
       </p>
-    </Card>
+    </OutlineCard>
   );
 }
 
 function ProfileRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline gap-3">
-      <span className="w-14 text-label font-medium text-content-secondary">{label}</span>
-      <span className="text-subhead font-semibold">{value}</span>
+    <div className="flex items-baseline justify-between">
+      <span className="text-subhead font-medium text-content-secondary">{label}</span>
+      <span className="text-headline font-semibold text-content">{value}</span>
+    </div>
+  );
+}
+
+/* Section heading used on Account only — matches the "Review your goal"
+ * heading in GoalSetupScreen.tsx (text-headline/18pt, semibold, sentence
+ * case), per Marco's design. Distinct from the app-wide SectionLabel atom
+ * (small grey uppercase caption) used on Today/Goal/Pantry — left untouched
+ * there so this doesn't ripple to other screens. */
+function AccountSectionHeading({ children }: { children: ReactNode }) {
+  return <p className="mb-3 mt-6 text-headline font-semibold text-content">{children}</p>;
+}
+
+/* Outline card used on Account only — matches GoalScreen.tsx's goal-overview
+ * container: rounded-main, plain white fill, inset hairline border, no drop
+ * shadow (vs. the Profile hero card above, which intentionally keeps
+ * shadow-card-lg per the gauge-card pattern). */
+function OutlineCard({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={`rounded-main bg-surface p-4 ${className}`}
+      style={{ boxShadow: 'inset 0 0 0 1px var(--color-border-field)' }}
+    >
+      {children}
     </div>
   );
 }
@@ -566,8 +590,11 @@ function MacroDiaryCard({ goal }: { goal: Goal }) {
   ];
 
   return (
-    <div className="overflow-hidden rounded-control border border-border-subtle bg-surface divide-y divide-border-subtle">
-      <p className="px-4 pt-3 pb-2 text-label font-medium text-content-secondary">Diary macros</p>
+    <div
+      className="overflow-hidden rounded-main bg-surface divide-y divide-border-subtle"
+      style={{ boxShadow: 'inset 0 0 0 1px var(--color-border-field)' }}
+    >
+      <p className="px-4 pt-3 pb-2 text-subhead font-medium text-content-secondary">Diary macros</p>
       {macros.map(({ label, field }) => {
         const enabled = goal[field] !== false;
         return (

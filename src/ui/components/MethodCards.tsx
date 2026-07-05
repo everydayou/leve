@@ -71,7 +71,10 @@ export function AddAnotherSection({
   // DOM/layout first, so scrollIntoView measures the fully-expanded
   // height, not the collapsed one. block: 'nearest' scrolls the minimum
   // amount needed to reveal the whole section when it fits the viewport,
-  // rather than always snapping it to an edge.
+  // rather than always snapping it to an edge. scrollMarginBottom (round
+  // 173) adds 16px of breathing room below the section for that "nearest"
+  // calculation, so it settles 16px clear of the viewport edge instead of
+  // landing flush against it.
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -82,7 +85,11 @@ export function AddAnotherSection({
   }, [open]);
 
   return (
-    <div ref={rootRef} className={`${open ? 'rounded-[24px]' : 'rounded-[16px]'} bg-surface-sunken overflow-hidden${bordered ? ' border border-border-strong' : ''}`}>
+    <div
+      ref={rootRef}
+      style={{ scrollMarginBottom: '16px' }}
+      className={`${open ? 'rounded-[24px]' : 'rounded-[16px]'} bg-surface-sunken overflow-hidden${bordered ? ' border border-border-strong' : ''}`}
+    >
       {/* Heading row */}
       <button
         onClick={onToggle}

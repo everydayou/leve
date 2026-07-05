@@ -877,12 +877,12 @@ function FoodForm({
              background behind them, not grey. Nesting the white card
              INSIDE the grey panel (as its first child, same full-bled
              width) fixes this — grey is always directly behind it. */
-          <div ref={greyFill.ref} style={{ marginLeft: '-20px', marginRight: '-20px', minHeight: greyFill.minHeight }} className="bg-surface-sunken">
+          <div ref={greyFill.ref} style={{ marginLeft: '-20px', marginRight: '-20px', minHeight: greyFill.minHeight, paddingTop: '12px' }} className="bg-surface-sunken">
             <div
               className="relative bg-surface shadow-card-lg rounded-b-main"
               style={{ paddingLeft: '20px', paddingRight: '20px', paddingBottom: '20px' }}
             >
-              <ImageHero photos={sourcePhotos} />
+              <ImageHero photos={sourcePhotos} flushTop />
               <div style={{ marginTop: '24px' }}>
                 <div className="flex items-end gap-2">
                   <div className="flex-1">
@@ -2268,12 +2268,12 @@ function LogEntryContent({
                card INSIDE the grey panel (as its first child, same
                full-bled width) fixes this — grey is always directly
                behind it. */
-            <div ref={greyFill.ref} style={{ marginLeft: '-20px', marginRight: '-20px', minHeight: greyFill.minHeight }} className="bg-surface-sunken">
+            <div ref={greyFill.ref} style={{ marginLeft: '-20px', marginRight: '-20px', minHeight: greyFill.minHeight, paddingTop: '12px' }} className="bg-surface-sunken">
               <div
                 className="relative bg-surface shadow-card-lg rounded-b-main"
                 style={{ paddingLeft: '20px', paddingRight: '20px', paddingBottom: '20px' }}
               >
-                <ImageHero photos={localPhotos} />
+                <ImageHero photos={localPhotos} flushTop />
                 <div style={{ marginTop: '24px' }}>
                   <div className="flex items-end gap-2">
                     <div className="flex-1">

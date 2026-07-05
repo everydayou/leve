@@ -21,11 +21,23 @@ import foodPlaceholder from '../../assets/food-placeholder.png';
  *  (Meal/Food-item detail, FoodForm, LogEntryContent), on top of whatever
  *  spacing each call site already had above it. Set once here rather than
  *  at each of the 6 call sites so it can never drift out of sync between
- *  them. */
-export function ImageHero({ photos, className }: { photos: string[]; className?: string }) {
+ *  them.
+ *
+ *  Round 173: the 3 Meal-card call sites (PantryMealDetail, FoodForm's and
+ *  LogEntryContent's grey-panel branches) nest this inside a white card
+ *  that has its own shadow-card-lg + zero top padding — the 12px marginTop
+ *  put a flat white gap directly above the photo, and the photo's own
+ *  shadow (real photos only, see above) bled onto it, reading as a stray
+ *  smudge right under the white card's top edge. `flushTop` lets those 3
+ *  sites keep the photo flush against the card's own top (shadow bleeds
+ *  outside the card as it always did, onto the grey panel behind it,
+ *  invisible) while they add the 12px as paddingTop on the grey panel
+ *  instead — same net 12px push down, no shadow-on-white artifact. */
+export function ImageHero({ photos, className, flushTop = false }: { photos: string[]; className?: string; flushTop?: boolean }) {
+  const topSpacing = flushTop ? undefined : '12px';
   if (photos.length === 0) {
     return (
-      <div className={`flex justify-center ${className ?? ''}`} style={{ marginTop: '12px' }}>
+      <div className={`flex justify-center ${className ?? ''}`} style={{ marginTop: topSpacing }}>
         <div className="h-64 w-64 overflow-hidden rounded-[32px]">
           <img src={foodPlaceholder} alt="" className="h-full w-full object-cover" />
         </div>
@@ -35,7 +47,7 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
 
   if (photos.length === 1) {
     return (
-      <div className={`flex justify-center ${className ?? ''}`} style={{ marginTop: '12px' }}>
+      <div className={`flex justify-center ${className ?? ''}`} style={{ marginTop: topSpacing }}>
         {/* Round 141 tried moving rounding onto the <img> directly (removing
            this overflow-hidden wrapper) to test a GPU-compositing-layer
            theory for reported photo brightness — reverted (round 142):
@@ -76,7 +88,7 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
   const cfg = photos.length === 2 ? cfg2 : photos.length === 4 ? cfg4 : cfg3;
 
   return (
-    <div className={`flex justify-center ${className ?? ''}`} style={{ marginTop: '12px' }}>
+    <div className={`flex justify-center ${className ?? ''}`} style={{ marginTop: topSpacing }}>
       <div className="relative" style={{ width: 256, height: 256 }}>
         {photos.slice(0, 4).map((photo, i) => {
           const c = cfg[i];

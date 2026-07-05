@@ -549,12 +549,12 @@ function PantryMealDetailContent({
             INSIDE the grey panel (as its first child, same full-bled
             width) fixes this: grey is always directly behind the white
             card, so the rounded-corner cutouts reveal grey correctly. */}
-        <div ref={greyFill.ref} style={{ marginLeft: '-20px', marginRight: '-20px', minHeight: greyFill.minHeight }} className="bg-surface-sunken"> {/* eslint-disable-line react-hooks/refs -- greyFill.ref/.minHeight are plain values from useFillToBottom, not a raw ref read; this file already has a during-render ref write above (deleteRef) that trips the analyzer's conservative ref-taint tracking for the rest of the render. */}
+        <div ref={greyFill.ref} style={{ marginLeft: '-20px', marginRight: '-20px', minHeight: greyFill.minHeight, paddingTop: '12px' }} className="bg-surface-sunken"> {/* eslint-disable-line react-hooks/refs -- greyFill.ref/.minHeight are plain values from useFillToBottom, not a raw ref read; this file already has a during-render ref write above (deleteRef) that trips the analyzer's conservative ref-taint tracking for the rest of the render. paddingTop: round 173's 12px photo push-down, moved here (off the photo itself) — see ImageHero's flushTop doc comment. */}
           <div
             className="relative bg-surface shadow-card-lg rounded-b-main"
             style={{ paddingLeft: '20px', paddingRight: '20px', paddingBottom: '20px' }}
           >
-            <ImageHero photos={photos} />
+            <ImageHero photos={photos} flushTop />
             <div style={{ marginTop: '24px' }}>
               <div className="flex items-end gap-2">
                 <div className="flex-1">

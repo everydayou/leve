@@ -248,7 +248,7 @@ export function FoodItemFormContent({
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
       {photo ? (
         <div className="flex justify-center">
-          <div className="h-64 w-64 rounded-[32px] shadow-card-lg">
+          <div className="h-64 w-64 rounded-[32px] shadow-photo">
             <div className="relative h-full w-full overflow-hidden rounded-[32px]">
               <img src={photo} alt="Food" className="h-full w-full object-cover" />
               <button

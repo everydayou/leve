@@ -2467,7 +2467,7 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
     <div className="mt-2 flex flex-col space-y-3">
       {scanPhoto && (
         <div className="flex shrink-0 justify-center pb-1">
-          <div className="h-64 w-64 overflow-hidden rounded-[24px] shadow-card-lg">
+          <div className="h-64 w-64 overflow-hidden rounded-[24px] shadow-photo">
             <img src={scanPhoto} alt="Scanned meal" className="h-full w-full object-cover" />
           </div>
         </div>

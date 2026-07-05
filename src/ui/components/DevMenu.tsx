@@ -235,6 +235,7 @@ const COLOR_GROUPS: { group: string; tokens: { name: string; label: string }[] }
 const SHADOW_DEFS = [
   { name: '--shadow-card',    label: 'Card' },
   { name: '--shadow-card-lg', label: 'Card LG' },
+  { name: '--shadow-photo',   label: 'Photo' },
   { name: '--glass-shadow',   label: 'Glass' },
 ];
 

@@ -14,7 +14,12 @@ import foodPlaceholder from '../../assets/food-placeholder.png';
  *
  *  Figma x/y values are bounding-box positions (top-left of the axis-aligned
  *  rect around the rotated element). CSS left/top is the unrotated box position,
- *  so each coordinate is offset inward by (bbox_size − image_size) / 2. */
+ *  so each coordinate is offset inward by (bbox_size − image_size) / 2.
+ *
+ *  Round 176: real photos use the dedicated `shadow-photo` token (darker
+ *  than shadow-card-lg) — Marco wanted the photo shadow to read more
+ *  clearly; shadow-card-lg itself stays untouched since it's shared with
+ *  unrelated cards (gauge, goal chart, meal-summary card). */
 export function ImageHero({ photos, className }: { photos: string[]; className?: string }) {
   if (photos.length === 0) {
     return (
@@ -36,10 +41,11 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
            reliably in WebKit, which caused a real regression (square white
            corners). The brightness theory is also disproven — see round 142
            notes — so this reverts to the plain, correct overflow-hidden
-           pattern with no loss. Round 166: shadow-card-lg restored here
-           (round 163 had dropped it to avoid a shadow-in-shadow look once
-           nested inside the meal/food-item card — Marco wants it back). */}
-        <div className="h-64 w-64 overflow-hidden rounded-[32px] shadow-card-lg">
+           pattern with no loss. Round 166: shadow restored here (round 163
+           had dropped it to avoid a shadow-in-shadow look once nested
+           inside the meal/food-item card — Marco wants it back). Round
+           176: switched to the darker shadow-photo token, see file doc. */}
+        <div className="h-64 w-64 overflow-hidden rounded-[32px] shadow-photo">
           <img src={photos[0]} alt="Meal" className="h-full w-full object-cover" />
         </div>
       </div>
@@ -76,7 +82,7 @@ export function ImageHero({ photos, className }: { photos: string[]; className?:
           return (
             <div
               key={i}
-              className="absolute overflow-hidden rounded-[32px] shadow-card-lg"
+              className="absolute overflow-hidden rounded-[32px] shadow-photo"
               style={{
                 width: c.w,
                 height: c.h,

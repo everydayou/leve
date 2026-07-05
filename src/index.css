@@ -74,6 +74,11 @@
      shadow-card-lg = larger spread for hero cards (gauge, goal chart). */
   --shadow-card:    0 1px 2px rgba(17, 24, 28, 0.04), 0 6px 16px -4px rgba(17, 24, 28, 0.08);
   --shadow-card-lg: 0 2px 8px rgba(17, 24, 28, 0.07), 0 16px 40px -8px rgba(17, 24, 28, 0.16);
+  /* Round 176: dedicated, darker shadow just for real food/meal photos
+     (ImageHero, FoodItemForm) — shadow-card-lg is shared with unrelated
+     hero cards (gauge, goal chart, meal-summary card) so it couldn't be
+     darkened globally without affecting those too. */
+  --shadow-photo:   0 2px 8px rgba(17, 24, 28, 0.12), 0 16px 40px -8px rgba(17, 24, 28, 0.28);
 
   /* ── Progress bar track (visible against any surface) ──────────────────── */
   --color-progress-track: #D9D9D9;
@@ -226,6 +231,7 @@ button, a, [role="button"] {
   /* Shadows (user-tuned). */
   --shadow-card:    0px 1px 5px 5px rgba(0, 0, 0, 0.02), 0px 8px 8px -6px rgba(0, 0, 0, 0.02), 0px 4px 4px 0px rgba(0, 0, 0, 0.04);
   --shadow-card-lg: 0px 2px 8px 4px rgba(15, 2, 0, 0.06), 0px 16px 40px 0px rgba(0, 0, 0, 0.08);
+  --shadow-photo:   0px 2px 8px 4px rgba(15, 2, 0, 0.12), 0px 16px 40px 0px rgba(0, 0, 0, 0.16);
 
   /* Accent + status for dark: brand mint pops on near-black; pastels deepened. */
   --color-accent:       #00e0aa;
@@ -257,6 +263,7 @@ button, a, [role="button"] {
    This lets the .dark theme and the DevMenu shadow sliders both work. */
 .shadow-card    { --tw-shadow: var(--shadow-card); }
 .shadow-card-lg { --tw-shadow: var(--shadow-card-lg); }
+.shadow-photo   { --tw-shadow: var(--shadow-photo); }
 /* Navbar scroll-depth shadow — appears when content scrolls under a sticky header */
 .shadow-nav     { box-shadow: 0 2px 8px -2px rgba(17, 24, 28, 0.08); }
 

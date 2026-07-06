@@ -93,13 +93,15 @@ export function GoalScreen() {
         <div className="px-6 pt-4 pb-2 flex items-start justify-between">
           <h1 className="text-title font-semibold text-content">Goal</h1>
           {prevGoals.length > 0 && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
+              fullWidth={false}
               onClick={() => setShowNoGoalOptions(true)}
-              aria-label="Goal options"
-              className="flex h-11 w-11 items-center justify-center -mr-2.5 rounded-control text-accent-hover active:bg-surface-sunken"
+              className="!font-normal !text-accent-hover -mr-3.5"
             >
-              <Icon name="settingsGear" size={20} />
-            </button>
+              Options
+            </Button>
           )}
         </div>
       <div className="flex min-h-[65vh] flex-col items-center justify-center gap-4 px-6 text-center">
@@ -240,13 +242,15 @@ export function GoalScreen() {
       {/* ── Page title + settings trigger ──────────────────────────── */}
       <div className="px-6 pt-4 flex items-start justify-between">
         <h1 className="text-title font-semibold text-content">Goal</h1>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          fullWidth={false}
           onClick={() => setShowSettings(true)}
-          aria-label="Goal settings"
-          className="flex h-11 w-11 items-center justify-center -mr-2.5 rounded-control text-accent-hover active:bg-surface-sunken"
+          className="!font-normal !text-accent-hover -mr-3.5"
         >
-          <Icon name="settingsGear" size={20} />
-        </button>
+          Options
+        </Button>
       </div>
 
       {/* ── Final-day banner — only when target not yet reached ──── */}

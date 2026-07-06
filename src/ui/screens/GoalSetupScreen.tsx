@@ -500,7 +500,13 @@ export function GoalSetupForm({
       {/* ── Details step ── */}
       {step === 'details' && (
         <div className={stepAnim || undefined}>
-          {/* Sticky header */}
+          {/* Sticky header — title/back button only (round 184). The
+              segmented control used to live in here too, but this block has
+              its own opaque bg-surface spanning the full row, which hid the
+              info card's border wherever it poked up into the row — not just
+              behind the pill. Moving the control into normal flow below (see
+              next block) lets it and the info card scroll together with
+              nothing opaque behind either of them. */}
           <div className={`sticky top-0 z-20 bg-surface transition-[box-shadow] duration-200${navScrolled ? ' shadow-nav' : ''}`}>
             <div className="pointer-events-none absolute left-0 right-0 bg-surface" style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
             <div className="flex items-center justify-between px-4 pt-5 pb-3">
@@ -513,27 +519,21 @@ export function GoalSetupForm({
               </span>
               <span className="w-10" />
             </div>
-            {/* pb-3 dropped (round 183): the merged info card below now owns
-                this gap via its own -mt pull-up, so the two aren't fighting
-                over the same space. */}
-            <div className="flex justify-center px-4">
-              <SegmentedControl<SetupMode>
-                value={setupMode}
-                onChange={(m) => setSetupMode(m)}
-                options={[{ value: 'simple', label: 'Guided' }, { value: 'custom', label: 'Detailed' }]}
-              />
-            </div>
           </div>
 
-          {/* Info card — merged with the segmented control above (round 183,
-              reviving the round-65 Tracking-step pattern on the now-dissolved
-              Tracking screen). Outline-only, no background fill, so it reads
-              as an extension of the page rather than a separate card; -mt-[18px]
-              (the same value round 65 used against this same SegmentedControl)
-              pulls it up so its top border crosses the pill's vertical
-              midpoint. No explicit z-index needed — the sticky header above
-              is z-20, so it already paints in front of this normal-flow card
-              wherever the two overlap. */}
+          {/* Segmented control + merged info card (round 183/184, reviving
+              the round-65 Tracking-step pattern on the now-dissolved Tracking
+              screen). Both live in normal flow now — no sticky/opaque
+              ancestor — so the card's -mt-[18px] pull-up has nothing behind
+              it but the page itself, and only the pill's own opaque shape
+              covers the card's border where the two actually overlap. */}
+          <div className="flex justify-center px-4 pt-3">
+            <SegmentedControl<SetupMode>
+              value={setupMode}
+              onChange={(m) => setSetupMode(m)}
+              options={[{ value: 'simple', label: 'Guided' }, { value: 'custom', label: 'Detailed' }]}
+            />
+          </div>
           <div className="px-6">
             <div className="-mt-[18px] rounded-card border border-border-card-no-shadow px-4 pb-4 pt-6">
               <div className="flex items-start gap-2">

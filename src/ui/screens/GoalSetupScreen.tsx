@@ -468,8 +468,8 @@ export function GoalSetupForm({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <FullScreen
-      slideUp={isModal} slideRight={fromFork}
-      exiting={isExiting} exitRight={fromFork}
+      slideUp={isModal || fromFork} slideRight={false}
+      exiting={isExiting} exitRight={false}
       onScroll={(e) => setNavScrolled(e.currentTarget.scrollTop > 0)}
       scrollRef={scrollRef}
     >
@@ -515,9 +515,9 @@ export function GoalSetupForm({
           <div className={`sticky top-0 z-20 bg-surface transition-[box-shadow] duration-200${navScrolled ? ' shadow-nav' : ''}`}>
             <div className="pointer-events-none absolute left-0 right-0 bg-surface" style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
             <div className="flex items-center justify-between px-4 pt-5 pb-3">
-              <button onClick={goBackFromDetails} aria-label={skipType ? 'Close' : 'Back'}
+              <button onClick={goBackFromDetails} aria-label={(skipType || fromFork) ? 'Close' : 'Back'}
                 className="-ml-2 flex h-10 w-10 items-center justify-center text-content-muted">
-                <Icon name={skipType ? 'close' : 'chevronLeft'} size={skipType ? 18 : 20} strokeWidth={skipType ? 2 : 2.5} />
+                <Icon name={(skipType || fromFork) ? 'close' : 'chevronLeft'} size={(skipType || fromFork) ? 18 : 20} strokeWidth={(skipType || fromFork) ? 2 : 2.5} />
               </button>
               <span className="text-headline font-semibold text-content">
                 {GOAL_TYPE_LABEL[type] ?? 'Your plan'}

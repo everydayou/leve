@@ -113,7 +113,10 @@ export function GoalScreen() {
           <p className="mt-1 w-[240px] max-w-full text-callout text-content">Set one anytime, takes under a minute.</p>
         </div>
         <div className="w-full max-w-[16rem]">
-          <Button onClick={() => nav('/goal-fork')}>Set a goal</Button>
+          {/* from=today reuses GoalForkScreen's existing modal-entry treatment
+              (slide-up-in + X close instead of back arrow) — same pattern
+              already used by TodayScreen's two goal-fork entry points. */}
+          <Button onClick={() => nav('/goal-fork?from=today')}>Set a goal</Button>
         </div>
       </div>
 

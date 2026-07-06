@@ -169,11 +169,24 @@ export function AppShell() {
         {/* Status-bar scroll-to-top interceptor — a transparent hit-target that
             covers the safe-area / Dynamic Island band. Any tap here scrolls the
             content to the top, matching native iOS behaviour. z-40 sits above
-            screen content but below sheets (z-50). */}
+            screen content but below sheets (z-50).
+            Round 187 (experiment): added onTouchStart alongside onClick. iOS
+            has its own native "tap the status bar to scroll" gesture that gets
+            first refusal on touches in this exact strip — by the time a
+            synthesized click would fire, that native gesture may have already
+            consumed the touch without doing anything useful (it likely targets
+            the WKWebView's own outer scroll view, which never moves — our
+            actual scrolling happens in the nested <main> below). Firing on
+            touchstart instead reacts the instant a finger lands, before that
+            native recognizer has time to decide anything. Not guaranteed to
+            win the race — this is a real platform limitation, not something
+            fully within our control — but worth trying. onClick stays for
+            desktop/browser preview, where there's no touch event at all. */}
         <div
           className="pointer-events-auto absolute inset-x-0 top-0 z-40"
           style={{ height: 'env(safe-area-inset-top, 48px)' }}
           onClick={() => mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+          onTouchStart={() => mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
           aria-hidden
         />
         {/* Bottom padding clears the floating glass tab bar. */}

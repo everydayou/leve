@@ -1,12 +1,17 @@
 import { useState } from 'react';
 import { useKeyboardInset } from '../../lib/useKeyboardInset';
 
-/** Fixed height (round 186) so the bar is pixel-identical everywhere it's
- *  used, regardless of button font metrics — and so callers doing keyboard-
- *  clearance math (Sheet.tsx, GoalSetupScreen.tsx) have an exact number to
- *  add on top of the reported keyboard height, since the bar sits above the
- *  keyboard and isn't itself part of that reported height. */
-export const DONE_BAR_HEIGHT = 44;
+/** Estimated rendered height of the bar (round 187 correction — round 186's
+ *  first attempt forced an explicit 44px height on the bar itself, which
+ *  made it visibly taller than before for NO reason: the bar was already
+ *  pixel-identical between numeric and text fields, since both have always
+ *  gone through this exact same shared component. That 44px change is
+ *  reverted below (back to natural py-2 + text sizing). This constant is
+ *  ONLY for the keyboard-clearance math in Sheet.tsx/GoalSetupScreen (round
+ *  186's actual fix, which was correct and stays) — 16px vertical padding
+ *  (py-2) + ~22.5px line-height (15px text-subhead at Tailwind's default
+ *  1.5 line-height) ≈ 39px, rounded up slightly for a small safety margin. */
+export const DONE_BAR_HEIGHT = 40;
 
 /**
  * Shared "Done" accessory bar for text-input focus — iOS's numeric/decimal
@@ -39,8 +44,8 @@ export function useKeyboardDoneBar() {
 
   const doneBar = focused ? (
     <div
-      className="fixed inset-x-0 z-[400] flex items-center justify-end border-t border-border-subtle bg-surface-elevated pl-4"
-      style={{ bottom: keyboardInset, paddingRight: '24px', height: DONE_BAR_HEIGHT }}
+      className="fixed inset-x-0 z-[400] flex justify-end border-t border-border-subtle bg-surface-elevated py-2 pl-4"
+      style={{ bottom: keyboardInset, paddingRight: '24px' }}
     >
       <button
         type="button"

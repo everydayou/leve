@@ -13,6 +13,7 @@ import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { kgToLbs, lbsToKg } from '../../domain/units';
 import { markOnboardingSeen } from '../../lib/onboarding';
 import { useKeyboardInset, scrollFocusedAboveKeyboard } from '../../lib/useKeyboardInset';
+import { DONE_BAR_HEIGHT } from '../kit/useKeyboardDoneBar';
 import { Button, LabeledInput, NumberField, WheelPicker, Icon, SegmentedControl, FilterPills } from '../kit';
 import type { Goal, GoalType, MacroStyle, Units, Sex } from '../../domain/types';
 
@@ -303,11 +304,15 @@ export function GoalSetupForm({
   useEffect(() => {
     const scrollEl = scrollRef.current;
     if (!scrollEl) return;
-    scrollEl.style.paddingBottom = keyboardInset > 0 ? `${keyboardInset}px` : '';
+    // + DONE_BAR_HEIGHT (round 186): the custom Done bar sits above the
+    // keyboard and isn't part of the reported keyboard height, so both the
+    // padding and the scroll-into-view target need the extra room too —
+    // see Sheet.tsx's matching fix for the same issue.
+    scrollEl.style.paddingBottom = keyboardInset > 0 ? `${keyboardInset + DONE_BAR_HEIGHT}px` : '';
     if (keyboardInset > 0) {
       const focused = document.activeElement as HTMLElement | null;
       if (focused && scrollEl.contains(focused)) {
-        setTimeout(() => scrollFocusedAboveKeyboard(scrollEl, focused, keyboardInset), 100);
+        setTimeout(() => scrollFocusedAboveKeyboard(scrollEl, focused, keyboardInset, DONE_BAR_HEIGHT), 100);
       }
     }
   }, [keyboardInset]);

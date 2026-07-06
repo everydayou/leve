@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Icon } from './Icon';
 import { prefersReducedMotion } from '../../lib/motion';
 import { useKeyboardInset, scrollFocusedAboveKeyboard } from '../../lib/useKeyboardInset';
+import { DONE_BAR_HEIGHT } from './useKeyboardDoneBar';
 
 /** Provides the current keyboard inset (px) to Sheet's children.
  *  Use `useSheetKeyboardInset()` in any child rendered inside a Sheet to
@@ -162,6 +163,38 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+  // Ref to this overlay's own scroll area — mirrors the main Sheet's
+  // scrollAreaRef so a focused field inside an overlay (e.g. EditOverlay's
+  // FoodItemFormContent) gets the same scroll-into-view treatment (round
+  // 186 — this was previously missing here entirely, unlike the main Sheet
+  // scroll area below).
+  const overlayScrollRef = useRef<HTMLDivElement>(null);
+  const overlayKeyboardInsetRef = useRef(0);
+  overlayKeyboardInsetRef.current = keyboardInset; // eslint-disable-line react-hooks/refs -- intentional: mirror state into ref so the stable focusin listener always reads the latest value without being recreated
+
+  // Case 1 — keyboard just opened while an overlay is showing.
+  useEffect(() => {
+    if (keyboardInset <= 0) return;
+    const scrollEl = overlayScrollRef.current;
+    const focused = document.activeElement as HTMLElement | null;
+    if (!scrollEl || !focused || !scrollEl.contains(focused)) return;
+    setTimeout(() => scrollFocusedAboveKeyboard(scrollEl, focused, keyboardInset, DONE_BAR_HEIGHT), 100);
+  }, [keyboardInset]);
+
+  // Case 2 — keyboard already open, user taps a different field inside the overlay.
+  useEffect(() => {
+    const scrollEl = overlayScrollRef.current;
+    if (!scrollEl) return;
+    const onFocusin = (e: FocusEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el || !scrollEl.contains(el)) return;
+      const inset = overlayKeyboardInsetRef.current;
+      if (inset <= 0) return;
+      setTimeout(() => scrollFocusedAboveKeyboard(scrollEl, el, inset, DONE_BAR_HEIGHT), 100);
+    };
+    scrollEl.addEventListener('focusin', onFocusin);
+    return () => scrollEl.removeEventListener('focusin', onFocusin);
+  }, []); // stable — reads inset via ref, no deps needed
 
   useEffect(() => {
     if (node) {
@@ -227,10 +260,14 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
       <OverlayFooterSetContext.Provider value={setOverlayFooterCb}>
         <OverlayScrolledContext.Provider value={scrolled}>
           <div
+            ref={overlayScrollRef}
             className="flex-1 overflow-y-auto overscroll-contain px-5"
             style={{
               touchAction: 'pan-y',
-              paddingBottom: keyboardInset > 0 ? `${keyboardInset}px` : '0.5rem',
+              // + DONE_BAR_HEIGHT (round 186): the Done bar sits on top of
+              // the keyboard, not inside its reported height, so the last
+              // bit of scrollable content needs that much extra room too.
+              paddingBottom: keyboardInset > 0 ? `${keyboardInset + DONE_BAR_HEIGHT}px` : '0.5rem',
             }}
             onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
           >
@@ -444,7 +481,8 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
     const focused = document.activeElement as HTMLElement | null;
     if (!scrollEl || !focused || !scrollEl.contains(focused)) return;
     // 100 ms lets the keyboard slide-up animation finish before we measure.
-    setTimeout(() => scrollFocusedAboveKeyboard(scrollEl, focused, keyboardInset), 100);
+    // + DONE_BAR_HEIGHT (round 186): see OverlayLayer's matching effect above.
+    setTimeout(() => scrollFocusedAboveKeyboard(scrollEl, focused, keyboardInset, DONE_BAR_HEIGHT), 100);
   }, [keyboardInset]);
 
   // Case 2 — keyboard already open, user taps a different field:
@@ -459,7 +497,7 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
       if (!el || !scrollEl.contains(el)) return;
       const inset = keyboardInsetRef.current;
       if (inset <= 0) return;
-      setTimeout(() => scrollFocusedAboveKeyboard(scrollEl, el, inset), 100);
+      setTimeout(() => scrollFocusedAboveKeyboard(scrollEl, el, inset, DONE_BAR_HEIGHT), 100);
     };
     scrollEl.addEventListener('focusin', onFocusin);
     return () => scrollEl.removeEventListener('focusin', onFocusin);
@@ -713,8 +751,9 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
                 className="flex-1 overflow-y-auto px-5"
                 onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
                 style={{ touchAction: 'pan-y',
+                  // + DONE_BAR_HEIGHT (round 186): see OverlayLayer above.
                   paddingBottom: keyboardInset > 0
-                    ? `${keyboardInset}px`
+                    ? `${keyboardInset + DONE_BAR_HEIGHT}px`
                     : scrollAreaPaddingBottom !== undefined
                     ? scrollAreaPaddingBottom
                     : effectiveFooter

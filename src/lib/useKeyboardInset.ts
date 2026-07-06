@@ -70,16 +70,24 @@ export function useKeyboardInset(): number {
  * Uses getBoundingClientRect() for accurate viewport-coordinate maths.
  * Unlike scrollIntoView({block:'nearest'}), this function knows about the
  * keyboard overlay: it checks whether the element's bottom exceeds
- * (window.innerHeight - keyboardInset) and scrolls by exactly the overlap
- * plus a 24 px breathing room.
+ * (window.innerHeight - keyboardInset - extraClearance) and scrolls by
+ * exactly the overlap plus a 24 px breathing room.
+ *
+ * `extraClearance` (round 186) accounts for anything drawn ABOVE the
+ * keyboard that isn't part of the reported keyboard height itself — in
+ * practice, the custom "Done" bar (DONE_BAR_HEIGHT from useKeyboardDoneBar)
+ * that now shows on every focused text/number field. Without it, a field
+ * near the bottom of a scroll area gets scrolled just far enough to clear
+ * the keyboard but not the bar sitting on top of it.
  */
 export function scrollFocusedAboveKeyboard(
   scrollEl: HTMLElement,
   el: HTMLElement,
   keyboardInset: number,
+  extraClearance = 0,
 ): void {
   const inputRect   = el.getBoundingClientRect();
-  const keyboardTop = window.innerHeight - keyboardInset;
+  const keyboardTop = window.innerHeight - keyboardInset - extraClearance;
   if (inputRect.bottom > keyboardTop - 16) {
     scrollEl.scrollBy({ top: inputRect.bottom - keyboardTop + 24, behavior: 'smooth' });
   }

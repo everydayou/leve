@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { useKeyboardInset } from '../../lib/useKeyboardInset';
 
+/** Fixed height (round 186) so the bar is pixel-identical everywhere it's
+ *  used, regardless of button font metrics — and so callers doing keyboard-
+ *  clearance math (Sheet.tsx, GoalSetupScreen.tsx) have an exact number to
+ *  add on top of the reported keyboard height, since the bar sits above the
+ *  keyboard and isn't itself part of that reported height. */
+export const DONE_BAR_HEIGHT = 44;
+
 /**
  * Shared "Done" accessory bar for text-input focus — iOS's numeric/decimal
  * keypads have no built-in Return/confirm key at all, and even the standard
@@ -32,8 +39,8 @@ export function useKeyboardDoneBar() {
 
   const doneBar = focused ? (
     <div
-      className="fixed inset-x-0 z-[400] flex justify-end border-t border-border-subtle bg-surface-elevated py-2 pl-4"
-      style={{ bottom: keyboardInset, paddingRight: '24px' }}
+      className="fixed inset-x-0 z-[400] flex items-center justify-end border-t border-border-subtle bg-surface-elevated pl-4"
+      style={{ bottom: keyboardInset, paddingRight: '24px', height: DONE_BAR_HEIGHT }}
     >
       <button
         type="button"

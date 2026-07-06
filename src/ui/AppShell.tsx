@@ -148,6 +148,24 @@ export function AppShell() {
       {/* Phone-first: full-bleed, full height on small screens. On larger
           viewports it settles into a centered, framed device-sized card. */}
       <div className="relative flex h-[100dvh] w-full max-w-[26.25rem] flex-col overflow-hidden bg-surface-muted sm:h-[min(880px,94dvh)] sm:rounded-[2rem] sm:border sm:border-border-subtle sm:shadow-xl">
+        {/* Status-bar fade (round 185) — purely visual, sits above every
+            screen's scrolling content so nothing runs directly under the
+            notch/Dynamic Island unreadably. Taller than the safe area itself
+            (+48px) so content fades out gradually rather than cutting off
+            sharply — mirrors the bottom nav's own fade in FloatingTabBar.tsx
+            (120px vs a ~34px safe-area-inset-bottom). Token-driven background
+            so it flips correctly in dark mode. pointer-events-none: purely
+            decorative, never blocks the tap-to-top layer below or content
+            under it. z-40, same as the tap interceptor — below sheets (z-50),
+            above all screen content. */}
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 z-40"
+          style={{
+            height: 'calc(env(safe-area-inset-top, 48px) + 48px)',
+            background: 'linear-gradient(to bottom, var(--color-surface-muted), transparent)',
+          }}
+          aria-hidden
+        />
         {/* Status-bar scroll-to-top interceptor — a transparent hit-target that
             covers the safe-area / Dynamic Island band. Any tap here scrolls the
             content to the top, matching native iOS behaviour. z-40 sits above

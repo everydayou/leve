@@ -201,6 +201,14 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
       clearTimeout(timerRef.current);
       // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: must put rendered in DOM before triggering the CSS transition in the rAF below
       setRendered(node);
+      // round 187 fix: `scrolled` lives on OverlayLayer itself, which stays
+      // mounted across DIFFERENT overlay screens (only `rendered` swaps) —
+      // without this reset, a NEW overlay (e.g. "Edit food item") inherited
+      // `scrolled: true` left over from whatever overlay/list was scrolled
+      // before it, showing its nav-bar shadow immediately even though this
+      // fresh content starts at its own scroll top. Only surfaced now that
+      // the shadow-stacking fix above actually makes the shadow visible.
+      setScrolled(false);
       // Two rAFs ensure the initial translateX(100%) is painted before the
       // transition begins; a single rAF can race the browser's paint flush.
       const id = requestAnimationFrame(() => requestAnimationFrame(() => setShow(true)));

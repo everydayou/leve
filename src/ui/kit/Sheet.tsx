@@ -244,29 +244,35 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
         }
       }}
     >
-      {/* Grab handle — visual anchor; overlay is not draggable but the pill
-          gives users the same spatial cue as the main Sheet. */}
-      <div className="shrink-0 pt-3 px-5">
-        <div className="mx-auto mb-3 h-1.5 w-11 rounded-pill bg-border-strong" />
-      </div>
-      {/* Nav bar — rendered OUTSIDE the scroll container so it stays fixed
-          during rubber-band scroll on iOS (sticky inside a scroll area moves).
-          relative + z-10 (round 187): same header-shadow stacking fix as the
-          main Sheet header above — without it, the scroll area below paints
-          over this nav bar's shadow on DOM order alone. */}
-      {overlayNav && (
-        <div className={`relative z-10 shrink-0 -mt-1 px-5 pb-3 pt-2 bg-surface${scrolled ? ' shadow-nav' : ''}`}>
-          <div className="flex items-center">
-            <span className="w-10 shrink-0 flex items-center">
-              <button onClick={overlayNav.onBack} className="-m-3 p-3 text-content-secondary active:opacity-70" aria-label={overlayNav.icon === 'close' ? 'Close' : 'Back'}>
-                <Icon name={overlayNav.icon === 'close' ? 'close' : 'back'} size={overlayNav.icon === 'close' ? 20 : 22} strokeWidth={2.25} />
-              </button>
-            </span>
-            <h2 className="flex-1 text-center text-headline font-semibold text-content">{overlayNav.title}</h2>
-            {overlayNav.right ?? <span className="w-10" />}
-          </div>
+      {/* Grab handle + nav bar now share ONE shadow-casting box (round 188
+          fix). shadow-nav's blur (8px) bleeds roughly that far above the
+          box's own top edge — in the main Sheet header below, the grab
+          handle lives inside that same box, so the bleed lands above the
+          panel's visible content and gets clipped by the rounded top
+          corner. Here the grab handle used to be a separate, earlier
+          sibling sitting BELOW that clipped zone, so the bleed was landing
+          squarely in the visible gap between the grab handle and the nav
+          row — visible as a stray shadow "on top", above the nav bar, once
+          scrolled. Merging them into one box (same padding math as before)
+          matches the main Sheet's structure and clips the bleed the same way. */}
+      <div className={`relative z-10 shrink-0 bg-surface${scrolled ? ' shadow-nav' : ''}`}>
+        <div className="pt-3 px-5">
+          <div className="mx-auto mb-3 h-1.5 w-11 rounded-pill bg-border-strong" />
         </div>
-      )}
+        {overlayNav && (
+          <div className="-mt-1 px-5 pb-3 pt-2">
+            <div className="flex items-center">
+              <span className="w-10 shrink-0 flex items-center">
+                <button onClick={overlayNav.onBack} className="-m-3 p-3 text-content-secondary active:opacity-70" aria-label={overlayNav.icon === 'close' ? 'Close' : 'Back'}>
+                  <Icon name={overlayNav.icon === 'close' ? 'close' : 'back'} size={overlayNav.icon === 'close' ? 20 : 22} strokeWidth={2.25} />
+                </button>
+              </span>
+              <h2 className="flex-1 text-center text-headline font-semibold text-content">{overlayNav.title}</h2>
+              {overlayNav.right ?? <span className="w-10" />}
+            </div>
+          </div>
+        )}
+      </div>
       <OverlayNavSetContext.Provider value={setOverlayNavCb}>
       <OverlayFooterSetContext.Provider value={setOverlayFooterCb}>
         <OverlayScrolledContext.Provider value={scrolled}>

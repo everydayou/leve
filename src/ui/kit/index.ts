@@ -8,7 +8,7 @@ export { Surface, Card, QuickLogCard } from './Surface';
 export { Field } from './Field';
 export { LabeledInput } from './LabeledInput';
 export { NumberField } from './NumberField';
-export { useNumericDoneBar } from './useNumericDoneBar';
+export { useKeyboardDoneBar } from './useKeyboardDoneBar';
 export { WheelPicker } from './WheelPicker';
 export { Chip } from './Chip';
 export { Badge } from './Badge';

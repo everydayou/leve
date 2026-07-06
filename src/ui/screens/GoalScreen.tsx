@@ -98,7 +98,7 @@ export function GoalScreen() {
               aria-label="Goal options"
               className="flex h-11 w-11 items-center justify-center -mr-2.5 rounded-control text-accent-hover active:bg-surface-sunken"
             >
-              <Icon name="moreHoriz" size={20} />
+              <Icon name="settingsGear" size={20} />
             </button>
           )}
         </div>
@@ -245,7 +245,7 @@ export function GoalScreen() {
           aria-label="Goal settings"
           className="flex h-11 w-11 items-center justify-center -mr-2.5 rounded-control text-accent-hover active:bg-surface-sunken"
         >
-          <Icon name="moreHoriz" size={20} />
+          <Icon name="settingsGear" size={20} />
         </button>
       </div>
 

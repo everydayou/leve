@@ -149,9 +149,14 @@ export function PantryScreen() {
           />
           {q && (
             <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => setQ('')}
               aria-label="Clear search"
-              className="shrink-0 text-content-muted active:text-content"
+              // 44x44 tap target (round 182) via pad + matching negative
+              // margin, same technique as LabeledInput/Field — keeps the
+              // pill's visual height unchanged.
+              className="-m-[14px] flex shrink-0 items-center justify-center p-[14px] text-content-muted active:text-content"
             >
               <Icon name="close" size={16} strokeWidth={2.25} />
             </button>

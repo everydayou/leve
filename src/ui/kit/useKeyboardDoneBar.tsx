@@ -2,12 +2,16 @@ import { useState } from 'react';
 import { useKeyboardInset } from '../../lib/useKeyboardInset';
 
 /**
- * Shared "Done" accessory bar for numeric-keyboard inputs (inputMode
- * "numeric" / "decimal", type="tel", etc.) — iOS's number keypads have no
- * built-in Return/confirm key, so they never close themselves. Round
- * 158/159 introduced this as option 4 in Dev > Keyboards playground
- * ("decimal + custom Done bar"), which Marco confirmed as the one to use;
- * round 160 promotes it app-wide to every numeric-keyboard input.
+ * Shared "Done" accessory bar for text-input focus — iOS's numeric/decimal
+ * keypads have no built-in Return/confirm key at all, and even the standard
+ * QWERTY keyboard's Return key does nothing on a plain, non-form `<input>`
+ * (no onKeyDown wiring), so neither ever closes itself. Round 158/159
+ * introduced this as option 4 in Dev > Keyboards playground ("decimal +
+ * custom Done bar"), which Marco confirmed as the one to use; round 160
+ * promoted it app-wide to every numeric-keyboard input. Round 181 renamed
+ * it from useNumericDoneBar and moved it into LabeledInput itself, so it
+ * now also covers plain text-keyboard fields (Name, Meal name, Goal name,
+ * etc.) the same way.
  *
  * Usage: spread `bind` onto the input's onFocus/onBlur (composing with any
  * of your own handlers if the field already has them), and render
@@ -17,7 +21,7 @@ import { useKeyboardInset } from '../../lib/useKeyboardInset';
  * using this hook exist on the same screen (only the focused one ever
  * shows its bar).
  */
-export function useNumericDoneBar() {
+export function useKeyboardDoneBar() {
   const [focused, setFocused] = useState(false);
   const keyboardInset = useKeyboardInset();
 

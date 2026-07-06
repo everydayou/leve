@@ -513,12 +513,37 @@ export function GoalSetupForm({
               </span>
               <span className="w-10" />
             </div>
-            <div className="flex justify-center px-4 pb-3">
+            {/* pb-3 dropped (round 183): the merged info card below now owns
+                this gap via its own -mt pull-up, so the two aren't fighting
+                over the same space. */}
+            <div className="flex justify-center px-4">
               <SegmentedControl<SetupMode>
                 value={setupMode}
                 onChange={(m) => setSetupMode(m)}
-                options={[{ value: 'simple', label: 'Simple' }, { value: 'custom', label: 'Custom' }]}
+                options={[{ value: 'simple', label: 'Guided' }, { value: 'custom', label: 'Detailed' }]}
               />
+            </div>
+          </div>
+
+          {/* Info card — merged with the segmented control above (round 183,
+              reviving the round-65 Tracking-step pattern on the now-dissolved
+              Tracking screen). Outline-only, no background fill, so it reads
+              as an extension of the page rather than a separate card; -mt-[18px]
+              (the same value round 65 used against this same SegmentedControl)
+              pulls it up so its top border crosses the pill's vertical
+              midpoint. No explicit z-index needed — the sticky header above
+              is z-20, so it already paints in front of this normal-flow card
+              wherever the two overlap. */}
+          <div className="px-6">
+            <div className="-mt-[18px] rounded-card border border-border-card-no-shadow px-4 pb-4 pt-6">
+              <div className="flex items-start gap-2">
+                <Icon name="info" size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-content-secondary" />
+                <p className="text-callout text-content-secondary">
+                  {setupMode === 'simple'
+                    ? "We'll estimate your calories and macros based on your goal. You can fine-tune everything later."
+                    : "Choose your own calorie and macro targets for more control. You can adjust them anytime."}
+                </p>
+              </div>
             </div>
           </div>
 

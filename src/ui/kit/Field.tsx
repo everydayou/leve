@@ -43,7 +43,12 @@ export function Field({
             onMouseDown={(e) => e.preventDefault()}
             onClick={handleClear}
             aria-label="Clear"
-            className="ml-2 shrink-0 text-content-muted active:text-content"
+            // 44x44 tap target (round 182): 14px padding takes the box from
+            // the 16px icon to 44px, and the matching negative margin cancels
+            // that growth out of the flex row's own layout footprint, so the
+            // row doesn't visually grow — the extra hit area just overlaps
+            // the existing gap invisibly.
+            className="-m-[14px] flex shrink-0 items-center justify-center p-[14px] text-content-muted active:text-content"
           >
             <Icon name="close" size={16} strokeWidth={2.25} />
           </button>

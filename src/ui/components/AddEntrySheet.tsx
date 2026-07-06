@@ -17,7 +17,7 @@ import { hapticLight } from '../../lib/haptics';
 import {
   SegmentedControl, Button, LabeledInput, NumberField, WheelPicker,
   Icon, Sheet, useSheetSetFooter, useSheetSetOverlay, useOverlaySetFooter,
-  useSheetSetOverlayBack, OverlayNav, ImageHero, MacroSummaryLine, useNumericDoneBar,
+  useSheetSetOverlayBack, OverlayNav, ImageHero, MacroSummaryLine, useKeyboardDoneBar,
 } from '../kit';
 import type { ShowToast } from './Toaster';
 import type { FoodItem, FoodEntry, Meal, MealFoodItem, MealItem, NutritionSnapshot } from '../../domain/types';
@@ -976,7 +976,7 @@ function BasketStepper({
   // reasoning.
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
-  const doneBar = useNumericDoneBar();
+  const doneBar = useKeyboardDoneBar();
 
   function adj(delta: number) {
     hapticLight();

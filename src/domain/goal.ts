@@ -113,27 +113,38 @@ export function currentWeightKg(weights: WeightEntry[]): number | null {
 // today's actual active calories, so a rest day gets a sane baseline and an
 // active day gets meaningfully more — continuous, not a fixed lookup table,
 // so it stays correct as weight/goals change rather than needing new buckets.
-const CARB_MODEL: Record<'balanced' | 'performance', { baselinePerKg: number; activityShare: number }> = {
-  balanced:    { baselinePerKg: 2.2, activityShare: 0.55 }, // everyday default
+const CARB_MODEL: Record<'balanced' | 'performance', { baselinePerKg: number; activityShare: number; capPerKg?: number }> = {
+  // capPerKg (round 182): on very-high-activity days the uncapped formula
+  // can climb past 400g, which is a lot to aim for on an everyday/general-
+  // health style. 4.5 g/kg sits at the upper end of typical general-
+  // population "moderate-high activity" guidance (vs. the 6-10 g/kg
+  // endurance-athlete range), so it only bites on unusually large activity
+  // days rather than on normal workouts.
+  balanced:    { baselinePerKg: 2.2, activityShare: 0.55, capPerKg: 4.5 }, // everyday default
+  // No cap for Performance — this style is explicitly for "more carbs
+  // around activity," and heavy training days legitimately warrant it
+  // (sports-nutrition guidance goes up to ~10 g/kg for endurance athletes).
   performance: { baselinePerKg: 2.4, activityShare: 0.75 }, // "more carbs around activity"
 };
 
 /** Carb target (g) for the Balanced/Performance macro styles: a body-weight
  *  baseline (g/kg, sedentary) plus a share of today's active calories
- *  converted to grams (÷4 kcal/g). `weightKg` falls back to 70 if unknown
- *  (e.g. the goal-setup preview before a weight is on file) so the number
- *  stays sane rather than collapsing to 0. Lower-carb keeps its own
- *  explicit, user-editable carbLimitG — this only applies to the other two. */
+ *  converted to grams (÷4 kcal/g), capped for Balanced only (round 182 —
+ *  see CARB_MODEL). `weightKg` falls back to 70 if unknown (e.g. the
+ *  goal-setup preview before a weight is on file) so the number stays sane
+ *  rather than collapsing to 0. Lower-carb keeps its own explicit,
+ *  user-editable carbLimitG — this only applies to the other two. */
 export function activityCarbTargetG(
   style: 'balanced' | 'performance',
   weightKg: number | null,
   activeKcal: number,
 ): number {
-  const { baselinePerKg, activityShare } = CARB_MODEL[style];
+  const { baselinePerKg, activityShare, capPerKg } = CARB_MODEL[style];
   const kg = weightKg && weightKg > 0 ? weightKg : 70;
   const baseline = baselinePerKg * kg;
   const fromActivity = (Math.max(0, activeKcal) * activityShare) / 4;
-  return Math.max(0, Math.round(baseline + fromActivity));
+  const target = Math.max(0, Math.round(baseline + fromActivity));
+  return capPerKg ? Math.min(target, Math.round(capPerKg * kg)) : target;
 }
 
 const round = (n: number): number => Math.round(n * 100) / 100;

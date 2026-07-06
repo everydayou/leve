@@ -242,9 +242,12 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
         <div className="mx-auto mb-3 h-1.5 w-11 rounded-pill bg-border-strong" />
       </div>
       {/* Nav bar — rendered OUTSIDE the scroll container so it stays fixed
-          during rubber-band scroll on iOS (sticky inside a scroll area moves). */}
+          during rubber-band scroll on iOS (sticky inside a scroll area moves).
+          relative + z-10 (round 187): same header-shadow stacking fix as the
+          main Sheet header above — without it, the scroll area below paints
+          over this nav bar's shadow on DOM order alone. */}
       {overlayNav && (
-        <div className={`shrink-0 -mt-1 px-5 pb-3 pt-2 bg-surface${scrolled ? ' shadow-nav' : ''}`}>
+        <div className={`relative z-10 shrink-0 -mt-1 px-5 pb-3 pt-2 bg-surface${scrolled ? ' shadow-nav' : ''}`}>
           <div className="flex items-center">
             <span className="w-10 shrink-0 flex items-center">
               <button onClick={overlayNav.onBack} className="-m-3 p-3 text-content-secondary active:opacity-70" aria-label={overlayNav.icon === 'close' ? 'Close' : 'Back'}>
@@ -354,9 +357,6 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
   const keyboardInset = useKeyboardInset();
   // True once the user has scrolled the scroll area — triggers the header shadow.
   const [scrolled, setScrolled] = useState(false);
-  // TEMP DEBUG (round 187) — see scrollAreaRef's onScroll below. Remove
-  // alongside the debug readout once the header-shadow bug is diagnosed.
-  const [debugScrollTop, setDebugScrollTop] = useState(0);
   // Footer node registered by a child form via useSheetSetFooter(). Takes effect
   // when no explicit `footer` prop is passed. Stable setter avoids re-renders.
   const [childFooter, setChildFooter] = useState<ReactNode>(null);
@@ -704,9 +704,17 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
           aria-hidden="true"
         />
         {/* Header wrapper — shadow appears once the scroll area has been scrolled,
-            mirroring the same pattern used on fixed nav bars in full-screen views. */}
+            mirroring the same pattern used on fixed nav bars in full-screen views.
+            relative + z-10 (round 187 fix, device-confirmed): without its own
+            stacking context, this header is a plain normal-flow sibling
+            painted BEFORE the scroll area that follows it — so the scroll
+            area's own background painted over the header's box-shadow
+            wherever the shadow spilled downward into that adjacent space,
+            silently hiding it even though `scrolled` was correctly true the
+            whole time. Giving the header a higher stacking context makes its
+            shadow paint on top regardless of DOM order. */}
         <div
-          className={`shrink-0 cursor-grab touch-none transition-[box-shadow] duration-200 active:cursor-grabbing${scrolled ? ' shadow-nav' : ''}`}
+          className={`relative z-10 shrink-0 cursor-grab touch-none transition-[box-shadow] duration-200 active:cursor-grabbing${scrolled ? ' shadow-nav' : ''}`}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -752,15 +760,7 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
               <div
                 ref={scrollAreaRef}
                 className="flex-1 overflow-y-auto px-5"
-                onScroll={(e) => {
-                  const st = e.currentTarget.scrollTop;
-                  setScrolled(st > 0);
-                  // TEMP DEBUG (round 187) — investigating the header-shadow
-                  // regression Marco reported (shadow flashes on then reverts
-                  // while pulling down, even though the list is genuinely
-                  // scrolled). Remove once diagnosed.
-                  setDebugScrollTop(st);
-                }}
+                onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
                 style={{ touchAction: 'pan-y',
                   // + DONE_BAR_HEIGHT (round 186): see OverlayLayer above.
                   paddingBottom: keyboardInset > 0
@@ -772,15 +772,6 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
                     : 'env(safe-area-inset-bottom, 0px)',
                 }}
               >{children}</div>
-              {/* TEMP DEBUG (round 187) — remove once the shadow bug is
-                  diagnosed. Live readout so Marco can see the exact values
-                  on-device without needing Safari Web Inspector. */}
-              <div
-                className="pointer-events-none fixed left-1 top-1 z-[500] rounded bg-black/70 px-1.5 py-0.5 font-mono text-[10px] text-white"
-                aria-hidden
-              >
-                scrollTop={debugScrollTop} scrolled={String(scrolled)}
-              </div>
               {effectiveFooter && (
                 <div
                   className="shrink-0 px-5"

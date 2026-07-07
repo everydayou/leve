@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useKeyboardInset } from '../../lib/useKeyboardInset';
 
 /** Estimated rendered height of the bar (round 187 correction — round 186's
@@ -42,7 +43,25 @@ export function useKeyboardDoneBar() {
     onBlur: () => setFocused(false),
   };
 
-  const doneBar = focused ? (
+  // Round 190 root-cause fix: this bar is `position: fixed`, which normally
+  // positions relative to the true viewport — EXCEPT when a transformed
+  // ancestor exists between it and the root, which becomes its containing
+  // block instead (CSS spec: any non-'none' transform establishes one, even
+  // an identity translateX(0)). Sheet's own OverlayLayer (the slide-in panel
+  // used for "Edit food item" and every other nested overlay) always has an
+  // active transform, so a Done bar rendered inside an overlay was actually
+  // positioning itself relative to THAT panel, not the screen. Sheet.tsx's
+  // own comments confirm forceExpanded panels (91dvh) can drift slightly
+  // from the true viewport once the keyboard is open in this WKWebView
+  // setup (see its "Surface cover" div, which patches the same underlying
+  // quirk for a different symptom) — that drift was exactly the "still a
+  // bit high" gap reported only on fields inside a nested overlay (e.g.
+  // Edit food item's Name), never on a plain top-level Sheet field (e.g.
+  // Dev > Keyboard playground row 5, confirmed pixel-perfect). Portaling
+  // straight to document.body — the same technique Sheet itself already
+  // uses to escape ancestor constraints — sidesteps all of that: this bar
+  // now always positions against the real viewport, everywhere.
+  const doneBar = focused ? createPortal(
     <div
       className="fixed inset-x-0 z-[400] flex justify-end border-t border-border-subtle bg-surface-elevated py-2 pl-4"
       style={{ bottom: keyboardInset, paddingRight: '24px' }}
@@ -57,7 +76,8 @@ export function useKeyboardDoneBar() {
       >
         Done
       </button>
-    </div>
+    </div>,
+    document.body,
   ) : null;
 
   return { bind, doneBar };

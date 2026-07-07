@@ -673,10 +673,9 @@ export function GoalSetupForm({
             {/* ════ SIMPLE ════ */}
             {setupMode === 'simple' && (
               <div className="space-y-6">
-                {/* Grouped card — mirrors Custom's "Your goal" card */}
-                <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface">
-                  {/* Weight sub-section */}
-                  <div className="px-4 pt-6 pb-3">
+                <div className="space-y-3">
+                {/* Weight card */}
+                <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface px-4 pt-6 pb-6">
                     <CardSectionHeader icon="weight">Weight</CardSectionHeader>
                     <div className="space-y-3">
                       {/* Units — first sub-field */}
@@ -708,10 +707,10 @@ export function GoalSetupForm({
                         </div>
                       )}
                     </div>
-                  </div>
+                </div>
 
-                  {/* Pace sub-section (maintain: "Range" instead of a pace) */}
-                  <div className="px-4 pt-4 pb-6">
+                {/* Pace card (maintain: "Range" instead of a pace) */}
+                <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface px-4 pt-6 pb-6">
                     <CardSectionHeader icon="calendar">{isMaintain ? 'Range' : 'Pace'}</CardSectionHeader>
                     {isMaintain ? (
                       <FilterPills<MaintainBandId> value={maintainBand}
@@ -793,7 +792,7 @@ export function GoalSetupForm({
                         </div>
                       );
                     })()}
-                  </div>
+                </div>
                 </div>
 
                 <Button size="lg" onClick={() => void createSimple()}>{editing ? 'Save changes' : 'Set my goal'}</Button>
@@ -807,17 +806,17 @@ export function GoalSetupForm({
                 <section>
                   <p className="mb-4 text-title font-bold text-content">1. Your goal</p>
 
-                  <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface">
-                    {/* Goal name */}
-                    <div className="p-4">
+                  <div className="space-y-3">
+                  {/* Goal name */}
+                  <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface p-4">
                       <div className="flex items-baseline gap-2 mb-2"><span className="text-headline font-semibold text-content">Goal name</span><span className="text-footnote text-content-muted">(optional)</span></div>
                       <LabeledInput value={name} onChange={(e) => setName(e.target.value)}
                         placeholder="e.g. Summer Cut"
                         />
-                    </div>
+                  </div>
 
-                    {/* Weight (Unit is first sub-field inside) */}
-                    <div className="p-4 pb-3">
+                  {/* Weight (Unit is first sub-field inside) */}
+                  <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface p-4">
                       <CardSectionHeader icon="weight">Weight</CardSectionHeader>
                       <div className="space-y-3">
                         {/* Unit — first sub-field */}
@@ -890,10 +889,10 @@ export function GoalSetupForm({
                           </div>
                         )}
                       </div>
-                    </div>
+                  </div>
 
-                    {/* Dates — maintain has no deadline, only an optional review-date reminder */}
-                    <div className="p-4 pb-5">
+                  {/* Dates — maintain has no deadline, only an optional review-date reminder */}
+                  <div className="overflow-hidden rounded-sheet border border-border-card-no-shadow bg-surface p-4">
                       <CardSectionHeader icon="calendar">Dates</CardSectionHeader>
                       <div className="flex gap-2">
                         <div className="flex-1 min-w-0">
@@ -923,7 +922,7 @@ export function GoalSetupForm({
                           {!isMaintain && fieldErrors.date && <p className="mt-1 text-footnote text-danger">{fieldErrors.date}</p>}
                         </div>
                       </div>
-                    </div>
+                  </div>
                   </div>
 
                   {/* Review your goal */}

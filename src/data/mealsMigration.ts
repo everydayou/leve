@@ -15,17 +15,26 @@
 // deleted, so nothing referencing it by id can break.
 import { repos } from '../state/repos';
 import { newId } from './ids';
+import { activeProfile } from './db';
 import type { Repositories } from './repositories';
 import type { FoodItem, FoodEntry, Meal, MealFoodItem } from '../domain/types';
 
-const FLAG_KEY = 'ngt-meals-migration-v1-done';
+// Scoped per-profile (round 188 fix — same issue as defaultPantrySeed.ts):
+// real and test accounts are separate Dexie databases, but this flag lived
+// in one shared global localStorage key, so a migration that already ran
+// against the real account's data would be silently skipped for the test
+// account's separate (and separately-migratable) data.
+export function mealsMigrationFlagKey(profile: string = activeProfile): string {
+  return `ngt-meals-migration-v1-done-${profile}`;
+}
 
 export async function runMealsMigrationIfNeeded(): Promise<void> {
-  if (typeof localStorage !== 'undefined' && localStorage.getItem(FLAG_KEY)) return;
+  const flagKey = mealsMigrationFlagKey();
+  if (typeof localStorage !== 'undefined' && localStorage.getItem(flagKey)) return;
   try {
     await runMealsMigration();
   } finally {
-    if (typeof localStorage !== 'undefined') localStorage.setItem(FLAG_KEY, '1');
+    if (typeof localStorage !== 'undefined') localStorage.setItem(flagKey, '1');
   }
 }
 

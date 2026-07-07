@@ -1168,6 +1168,7 @@ function FoodPicker({
   bare?: boolean;
 }) {
   const [query, setQuery] = useState('');
+  const searchDoneBar = useKeyboardDoneBar();
   const itemsById = itemsByIdMap(allItems ?? items);
 
   // Recent = frequently logged items; fall back to newest pantry items if none logged yet
@@ -1216,12 +1217,15 @@ function FoodPicker({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onFocus={searchDoneBar.bind.onFocus}
+            onBlur={searchDoneBar.bind.onBlur}
             placeholder="Search foods…"
             autoComplete="off"
             style={{ WebkitAppearance: 'none', appearance: 'none' }}
             className="w-full py-3 pl-10 pr-4 text-body text-content placeholder:text-content-muted outline-none bg-transparent"
           />
         </div>
+        {searchDoneBar.doneBar}
 
         {/* List */}
         {rows.length > 0 && (

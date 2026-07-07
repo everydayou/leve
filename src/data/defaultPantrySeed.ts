@@ -21,17 +21,29 @@
 //    for origin:'app' items (see its own doc comment).
 import { repos } from '../state/repos';
 import { DEFAULT_PANTRY_FOODS } from './defaultPantry';
+import { activeProfile } from './db';
 import type { Repositories } from './repositories';
 import type { FoodItem } from '../domain/types';
 
-const FLAG_KEY = 'ngt-default-pantry-seed-v1-done';
+// Scoped per-profile (round 188 fix) — real and test accounts are separate
+// Dexie databases (see db.ts), but this flag previously lived in plain
+// localStorage under one shared key. Once the real account seeded, the
+// flag was permanently set; switching to (or resetting) the test account
+// later pointed the app at a fresh, empty database that this guard then
+// skipped seeding entirely, since it only ever checked the one global key.
+// "Test account should show the same default Pantry as anyone" — fixed by
+// keying the flag to whichever profile is currently active.
+export function defaultPantrySeedFlagKey(profile: string = activeProfile): string {
+  return `ngt-default-pantry-seed-v1-done-${profile}`;
+}
 
 export async function runDefaultPantrySeedIfNeeded(): Promise<void> {
-  if (typeof localStorage !== 'undefined' && localStorage.getItem(FLAG_KEY)) return;
+  const flagKey = defaultPantrySeedFlagKey();
+  if (typeof localStorage !== 'undefined' && localStorage.getItem(flagKey)) return;
   try {
     await runDefaultPantrySeed();
   } finally {
-    if (typeof localStorage !== 'undefined') localStorage.setItem(FLAG_KEY, '1');
+    if (typeof localStorage !== 'undefined') localStorage.setItem(flagKey, '1');
   }
 }
 

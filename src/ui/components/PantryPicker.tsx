@@ -7,7 +7,7 @@
 // it mid-flow.
 import { useState } from 'react';
 import { itemsByIdMap, mealNutritionFor, mealPhotoFor, nutritionFor } from '../../domain/calc';
-import { Icon } from '../kit';
+import { Icon, useKeyboardDoneBar } from '../kit';
 import { Thumb } from './PhotoPicker';
 import type { FoodItem, Meal, NutritionSnapshot } from '../../domain/types';
 
@@ -34,6 +34,7 @@ export function PantryPicker({
   onPickMeal: (meal: Meal) => void;
 }) {
   const [q, setQ] = useState('');
+  const searchDoneBar = useKeyboardDoneBar();
   const [showItems, setShowItems] = useState(false);
   const [showMeals, setShowMeals] = useState(false);
   const [mineOnly, setMineOnly] = useState(false);
@@ -96,12 +97,15 @@ export function PantryPicker({
           type="text"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          onFocus={searchDoneBar.bind.onFocus}
+          onBlur={searchDoneBar.bind.onBlur}
           placeholder="Search foods…"
           autoComplete="off"
           style={{ WebkitAppearance: 'none', appearance: 'none' }}
           className="w-full py-3 pl-10 pr-4 text-body text-content placeholder:text-content-muted outline-none bg-transparent"
         />
       </div>
+      {searchDoneBar.doneBar}
 
       <div className="flex flex-wrap gap-2">
         {(

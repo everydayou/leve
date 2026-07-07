@@ -14,7 +14,18 @@ import { ScanResults, type ResultItem } from './AddEntrySheet';
 import { repos } from '../../state/repos';
 import { newId, todayISO, addDays } from '../../data/ids';
 import { useKeyboardInset } from '../../lib/useKeyboardInset';
+import { defaultPantrySeedFlagKey } from '../../data/defaultPantrySeed';
+import { mealsMigrationFlagKey } from '../../data/mealsMigration';
 import type { GoalStatus } from '../../domain/types';
+
+/** Clears the one-time seed/migration flags for a given profile so a wiped
+ *  database gets freshly re-seeded/re-migrated on next load, instead of the
+ *  guard silently skipping it forever (round 188 fix — see
+ *  defaultPantrySeed.ts's own comment for the full story). */
+function clearProfileSeedFlags(profile: string) {
+  localStorage.removeItem(defaultPantrySeedFlagKey(profile));
+  localStorage.removeItem(mealsMigrationFlagKey(profile));
+}
 
 // ── Dev scan-preview data ─────────────────────────────────────────────────────
 
@@ -865,6 +876,7 @@ function ProfileSwitcher() {
   async function resetTestAccount() {
     const { Dexie } = await import('dexie');
     await Dexie.delete(DB_NAMES[TEST_PROFILE]);
+    clearProfileSeedFlags(TEST_PROFILE);
     // If we're currently on the test profile, reload so the fresh DB is created.
     if (isTest) window.location.reload();
   }
@@ -901,6 +913,7 @@ function ProfileSwitcher() {
             // Test profile: wipe everything — complete fresh start.
             const { Dexie } = await import('dexie');
             await Dexie.delete(DB_NAMES[TEST_PROFILE]);
+            clearProfileSeedFlags(TEST_PROFILE);
           } else {
             // Real profile: abandon goals so replayed onboarding starts clean.
             const allGoals = await repos.goals.getAll();

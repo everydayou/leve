@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { memoryRepositories, resetMemory } from './memoryRepositories';
-import { runDefaultPantrySeed } from './defaultPantrySeed';
+import { runDefaultPantrySeed, defaultPantrySeedFlagKey } from './defaultPantrySeed';
 import { DEFAULT_PANTRY_FOODS } from './defaultPantry';
 import { newId } from './ids';
 import type { FoodItem } from '../domain/types';
@@ -49,5 +49,14 @@ describe('runDefaultPantrySeed', () => {
 
     const items = await memoryRepositories.foodItems.all(true);
     expect(items).toHaveLength(DEFAULT_PANTRY_FOODS.length);
+  });
+});
+
+describe('defaultPantrySeedFlagKey', () => {
+  it('is scoped per profile, so the real account seeding one another '
+    + 'profile never silently skips it (round 188 fix)', () => {
+    expect(defaultPantrySeedFlagKey('real')).toBe('ngt-default-pantry-seed-v1-done-real');
+    expect(defaultPantrySeedFlagKey('test')).toBe('ngt-default-pantry-seed-v1-done-test');
+    expect(defaultPantrySeedFlagKey('real')).not.toBe(defaultPantrySeedFlagKey('test'));
   });
 });

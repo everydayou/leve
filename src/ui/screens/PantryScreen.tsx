@@ -6,6 +6,7 @@ import { newId } from '../../data/ids';
 import { itemsByIdMap, mealNutritionFor, mealPhotoFor, nutritionFor } from '../../domain/calc';
 
 import { Button, Sheet, EmptyState, Icon } from '../kit';
+import { useKeyboardDoneBar } from '../kit/useKeyboardDoneBar';
 import { Thumb } from '../components/PhotoPicker';
 import { FoodItemFormContent } from '../components/FoodItemForm';
 import type { FoodItemFormValues } from '../components/FoodItemForm';
@@ -33,6 +34,7 @@ type PantryRow =
 export function PantryScreen() {
   const { showToast } = useOutletContext<DayContext>();
   const [q, setQ] = useState('');
+  const searchDoneBar = useKeyboardDoneBar();
   const [showItems, setShowItems] = useState(false);
   const [showMeals, setShowMeals] = useState(false);
   const [mineOnly, setMineOnly] = useState(false);
@@ -143,6 +145,8 @@ export function PantryScreen() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onFocus={searchDoneBar.bind.onFocus}
+            onBlur={searchDoneBar.bind.onBlur}
             placeholder="Search foods…"
             className="w-full bg-transparent text-subhead text-content placeholder:text-content-muted"
             style={{ outline: 'none' }}
@@ -162,6 +166,7 @@ export function PantryScreen() {
             </button>
           )}
         </div>
+        {searchDoneBar.doneBar}
         {/* Food items / Meals / My own — round 177's 3 independent toggle
             pills, replacing the old single-select All/Food items/Meals
             radio (round 123 had replaced All/per100g/perServing with that).

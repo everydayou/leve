@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { goalIntensity, weekVerdict, currentWeightKg, daysBetween, requiredDailyDeficit, requiredWeeklyDeficit, isGainGoal } from './goal';
+import { goalIntensity, weekVerdict, currentWeightKg, daysBetween, requiredDailyDeficit, requiredWeeklyDeficit, isGainGoal, isMaintainGoal, usesKcalBand, inBand, MAINTAIN_BANDS } from './goal';
 import type { Goal, WeightEntry } from './types';
 
 describe('goalIntensity', () => {
@@ -103,5 +103,49 @@ describe('gain_by_date goal type', () => {
   it('gain goal with manual override stores positive magnitude, returns negative', () => {
     const overrideGoal: Goal = { ...gainGoal, dailyDeficitKcalOverride: 400 };
     expect(requiredDailyDeficit(overrideGoal)).toBe(-400);
+  });
+});
+
+describe('maintain goal type', () => {
+  const maintainGoal: Goal = {
+    id: 'g3', name: 'Hold steady', type: 'maintain',
+    startWeightKg: 72, targetWeightKg: 72, startDate: '2026-06-05', targetDate: '2036-06-05',
+    status: 'active',
+    weightRangeFloorKg: 71, weightRangeCeilingKg: 73, maintainBandId: 'standard',
+    surplusFloor: -150, surplusCeiling: 150,
+  };
+
+  it('isMaintainGoal identifies maintain goals, isGainGoal/isMaintainGoal are mutually exclusive', () => {
+    expect(isMaintainGoal(maintainGoal)).toBe(true);
+    expect(isGainGoal(maintainGoal)).toBe(false);
+    const loseGoal: Goal = { ...maintainGoal, type: 'lose_by_date' };
+    expect(isMaintainGoal(loseGoal)).toBe(false);
+  });
+
+  it('usesKcalBand is true for gain and maintain, false for lose', () => {
+    expect(usesKcalBand(maintainGoal)).toBe(true);
+    expect(usesKcalBand({ ...maintainGoal, type: 'gain_by_date' })).toBe(true);
+    expect(usesKcalBand({ ...maintainGoal, type: 'lose_by_date' })).toBe(false);
+  });
+
+  it('requiredDailyDeficit is 0 for maintain regardless of override', () => {
+    expect(requiredDailyDeficit(maintainGoal)).toBe(0);
+    expect(requiredDailyDeficit({ ...maintainGoal, dailyDeficitKcalOverride: 300 })).toBe(0);
+  });
+
+  it('inBand checks an inclusive floor/ceiling range', () => {
+    expect(inBand(72, 71, 73)).toBe(true);
+    expect(inBand(71, 71, 73)).toBe(true); // boundary inclusive
+    expect(inBand(73, 71, 73)).toBe(true); // boundary inclusive
+    expect(inBand(70.9, 71, 73)).toBe(false);
+    expect(inBand(73.1, 71, 73)).toBe(false);
+  });
+
+  it('MAINTAIN_BANDS presets are ordered tight -> standard -> relaxed with widening ranges', () => {
+    expect(MAINTAIN_BANDS.map(b => b.id)).toEqual(['tight', 'standard', 'relaxed']);
+    expect(MAINTAIN_BANDS[0].weightRangeKg).toBeLessThan(MAINTAIN_BANDS[1].weightRangeKg);
+    expect(MAINTAIN_BANDS[1].weightRangeKg).toBeLessThan(MAINTAIN_BANDS[2].weightRangeKg);
+    expect(MAINTAIN_BANDS[0].kcalBand).toBeLessThan(MAINTAIN_BANDS[1].kcalBand);
+    expect(MAINTAIN_BANDS[1].kcalBand).toBeLessThan(MAINTAIN_BANDS[2].kcalBand);
   });
 });

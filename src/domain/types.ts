@@ -4,7 +4,7 @@
 
 export type Units = 'kg' | 'lbs';
 export type MeasurementType = 'per_100g' | 'per_serving';
-export type GoalType = 'lose_by_date' | 'gain_by_date'; // gain_by_date added r61
+export type GoalType = 'lose_by_date' | 'gain_by_date' | 'maintain'; // gain_by_date added r61; maintain added r182
 export type GoalStatus = 'active' | 'completed' | 'abandoned';
 export type WeightSource = 'manual' | 'withings' | 'healthkit';
 
@@ -45,7 +45,7 @@ export interface Goal {
   /** Optional manual override for the daily kcal deficit target.
    *  When set, this replaces the auto-computed value from weights + dates. */
   dailyDeficitKcalOverride?: number;
-  // ── Tracking preferences (gain_by_date goals only, r65) ──────────────────
+  // ── Tracking preferences (used by all goal types, r65) ───────────────────
   /** Simple = calories + protein only; Detailed = full macro targets. */
   trackingMode?: TrackingMode;
   /** Only present when trackingMode === 'detailed'. */
@@ -63,11 +63,27 @@ export interface Goal {
   outcomeViewed?: boolean;
   /** Whether this goal was created in Simple or Custom setup mode. */
   setupMode?: 'simple' | 'custom';
-  // ── Surplus range (gain_by_date goals only, r66) ──────────────────────────
-  /** Min daily surplus (kcal) for the gauge arc to turn green. */
+  // ── Daily kcal band (gain_by_date AND maintain goals, r66 / r182) ─────────
+  /** Min daily kcal (relative to burn) for the gauge arc to turn green.
+   *  gain_by_date: min surplus. maintain: min offset from maintenance,
+   *  may be negative (an allowed small deficit). */
   surplusFloor?: number;
-  /** Max daily surplus (kcal) before the gauge arc turns dark again. */
+  /** Max daily kcal (relative to burn) before the gauge arc turns dark again.
+   *  gain_by_date: max surplus. maintain: max offset from maintenance. */
   surplusCeiling?: number;
+  // ── Weight range (maintain goals only, r182) ──────────────────────────────
+  /** Lower bound of the acceptable weight band. targetWeightKg is kept as the
+   *  midpoint, so existing single-number display code keeps working. */
+  weightRangeFloorKg?: number;
+  /** Upper bound of the acceptable weight band. */
+  weightRangeCeilingKg?: number;
+  /** Which preset band (tight/standard/relaxed) was chosen in Guided mode.
+   *  Undefined when set up in Detailed/Custom mode with hand-picked bounds. */
+  maintainBandId?: 'tight' | 'standard' | 'relaxed';
+  /** Optional reminder-only check-in date (maintain goals). Purely a UI
+   *  nudge — does NOT end or expire the goal; unlike lose/gain's targetDate,
+   *  which is a real deadline, this is informational only. */
+  reviewDate?: string;
 }
 
 export interface FoodItem {

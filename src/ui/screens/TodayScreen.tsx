@@ -8,7 +8,7 @@ import { useDay } from '../../state/useDay';
 import { todayISO, addDays } from '../../data/ids';
 import { getMondayOfWeek, fmtDiaryDate } from '../../lib/date';
 import { effectiveNutrition, calcDigestionCalories } from '../../domain/calc';
-import { requiredDailyDeficit, isGainGoal, activityCarbTargetG, currentWeightKg } from '../../domain/goal';
+import { requiredDailyDeficit, isMaintainGoal, usesKcalBand, activityCarbTargetG, currentWeightKg } from '../../domain/goal';
 import { mifflinStJeorBMR } from '../../domain/bmr';
 import { kgToLbs } from '../../domain/units';
 import { prefersReducedMotion } from '../../lib/motion';
@@ -46,7 +46,12 @@ export function TodayScreen() {
   // Compute per-day state for all 21 days (prev + current + next week).
   const bmr         = user?.bmr ?? 0;
   const dailyTarget = goal ? requiredDailyDeficit(goal) : 0; // signed: negative for gain
-  const gainGoal    = goal ? isGainGoal(goal) : false;
+  // NOTE: named gainGoal for historical reasons, but it really means "uses a
+  // floor/ceiling kcal band" (gain_by_date OR maintain) — the two share the
+  // exact same band math, just centered differently. isMaintain below is
+  // only for the handful of spots whose COPY needs a 3rd branch (BreakdownSheet).
+  const gainGoal    = goal ? usesKcalBand(goal) : false;
+  const isMaintain  = goal ? isMaintainGoal(goal) : false;
   const stripDays   = Array.from({ length: 21 }, (_, i) => addDays(prevMonday, i));
   const today       = todayISO();
 
@@ -89,7 +94,7 @@ export function TodayScreen() {
         } else if (pastGoal && d >= pastGoal.startDate && d <= pastGoal.targetDate) {
           // Past goal: succeed/fail but visually desaturated ("past" variant).
           const pTarget  = requiredDailyDeficit(pastGoal);
-          const pGain    = isGainGoal(pastGoal);
+          const pGain    = usesKcalBand(pastGoal); // gain_by_date OR maintain — shared band math
           if (pGain) {
             const totalBurnD = bmr + actCals + digestion;
             const floorEff   = (pastGoal as Goal).surplusFloor  != null ? (pastGoal as Goal).surplusFloor! : Math.max(50, Math.abs(pTarget) - 100);
@@ -250,6 +255,7 @@ export function TodayScreen() {
                   proteinGoalG={user?.proteinGoalG ?? 0}
                   isActive={d === date}
                   gainGoal={gainGoal}
+                  isMaintain={isMaintain}
                   goal={goal}
                   macroStyle={goal?.macroStyle}
                   fatTargetG={goal?.fatTargetG}
@@ -725,6 +731,10 @@ interface DayPanelProps {
   proteinGoalG: number;
   isActive: boolean;
   gainGoal?: boolean;
+  /** True only for maintain goals — used to pick copy in BreakdownSheet
+   *  (gainGoal alone can't distinguish gain_by_date from maintain, since
+   *  both share the same floor/ceiling band math). */
+  isMaintain?: boolean;
   /** Full goal object — used for surplusFloor/surplusCeiling range logic. */
   goal?: Goal | null;
   /** For gain goals in detailed tracking — drives macro bar display. */
@@ -740,7 +750,7 @@ interface DayPanelProps {
   profileUser?: User | null;
 }
 
-function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, gainGoal = false, goal = null, macroStyle, fatTargetG, carbLimitG, diaryShowProtein, diaryShowCarbs, diaryShowFat, weightCadence = 'weekly', weeklyWeightDay = 0, units = 'kg', hasPastGoal = false, profileUser = null }: DayPanelProps) {
+function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, gainGoal = false, isMaintain = false, goal = null, macroStyle, fatTargetG, carbLimitG, diaryShowProtein, diaryShowCarbs, diaryShowFat, weightCadence = 'weekly', weeklyWeightDay = 0, units = 'kg', hasPastGoal = false, profileUser = null }: DayPanelProps) {
   const nav = useNavigate();
   const ctx = useOutletContext<DayContext>();
   const [editFood,          setEditFood]          = useState<FoodEntry | null>(null);
@@ -1104,6 +1114,7 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
           digestionCalories={day.summary.digestionCalories}
           dailyTarget={dailyTarget}
           gainGoal={gainGoal}
+          isMaintain={isMaintain}
           gainZone={gainZone}
           gainFloor={gainFloorEff}
           gainCeil={gainCeilEff}
@@ -1266,12 +1277,12 @@ type BreakdownInfoKey = 'bmr' | 'activity' | 'digestion' | 'food' | 'goal' | 'av
 
 function BreakdownSheet({
   mode = 'goal', bmr, consumed, actCals, digestionCalories, dailyTarget,
-  gainGoal = false, gainZone = 'below', gainFloor = 0, gainCeil = 0,
+  gainGoal = false, isMaintain = false, gainZone = 'below', gainFloor = 0, gainCeil = 0,
   bmrIsEstimated = false, forceExpanded = false, onSetupProfile, onSetGoal, onClose,
 }: {
   mode?: 'goal' | 'no-goal';
   bmr: number; consumed: number; actCals: number; digestionCalories: number;
-  dailyTarget: number; gainGoal?: boolean; gainZone?: 'below' | 'in' | 'above';
+  dailyTarget: number; gainGoal?: boolean; isMaintain?: boolean; gainZone?: 'below' | 'in' | 'above';
   gainFloor?: number; gainCeil?: number;
   bmrIsEstimated?: boolean; forceExpanded?: boolean; onSetupProfile?: () => void;
   onSetGoal?: () => void; onClose: () => void;
@@ -1289,7 +1300,7 @@ function BreakdownSheet({
   const isOver          = left < 0;
   const consumedSurplus = gainGoal ? netBalance : 0;
   const targetMagnitude = Math.round(Math.abs(dailyTarget));
-  const goalLabel       = gainGoal ? 'Goal (surplus)' : 'Goal (deficit)';
+  const goalLabel       = isMaintain ? 'Goal (maintenance)' : gainGoal ? 'Goal (surplus)' : 'Goal (deficit)';
   const goalValue       = gainGoal
     ? `+${gainFloor.toLocaleString()} to +${gainCeil.toLocaleString()} kcal`
     : `−${targetMagnitude.toLocaleString()} kcal`;
@@ -1357,7 +1368,13 @@ function BreakdownSheet({
         <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Note: </span>AI meal estimation and food scan are coming to make logging faster.</p>
       </div>
     ),
-    goal: gainGoal ? (
+    goal: isMaintain ? (
+      <div className="space-y-3 leading-relaxed">
+        <p className="text-subhead text-content">Your <span className="font-medium">daily calorie band</span> is the range around your maintenance calories that keeps your weight steady.</p>
+        <p className="text-subhead text-content">Staying inside this band day to day (it's fine to drift within it) keeps your average intake matched to what your body burns. Your target range is {gainFloor >= 0 ? '+' : ''}{gainFloor.toLocaleString()} to +{gainCeil.toLocaleString()} kcal per day, relative to your burn.</p>
+        <p className="text-subhead text-content-secondary pb-2"><span className="font-semibold">Note: </span>A day or two outside the band is normal — the weekly average is what matters.</p>
+      </div>
+    ) : gainGoal ? (
       <div className="space-y-3 leading-relaxed">
         <p className="text-subhead text-content">Your <span className="font-medium">daily surplus target</span> is the extra calories above your total burn that you're aiming to eat to support muscle growth.</p>
         <p className="text-subhead text-content">A controlled surplus combined with training gives your body the fuel it needs to build muscle while keeping fat gain low. Your target range is +{gainFloor.toLocaleString()} to +{gainCeil.toLocaleString()} kcal per day.</p>
@@ -1372,18 +1389,18 @@ function BreakdownSheet({
     ),
     available: bdBadgeText === 'Under target' ? (
       <div className="space-y-3 leading-relaxed">
-        <p className="text-subhead text-content"><span className="font-medium">To go</span> is how many more calories you need to eat today to reach the floor of your surplus range.</p>
+        <p className="text-subhead text-content"><span className="font-medium">To go</span> is how many more calories you need to eat today to reach the floor of your {isMaintain ? 'calorie band' : 'surplus range'}.</p>
         <p className="text-subhead text-content">Once you're in range, this label changes to <span className="font-medium">Available</span>, showing how much room you have left before going over the ceiling.</p>
       </div>
     ) : bdBadgeText === 'Over' ? (
       <div className="space-y-3 leading-relaxed">
-        <p className="text-subhead text-content"><span className="font-medium">Over</span> shows how much you've gone past your {gainGoal ? 'surplus ceiling' : 'calorie budget'} today.</p>
+        <p className="text-subhead text-content"><span className="font-medium">Over</span> shows how much you've gone past your {isMaintain ? 'calorie band ceiling' : gainGoal ? 'surplus ceiling' : 'calorie budget'} today.</p>
         <p className="text-subhead text-content">A single day over won't derail your goal. What matters is the average over the week.</p>
       </div>
     ) : (
       <div className="space-y-3 leading-relaxed">
         <p className="text-subhead text-content"><span className="font-medium">Available</span> is how many more calories you can eat today and still hit your daily target.</p>
-        <p className="text-subhead text-content">{gainGoal ? 'Once you go over the ceiling of your surplus range, this switches to "Over".' : 'Once this hits zero, any more food puts you past your deficit target for the day.'}</p>
+        <p className="text-subhead text-content">{isMaintain ? 'Once you go over the ceiling of your calorie band, this switches to "Over".' : gainGoal ? 'Once you go over the ceiling of your surplus range, this switches to "Over".' : 'Once this hits zero, any more food puts you past your deficit target for the day.'}</p>
       </div>
     ),
   };
@@ -1460,7 +1477,7 @@ function BreakdownSheet({
     <div>
       <p className="mb-4 text-subhead text-content-secondary">
         Food adds energy. Your body burns it through your base rate, activity, and digestion.
-        Based on your goal, we find a daily {gainGoal ? 'surplus' : 'deficit'} that hits the sweet spot.
+        Based on your goal, we find a daily {isMaintain ? 'calorie band' : gainGoal ? 'surplus' : 'deficit'} that hits the sweet spot.
       </p>
 
         {/* ── One unified container ── */}

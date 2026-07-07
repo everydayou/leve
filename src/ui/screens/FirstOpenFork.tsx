@@ -4,7 +4,7 @@ import { GoalIcon } from './GoalSetupScreen';
 import { Icon } from '../kit';
 import { hapticLight } from '../../lib/haptics';
 
-type GoalPath = 'lose_by_date' | 'gain_by_date';
+type GoalPath = 'lose_by_date' | 'gain_by_date' | 'maintain';
 
 // ── Shared card ───────────────────────────────────────────────────────────────
 function PathCard({
@@ -87,6 +87,12 @@ export function FirstOpenForkScreen() {
           onClick={() => pickGoal('gain_by_date')}
         />
         <PathCard
+          title="Maintain weight"
+          description="Stay within a healthy range."
+          iconEl={<GoalIcon type="maintain" size={24} />}
+          onClick={() => pickGoal('maintain')}
+        />
+        <PathCard
           title="Not sure yet, just exploring"
           iconEl={<ExploreIcon size={24} />}
           onClick={pickExplore}
@@ -136,6 +142,12 @@ export function GoalForkScreen() {
           description="Fuel growth with a daily calorie surplus."
           iconEl={<GoalIcon type="gain_by_date" size={24} />}
           onClick={() => pickGoal('gain_by_date')}
+        />
+        <PathCard
+          title="Maintain weight"
+          description="Stay within a healthy range."
+          iconEl={<GoalIcon type="maintain" size={24} />}
+          onClick={() => pickGoal('maintain')}
         />
       </div>
     </ForkShell>

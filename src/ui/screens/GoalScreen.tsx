@@ -6,7 +6,7 @@ import type { DayContext } from '../AppShell';
 import { repos } from '../../state/repos';
 import { hapticLight } from '../../lib/haptics';
 import { prefersReducedMotion } from '../../lib/motion';
-import { currentWeightKg, requiredDailyDeficit, isGainGoal } from '../../domain/goal';
+import { currentWeightKg, requiredDailyDeficit, isGainGoal, isMaintainGoal, usesKcalBand, inBand } from '../../domain/goal';
 import { summarizeDay, itemsByIdMap } from '../../domain/calc';
 import { addDays, todayISO } from '../../data/ids';
 import { getMondayOfWeek, MS_PER_DAY } from '../../lib/date';
@@ -146,8 +146,10 @@ export function GoalScreen() {
   const now = currentWeightKg(weights) ?? goal.startWeightKg;
 
   // ── Lifecycle state detection (derived — nothing stored) ──────────────────
-  const isFinalDay  = goal.status === 'active' && goal.targetDate === today;
-  const isOverdue   = goal.status === 'active' && goal.targetDate < today;
+  const maintain    = isMaintainGoal(goal);
+  // Maintain goals have no deadline — final-day/overdue concepts don't apply.
+  const isFinalDay  = !maintain && goal.status === 'active' && goal.targetDate === today;
+  const isOverdue   = !maintain && goal.status === 'active' && goal.targetDate < today;
   const isCompleted = goal.status === 'completed';
   const isEnded     = goal.status === 'abandoned';
 
@@ -165,13 +167,24 @@ export function GoalScreen() {
   }
   // ─────────────────────────────────────────────────────────────────────────
 
-  const remaining = isGainGoal(goal)
-    ? Math.max(0, goal.targetWeightKg - now)
-    : Math.max(0, now - goal.targetWeightKg);
-  const daysLeft = Math.max(0, Math.round((Date.parse(goal.targetDate) - Date.parse(today)) / MS_PER_DAY));
-  const isEarlyComplete = !isOverdue && remaining === 0;
+  // Maintain: floor/ceiling default to the target weight if somehow unset
+  // (shouldn't happen via setup, but keeps this resilient to old/bad data).
+  const maintainFloor   = goal.weightRangeFloorKg   ?? goal.targetWeightKg;
+  const maintainCeiling = goal.weightRangeCeilingKg ?? goal.targetWeightKg;
+  const inRange         = maintain ? inBand(now, maintainFloor, maintainCeiling) : true;
+  // For maintain, "remaining" means distance outside the band (0 = in range).
+  const remaining = maintain
+    ? (inRange ? 0 : now < maintainFloor ? round1(maintainFloor - now) : round1(now - maintainCeiling))
+    : isGainGoal(goal)
+      ? Math.max(0, goal.targetWeightKg - now)
+      : Math.max(0, now - goal.targetWeightKg);
+  const daysLeft = maintain ? 0 : Math.max(0, Math.round((Date.parse(goal.targetDate) - Date.parse(today)) / MS_PER_DAY));
+  // Maintain has no "early complete" concept — it's an ongoing goal, not a countdown.
+  const isEarlyComplete = !maintain && !isOverdue && remaining === 0;
   const hasTodayWeight  = weights.some(w => w.date === today);
   const daysPast        = isOverdue ? Math.round((Date.parse(today) - Date.parse(goal.targetDate)) / MS_PER_DAY) : 0;
+  // Day count-up since the goal started (maintain only — "Day N" stat tile).
+  const daysSinceStart  = maintain ? Math.max(1, Math.round((Date.parse(today) - Date.parse(goal.startDate)) / MS_PER_DAY) + 1) : 0;
 
   async function endGoalOverdue() {
     await repos.goals.put({ ...goal, status: 'abandoned' });
@@ -276,7 +289,9 @@ export function GoalScreen() {
         <div className="pt-5 px-6 pb-4">
           <h1 className="text-headline font-semibold text-center text-content">{goal.name}</h1>
           <p className="mt-0 text-subhead text-content text-center mb-4">
-            Goal {displayWeight(goal.targetWeightKg, user?.units ?? 'kg')}  ·  by {fmtShortDate(goal.targetDate)}
+            {maintain
+              ? <>Range {displayWeight(maintainFloor, user?.units ?? 'kg')}–{displayWeight(maintainCeiling, user?.units ?? 'kg')}</>
+              : <>Goal {displayWeight(goal.targetWeightKg, user?.units ?? 'kg')}  ·  by {fmtShortDate(goal.targetDate)}</>}
           </p>
           {/* Stat tiles: white bg + shadow */}
           <div className="grid grid-cols-3 gap-2 items-stretch">
@@ -284,16 +299,24 @@ export function GoalScreen() {
               <span className="text-callout font-semibold text-content">{displayWeight(now, user?.units ?? 'kg')}</span>
               <span className="-mt-0.5 text-center text-subhead text-content-secondary">Current</span>
             </button>
-            <button onClick={() => { hapticLight(); setShowSettings(true); }} aria-label={`${isGainGoal(goal) ? 'Weight to gain' : 'Weight left'} — open goal settings`} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
-              <span className="text-callout font-semibold text-content">{isEarlyComplete ? '🎯' : displayWeight(remaining, user?.units ?? 'kg')}</span>
-              <span className="-mt-0.5 text-center text-subhead text-content-secondary">{isGainGoal(goal) ? 'To gain' : 'Weight left'}</span>
-            </button>
-            <button onClick={() => { hapticLight(); setShowSettings(true); }} aria-label={`${isOverdue ? 'Goal overdue' : daysLeft > 0 ? 'Time left' : 'Final day'} — open goal settings`} className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
+            <button onClick={() => { hapticLight(); setShowSettings(true); }}
+              aria-label={`${maintain ? (inRange ? 'In range' : now < maintainFloor ? 'Below range' : 'Above range') : isGainGoal(goal) ? 'Weight to gain' : 'Weight left'} — open goal settings`}
+              className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
               <span className="text-callout font-semibold text-content">
-                {isOverdue ? `+${daysPast} d` : daysLeft > 0 ? `${daysLeft} d` : '🎯'}
+                {maintain ? (inRange ? '✓' : displayWeight(remaining, user?.units ?? 'kg')) : isEarlyComplete ? '🎯' : displayWeight(remaining, user?.units ?? 'kg')}
               </span>
               <span className="-mt-0.5 text-center text-subhead text-content-secondary">
-                {isOverdue ? 'Overdue' : daysLeft > 0 ? 'Time left' : 'Today'}
+                {maintain ? (inRange ? 'In range' : now < maintainFloor ? 'Below range' : 'Above range') : isGainGoal(goal) ? 'To gain' : 'Weight left'}
+              </span>
+            </button>
+            <button onClick={() => { hapticLight(); setShowSettings(true); }}
+              aria-label={`${maintain ? 'Day count' : isOverdue ? 'Goal overdue' : daysLeft > 0 ? 'Time left' : 'Final day'} — open goal settings`}
+              className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5 w-full active:opacity-70 transition-opacity">
+              <span className="text-callout font-semibold text-content">
+                {maintain ? `Day ${daysSinceStart}` : isOverdue ? `+${daysPast} d` : daysLeft > 0 ? `${daysLeft} d` : '🎯'}
+              </span>
+              <span className="-mt-0.5 text-center text-subhead text-content-secondary">
+                {maintain ? 'Maintaining' : isOverdue ? 'Overdue' : daysLeft > 0 ? 'Time left' : 'Today'}
               </span>
             </button>
           </div>
@@ -549,9 +572,11 @@ function GoalOutcomeView({ goal, weights, mode, onDismiss, units = 'kg' }: {
   const today = todayISO();
   const nowKg = currentWeightKg(weights) ?? goal.startWeightKg;
   const gainGoal = isGainGoal(goal);
+  const maintainGoal = isMaintainGoal(goal);
   const lostKg = gainGoal
     ? Math.max(0, round1(nowKg - goal.startWeightKg))
     : Math.max(0, round1(goal.startWeightKg - nowKg));
+  const netChangeKg = round1(nowKg - goal.startWeightKg); // maintain: signed, can be ±
   const daysTaken = Math.max(1, Math.round(
     (Date.parse(today) - Date.parse(goal.startDate)) / MS_PER_DAY,
   ));
@@ -605,12 +630,18 @@ function GoalOutcomeView({ goal, weights, mode, onDismiss, units = 'kg' }: {
             <div className="pt-5 px-6 pb-5">
               <h1 className="text-headline font-semibold text-center text-content">{goal.name}</h1>
               <p className="mt-0 text-subhead text-content-secondary text-center mb-4">
-                Goal {displayWeight(goal.targetWeightKg, units)} · by {fmtShortDate(goal.targetDate)}
+                {maintainGoal
+                  ? <>Range {displayWeight(goal.weightRangeFloorKg ?? goal.targetWeightKg, units)}–{displayWeight(goal.weightRangeCeilingKg ?? goal.targetWeightKg, units)}</>
+                  : <>Goal {displayWeight(goal.targetWeightKg, units)} · by {fmtShortDate(goal.targetDate)}</>}
               </p>
               <div className="grid grid-cols-3 gap-2">
                 <div className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5">
-                  <span className="text-callout font-semibold text-content">{displayWeight(lostKg, units)}</span>
-                  <span className="-mt-0.5 text-center text-subhead text-content-secondary leading-tight">Weight<br/>{gainGoal ? 'gained' : 'lost'}</span>
+                  <span className="text-callout font-semibold text-content">
+                    {maintainGoal ? `${netChangeKg > 0 ? '+' : ''}${displayWeight(netChangeKg, units)}` : displayWeight(lostKg, units)}
+                  </span>
+                  <span className="-mt-0.5 text-center text-subhead text-content-secondary leading-tight">
+                    Weight<br/>{maintainGoal ? 'change' : gainGoal ? 'gained' : 'lost'}
+                  </span>
                 </div>
                 <div className="flex flex-col items-center justify-center rounded-card bg-surface shadow-card px-2 py-2.5">
                   <span className="text-callout font-semibold text-content">{displayWeight(nowKg, units)}</span>
@@ -683,6 +714,9 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
   const BUFFER = 0.3; // kg padding so dots never sit on the edge
   const MIN_SPAN = 1.5; // minimum visible span to avoid a nearly flat axis
   const gain = isGainGoal(goal);
+  const maintainMode = isMaintainGoal(goal);
+  const bandFloor   = goal.weightRangeFloorKg   ?? goal.targetWeightKg;
+  const bandCeiling = goal.weightRangeCeilingKg ?? goal.targetWeightKg;
 
   // Collect the week's planned values + any actual weigh-ins (goal days only, capped at today).
   const weekPlanned = daySeries.filter((d) => !d.isBeforeGoal && d.date <= today).map((d) => d.planned);
@@ -735,10 +769,14 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
   //   lose: actual ≤ planned (lighter than planned = ahead)
   //   gain: actual ≥ planned (heavier than planned = ahead)
   const lastLogged = daySeries.filter((d) => d.actual !== null && d.date <= today && !d.isBeforeGoal).slice(-1)[0];
+  // Maintain: "ahead" doesn't apply — it's in-range or drifting (above/below).
+  const lastInRange = maintainMode && lastLogged ? inBand(lastLogged.actual!, bandFloor, bandCeiling) : false;
   const isAhead    = lastLogged
     ? (gain ? lastLogged.actual! >= lastLogged.planned : lastLogged.actual! <= lastLogged.planned)
     : false;
-  const diffKg     = lastLogged ? Math.abs(lastLogged.actual! - lastLogged.planned) : 0;
+  const diffKg     = !lastLogged ? 0
+    : maintainMode ? (lastInRange ? 0 : lastLogged.actual! < bandFloor ? bandFloor - lastLogged.actual! : lastLogged.actual! - bandCeiling)
+    : Math.abs(lastLogged.actual! - lastLogged.planned);
 
   const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -780,11 +818,17 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
     const parts: string[] = [`Weight chart for the week of ${weekStart}.`];
     if (latestActual) {
       parts.push(`Latest logged weight: ${displayWeight(latestActual.actual!, units)} on ${latestActual.date}.`);
-      parts.push(`${displayWeight(diffKg, units)} ${isAhead ? 'ahead of' : 'behind'} target.`);
+      if (maintainMode) {
+        parts.push(lastInRange ? 'Within the target range.' : `${displayWeight(diffKg, units)} outside the target range.`);
+      } else {
+        parts.push(`${displayWeight(diffKg, units)} ${isAhead ? 'ahead of' : 'behind'} target.`);
+      }
     } else {
       parts.push('No weight logged this week.');
     }
-    parts.push(`Goal: ${displayWeight(goal.startWeightKg, units)} → ${displayWeight(goal.targetWeightKg, units)} by ${goal.targetDate}.`);
+    parts.push(maintainMode
+      ? `Range: ${displayWeight(bandFloor, units)} – ${displayWeight(bandCeiling, units)}.`
+      : `Goal: ${displayWeight(goal.startWeightKg, units)} → ${displayWeight(goal.targetWeightKg, units)} by ${goal.targetDate}.`);
     return parts.join(' ');
   })();
 
@@ -824,6 +868,16 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
           )}
         </g>
       ))}
+
+      {/* Maintain-only: shaded band between the weight range floor/ceiling */}
+      {maintainMode && (
+        <rect
+          x={padLeft} y={yFor(Math.min(bandCeiling, yMax))}
+          width={chartW}
+          height={Math.max(0, yFor(Math.max(bandFloor, yMin)) - yFor(Math.min(bandCeiling, yMax)))}
+          fill="var(--color-accent)" opacity={0.08}
+        />
+      )}
 
       {/* Planned trajectory — dashed, settles vertically into position */}
       {planLine && (
@@ -920,9 +974,16 @@ export function KgWeekChart({ goal, weights, weekOffset, today, navDir = 0, unit
     {/* Weekly verdict — text when no data, badge when data */}
     <div className="mt-3 flex justify-center">
       {lastLogged ? (
-        <Badge status={isAhead ? 'success' : 'default'} size="lg" className="text-[15px]">
-          {isAhead ? 'Ahead' : 'Behind'}{'  ·  '}{displayWeight(diffKg, units)}
-        </Badge>
+        maintainMode ? (
+          <Badge status={lastInRange ? 'success' : 'default'} size="lg" className="text-[15px]">
+            {lastInRange ? 'In range' : lastLogged.actual! < bandFloor ? 'Below range' : 'Above range'}
+            {!lastInRange && <>{'  ·  '}{displayWeight(diffKg, units)}</>}
+          </Badge>
+        ) : (
+          <Badge status={isAhead ? 'success' : 'default'} size="lg" className="text-[15px]">
+            {isAhead ? 'Ahead' : 'Behind'}{'  ·  '}{displayWeight(diffKg, units)}
+          </Badge>
+        )
       ) : (
         <p className="text-subhead text-content-muted text-center">Log weigh-ins to see your trend</p>
       )}
@@ -947,9 +1008,10 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
   const days         = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const iMap         = itemsByIdMap(items);
   const dailyTarget  = requiredDailyDeficit(goal); // signed: negative for gain
-  const gainChart    = isGainGoal(goal);
-  const gainFloorEff = gainChart ? (goal.surplusFloor  != null ? goal.surplusFloor  : Math.max(50, Math.abs(dailyTarget) - 100)) : 0;
-  const gainCeilEff  = gainChart ? (goal.surplusCeiling != null ? goal.surplusCeiling : Math.abs(dailyTarget) + 100) : 0;
+  const bandChart    = usesKcalBand(goal); // true for gain_by_date AND maintain
+  const isMaintainChart = isMaintainGoal(goal);
+  const gainFloorEff = bandChart ? (goal.surplusFloor  != null ? goal.surplusFloor  : Math.max(50, Math.abs(dailyTarget) - 100)) : 0;
+  const gainCeilEff  = bandChart ? (goal.surplusCeiling != null ? goal.surplusCeiling : Math.abs(dailyTarget) + 100) : 0;
 
   const rawData = useLive(async (): Promise<DayBar[]> => {
     return Promise.all(days.map(async (d) => {
@@ -966,8 +1028,8 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
       //   gain: totalBurn - (-surplus) = totalBurn + surplus (eat MORE than burn)
       const effectiveBurn = totalBurn > 0 ? totalBurn : bmr;
       const budget      = effectiveBurn - dailyTarget;
-      const floorBudget = gainChart ? effectiveBurn + gainFloorEff : budget;
-      const ceilBudget  = gainChart ? effectiveBurn + gainCeilEff  : budget;
+      const floorBudget = bandChart ? effectiveBurn + gainFloorEff : budget;
+      const ceilBudget  = bandChart ? effectiveBurn + gainCeilEff  : budget;
       return { date: d, consumed, budget, floorBudget, ceilBudget, hasData };
     }));
   }, [weekOffset, weights, user]);
@@ -1060,7 +1122,7 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
 
   const maxBudget   = Math.max(...cumulData.map((d) => d.cumBudget));
   const maxConsumed = Math.max(...cumulData.map((d) => d.cumConsumed));
-  const maxCeil     = gainChart ? Math.max(...cumulData.map((d) => d.cumCeil)) : 0;
+  const maxCeil     = bandChart ? Math.max(...cumulData.map((d) => d.cumCeil)) : 0;
   const maxY = Math.max(maxBudget, maxConsumed, maxCeil) * 1.1 || 9000;
 
   const toY     = (v: number) => padTop + chartH * (1 - Math.max(0, v) / maxY);
@@ -1076,10 +1138,10 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
     .map((d, i) => (d.isFuture && d.date > goal.targetDate) ? null : `${midX(i).toFixed(1)},${toY(d.cumBudget).toFixed(1)}`)
     .filter((p): p is string => p !== null)
     .join(' ');
-  const floorRampPoints = gainChart
+  const floorRampPoints = bandChart
     ? cumulData.map((d, i) => (d.isFuture && d.date > goal.targetDate) ? null : `${midX(i).toFixed(1)},${toY(d.cumFloor).toFixed(1)}`).filter((p): p is string => p !== null).join(' ')
     : '';
-  const ceilRampPoints = gainChart
+  const ceilRampPoints = bandChart
     ? cumulData.map((d, i) => (d.isFuture && d.date > goal.targetDate) ? null : `${midX(i).toFixed(1)},${toY(d.cumCeil).toFixed(1)}`).filter((p): p is string => p !== null).join(' ')
     : '';
 
@@ -1093,13 +1155,14 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
   const isOver       = cumCons > cumBudg;
   const diff         = Math.abs(Math.round(cumCons - cumBudg));
   // Gain: 3-state zone for week badge
-  const gainWeekZone = gainChart
+  const gainWeekZone = bandChart
     ? (cumCons < cumFloorLast ? 'below' : cumCons <= cumCeilLast ? 'in' : 'above')
     : 'below';
 
+  const chartKindLabel = isMaintainChart ? 'maintenance' : bandChart ? 'surplus' : 'deficit';
   const weekChartLabel = hasAnyData
-    ? `Calorie ${gainChart ? 'surplus' : 'deficit'} chart, week of ${weekStart}. Cumulative consumed: ${Math.round(cumCons)} kcal, budget: ${Math.round(cumBudg)} kcal. ${isOver ? `Over budget by ${diff} kcal.` : `Under budget by ${diff} kcal.`}`
-    : `Calorie ${gainChart ? 'surplus' : 'deficit'} chart, week of ${weekStart}. No data logged yet.`;
+    ? `Calorie ${chartKindLabel} chart, week of ${weekStart}. Cumulative consumed: ${Math.round(cumCons)} kcal, budget: ${Math.round(cumBudg)} kcal. ${isOver ? `Over budget by ${diff} kcal.` : `Under budget by ${diff} kcal.`}`
+    : `Calorie ${chartKindLabel} chart, week of ${weekStart}. No data logged yet.`;
 
   return (
     <>
@@ -1133,12 +1196,12 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
       })()}
 
       {/* Budget ramp — dashed. For lose: single ramp. For gain: floor + ceiling band. */}
-      {dailyTarget !== 0 && !gainChart && (
+      {dailyTarget !== 0 && !bandChart && (
         <polyline points={rampPoints} fill="none"
           stroke="var(--color-border-strong)" strokeWidth={1.5}
           strokeDasharray="4 4" strokeLinejoin="round" />
       )}
-      {gainChart && (
+      {bandChart && (
         <>
           <polyline points={floorRampPoints} fill="none"
             stroke="var(--color-border-strong)" strokeWidth={1.5}
@@ -1172,7 +1235,7 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
         const barY     = padTop + chartH - barH;
         // Lose: over budget (bar > ramp) = bad (dark); under = mint.
         // Gain: in range (floor ≤ consumed ≤ ceil) = mint; outside = dark.
-        const onTarget = gainChart
+        const onTarget = bandChart
           ? (cumConsumed >= cumFloor && cumConsumed <= cumCeil)
           : cumConsumed <= cumBudget;
         const fillColor = !hasData
@@ -1211,7 +1274,7 @@ export function WeekChart({ goal, weights, user, items, weekOffset, today, animT
     <div className="mt-3 flex justify-center">
       {!hasAnyData ? (
         <p className="text-subhead text-content-muted text-center">Log meals or activity to see your weekly total</p>
-      ) : gainChart ? (
+      ) : bandChart ? (
         <Badge status={gainWeekZone === 'in' ? 'success' : 'default'} size="lg" className="text-[15px]">
           {gainWeekZone === 'below' ? 'Under target' : gainWeekZone === 'in' ? 'In range' : 'Over'}{'  ·  '}{diff.toLocaleString()} kcal
         </Badge>

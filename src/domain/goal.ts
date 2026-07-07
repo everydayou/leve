@@ -20,6 +20,27 @@ export function isGainGoal(goal: Goal): boolean {
   return goal.type === 'gain_by_date';
 }
 
+/** True when the goal is a "Maintain weight" goal — no target weight delta,
+ *  no deadline; success = staying inside a weight/kcal band indefinitely. */
+export function isMaintainGoal(goal: Goal): boolean {
+  return goal.type === 'maintain';
+}
+
+/** True for goal types whose daily success is a FLOOR/CEILING band around
+ *  burn (gain_by_date: surplus band; maintain: maintenance ± band) rather
+ *  than a single deficit threshold (lose_by_date). Shared by WeekChart,
+ *  TodayScreen's day-success check, and GoalScreen's stat tiles. */
+export function usesKcalBand(goal: Goal): boolean {
+  return goal.type === 'gain_by_date' || goal.type === 'maintain';
+}
+
+/** Generic inclusive-range check — used for both the weight band (maintain)
+ *  and the kcal band (gain/maintain) so the "inside vs. outside" logic isn't
+ *  duplicated per screen. */
+export function inBand(value: number, floor: number, ceiling: number): boolean {
+  return value >= floor && value <= ceiling;
+}
+
 const MS_PER_DAY = 86_400_000;
 
 export function daysBetween(startISO: string, endISO: string): number {
@@ -77,6 +98,10 @@ export function requiredWeeklyDeficit(goal: Goal): number {
  *  Negative = surplus required (gain goal: eat this many kcal MORE than burn).
  *  Uses the manual override when set (via GoalSetupScreen slider). */
 export function requiredDailyDeficit(goal: Goal): number {
+  // Maintain goals have no weight delta to derive a magnitude from — the
+  // "target" is 0 (stay at maintenance); the actual tolerance is expressed
+  // via surplusFloor/surplusCeiling instead (see usesKcalBand/inBand).
+  if (isMaintainGoal(goal)) return 0;
   const magnitude = goal.dailyDeficitKcalOverride != null
     ? Math.abs(goal.dailyDeficitKcalOverride)
     : goalIntensity(goal.startWeightKg, goal.targetWeightKg, goal.startDate, goal.targetDate).kcalPerDay;
@@ -164,6 +189,19 @@ export const GAIN_PACES = [
   { id: 'bulk',   label: 'Bulk',   surplusFloor: 300, surplusCeiling: 600, kgPerMonth: 1.5 },
 ] as const;
 export type GainPaceId = typeof GAIN_PACES[number]['id'];
+
+// ── Maintain-mode band presets (r182) ─────────────────────────────────────────
+// Maintain goals have no pace (no weight delta) — instead the user picks how
+// tight a band to hold, for both weight (kg either side of target) and daily
+// calories (kcal either side of maintenance/burn). Mirrors LOSE_PACES/
+// GAIN_PACES' role in Guided mode; Detailed mode lets the bounds be edited
+// directly instead (like a macro range).
+export const MAINTAIN_BANDS = [
+  { id: 'tight',    label: 'Tight',    weightRangeKg: 0.5, kcalBand: 100 },
+  { id: 'standard', label: 'Standard', weightRangeKg: 1,   kcalBand: 150 },
+  { id: 'relaxed',  label: 'Relaxed',  weightRangeKg: 2,   kcalBand: 250 },
+] as const;
+export type MaintainBandId = typeof MAINTAIN_BANDS[number]['id'];
 
 /** Derive target date from a lose pace. Assumes startKg > targetKg. */
 export function dateFromLosePace(

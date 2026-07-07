@@ -2,12 +2,12 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
-import { newId, todayISO } from '../../data/ids';
+import { newId, todayISO, addDays } from '../../data/ids';
 import {
   goalIntensity, currentWeightKg, activityCarbTargetG,
-  LOSE_PACES, GAIN_PACES,
+  LOSE_PACES, GAIN_PACES, MAINTAIN_BANDS,
   dateFromLosePace, dateFromGainPace,
-  type LosePaceId, type GainPaceId,
+  type LosePaceId, type GainPaceId, type MaintainBandId,
 } from '../../domain/goal';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { kgToLbs, lbsToKg } from '../../domain/units';
@@ -26,7 +26,7 @@ type SetupMode = 'simple' | 'custom';
 // ── Constants ─────────────────────────────────────────────────────────────────
 const TYPES: GoalTypeOpt[] = [
   { id: 'lose_by_date', title: 'Lose weight',    desc: 'Target weight by a deadline. Tracks deficit + trend.', enabled: true  },
-  { id: 'maintain',     title: 'Maintain weight', desc: 'Hold steady within a range.',                          enabled: false },
+  { id: 'maintain',     title: 'Maintain weight', desc: 'Hold steady within a range.',                          enabled: true  },
   { id: 'gain_by_date', title: 'Build muscle',    desc: 'Fuel muscle growth with a daily calorie surplus.',     enabled: true  },
 ];
 
@@ -155,6 +155,15 @@ export function GoalSetupForm({
   const [losePace, setLosePace] = useState<LosePaceId>('relaxed');
   const [gainPace, setGainPace] = useState<GainPaceId>('lean');
 
+  // ── Maintain band (r182) ─────────────────────────────────────────────────
+  // Guided mode: one preset drives both the weight range and the kcal band.
+  // Detailed mode: the two bounds below are directly editable (like a macro
+  // range) and default from whichever preset is selected.
+  const [maintainBand, setMaintainBand] = useState<MaintainBandId>('standard');
+  const [rangeFloor, setRangeFloor] = useState<string>('');
+  const [rangeCeiling, setRangeCeiling] = useState<string>('');
+  const [reviewDate, setReviewDate] = useState<string>('');
+
   // ── Goal fields ───────────────────────────────────────────────────────────
   const [type, setType] = useState<GoalTypeOpt['id']>(typeParam ?? activeGoal?.type ?? 'lose_by_date');
   const [name, setName] = useState(activeGoal?.name ?? '');
@@ -169,6 +178,16 @@ export function GoalSetupForm({
   });
   const [date,      setDate]      = useState(activeGoal?.targetDate ?? '');
   const [startDate, setStartDate] = useState(activeGoal?.startDate ?? todayISO());
+  useEffect(() => {
+    if (activeGoal?.type === 'maintain') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (activeGoal.maintainBandId) setMaintainBand(activeGoal.maintainBandId);
+      if (activeGoal.weightRangeFloorKg   != null) setRangeFloor(String(toDisp(activeGoal.weightRangeFloorKg)));
+      if (activeGoal.weightRangeCeilingKg != null) setRangeCeiling(String(toDisp(activeGoal.weightRangeCeilingKg)));
+      if (activeGoal.reviewDate) setReviewDate(activeGoal.reviewDate);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGoal?.id]);
   const [deficitOverride, setDeficitOverride] = useState<number | null>(activeGoal?.dailyDeficitKcalOverride ?? null);
   const [sessionTouched,  setSessionTouched]  = useState(false);
   const [navScrolled,     setNavScrolled]     = useState(false);
@@ -209,17 +228,27 @@ export function GoalSetupForm({
   const [carbLimitGState, setCarbLimitGState] = useState<number | null>(activeGoal?.carbLimitG ?? null);
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const sNum   = +start  || 0;
-  const tNum   = +target || 0;
-  const isGain = type === 'gain_by_date';
+  const sNum      = +start  || 0;
+  const tNum      = +target || 0;
+  const isGain     = type === 'gain_by_date';
+  const isMaintain = type === 'maintain';
 
-  const weightValid        = isGain ? sNum > 0 && tNum > 0 && tNum > sNum : sNum > 0 && tNum > 0 && sNum > tNum;
-  const valid              = weightValid && !!startDate && !!date && startDate < date;
-  const intensity          = valid ? goalIntensity(toKg(sNum), toKg(tNum), startDate, date) : null;
+  // Maintain has no target-weight delta and no deadline — "valid" just means
+  // a positive current weight is on file. The weight RANGE (floor/ceiling)
+  // is validated separately in handleCustomSave/createSimple.
+  const maintainBandDef = MAINTAIN_BANDS.find(b => b.id === maintainBand)!;
+  const rangeFloorNum    = rangeFloor   !== '' ? +rangeFloor   : toDisp(toKg(sNum) - maintainBandDef.weightRangeKg);
+  const rangeCeilingNum  = rangeCeiling !== '' ? +rangeCeiling : toDisp(toKg(sNum) + maintainBandDef.weightRangeKg);
+
+  const weightValid = isMaintain
+    ? sNum > 0
+    : isGain ? sNum > 0 && tNum > 0 && tNum > sNum : sNum > 0 && tNum > 0 && sNum > tNum;
+  const valid = isMaintain ? weightValid : weightValid && !!startDate && !!date && startDate < date;
+  const intensity          = !isMaintain && valid ? goalIntensity(toKg(sNum), toKg(tNum), startDate, date) : null;
   const computedMagnitude  = intensity?.kcalPerDay ?? 0;
   const sliderMin          = Math.max(200, computedMagnitude - 500);
   const sliderMax          = computedMagnitude + 500;
-  const effectiveMagnitude = deficitOverride ?? computedMagnitude;
+  const effectiveMagnitude = isMaintain ? 0 : (deficitOverride ?? computedMagnitude);
   const goalHasStarted     = editing && !!activeGoal && activeGoal.startDate < todayISO();
   const showDeficitWarning = goalHasStarted && sessionTouched;
 
@@ -240,13 +269,13 @@ export function GoalSetupForm({
   const carbLimitG = carbLimitGState ?? defCarbLimit(totalCal);
 
   const derivedDate = useMemo<string | null>(() => {
-    if (!weightValid) return null;
+    if (isMaintain || !weightValid) return null; // maintain has no pace-derived end date
     const sk = toKg(sNum), tk = toKg(tNum), today = todayISO();
     if (isGain) { const p = GAIN_PACES.find(p => p.id === gainPace)!; return dateFromGainPace(sk, tk, p.kgPerMonth, today); }
     const p = LOSE_PACES.find(p => p.id === losePace)!;
     return dateFromLosePace(sk, tk, p.kgPerWeek, today);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weightValid, sNum, tNum, losePace, gainPace, isGain, units]);
+  }, [isMaintain, weightValid, sNum, tNum, losePace, gainPace, isGain, units]);
 
   // ── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -345,16 +374,61 @@ export function GoalSetupForm({
   // ── Save: Simple ──────────────────────────────────────────────────────────
   async function createSimple() {
     const errs: typeof fieldErrors = {};
-    if (!start || sNum <= 0)         errs.start  = 'Enter a weight';
-    else if (!target || tNum <= 0)   errs.target = 'Enter a target weight';
-    else if (isGain  && tNum <= sNum) errs.target = 'Target must be higher than start weight';
-    else if (!isGain && tNum >= sNum) errs.target = 'Target must be lower than start weight';
+    if (!isMaintain) {
+      if (!start || sNum <= 0)         errs.start  = 'Enter a weight';
+      else if (!target || tNum <= 0)   errs.target = 'Enter a target weight';
+      else if (isGain  && tNum <= sNum) errs.target = 'Target must be higher than start weight';
+      else if (!isGain && tNum >= sNum) errs.target = 'Target must be lower than start weight';
+    } else if (!start || sNum <= 0) {
+      errs.start = 'Enter your current weight';
+    }
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
       setTimeout(() => scrollRef.current?.querySelector('.text-danger')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
       return;
     }
     setFieldErrors({});
+
+    if (isMaintain) {
+      const sk = toKg(sNum), today = todayISO();
+      const band = maintainBandDef;
+      const floorKg = sk - band.weightRangeKg, ceilKg = sk + band.weightRangeKg;
+      // No deadline — far-future sentinel so downstream date math never
+      // trips the lose/gain "final day / overdue" derivations (those are
+      // gated off entirely for maintain in GoalScreen anyway).
+      const farFuture = addDays(today, 3650);
+      await repos.goals.put({
+        id: activeGoal?.id ?? newId(), name: 'New goal', type: 'maintain',
+        startWeightKg: sk, targetWeightKg: sk,
+        startDate: today, targetDate: farFuture,
+        status: 'active', setupMode: 'simple',
+        maintainBandId: band.id,
+        weightRangeFloorKg: floorKg, weightRangeCeilingKg: ceilKg,
+        surplusFloor: -band.kcalBand, surplusCeiling: band.kcalBand,
+        macroStyle: 'balanced' as MacroStyle,
+        trackingMode: 'detailed' as const,
+        diaryShowProtein: false, diaryShowCarbs: false, diaryShowFat: false,
+      });
+      if (!activeGoal) {
+        await repos.weights.upsertForDate({ id: newId(), date: today, weightKg: sk, source: 'manual' });
+      }
+      const user = await repos.user.get();
+      if (user) {
+        const simpleUpdates: Record<string, unknown> = {
+          proteinGoalG: Math.round(sk * 1.8),
+          ...(weighCadence && { weightCadence: weighCadence }),
+          weeklyWeightDay: weighCadence === 'weekly' ? weighDay : user.weeklyWeightDay,
+        };
+        if (offerHeight) simpleUpdates.heightCm = offerHeight;
+        if (offerAge)    simpleUpdates.age       = offerAge;
+        if (offerSex)    simpleUpdates.sex       = offerSex;
+        if (localBmr > 0 && localBmr !== userBmr) simpleUpdates.bmr = localBmr;
+        await repos.user.save({ ...user, ...simpleUpdates });
+      }
+      finishNav();
+      return;
+    }
+
     const sk = toKg(sNum), tk = toKg(tNum), today = todayISO(), goalType = type as GoalType;
     let endDate: string;
     let gainFloor: number | undefined, gainCeil: number | undefined;
@@ -402,20 +476,40 @@ export function GoalSetupForm({
   async function create() {
     if (!valid) return;
     const sk = toKg(sNum);
-    const goalType = (type === 'maintain' ? 'lose_by_date' : type) as GoalType;
-    await repos.goals.put({
-      id: activeGoal?.id ?? newId(), name: name.trim() || 'New goal', type: goalType,
-      startWeightKg: sk, targetWeightKg: toKg(tNum),
-      startDate, targetDate: date, status: 'active', setupMode: 'custom',
-      dailyDeficitKcalOverride: deficitOverride ?? undefined,
-      trackingMode: macroStyle ? 'detailed' : 'simple',
-      macroStyle: macroStyle ?? undefined,
-      fatTargetG: macroStyle ? fatG : undefined,
-      carbLimitG: macroStyle === 'lower_carb' ? carbLimitG : undefined,
-    });
+    const goalType = type as GoalType;
+    if (isMaintain) {
+      const floorKg = toKg(rangeFloorNum), ceilKg = toKg(rangeCeilingNum);
+      const midKg = (floorKg + ceilKg) / 2;
+      const today = todayISO();
+      await repos.goals.put({
+        id: activeGoal?.id ?? newId(), name: name.trim() || 'New goal', type: 'maintain',
+        startWeightKg: sk, targetWeightKg: midKg,
+        startDate: startDate || today, targetDate: addDays(startDate || today, 3650),
+        status: 'active', setupMode: 'custom',
+        weightRangeFloorKg: floorKg, weightRangeCeilingKg: ceilKg,
+        maintainBandId: rangeFloor === '' && rangeCeiling === '' ? maintainBand : undefined,
+        surplusFloor: -maintainBandDef.kcalBand, surplusCeiling: maintainBandDef.kcalBand,
+        reviewDate: reviewDate || undefined,
+        trackingMode: macroStyle ? 'detailed' : 'simple',
+        macroStyle: macroStyle ?? undefined,
+        fatTargetG: macroStyle ? fatG : undefined,
+        carbLimitG: macroStyle === 'lower_carb' ? carbLimitG : undefined,
+      });
+    } else {
+      await repos.goals.put({
+        id: activeGoal?.id ?? newId(), name: name.trim() || 'New goal', type: goalType,
+        startWeightKg: sk, targetWeightKg: toKg(tNum),
+        startDate, targetDate: date, status: 'active', setupMode: 'custom',
+        dailyDeficitKcalOverride: deficitOverride ?? undefined,
+        trackingMode: macroStyle ? 'detailed' : 'simple',
+        macroStyle: macroStyle ?? undefined,
+        fatTargetG: macroStyle ? fatG : undefined,
+        carbLimitG: macroStyle === 'lower_carb' ? carbLimitG : undefined,
+      });
+    }
     // Log the starting weight for the start date (new goals only)
     if (!activeGoal) {
-      await repos.weights.upsertForDate({ id: newId(), date: startDate, weightKg: sk, source: 'manual' });
+      await repos.weights.upsertForDate({ id: newId(), date: startDate || todayISO(), weightKg: sk, source: 'manual' });
     }
     const user = await repos.user.get();
     if (user) {
@@ -445,13 +539,19 @@ export function GoalSetupForm({
       }
     }
     const errs: typeof fieldErrors = {};
-    if (!start || sNum <= 0)          errs.start     = 'Enter a start weight';
-    else if (!target || tNum <= 0)    errs.target    = 'Enter a target weight';
-    else if (isGain  && tNum <= sNum) errs.target    = 'Target must be higher than start weight';
-    else if (!isGain && tNum >= sNum) errs.target    = 'Target must be lower than start weight';
-    if (!startDate) errs.startDate = 'Enter a start date';
-    if (!date)      errs.date      = 'Enter a target date';
-    else if (startDate && date <= startDate) errs.date = 'Target date must be after start date';
+    if (isMaintain) {
+      if (!start || sNum <= 0) errs.start = 'Enter your current weight';
+      if (rangeCeilingNum <= rangeFloorNum) errs.target = 'Range max must be higher than range min';
+      if (!startDate) errs.startDate = 'Enter a start date';
+    } else {
+      if (!start || sNum <= 0)          errs.start     = 'Enter a start weight';
+      else if (!target || tNum <= 0)    errs.target    = 'Enter a target weight';
+      else if (isGain  && tNum <= sNum) errs.target    = 'Target must be higher than start weight';
+      else if (!isGain && tNum >= sNum) errs.target    = 'Target must be lower than start weight';
+      if (!startDate) errs.startDate = 'Enter a start date';
+      if (!date)      errs.date      = 'Enter a target date';
+      else if (startDate && date <= startDate) errs.date = 'Target date must be after start date';
+    }
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
       setTimeout(() => scrollRef.current?.querySelector('.text-danger')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
@@ -580,20 +680,26 @@ export function GoalSetupForm({
                           centerAt={units === 'lbs' ? 132 : 60} />
                         {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
                       </div>
-                      <div>
-                        <WheelPicker label={`Target (${units})`} value={target}
-                          onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
-                          min={wMin} max={wMax} step={0.1} unit={units}
-                          invalid={!!fieldErrors.target} centerAt={+start || (units === 'lbs' ? 154 : 70)} />
-                        {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
-                      </div>
+                      {!isMaintain && (
+                        <div>
+                          <WheelPicker label={`Target (${units})`} value={target}
+                            onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
+                            min={wMin} max={wMax} step={0.1} unit={units}
+                            invalid={!!fieldErrors.target} centerAt={+start || (units === 'lbs' ? 154 : 70)} />
+                          {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Pace sub-section */}
+                  {/* Pace sub-section (maintain: "Range" instead of a pace) */}
                   <div className="px-4 pt-4 pb-6">
-                    <CardSectionHeader icon="calendar">Pace</CardSectionHeader>
-                    {isGain ? (
+                    <CardSectionHeader icon="calendar">{isMaintain ? 'Range' : 'Pace'}</CardSectionHeader>
+                    {isMaintain ? (
+                      <FilterPills<MaintainBandId> value={maintainBand}
+                        onChange={(v) => { if (v) setMaintainBand(v); }}
+                        options={MAINTAIN_BANDS.map(b => ({ value: b.id, label: b.label }))} />
+                    ) : isGain ? (
                       <FilterPills<GainPaceId> value={gainPace}
                         onChange={(v) => { if (v) setGainPace(v); }}
                         options={GAIN_PACES.map(p => ({ value: p.id, label: p.label }))} />
@@ -602,7 +708,27 @@ export function GoalSetupForm({
                         onChange={(v) => { if (v) setLosePace(v); }}
                         options={LOSE_PACES.map(p => ({ value: p.id, label: p.label }))} />
                     )}
-                    {derivedDate && (() => {
+                    {isMaintain && (() => {
+                      const sk = toKg(sNum);
+                      const floorDisp = toDisp(sk - maintainBandDef.weightRangeKg);
+                      const ceilDisp  = toDisp(sk + maintainBandDef.weightRangeKg);
+                      const unitLabel = units === 'lbs' ? 'lbs' : 'kg';
+                      const rows = [
+                        { label: 'Weight range',  value: `${floorDisp.toFixed(1)}–${ceilDisp.toFixed(1)} ${unitLabel}` },
+                        { label: 'Daily calories', value: `±${maintainBandDef.kcalBand} kcal` },
+                      ];
+                      return (
+                        <div className="mt-3 rounded-card border border-border-subtle bg-surface-sunken p-4 space-y-2" aria-live="polite">
+                          {rows.map(({ label, value }) => (
+                            <div key={label} className="flex items-center justify-between">
+                              <span className="text-subhead text-content-secondary">{label}</span>
+                              <span className="text-subhead font-semibold text-content">{value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                    {!isMaintain && derivedDate && (() => {
                       const today = todayISO();
                       const totalDays = Math.round((Date.parse(derivedDate + 'T00:00:00') - Date.parse(today + 'T00:00:00')) / 86400_000);
                       if (totalDays <= 0) return null;
@@ -688,20 +814,35 @@ export function GoalSetupForm({
                           </div>
                         </div>
                         <div>
-                          <WheelPicker label={`Start (${units})`} value={start}
+                          <WheelPicker label={`${isMaintain ? 'Current' : 'Start'} (${units})`} value={start}
                             onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
                             min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.start}
                             centerAt={units === 'lbs' ? 132 : 60} />
                           {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
                         </div>
-                        <div>
-                          <WheelPicker label={`Target (${units})`} value={target}
-                            onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
-                            min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.target}
-                            centerAt={+start || (units === 'lbs' ? 154 : 70)}
-                            />
-                          {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
-                        </div>
+                        {isMaintain ? (
+                          <div>
+                            <span className="block mb-1 text-subhead font-normal text-content-secondary">
+                              Weight range ({units}) <span className="text-footnote text-content-muted">— like a macro range</span>
+                            </span>
+                            <div className="flex gap-2">
+                              <NumberField label="Min" value={rangeFloor !== '' ? rangeFloor : String(rangeFloorNum.toFixed(1))}
+                                set={(v) => setRangeFloor(v)} placeholder={rangeFloorNum.toFixed(1)} />
+                              <NumberField label="Max" value={rangeCeiling !== '' ? rangeCeiling : String(rangeCeilingNum.toFixed(1))}
+                                set={(v) => setRangeCeiling(v)} placeholder={rangeCeilingNum.toFixed(1)} />
+                            </div>
+                            {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
+                          </div>
+                        ) : (
+                          <div>
+                            <WheelPicker label={`Target (${units})`} value={target}
+                              onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
+                              min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.target}
+                              centerAt={+start || (units === 'lbs' ? 154 : 70)}
+                              />
+                            {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
+                          </div>
+                        )}
 
                         <div>
                           <span className="block mb-1 text-subhead font-normal text-content-secondary">Weigh-in frequency <span className="text-footnote text-content-muted">(optional)</span></span>
@@ -723,7 +864,7 @@ export function GoalSetupForm({
                       </div>
                     </div>
 
-                    {/* Dates */}
+                    {/* Dates — maintain has no deadline, only an optional review-date reminder */}
                     <div className="p-4 pb-5">
                       <CardSectionHeader icon="calendar">Dates</CardSectionHeader>
                       <div className="flex gap-2">
@@ -737,13 +878,23 @@ export function GoalSetupForm({
                           {fieldErrors.startDate && <p className="mt-1 text-footnote text-danger">{fieldErrors.startDate}</p>}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <span className="block text-subhead text-content-secondary">Target date</span>
+                          <span className="block text-subhead text-content-secondary">
+                            {isMaintain ? <>Review date <span className="text-footnote text-content-muted">(optional)</span></> : 'Target date'}
+                          </span>
                           <div className="mt-1 overflow-hidden rounded-field bg-surface-sunken">
-                            <input type="date" value={date} min={startDate || todayISO()}
-                              onChange={(e) => { setDate(e.target.value); setFieldErrors(p => ({ ...p, date: undefined })); }}
-                              className="w-full bg-surface-sunken px-3 py-2.5 text-subhead text-content focus:outline-none" />
+                            {isMaintain ? (
+                              <input type="date" value={reviewDate} min={startDate || todayISO()}
+                                onChange={(e) => setReviewDate(e.target.value)}
+                                className="w-full bg-surface-sunken px-3 py-2.5 text-subhead text-content focus:outline-none" />
+                            ) : (
+                              <input type="date" value={date} min={startDate || todayISO()}
+                                onChange={(e) => { setDate(e.target.value); setFieldErrors(p => ({ ...p, date: undefined })); }}
+                                className="w-full bg-surface-sunken px-3 py-2.5 text-subhead text-content focus:outline-none" />
+                            )}
                           </div>
-                          {fieldErrors.date && <p className="mt-1 text-footnote text-danger">{fieldErrors.date}</p>}
+                          {isMaintain
+                            ? <p className="mt-1 text-footnote text-content-muted">A reminder only — doesn't end the goal.</p>
+                            : fieldErrors.date && <p className="mt-1 text-footnote text-danger">{fieldErrors.date}</p>}
                         </div>
                       </div>
                     </div>
@@ -752,8 +903,25 @@ export function GoalSetupForm({
                   {/* Review your goal */}
                   <div className="mt-6">
                     <p className="mb-3 text-headline font-semibold text-content">Review your goal</p>
-                    <div className={`overflow-hidden border border-border-subtle bg-surface p-5${intensity ? ' shadow-card' : ''}`} style={{ borderRadius: 24 }}>
-                      {intensity ? (
+                    <div className={`overflow-hidden border border-border-subtle bg-surface p-5${(intensity || (isMaintain && weightValid)) ? ' shadow-card' : ''}`} style={{ borderRadius: 24 }}>
+                      {isMaintain && weightValid ? (
+                        <>
+                          <p className="text-display font-bold text-center">{Math.round(safeBmr)} kcal</p>
+                          <p className="text-center text-subhead text-content-secondary">estimated maintenance calories / day</p>
+                          <div className="mt-3 rounded-field bg-surface-sunken px-3 py-2.5 text-center">
+                            <p className="text-callout font-normal text-content">Daily calorie band</p>
+                            <p className="text-callout font-semibold text-content">
+                              {Math.round(safeBmr) - maintainBandDef.kcalBand} – {Math.round(safeBmr) + maintainBandDef.kcalBand} kcal
+                            </p>
+                          </div>
+                          <div className="mt-3 rounded-field bg-surface-sunken px-3 py-2.5 text-center">
+                            <p className="text-callout font-normal text-content">Weight range</p>
+                            <p className="text-callout font-semibold text-content">
+                              {rangeFloorNum.toFixed(1)} – {rangeCeilingNum.toFixed(1)} {units}
+                            </p>
+                          </div>
+                        </>
+                      ) : intensity ? (
                         <>
                           <div className="relative">
                             {sessionTouched && (
@@ -802,7 +970,9 @@ export function GoalSetupForm({
                           )}
                         </>
                       ) : (
-                        <p className="text-subhead text-content-muted">Fill in your details to preview your goal pace.</p>
+                        <p className="text-subhead text-content-muted">
+                          {isMaintain ? 'Fill in your current weight to preview your goal.' : 'Fill in your details to preview your goal pace.'}
+                        </p>
                       )}
                     </div>
                   </div>

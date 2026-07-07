@@ -14,7 +14,7 @@ import { getDevRevealed, setDevRevealed } from '../../lib/devReveal';
 import { getWithingsService, type WithingsStatus } from '../../data/withings';
 import { DevMenu } from '../components/DevMenu';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
-import { currentWeightKg } from '../../domain/goal';
+import { currentWeightKg, isGainGoal, isMaintainGoal } from '../../domain/goal';
 import type { User, Sex, Units, Goal } from '../../domain/types'; // Goal used in sub-components
 
 // Goal and Connections sections are hidden (not deleted) per the Account
@@ -136,7 +136,16 @@ export function AccountScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-semibold">{goal?.name ?? 'No active goal'}</p>
-                {goal && <p className="text-label text-content-secondary">Active · lose {displayWeight(goal.startWeightKg - goal.targetWeightKg, user.units ?? 'kg')}</p>}
+                {goal && (
+                  <p className="text-label text-content-secondary">
+                    Active ·{' '}
+                    {isMaintainGoal(goal)
+                      ? <>maintain {displayWeight(goal.weightRangeFloorKg ?? goal.targetWeightKg, user.units ?? 'kg')}–{displayWeight(goal.weightRangeCeilingKg ?? goal.targetWeightKg, user.units ?? 'kg')}</>
+                      : isGainGoal(goal)
+                        ? <>gain {displayWeight(goal.targetWeightKg - goal.startWeightKg, user.units ?? 'kg')}</>
+                        : <>lose {displayWeight(goal.startWeightKg - goal.targetWeightKg, user.units ?? 'kg')}</>}
+                  </p>
+                )}
               </div>
               {goal ? (
                 <Button variant="subtle" size="xs" fullWidth={false} onClick={() => setManagingGoal(true)}>Manage</Button>

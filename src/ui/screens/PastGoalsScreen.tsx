@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
-import { isGainGoal, currentWeightKg } from '../../domain/goal';
+import { isGainGoal, isMaintainGoal, currentWeightKg } from '../../domain/goal';
 import { displayWeight } from '../../domain/units';
 import { todayISO, addDays } from '../../data/ids';
 import { getMondayOfWeek, MS_PER_DAY } from '../../lib/date';
@@ -277,8 +277,10 @@ function PastGoalDetail({
   const { goal, weights, items, user } = data;
   const units = user?.units ?? 'kg';
   const gainGoal = isGainGoal(goal);
+  const maintainGoal = isMaintainGoal(goal);
   const nowKg = currentWeightKg(weights) ?? goal.startWeightKg;
   const lostKg = Math.max(0, round1(gainGoal ? nowKg - goal.startWeightKg : goal.startWeightKg - nowKg));
+  const netChangeKg = round1(nowKg - goal.startWeightKg); // maintain: signed, can be ±
   const daysTaken = Math.max(1, Math.round(
     (Date.parse(goal.targetDate) - Date.parse(goal.startDate)) / MS_PER_DAY,
   ));
@@ -310,10 +312,15 @@ function PastGoalDetail({
           <div className="pt-5 px-6 pb-5">
             <h1 className="text-headline font-semibold text-center text-content">{goal.name}</h1>
             <p className="mt-0 text-subhead text-content-secondary text-center mb-4">
-              Goal {displayWeight(goal.targetWeightKg, units)} · by {fmtDate(goal.targetDate)}
+              {maintainGoal
+                ? <>Range {displayWeight(goal.weightRangeFloorKg ?? goal.targetWeightKg, units)}–{displayWeight(goal.weightRangeCeilingKg ?? goal.targetWeightKg, units)}</>
+                : <>Goal {displayWeight(goal.targetWeightKg, units)} · by {fmtDate(goal.targetDate)}</>}
             </p>
             <div className="grid grid-cols-3 gap-2">
-              <StatCard value={displayWeight(lostKg, units)} label={`Weight\n${gainGoal ? 'gained' : 'lost'}`} />
+              <StatCard
+                value={maintainGoal ? `${netChangeKg > 0 ? '+' : ''}${displayWeight(netChangeKg, units)}` : displayWeight(lostKg, units)}
+                label={`Weight\n${maintainGoal ? 'change' : gainGoal ? 'gained' : 'lost'}`}
+              />
               <StatCard value={displayWeight(nowKg, units)} label={'Final\nweight'} />
               <StatCard value={String(daysTaken)} label={'Total\ndays'} />
             </div>
@@ -401,7 +408,9 @@ function PastGoalsList({
                   <div className="min-w-0 flex-1">
                     <p className="text-subhead font-semibold text-content truncate">{g.name}</p>
                     <p className="text-footnote text-content-secondary mt-0.5">
-                      {isGainGoal(g) ? 'Build muscle' : 'Lose weight'} · {fmtDate(g.startDate)} – {fmtDate(g.targetDate)}
+                      {isGainGoal(g) ? 'Build muscle' : isMaintainGoal(g) ? 'Maintain weight' : 'Lose weight'}
+                      {' · '}
+                      {isMaintainGoal(g) ? `since ${fmtDate(g.startDate)}` : `${fmtDate(g.startDate)} – ${fmtDate(g.targetDate)}`}
                     </p>
                   </div>
                   <Badge status={g.status === 'completed' ? 'success' : 'neutral'}>

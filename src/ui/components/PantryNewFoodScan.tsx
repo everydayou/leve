@@ -74,18 +74,32 @@ export function PantryNewFood({
   // PantryNewFoodBody, rendered AS A CHILD of <Sheet>, same as every other
   // useSheetSetOverlay call site in the app (they're always inside a child
   // of the Sheet whose overlay they're registering into, e.g. FoodForm).
+  // Lifted up from PantryNewFoodBody (round 190) — <Sheet>'s own
+  // forceExpanded prop has to be set HERE, in the component that actually
+  // renders <Sheet>, but useSheetSetOverlay must be called from a CHILD of
+  // it (see the comment above). So the boolean lives here and is passed
+  // down as a controlled value + setter instead of local state in the body.
+  const [describing, setDescribing] = useState(false);
+
   return (
-    <Sheet title="New food" onClose={onClose}>
+    // Round 190: expand to the full 90dvh Sheet size while Describe is
+    // open — Marco wants Describe to be "the big one" rather than staying
+    // inside the compact method-picker's footprint. Sheet already animates
+    // smoothly between its compact and forceExpanded heights (same
+    // mechanism as its own drag-to-expand gesture), so toggling this on
+    // `describing` just reuses that existing transition.
+    <Sheet title="New food" onClose={onClose} forceExpanded={describing}>
       <PantryNewFoodBody
         items={items} meals={meals} onManual={onManual}
         onFoodCreated={onFoodCreated} onMealCreated={onMealCreated} showToast={showToast}
+        describing={describing} setDescribing={setDescribing}
       />
     </Sheet>
   );
 }
 
 function PantryNewFoodBody({
-  items, meals, onManual, onFoodCreated, onMealCreated, showToast,
+  items, meals, onManual, onFoodCreated, onMealCreated, showToast, describing, setDescribing,
 }: {
   items: FoodItem[];
   meals: Meal[];
@@ -93,8 +107,9 @@ function PantryNewFoodBody({
   onFoodCreated: (id: string) => void;
   onMealCreated: (meal: Meal) => void;
   showToast?: ShowToast;
+  describing: boolean;
+  setDescribing: (v: boolean) => void;
 }) {
-  const [describing, setDescribing] = useState(false);
   const [committing, setCommitting] = useState(false);
 
   // Describe slides in as a genuine side-panel overlay (round 189) instead
@@ -104,7 +119,7 @@ function PantryNewFoodBody({
   // same as every other overlay in the app.
   useSheetSetOverlay(
     describing ? (
-      <DescribeOverlay onBack={() => setDescribing(false)} onAnalyze={handleDescribeAnalyzeForNewFood} />
+      <DescribeOverlay onBack={() => setDescribing(false)} onAnalyze={handleDescribeAnalyzeForNewFood} autoFocus />
     ) : null,
     [describing],
   );

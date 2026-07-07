@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Icon, SegmentedControl, Sheet } from '../kit';
+import { Button, Icon, SegmentedControl, Sheet, useKeyboardDoneBar } from '../kit';
 import type { IconName } from '../kit';
 import {
   applyDevOverrides, loadDevOverrides,
@@ -696,6 +696,16 @@ function KeyboardPlayground() {
   const [doneVal,  setDoneVal]  = useState('69.2');
   const [doneFocused, setDoneFocused] = useState(false);
   const doneInputRef = useRef<HTMLInputElement>(null);
+  const [nameVal, setNameVal] = useState('');
+  // Round 190: rows 1-4 are all NUMERIC-family keyboards (numpad/decimal/
+  // tel) — none of them show iOS's QuickType predictive-text suggestion
+  // bar, since there's no text to predict for a number. The still-open
+  // Done-bar gap was specifically reported on a plain TEXT field (Name),
+  // which DOES get a QuickType bar — a real difference this playground
+  // didn't cover before. This row uses the actual production
+  // useKeyboardDoneBar hook (same one LabeledInput/Name uses), so its
+  // Done bar and the diagnostics box above reflect the real scenario.
+  const nameDoneBar = useKeyboardDoneBar();
   // Real keyboard height from the Capacitor Keyboard plugin on device — same
   // hook Sheet.tsx uses to pad its own scroll area. Positions the demo "Done"
   // bar flush against the top of the keyboard, however tall it is.
@@ -769,6 +779,18 @@ function KeyboardPlayground() {
           className={inputCls}
         />
         <p className="mt-1.5 text-caption text-content-muted">Value: {doneVal}</p>
+      </PickerRow>
+
+      <PickerRow label="5 · plain text (Name-style)" description="Same production useKeyboardDoneBar hook as the Name field. iOS may show a QuickType suggestion strip above this keyboard that rows 1-4 never trigger — check the diagnostics box above while this one is focused.">
+        <input
+          type="text"
+          placeholder="e.g. Homemade granola"
+          value={nameVal}
+          onChange={e => setNameVal(e.target.value)}
+          {...nameDoneBar.bind}
+          className={inputCls}
+        />
+        {nameDoneBar.doneBar}
       </PickerRow>
 
       {/* The "accessory bar" itself — fixed to the viewport, sitting exactly

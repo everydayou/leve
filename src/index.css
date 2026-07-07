@@ -144,6 +144,20 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Hide scrollbar chrome everywhere (round 190) — on-device, WKWebView's thin
+   scrollbar was staying visible mid-scroll and poking through the native
+   keyboard's own rounded top corners, showing as a stray grey sliver in that
+   gap. iOS native apps don't show persistent scrollbar chrome either — this
+   just matches that; content still scrolls exactly the same way, only the
+   visual scrollbar track/thumb are suppressed. */
+* {
+  scrollbar-width: none;       /* Firefox */
+  -ms-overflow-style: none;    /* old Edge/IE */
+}
+*::-webkit-scrollbar {
+  display: none;               /* Safari/Chrome/WKWebView */
+}
+
 /* Remove iOS blue tap-flash and native WKWebView button appearance from all
    interactive elements. appearance:none strips -webkit-appearance:button which
    can render a dark tap-ring on top of the custom active state.

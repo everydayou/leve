@@ -1299,11 +1299,17 @@ function FoodPicker({
 // ── DescribeOverlay ───────────────────────────────────────────────────────────
 
 export function DescribeOverlay({
-  onBack, onAnalyze,
+  onBack, onAnalyze, autoFocus = false,
 }: {
   onBack: () => void;
   /** Async — throws on error or when no food found. Overlay closes on success. */
   onAnalyze: (text: string) => Promise<void>;
+  /** Round 190: Pantry's "+ New food" > Describe wants the keyboard already
+   *  open the moment the panel slides in, rather than an extra tap to focus
+   *  the textarea. Defaults to false — off for every other call site (the
+   *  Day's-log basket's Describe, and the pantry-item "Change"/re-describe
+   *  flows), which weren't asked for and shouldn't change behaviour. */
+  autoFocus?: boolean;
 }) {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -1341,6 +1347,7 @@ export function DescribeOverlay({
         onChange={(e) => { setText(e.target.value); if (error) setError(''); }}
         placeholder={`What did you eat?\ne.g. "a bowl of oats with banana and honey"`}
         className="min-h-[130px] w-full resize-none rounded-[16px] bg-surface-sunken px-4 py-3.5 text-callout leading-relaxed text-content placeholder:text-content-muted outline-none focus:ring-2 focus:ring-accent/30"
+        autoFocus={autoFocus}
       />
       {error && <p className="text-caption text-danger">{error}</p>}
       <p className="text-caption text-content-secondary">

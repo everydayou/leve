@@ -3,9 +3,10 @@ import { Icon } from './Icon';
 
 /* ── WheelPicker ─────────────────────────────────────────────────────────────
  *  Wraps a native <select> element (iOS drum-roll picker) in the same visual
- *  shell as LabeledInput. Two modes:
- *    step >= 1  → single wheel (integer or coarse values)
- *    step <  1  → split wheel: [whole] · [decimal digit(s)] [unit]
+ *  shell as LabeledInput. Modes (Dev > Picker playground option 3 vs 4):
+ *    step >= 1, or mode="single" → single wheel, one flat drum-roll list
+ *      (works for decimal steps too — e.g. 30.0–200.0 in 0.1 steps as ONE list)
+ *    step <  1 and mode!=="single" → split wheel: [whole] · [decimal digit(s)] [unit]
  *
  *  `value`/`onChange` use string to match the NumberField / LabeledInput API.
  *
@@ -17,7 +18,7 @@ import { Icon } from './Icon';
 
 export function WheelPicker({
   label, value, onChange, min, max, step = 1,
-  unit, invalid = false, wrapClassName = '', selectClassName = '', centerAt,
+  unit, invalid = false, wrapClassName = '', selectClassName = '', centerAt, mode = 'auto',
 }: {
   label?: string;
   value: string;
@@ -32,8 +33,11 @@ export function WheelPicker({
   /** When value is '', insert a "—" placeholder at this position so the
    *  drum roll opens centred here while the closed field looks empty. */
   centerAt?: number;
+  /** 'single' forces one flat wheel even for decimal steps (default 'auto'
+   *  keeps the existing split-wheel behavior for step < 1). */
+  mode?: 'auto' | 'single';
 }) {
-  const isDecimal = step < 1;
+  const isDecimal = step < 1 && mode !== 'single';
 
   // Shared select base class — mirrors LabeledInput styling.
   const baseCls = [
@@ -284,7 +288,13 @@ function clamp(v: number, min: number, max: number): number {
 }
 
 function snap(v: number, step: number, min: number): number {
-  return Math.round((v - min) / step) * step + min;
+  const raw = Math.round((v - min) / step) * step + min;
+  // Round to the step's own decimal precision to avoid float drift
+  // (e.g. 71.3 landing as 71.30000000000001, which then fails to match
+  // any <option value> string built by buildRange()).
+  const decPlaces = decimalPlaces(step);
+  const factor = Math.pow(10, decPlaces);
+  return Math.round(raw * factor) / factor;
 }
 
 function decimalPlaces(step: number): number {

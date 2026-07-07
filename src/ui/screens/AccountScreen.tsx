@@ -6,7 +6,7 @@ import { useLive } from '../../state/live';
 import { useNavigate } from 'react-router-dom';
 import { repos } from '../../state/repos';
 import { exportAsJson } from '../../data/exportJson';
-import { Card, SectionLabel, Badge, SegmentedControl, Button, NumberField, Sheet, ListRow, Skeleton, Icon } from '../kit';
+import { Card, SectionLabel, Badge, SegmentedControl, Button, NumberField, Sheet, ListRow, Skeleton, Icon, FilterPills } from '../kit';
 import { displayWeight } from '../../domain/units';
 import { getThemePref, setThemePref, type ThemePref } from '../../lib/theme';
 import { hapticLight, getHapticsPref, setHapticsPref } from '../../lib/haptics';
@@ -512,23 +512,11 @@ function WeightCadenceCard({ user }: { user: User }) {
       {cadence === 'weekly' && (
         <div className="mt-3">
           <p className="mb-2 text-callout font-bold text-content">Which day?</p>
-          <div className="flex gap-1.5" role="group" aria-label="Day of week">
-            {DOW_LABELS.map((label, i) => (
-              <button
-                key={i}
-                onClick={() => void saveDay(i)}
-                aria-pressed={day === i}
-                className={[
-                  'flex-1 rounded-control py-1.5 text-caption font-medium transition-colors',
-                  day === i
-                    ? 'segmented-active text-accent-hover shadow-sm'
-                    : 'bg-surface-sunken text-content-secondary active:opacity-70',
-                ].join(' ')}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <FilterPills<string>
+            value={String(day)}
+            onChange={(v) => { if (v !== undefined) void saveDay(Number(v)); }}
+            options={DOW_LABELS.map((label, i) => ({ value: String(i), label }))}
+          />
         </div>
       )}
       <p className="mt-3 text-subhead text-content-secondary">

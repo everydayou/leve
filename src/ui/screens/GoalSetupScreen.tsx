@@ -12,9 +12,10 @@ import {
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { kgToLbs, lbsToKg } from '../../domain/units';
 import { markOnboardingSeen } from '../../lib/onboarding';
+import { hapticLight } from '../../lib/haptics';
 import { useKeyboardInset, scrollFocusedAboveKeyboard } from '../../lib/useKeyboardInset';
 import { DONE_BAR_HEIGHT } from '../kit/useKeyboardDoneBar';
-import { Button, LabeledInput, NumberField, WheelPicker, Icon, SegmentedControl, FilterPills } from '../kit';
+import { Button, LabeledInput, NumberField, WheelPicker, Icon, SegmentedControl, FilterPills, Sheet } from '../kit';
 import type { Goal, GoalType, MacroStyle, Units, Sex } from '../../domain/types';
 
 // ── Local types ───────────────────────────────────────────────────────────────
@@ -160,6 +161,12 @@ export function GoalSetupForm({
   // Detailed mode: the two bounds below are directly editable (like a macro
   // range) and default from whichever preset is selected.
   const [maintainBand, setMaintainBand] = useState<MaintainBandId>('standard');
+  // Detailed/Custom mode's own picker (Guided keeps the 3-preset FilterPills
+  // above via maintainBand) — adds a 4th "Custom" choice that reveals the
+  // min/max wheels below.
+  type WeightBandChoice = MaintainBandId | 'custom';
+  const [weightBandChoice, setWeightBandChoice] = useState<WeightBandChoice>('standard');
+  const [showBandSheet, setShowBandSheet] = useState(false);
   const [rangeFloor, setRangeFloor] = useState<string>('');
   const [rangeCeiling, setRangeCeiling] = useState<string>('');
   const [reviewDate, setReviewDate] = useState<string>('');
@@ -181,7 +188,8 @@ export function GoalSetupForm({
   useEffect(() => {
     if (activeGoal?.type === 'maintain') {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (activeGoal.maintainBandId) setMaintainBand(activeGoal.maintainBandId);
+      if (activeGoal.maintainBandId) { setMaintainBand(activeGoal.maintainBandId); setWeightBandChoice(activeGoal.maintainBandId); }
+      else setWeightBandChoice('custom');
       if (activeGoal.weightRangeFloorKg   != null) setRangeFloor(String(toDisp(activeGoal.weightRangeFloorKg)));
       if (activeGoal.weightRangeCeilingKg != null) setRangeCeiling(String(toDisp(activeGoal.weightRangeCeilingKg)));
       if (activeGoal.reviewDate) setReviewDate(activeGoal.reviewDate);
@@ -236,9 +244,17 @@ export function GoalSetupForm({
   // Maintain has no target-weight delta and no deadline — "valid" just means
   // a positive current weight is on file. The weight RANGE (floor/ceiling)
   // is validated separately in handleCustomSave/createSimple.
-  const maintainBandDef = MAINTAIN_BANDS.find(b => b.id === maintainBand)!;
-  const rangeFloorNum    = rangeFloor   !== '' ? +rangeFloor   : toDisp(toKg(sNum) - maintainBandDef.weightRangeKg);
-  const rangeCeilingNum  = rangeCeiling !== '' ? +rangeCeiling : toDisp(toKg(sNum) + maintainBandDef.weightRangeKg);
+  const maintainBandDef = MAINTAIN_BANDS.find(b => b.id === maintainBand)!; // Guided mode preset
+  const standardBandDef  = MAINTAIN_BANDS.find(b => b.id === 'standard')!;
+  // Detailed mode: null when "Custom" is chosen (min/max are hand-entered).
+  const detailedBandDef  = weightBandChoice !== 'custom' ? MAINTAIN_BANDS.find(b => b.id === weightBandChoice)! : null;
+  const detailedKcalBand = detailedBandDef ? detailedBandDef.kcalBand : standardBandDef.kcalBand;
+  const rangeFloorNum    = detailedBandDef
+    ? toDisp(toKg(sNum) - detailedBandDef.weightRangeKg)
+    : (rangeFloor   !== '' ? +rangeFloor   : toDisp(toKg(sNum) - standardBandDef.weightRangeKg));
+  const rangeCeilingNum  = detailedBandDef
+    ? toDisp(toKg(sNum) + detailedBandDef.weightRangeKg)
+    : (rangeCeiling !== '' ? +rangeCeiling : toDisp(toKg(sNum) + standardBandDef.weightRangeKg));
 
   const weightValid = isMaintain
     ? sNum > 0
@@ -487,8 +503,8 @@ export function GoalSetupForm({
         startDate: startDate || today, targetDate: addDays(startDate || today, 3650),
         status: 'active', setupMode: 'custom',
         weightRangeFloorKg: floorKg, weightRangeCeilingKg: ceilKg,
-        maintainBandId: rangeFloor === '' && rangeCeiling === '' ? maintainBand : undefined,
-        surplusFloor: -maintainBandDef.kcalBand, surplusCeiling: maintainBandDef.kcalBand,
+        maintainBandId: weightBandChoice !== 'custom' ? weightBandChoice : undefined,
+        surplusFloor: -detailedKcalBand, surplusCeiling: detailedKcalBand,
         reviewDate: reviewDate || undefined,
         trackingMode: macroStyle ? 'detailed' : 'simple',
         macroStyle: macroStyle ?? undefined,
@@ -567,6 +583,7 @@ export function GoalSetupForm({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
+    <>
     <FullScreen
       slideUp={isModal} slideRight={fromFork}
       exiting={isExiting} exitRight={fromFork}
@@ -677,6 +694,7 @@ export function GoalSetupForm({
                         <WheelPicker label={`Current (${units})`} value={start}
                           onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
                           min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.start}
+                          mode="single"
                           centerAt={units === 'lbs' ? 132 : 60} />
                         {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
                       </div>
@@ -817,20 +835,30 @@ export function GoalSetupForm({
                           <WheelPicker label={`${isMaintain ? 'Current' : 'Start'} (${units})`} value={start}
                             onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
                             min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.start}
+                            mode={isMaintain ? 'single' : 'auto'}
                             centerAt={units === 'lbs' ? 132 : 60} />
                           {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
                         </div>
                         {isMaintain ? (
                           <div>
-                            <span className="block mb-1 text-subhead font-normal text-content-secondary">
-                              Weight range ({units}) <span className="text-footnote text-content-muted">— like a macro range</span>
-                            </span>
-                            <div className="flex gap-2">
-                              <NumberField label="Min" value={rangeFloor !== '' ? rangeFloor : String(rangeFloorNum.toFixed(1))}
-                                set={(v) => setRangeFloor(v)} placeholder={rangeFloorNum.toFixed(1)} />
-                              <NumberField label="Max" value={rangeCeiling !== '' ? rangeCeiling : String(rangeCeilingNum.toFixed(1))}
-                                set={(v) => setRangeCeiling(v)} placeholder={rangeCeilingNum.toFixed(1)} />
-                            </div>
+                            <span className="block mb-1 text-subhead font-normal text-content-secondary">Weight range ({units})</span>
+                            <button type="button"
+                              onClick={() => { hapticLight(); setShowBandSheet(true); }}
+                              className="flex w-full items-center justify-between rounded-field bg-surface-sunken px-3 py-2.5 text-subhead font-semibold text-content"
+                            >
+                              <span>{weightBandChoice === 'custom' ? 'Custom' : MAINTAIN_BANDS.find(b => b.id === weightBandChoice)!.label}</span>
+                              <Icon name="chevronDown" size={16} className="text-content-muted" />
+                            </button>
+                            {weightBandChoice === 'custom' && (
+                              <div className="mt-2 flex gap-2">
+                                <WheelPicker label="Min" wrapClassName="flex-1" mode="single"
+                                  value={rangeFloor !== '' ? rangeFloor : rangeFloorNum.toFixed(1)}
+                                  onChange={setRangeFloor} min={wMin} max={wMax} step={0.1} unit={units} />
+                                <WheelPicker label="Max" wrapClassName="flex-1" mode="single"
+                                  value={rangeCeiling !== '' ? rangeCeiling : rangeCeilingNum.toFixed(1)}
+                                  onChange={setRangeCeiling} min={wMin} max={wMax} step={0.1} unit={units} />
+                              </div>
+                            )}
                             {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
                           </div>
                         ) : (
@@ -892,9 +920,7 @@ export function GoalSetupForm({
                                 className="w-full bg-surface-sunken px-3 py-2.5 text-subhead text-content focus:outline-none" />
                             )}
                           </div>
-                          {isMaintain
-                            ? <p className="mt-1 text-footnote text-content-muted">A reminder only — doesn't end the goal.</p>
-                            : fieldErrors.date && <p className="mt-1 text-footnote text-danger">{fieldErrors.date}</p>}
+                          {!isMaintain && fieldErrors.date && <p className="mt-1 text-footnote text-danger">{fieldErrors.date}</p>}
                         </div>
                       </div>
                     </div>
@@ -911,7 +937,7 @@ export function GoalSetupForm({
                           <div className="mt-3 rounded-field bg-surface-sunken px-3 py-2.5 text-center">
                             <p className="text-callout font-normal text-content">Daily calorie band</p>
                             <p className="text-callout font-semibold text-content">
-                              {Math.round(safeBmr) - maintainBandDef.kcalBand} – {Math.round(safeBmr) + maintainBandDef.kcalBand} kcal
+                              {Math.round(safeBmr) - detailedKcalBand} – {Math.round(safeBmr) + detailedKcalBand} kcal
                             </p>
                           </div>
                           <div className="mt-3 rounded-field bg-surface-sunken px-3 py-2.5 text-center">
@@ -1098,6 +1124,43 @@ export function GoalSetupForm({
         </div>
       )}
     </FullScreen>
+
+    {/* Weight-range band picker (maintain, Detailed mode) — tap the pill above to open */}
+    {showBandSheet && (
+      <Sheet title="Weight range" onClose={() => setShowBandSheet(false)}>
+        <div className="pb-2">
+          {([...MAINTAIN_BANDS, { id: 'custom' as const, label: 'Custom', weightRangeKg: 0, kcalBand: 0 }]).map((b) => (
+            <button
+              key={b.id}
+              onClick={() => {
+                hapticLight();
+                if (b.id === 'custom' && weightBandChoice !== 'custom') {
+                  // Seed the wheels with whatever range was showing, so they
+                  // open on a sensible value instead of blank.
+                  const seedDef = detailedBandDef ?? standardBandDef;
+                  setRangeFloor(toDisp(toKg(sNum) - seedDef.weightRangeKg).toFixed(1));
+                  setRangeCeiling(toDisp(toKg(sNum) + seedDef.weightRangeKg).toFixed(1));
+                }
+                setWeightBandChoice(b.id);
+                setShowBandSheet(false);
+              }}
+              className="flex w-full items-center justify-between rounded-control px-3 py-3 text-left text-subhead text-content active:bg-surface-sunken"
+            >
+              <span>
+                <span className="block font-semibold">{b.label}</span>
+                {b.id !== 'custom' && (
+                  <span className="block text-footnote text-content-secondary">
+                    ±{b.weightRangeKg} {units} · ±{b.kcalBand} kcal
+                  </span>
+                )}
+              </span>
+              {weightBandChoice === b.id && <Icon name="check" size={18} strokeWidth={2.25} className="text-accent" />}
+            </button>
+          ))}
+        </div>
+      </Sheet>
+    )}
+    </>
   );
 }
 

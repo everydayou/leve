@@ -2,14 +2,16 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-06 — Round 181 (Keyboard/UX polish batch: unified
-"Done" dismiss bar across numeric + text keyboards, Balanced-style carb
-target cap, Goal-options icon replaced with an "Options" text label,
-44×44pt clear-button hit-area audit, Simple/Custom → Guided/Detailed
-relabel + merged info card, top status-bar fade gradient, keyboard-
-covers-content fixes, sheet header scroll-shadow stacking bug root-
-caused and fixed, Goal Fork entry icon/transition corrected)
-Full change history: see CHANGELOG.txt (rounds 1-181).
+Last updated: 2026-07-07 — Round 190 (Maintain-weight goal type shipped
+end-to-end; Goal-setup UI polish — single-wheel weight pickers, split
+cards, weekday-pill unification; Goal-fork navigation transitions fixed
+(white-flash + entrance-replay bugs); keyboard "Done" bar gap ROOT-CAUSED
+and fixed — position:fixed inside a transformed OverlayLayer ancestor was
+never actually anchored to the viewport, fixed via a document.body
+portal; Pantry "+ New food" Describe now a real side-panel overlay with
+autofocus; scrollbar chrome hidden app-wide; pantry-seed/meals-migration
+flags scoped per real/test profile)
+Full change history: see CHANGELOG.txt (rounds 1-190).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -119,12 +121,29 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 180, 2026-07-05)
+7. CURRENT STATUS (as of round 190, 2026-07-07)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only —
-detailed round-by-round history lives in CHANGELOG.txt (rounds 1-180)
+detailed round-by-round history lives in CHANGELOG.txt (rounds 1-190)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
+- THREE GOAL TYPES NOW SHIPPED (round 190): maintain_weight joins
+  lose_by_date/gain_by_date end-to-end — GoalSetupScreen (Guided band
+  presets + Detailed custom range picker), GoalScreen/TodayScreen/
+  PastGoalsScreen all branch three ways, FirstOpenFork/GoalForkScreen
+  offer it as a path card. Gain and maintain share their band-gauge/chart
+  logic via a new usesKcalBand() helper. See RECENT ROUNDS for full detail.
+- KEYBOARD "DONE" BAR GAP ROOT-CAUSED (round 190, see KNOWN GAPS for
+  confirmation status): a Done bar rendered inside a Sheet's nested
+  overlay (OverlayLayer) was positioning against that overlay's own
+  transformed box instead of the true viewport — fixed by portaling the
+  bar straight to document.body. A first, wrong hypothesis (compensating
+  for env(safe-area-inset-bottom)) was tried, made things worse, and was
+  reverted before the real cause was found via on-device diagnostics.
+- GOAL-FORK NAVIGATION FIXED (round 190, device-confirmed): going back
+  from Goal-setup to the goal-type fork screen no longer shows a blank
+  flash before the destination appears, and no longer replays its
+  slide-up entrance animation on every return visit.
 - ACCOUNT SCREEN REDESIGNED (round 180): Profile+BMR merged into the same
   gauge-card layered pattern as Diary/Today (white profile card floats on
   a grey reveal; BMR lives in the grey area — label, icon, then value +
@@ -181,7 +200,7 @@ and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
   see KNOWN GAPS.
 - .env.local: gitignored, must be recreated if folder is deleted.
   VITE_FOOD_SCAN_API_URL=https://food-scan-api-delta.vercel.app
-- tsc: clean. lint: clean. vitest: 51 passed, 8 skipped.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped.
 
 ----------------------------------------------------------------
 8. ARCHITECTURE NOTES
@@ -215,6 +234,19 @@ HIGH:
   181; see DONE (r181) below.)
 
 MED:
+- DONE-BAR PORTAL FIX AWAITING FINAL ON-DEVICE CONFIRMATION (round 190,
+  new): the Done-bar gap (open since round 181, "still a bit high" on
+  fields like Edit food item's Name) was root-caused this round to
+  position:fixed elements inside a transformed OverlayLayer ancestor not
+  actually anchoring to the true viewport — fixed via createPortal to
+  document.body. Strongly evidenced via an on-device A/B (Dev > Keyboard
+  playground row 5, plain top-level field: pixel-perfect; the same hook
+  nested in an overlay: gap present), but the ORIGINAL repro case (Name
+  field in Edit food item) hasn't yet been re-tested against this exact
+  fix. A first, unrelated hypothesis this round (compensating for
+  env(safe-area-inset-bottom)) made the gap dramatically worse and was
+  reverted — see ROUND 190 below before assuming any keyboard-inset
+  related fix is safe to retry blindly.
 - CARB TARGET MODEL TUNING (round 169; capped round 181): activityCarbTargetG's
   constants (2.2g/kg Balanced, 2.4g/kg Performance baseline; 55%/75%
   share of active kcal) are initial estimates, not yet validated against
@@ -231,12 +263,15 @@ MED:
   numbers on every past diary entry that referenced it, for everyone who
   logged it. Accepted trade-off for now (see round 179's CHANGELOG entry)
   — revisit if a real correction is ever needed post-launch.
-- DEFAULT-PANTRY SEED IS V1-ONLY (round 179, new): defaultPantrySeed.ts
-  seeds once per device via a single localStorage flag
-  (ngt-default-pantry-seed-v1-done) and never runs again. Adding new
-  default foods or correcting existing ones later needs its own new
-  versioned flag/migration step (same pattern as mealsMigration.ts) —
-  nothing currently re-syncs an already-seeded device.
+- DEFAULT-PANTRY SEED IS V1-ONLY (round 179, new; per-profile bug fixed
+  round 190): defaultPantrySeed.ts seeds once per device via a
+  localStorage flag, now scoped per real/test profile
+  (defaultPantrySeedFlagKey) after round 190 fixed real-account seeding
+  permanently blocking test-account seeding (and vice versa). The
+  original gap still stands though: adding new default foods or
+  correcting existing ones later needs its own new versioned flag/
+  migration step (same pattern as mealsMigration.ts) — nothing currently
+  re-syncs an already-seeded profile.
 - PLACEHOLDER IMAGE SIZE (round 168): food-placeholder.png is 569KB
   (down from round 166's 812KB) but still sizeable for a UI placeholder
   rendered at 256×256 — worth compressing further if bundle size becomes
@@ -300,6 +335,30 @@ LOW:
 - moreHoriz ICON NOW UNUSED (round 181, new, cleanup): Icon.tsx still
   exports a moreHoriz icon; nothing references it anymore now that the
   Goal-options button is a text label, not an icon. Safe to remove.
+
+DONE (r190):
+- ✓ MAINTAIN-WEIGHT GOAL TYPE (round 190): shipped end-to-end across
+  domain/goal.ts, GoalSetupScreen, GoalScreen, TodayScreen,
+  PastGoalsScreen, AccountScreen, FirstOpenFork.tsx. See CURRENT STATUS
+  and ROUND 190 below for full detail.
+- ✓ GOAL-FORK NAVIGATION FIXED (round 190, device-confirmed): white-
+  flash-then-pop-in on Goal-setup's exit, and the fork screen's
+  slide-up entrance incorrectly replaying on every Back navigation, both
+  fixed. See ROUND 190 below.
+- ✓ SCROLLBAR CHROME HIDDEN APP-WIDE (round 190, device-confirmed):
+  visible WKWebView scrollbar was poking through the keyboard's rounded
+  corners; hidden globally via CSS.
+- ✓ SINGLE-WHEEL WEIGHT PICKERS EVERYWHERE (round 190): the "picker
+  playground picker 3" single-wheel style, previously Maintain-only, now
+  also used for Lose-weight/Build-muscle's Start/Target weight fields.
+- ✓ KEYBOARD DONE-BAR PORTAL FIX (round 190): see MED gap above for
+  confirmation status — implemented and strongly evidenced, not yet
+  re-confirmed against the original repro case.
+- ✓ PANTRY SEED/MEALS MIGRATION PER-PROFILE (round 190): fixed real-
+  account seeding permanently blocking test-account seeding; see MED
+  gap above (DEFAULT-PANTRY SEED IS V1-ONLY) for the remaining, separate
+  gap this doesn't address.
+- tsc: clean. lint: clean. vitest: 57 passed (6 new), 8 skipped.
 
 DONE (r181):
 - ✓ KEYBOARD DONE BAR UNIFIED (round 181): useNumericDoneBar renamed to
@@ -518,6 +577,138 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
+ROUND 190 — MAINTAIN-WEIGHT GOAL TYPE; GOAL-SETUP UI POLISH; KEYBOARD DONE-BAR ROOT CAUSE; NEW-FOOD/DESCRIBE FLOW FIXES; GOAL-FORK NAVIGATION (2026-07-07)
+Files: src/domain/types.ts, src/domain/goal.ts, src/domain/goal.test.ts,
+       src/ui/screens/GoalSetupScreen.tsx, src/ui/screens/FirstOpenFork.tsx,
+       src/ui/screens/GoalIcon.tsx (new, extracted from GoalSetupScreen.tsx),
+       src/ui/screens/GoalScreen.tsx, src/ui/screens/TodayScreen.tsx,
+       src/ui/screens/PastGoalsScreen.tsx, src/ui/screens/AccountScreen.tsx,
+       src/ui/screens/PantryScreen.tsx, src/ui/kit/WheelPicker.tsx,
+       src/ui/kit/useKeyboardDoneBar.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/components/PantryPicker.tsx, src/ui/components/PantryNewFoodScan.tsx,
+       src/ui/components/FoodCapture.tsx, src/ui/components/DevMenu.tsx,
+       src/lib/useKeyboardInset.ts, src/data/defaultPantrySeed.ts,
+       src/data/defaultPantrySeed.test.ts, src/data/mealsMigration.ts,
+       src/index.css
+
+- MAINTAIN-WEIGHT GOAL TYPE SHIPPED: the third goal type (alongside
+  lose_by_date/gain_by_date) is now fully implemented end-to-end.
+  domain/types.ts gained weightRangeFloorKg/weightRangeCeilingKg,
+  maintainBandId, and reviewDate on Goal. domain/goal.ts added
+  isMaintainGoal/usesKcalBand/inBand helpers and MAINTAIN_BANDS presets
+  (Tight +/-0.5kg/+/-100kcal, Standard +/-1kg/+/-150kcal, Relaxed
+  +/-2kg/+/-250kcal); requiredDailyDeficit returns 0 for maintain.
+  GoalSetupScreen: Guided mode picks a band preset via FilterPills with a
+  live-computed weight-range + calorie-band summary card; Detailed mode
+  adds a tappable pill opening a modal to choose Tight/Standard/Relaxed/
+  Custom, with Custom revealing min/max wheel pickers. FirstOpenFork/
+  GoalForkScreen gained a third "Maintain weight" path card. GoalScreen,
+  TodayScreen, PastGoalsScreen all branch three ways now (previously
+  hardcoded lose/gain only) -- band-based gauge/chart logic is shared
+  between gain and maintain via the new usesKcalBand() helper. Fixed a
+  pre-existing AccountScreen bug in the same pass: the goal-summary line
+  hardcoded "lose Xkg" for every goal type, including gain goals.
+- GOAL-SETUP UI POLISH (multiple rounds of on-device feedback): the
+  Detailed mode's weight-range picker was redesigned from a free-text
+  min/max pair to the "picker playground picker 3" single-wheel style
+  (WheelPicker gained a `mode?: 'auto' | 'single'` prop forcing one flat
+  wheel even for decimal steps, plus a float-precision fix in its snap()
+  helper -- 71.3 no longer became 71.30000000000001 and broke the
+  picker's selected-value match). That same single-wheel mode was later
+  extended to the Start/Current/Target weight fields for Lose-weight and
+  Build-muscle too (previously only Maintain used it), per follow-up
+  feedback. Guided mode's single Weight+Range card and Detailed mode's
+  single Goal-name+Weight+Dates card were each split into individual
+  per-section cards (container styling unchanged, just separated).
+  AccountScreen's weigh-in weekday pills were unified onto the shared
+  FilterPills component (previously hand-rolled, visibly smaller than
+  GoalSetupScreen's own).
+- GOAL-FORK NAVIGATION TRANSITIONS FIXED (device-confirmed working):
+  going back from Goal-setup to the goal-type fork screen (both the
+  first-open onboarding fork and the regular in-app fork reached from
+  Today) had two related bugs. (1) The fork screen only mounted AFTER
+  Goal-setup's slide-out-right exit animation fully finished (route
+  change happens on a delayed setTimeout), so the animation revealed a
+  blank background for ~300ms before the destination screen popped in.
+  (2) Returning to the fork screen when it was originally reached via
+  Today (?from=today) replayed its whole slide-up "new modal" entrance
+  animation every time, since a browser-back (POP) navigation to that
+  same URL still carries the query param. Fixed by having GoalSetupScreen
+  render a static, non-interactive peek of the correct destination screen
+  (new FirstOpenForkBackdrop / GoalForkBackdrop components in
+  FirstOpenFork.tsx) underneath itself while its own exit animation
+  plays, so "back" reveals it directly instead of a gap; the entrance
+  animation is now gated on useNavigationType() !== 'POP' so it only
+  plays on a genuine fresh visit. GoalIcon was extracted out of
+  GoalSetupScreen.tsx into its own file to avoid a circular import
+  between the two screens.
+- KEYBOARD "DONE" BAR GAP -- ROOT CAUSE FOUND AND FIXED (see KNOWN GAPS
+  for confirmation status): the long-running "Done bar floats a few px
+  above the keyboard" report (open since round 181) was chased across
+  several attempts this round. A first hypothesis -- Capacitor's
+  keyboardWillShow height excludes env(safe-area-inset-bottom) -- was
+  implemented and made things dramatically WORSE (Marco: "completely out
+  of place"), so it was reverted. Real root cause was then found using
+  on-device diagnostics Marco captured via two new rows added to Dev >
+  Keyboard playground (a live readout of keyboardInset/innerHeight/
+  visualViewport.height/safe-area-inset-bottom, plus a 5th row using the
+  actual production useKeyboardDoneBar hook on a plain text field): the
+  Done bar is `position: fixed`, which normally positions relative to the
+  true viewport -- EXCEPT when a transformed ancestor sits between it and
+  the root, which becomes its containing block instead (any non-'none'
+  CSS transform triggers this, even an identity translateX(0)). Sheet's
+  own OverlayLayer (used by "Edit food item" and every other nested
+  overlay) always has an active transform for its slide-in animation, so
+  a Done bar rendered inside an overlay was positioning against THAT
+  panel, not the screen -- matching Sheet.tsx's own existing comments
+  about forceExpanded (91dvh) panels drifting slightly from the true
+  viewport once the keyboard is open in this WKWebView setup (see its
+  pre-existing "Surface cover" div, a patch for a different symptom of
+  the same dvh quirk). Confirmed via A/B: a Done bar on a plain top-level
+  Sheet field was pixel-perfect; the same hook nested inside an overlay
+  showed the gap. Fix: useKeyboardDoneBar's bar now renders via
+  createPortal straight to document.body (the same escape-hatch Sheet
+  itself already uses for ancestor-constraint problems), so it always
+  positions against the real viewport regardless of nesting depth.
+- "+ NEW FOOD" / DESCRIBE FLOW FIXES: the Day's-log basket's "Change"
+  button (re-run Describe on a scanned item) was wired for the initial
+  scan-review step (previously only worked once editing an
+  already-logged entry). Pantry > + New food > Describe now slides in as
+  a genuine side-panel overlay (Sheet's useSheetSetOverlay/OverlayLayer)
+  instead of swapping content in place, and expands the Sheet to full
+  90dvh height while open (per follow-up feedback that it felt cramped)
+  with the textarea autofocused so the keyboard is already up. Root-
+  caused and fixed a bug where this overlay didn't open at all on first
+  landing: useSheetSetOverlay/useSheetSetOverlayBack were being called in
+  the same component that renders <Sheet>, one level ABOVE the context
+  Sheet provides to its own children, so the registration was silently a
+  no-op -- moved into a new PantryNewFoodBody child component, matching
+  every other useSheetSetOverlay call site in the app. AnalyzingIndicator
+  gained a `compact` prop (smaller padding) used only here, replacing an
+  earlier attempt that instead padded the shorter states UP to match a
+  tall loading screen (reverted per feedback: "too much negative
+  screen"). Manual food creation now also lands on the Food-item detail
+  preview in "just created" mode (previously only scanned items did), so
+  it gets the same "Save food" CTA and discard-on-close confirmation.
+- SCROLLBAR CHROME HIDDEN APP-WIDE (device-confirmed): on-device, the
+  visible WKWebView scrollbar track was poking through the native
+  keyboard's own rounded top corners as a stray grey sliver while
+  scrolling with the keyboard open. Added a global
+  scrollbar-width:none / ::-webkit-scrollbar{display:none} rule
+  (src/index.css) -- content scrolls identically, just without visible
+  scrollbar chrome, matching how native iOS apps look.
+- PANTRY SEED / MEALS MIGRATION NOW PER-PROFILE: both one-time seed flags
+  (default pantry items, meals migration) were stored under a single
+  global localStorage key shared across the app's real/test dual-profile
+  system, so seeding the real account permanently skipped seeding the
+  test account (and vice versa). Both flags are now scoped per active
+  profile (defaultPantrySeedFlagKey/mealsMigrationFlagKey); DevMenu's
+  test-account reset paths clear them too so wiping the test DB reseeds
+  it. Added a regression test asserting the flag key differs per profile.
+- tsc: clean. lint: clean. vitest: 57 passed (6 new), 8 skipped.
+  `npm run build` verified clean after every sub-batch this round.
+
+
 ROUND 181 — KEYBOARD/UX POLISH BATCH: DONE BAR, CARB CAP, GOAL ICONS, INFO CARD, STATUS-BAR FADE, SHEET SHADOW FIXES, GOAL FORK ENTRY (2026-07-06)
 Files: src/ui/kit/useKeyboardDoneBar.tsx (renamed from useNumericDoneBar.tsx),
        src/ui/kit/LabeledInput.tsx, src/ui/kit/NumberField.tsx,
@@ -673,35 +864,6 @@ Files: src/ui/screens/AccountScreen.tsx, src/lib/devReveal.ts (new)
   goal" in GoalSetupScreen) — the shared SectionLabel atom used
   everywhere else (Today/Goal/Pantry) is untouched.
 - tsc: clean. lint: clean. vitest: 51 passed, 8 skipped (unchanged).
-
-ROUND 179 — SEED 150 DEFAULT PANTRY FOODS; LOCK THEIR MACROS (2026-07-05)
-Files: src/data/defaultPantry.ts (new), src/data/defaultPantrySeed.ts (new),
-       src/data/defaultPantrySeed.test.ts (new), src/ui/AppShell.tsx,
-       src/ui/components/FoodItemForm.tsx, src/ui/components/PantryFoodItemDetail.tsx,
-       src/ui/components/PantryMealDetail.tsx, src/ui/components/AddEntrySheet.tsx,
-       src/ui/kit/NumberField.tsx, src/ui/kit/LabeledInput.tsx,
-       src/ui/kit/MeasurementTypeSelector.tsx
-- Populated the app side of round 177's origin field: 150 common staple
-  foods (proteins, grains, fruits, veg, dairy, fats/nuts, pantry basics),
-  standard per-100g macros, stable slug IDs (app-chicken-breast-cooked,
-  etc.), seeded once per device via a new localStorage-flag-gated
-  migration (defaultPantrySeed.ts, same pattern as mealsMigration.ts).
-- Skips seeding any default whose name exactly matches (case-insensitive,
-  trimmed) an item the user already has, of either origin — their own
-  item always wins, no duplicate created. Exact-match only, not fuzzy —
-  see KNOWN GAPS.
-- FoodItemForm.tsx locks measurement type + every macro field for
-  origin:'app' items (name/photo stay editable), with an explanatory
-  caption. Added `disabled` support to NumberField/LabeledInput and
-  MeasurementTypeSelector; wired `origin` through every edit-existing-item
-  call site (PantryFoodItemDetail, PantryMealDetail, AddEntrySheet's
-  basket EditOverlay via its linked pantryItemId).
-- Known trade-off: nutrition is computed live from a Food item's current
-  fields (never snapshotted at log time) — a future correction to a
-  seeded value would retroactively change historical diary entries. See
-  KNOWN GAPS (MED).
-- tsc: clean. lint: clean. vitest: 51 passed (3 new), 8 skipped.
-  `npm run build` verified clean (+~17KB JS, no images).
 
 ================================================================
 TODO / FUTURE WORK

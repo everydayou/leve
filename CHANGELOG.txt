@@ -1,4 +1,138 @@
 ================================================================
+ROUND 190 — MAINTAIN-WEIGHT GOAL TYPE; GOAL-SETUP UI POLISH; KEYBOARD DONE-BAR ROOT CAUSE; NEW-FOOD/DESCRIBE FLOW FIXES; GOAL-FORK NAVIGATION (2026-07-07)
+================================================================
+Files: src/domain/types.ts, src/domain/goal.ts, src/domain/goal.test.ts,
+       src/ui/screens/GoalSetupScreen.tsx, src/ui/screens/FirstOpenFork.tsx,
+       src/ui/screens/GoalIcon.tsx (new, extracted from GoalSetupScreen.tsx),
+       src/ui/screens/GoalScreen.tsx, src/ui/screens/TodayScreen.tsx,
+       src/ui/screens/PastGoalsScreen.tsx, src/ui/screens/AccountScreen.tsx,
+       src/ui/screens/PantryScreen.tsx, src/ui/kit/WheelPicker.tsx,
+       src/ui/kit/useKeyboardDoneBar.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/components/PantryPicker.tsx, src/ui/components/PantryNewFoodScan.tsx,
+       src/ui/components/FoodCapture.tsx, src/ui/components/DevMenu.tsx,
+       src/lib/useKeyboardInset.ts, src/data/defaultPantrySeed.ts,
+       src/data/defaultPantrySeed.test.ts, src/data/mealsMigration.ts,
+       src/index.css
+
+- MAINTAIN-WEIGHT GOAL TYPE SHIPPED: the third goal type (alongside
+  lose_by_date/gain_by_date) is now fully implemented end-to-end.
+  domain/types.ts gained weightRangeFloorKg/weightRangeCeilingKg,
+  maintainBandId, and reviewDate on Goal. domain/goal.ts added
+  isMaintainGoal/usesKcalBand/inBand helpers and MAINTAIN_BANDS presets
+  (Tight +/-0.5kg/+/-100kcal, Standard +/-1kg/+/-150kcal, Relaxed
+  +/-2kg/+/-250kcal); requiredDailyDeficit returns 0 for maintain.
+  GoalSetupScreen: Guided mode picks a band preset via FilterPills with a
+  live-computed weight-range + calorie-band summary card; Detailed mode
+  adds a tappable pill opening a modal to choose Tight/Standard/Relaxed/
+  Custom, with Custom revealing min/max wheel pickers. FirstOpenFork/
+  GoalForkScreen gained a third "Maintain weight" path card. GoalScreen,
+  TodayScreen, PastGoalsScreen all branch three ways now (previously
+  hardcoded lose/gain only) -- band-based gauge/chart logic is shared
+  between gain and maintain via the new usesKcalBand() helper. Fixed a
+  pre-existing AccountScreen bug in the same pass: the goal-summary line
+  hardcoded "lose Xkg" for every goal type, including gain goals.
+- GOAL-SETUP UI POLISH (multiple rounds of on-device feedback): the
+  Detailed mode's weight-range picker was redesigned from a free-text
+  min/max pair to the "picker playground picker 3" single-wheel style
+  (WheelPicker gained a `mode?: 'auto' | 'single'` prop forcing one flat
+  wheel even for decimal steps, plus a float-precision fix in its snap()
+  helper -- 71.3 no longer became 71.30000000000001 and broke the
+  picker's selected-value match). That same single-wheel mode was later
+  extended to the Start/Current/Target weight fields for Lose-weight and
+  Build-muscle too (previously only Maintain used it), per follow-up
+  feedback. Guided mode's single Weight+Range card and Detailed mode's
+  single Goal-name+Weight+Dates card were each split into individual
+  per-section cards (container styling unchanged, just separated).
+  AccountScreen's weigh-in weekday pills were unified onto the shared
+  FilterPills component (previously hand-rolled, visibly smaller than
+  GoalSetupScreen's own).
+- GOAL-FORK NAVIGATION TRANSITIONS FIXED (device-confirmed working):
+  going back from Goal-setup to the goal-type fork screen (both the
+  first-open onboarding fork and the regular in-app fork reached from
+  Today) had two related bugs. (1) The fork screen only mounted AFTER
+  Goal-setup's slide-out-right exit animation fully finished (route
+  change happens on a delayed setTimeout), so the animation revealed a
+  blank background for ~300ms before the destination screen popped in.
+  (2) Returning to the fork screen when it was originally reached via
+  Today (?from=today) replayed its whole slide-up "new modal" entrance
+  animation every time, since a browser-back (POP) navigation to that
+  same URL still carries the query param. Fixed by having GoalSetupScreen
+  render a static, non-interactive peek of the correct destination screen
+  (new FirstOpenForkBackdrop / GoalForkBackdrop components in
+  FirstOpenFork.tsx) underneath itself while its own exit animation
+  plays, so "back" reveals it directly instead of a gap; the entrance
+  animation is now gated on useNavigationType() !== 'POP' so it only
+  plays on a genuine fresh visit. GoalIcon was extracted out of
+  GoalSetupScreen.tsx into its own file to avoid a circular import
+  between the two screens.
+- KEYBOARD "DONE" BAR GAP -- ROOT CAUSE FOUND AND FIXED (see KNOWN GAPS
+  for confirmation status): the long-running "Done bar floats a few px
+  above the keyboard" report (open since round 181) was chased across
+  several attempts this round. A first hypothesis -- Capacitor's
+  keyboardWillShow height excludes env(safe-area-inset-bottom) -- was
+  implemented and made things dramatically WORSE (Marco: "completely out
+  of place"), so it was reverted. Real root cause was then found using
+  on-device diagnostics Marco captured via two new rows added to Dev >
+  Keyboard playground (a live readout of keyboardInset/innerHeight/
+  visualViewport.height/safe-area-inset-bottom, plus a 5th row using the
+  actual production useKeyboardDoneBar hook on a plain text field): the
+  Done bar is `position: fixed`, which normally positions relative to the
+  true viewport -- EXCEPT when a transformed ancestor sits between it and
+  the root, which becomes its containing block instead (any non-'none'
+  CSS transform triggers this, even an identity translateX(0)). Sheet's
+  own OverlayLayer (used by "Edit food item" and every other nested
+  overlay) always has an active transform for its slide-in animation, so
+  a Done bar rendered inside an overlay was positioning against THAT
+  panel, not the screen -- matching Sheet.tsx's own existing comments
+  about forceExpanded (91dvh) panels drifting slightly from the true
+  viewport once the keyboard is open in this WKWebView setup (see its
+  pre-existing "Surface cover" div, a patch for a different symptom of
+  the same dvh quirk). Confirmed via A/B: a Done bar on a plain top-level
+  Sheet field was pixel-perfect; the same hook nested inside an overlay
+  showed the gap. Fix: useKeyboardDoneBar's bar now renders via
+  createPortal straight to document.body (the same escape-hatch Sheet
+  itself already uses for ancestor-constraint problems), so it always
+  positions against the real viewport regardless of nesting depth.
+- "+ NEW FOOD" / DESCRIBE FLOW FIXES: the Day's-log basket's "Change"
+  button (re-run Describe on a scanned item) was wired for the initial
+  scan-review step (previously only worked once editing an
+  already-logged entry). Pantry > + New food > Describe now slides in as
+  a genuine side-panel overlay (Sheet's useSheetSetOverlay/OverlayLayer)
+  instead of swapping content in place, and expands the Sheet to full
+  90dvh height while open (per follow-up feedback that it felt cramped)
+  with the textarea autofocused so the keyboard is already up. Root-
+  caused and fixed a bug where this overlay didn't open at all on first
+  landing: useSheetSetOverlay/useSheetSetOverlayBack were being called in
+  the same component that renders <Sheet>, one level ABOVE the context
+  Sheet provides to its own children, so the registration was silently a
+  no-op -- moved into a new PantryNewFoodBody child component, matching
+  every other useSheetSetOverlay call site in the app. AnalyzingIndicator
+  gained a `compact` prop (smaller padding) used only here, replacing an
+  earlier attempt that instead padded the shorter states UP to match a
+  tall loading screen (reverted per feedback: "too much negative
+  screen"). Manual food creation now also lands on the Food-item detail
+  preview in "just created" mode (previously only scanned items did), so
+  it gets the same "Save food" CTA and discard-on-close confirmation.
+- SCROLLBAR CHROME HIDDEN APP-WIDE (device-confirmed): on-device, the
+  visible WKWebView scrollbar track was poking through the native
+  keyboard's own rounded top corners as a stray grey sliver while
+  scrolling with the keyboard open. Added a global
+  scrollbar-width:none / ::-webkit-scrollbar{display:none} rule
+  (src/index.css) -- content scrolls identically, just without visible
+  scrollbar chrome, matching how native iOS apps look.
+- PANTRY SEED / MEALS MIGRATION NOW PER-PROFILE: both one-time seed flags
+  (default pantry items, meals migration) were stored under a single
+  global localStorage key shared across the app's real/test dual-profile
+  system, so seeding the real account permanently skipped seeding the
+  test account (and vice versa). Both flags are now scoped per active
+  profile (defaultPantrySeedFlagKey/mealsMigrationFlagKey); DevMenu's
+  test-account reset paths clear them too so wiping the test DB reseeds
+  it. Added a regression test asserting the flag key differs per profile.
+- tsc: clean. lint: clean. vitest: 57 passed (6 new), 8 skipped.
+  `npm run build` verified clean after every sub-batch this round.
+
+
+================================================================
 ROUND 181 — KEYBOARD/UX POLISH BATCH: DONE BAR, CARB CAP, GOAL ICONS, INFO CARD, STATUS-BAR FADE, SHEET SHADOW FIXES, GOAL FORK ENTRY (2026-07-06)
 ================================================================
 Files: src/ui/kit/useKeyboardDoneBar.tsx (renamed from useNumericDoneBar.tsx),

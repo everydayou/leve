@@ -49,13 +49,6 @@ import type { BasketItem } from './FoodCapture';
 import type { ShowToast } from './Toaster';
 import type { FoodItem, Meal } from '../../domain/types';
 
-// Tallest of the three inner states (Describe, with its Analyse button
-// showing) at default type scale — see round-189 comment below for how
-// each state's own natural height was estimated. Applied as a floor to
-// all three so this compact Sheet holds one consistent height instead of
-// visibly growing when a method is picked.
-const MIN_CONTENT_HEIGHT_PX = 232;
-
 export function PantryNewFood({
   items, meals, onClose, onManual, onFoodCreated, onMealCreated, showToast,
 }: {
@@ -68,6 +61,34 @@ export function PantryNewFood({
   onClose: () => void;
   /** Manual still hands off to its own separate (forceExpanded) form Sheet
    *  — the one case that genuinely needs a full screen to fill in macros. */
+  onManual: () => void;
+  onFoodCreated: (id: string) => void;
+  onMealCreated: (meal: Meal) => void;
+  showToast?: ShowToast;
+}) {
+  // Round 189 bugfix: useSheetSetOverlay/useSheetSetOverlayBack read a
+  // context that <Sheet> provides to its OWN children — calling them here,
+  // in the same component that renders <Sheet>, was reading the context
+  // from ABOVE Sheet (its default/no-op value), so tapping Describe called
+  // a setter that did nothing. All the state/hooks below now live in
+  // PantryNewFoodBody, rendered AS A CHILD of <Sheet>, same as every other
+  // useSheetSetOverlay call site in the app (they're always inside a child
+  // of the Sheet whose overlay they're registering into, e.g. FoodForm).
+  return (
+    <Sheet title="New food" onClose={onClose}>
+      <PantryNewFoodBody
+        items={items} meals={meals} onManual={onManual}
+        onFoodCreated={onFoodCreated} onMealCreated={onMealCreated} showToast={showToast}
+      />
+    </Sheet>
+  );
+}
+
+function PantryNewFoodBody({
+  items, meals, onManual, onFoodCreated, onMealCreated, showToast,
+}: {
+  items: FoodItem[];
+  meals: Meal[];
   onManual: () => void;
   onFoodCreated: (id: string) => void;
   onMealCreated: (meal: Meal) => void;
@@ -144,7 +165,7 @@ export function PantryNewFood({
   }
 
   return (
-    <Sheet title="New food" onClose={onClose}>
+    <>
       {capture.hiddenInputs}
       {capture.servingModal && (
         <ServingModal
@@ -155,22 +176,15 @@ export function PantryNewFood({
           onDismiss={capture.closeServingModal}
         />
       )}
-      {/* Round 189: both states below share MIN_CONTENT_HEIGHT_PX so this
-          compact (non-forceExpanded) Sheet doesn't visibly grow the moment
-          a method is tapped — Marco noticed the initial method-picker modal
-          was noticeably shorter than the Analysing spinner it swaps to, and
-          asked for a consistent height between them. Both are vertically
-          centred within that height. (Describe no longer renders here at
-          all — it's a real overlay now, registered above via
-          useSheetSetOverlay, and MIN_CONTENT_HEIGHT_PX was sized to match
-          its natural height too, so the Sheet doesn't resize when it
-          slides in either.) */}
+      {/* Round 189: rather than padding the method-picker/Describe states
+          up to match a tall loading screen, the loading screen itself was
+          shrunk (AnalyzingIndicator's `compact` prop) so this stays a
+          small, content-sized Sheet throughout — no artificial minHeight
+          needed on any of the states any more. */}
       {capture.analyzing || committing ? (
-        <div style={{ minHeight: MIN_CONTENT_HEIGHT_PX }} className="flex flex-col justify-center">
-          <AnalyzingIndicator label={committing ? 'Adding to pantry…' : capture.analyzeLabel} />
-        </div>
+        <AnalyzingIndicator compact label={committing ? 'Adding to pantry…' : capture.analyzeLabel} />
       ) : (
-        <div style={{ minHeight: MIN_CONTENT_HEIGHT_PX }} className="flex flex-col justify-center">
+        <>
           {/* Cards moved up 16px (pb-6 -> pb-2) per Marco's request; the
               16px spacer below keeps the sheet's total height unchanged. */}
           <p className="pt-2 pb-2 text-center text-subhead text-content-secondary">Choose one way to add this food</p>
@@ -182,8 +196,8 @@ export function PantryNewFood({
             onLabel={() => capture.openLabelPicker()}
           />
           <div className="h-4" aria-hidden="true" />
-        </div>
+        </>
       )}
-    </Sheet>
+    </>
   );
 }

@@ -1,6 +1,6 @@
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useNavigationType } from 'react-router-dom';
 import { markOnboardingSeen } from '../../lib/onboarding';
-import { GoalIcon } from './GoalSetupScreen';
+import { GoalIcon } from './GoalIcon';
 import { Icon } from '../kit';
 import { hapticLight } from '../../lib/haptics';
 
@@ -102,22 +102,41 @@ export function FirstOpenForkScreen() {
   );
 }
 
-// ── Explorer-to-goal fork — 2 options ────────────────────────────────────────
-export function GoalForkScreen() {
-  const nav = useNavigate();
-  const [searchParams] = useSearchParams();
-  const fromToday = searchParams.get('from') === 'today';
-
-  function pickGoal(type: GoalPath) {
-    hapticLight();
-    nav(`/goal-setup?type=${type}`);
-  }
-
+/** Round 190 — static, non-interactive peek of the first-open fork,
+ *  rendered underneath Goal-setup's FullScreen while it slides away (same
+ *  purpose as GoalForkBackdrop below, for the true-first-launch path).
+ *  This screen has no props/branching of its own, so the real component
+ *  can be reused as-is — just wrapped so a stray tap during the ~300ms
+ *  exit can't trigger real navigation. */
+export function FirstOpenForkBackdrop() {
   return (
-    <ForkShell className={fromToday ? 'slide-up-in' : ''}>
+    <div className="pointer-events-none" aria-hidden="true">
+      <FirstOpenForkScreen />
+    </div>
+  );
+}
+
+// ── Explorer-to-goal fork — 2 options ────────────────────────────────────────
+
+/** Pure, prop-driven content — shared by the real route (GoalForkScreen)
+ *  and GoalForkBackdrop, the static "peek" rendered underneath Goal-setup
+ *  while it slides away (round 190, see GoalSetupScreen's FullScreen exit
+ *  transition). Keeping the two in lockstep this way means the backdrop
+ *  can never visually drift from what the real route actually shows once
+ *  it takes over. */
+function GoalForkContent({
+  fromToday, shellClassName, onBack, onPickGoal,
+}: {
+  fromToday: boolean;
+  shellClassName?: string;
+  onBack: () => void;
+  onPickGoal: (type: GoalPath) => void;
+}) {
+  return (
+    <ForkShell className={shellClassName}>
       <div className="flex items-center px-4 pt-5 pb-2">
         <button
-          onClick={() => { hapticLight(); if (fromToday) { nav('/today'); } else { nav(-1 as never); } }}
+          onClick={onBack}
           aria-label={fromToday ? 'Close' : 'Back'}
           className="-ml-2 flex h-10 w-10 items-center justify-center rounded-control text-content-muted active:bg-surface-sunken transition-colors">
           {fromToday
@@ -135,21 +154,67 @@ export function GoalForkScreen() {
           title="Lose weight"
           description="Track your calorie deficit daily."
           iconEl={<GoalIcon type="lose_by_date" size={24} />}
-          onClick={() => pickGoal('lose_by_date')}
+          onClick={() => onPickGoal('lose_by_date')}
         />
         <PathCard
           title="Build muscle"
           description="Fuel growth with a daily calorie surplus."
           iconEl={<GoalIcon type="gain_by_date" size={24} />}
-          onClick={() => pickGoal('gain_by_date')}
+          onClick={() => onPickGoal('gain_by_date')}
         />
         <PathCard
           title="Maintain weight"
           description="Stay within a healthy range."
           iconEl={<GoalIcon type="maintain" size={24} />}
-          onClick={() => pickGoal('maintain')}
+          onClick={() => onPickGoal('maintain')}
         />
       </div>
     </ForkShell>
+  );
+}
+
+export function GoalForkScreen() {
+  const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromToday = searchParams.get('from') === 'today';
+  const navigationType = useNavigationType();
+  // Round 190: only play the slide-up "modal presentation" entrance on a
+  // fresh PUSH from Today — a browser-back (POP) into this exact URL (e.g.
+  // tapping Back from Goal setup) still carries ?from=today, and was
+  // incorrectly replaying the same entrance animation every time, looking
+  // like a brand new modal opening instead of "just being there" as Goal
+  // setup slides away in front of it.
+  const playEntrance = fromToday && navigationType !== 'POP';
+
+  function pickGoal(type: GoalPath) {
+    hapticLight();
+    // Forward `from=today` (round 190) so Goal-setup's exit-transition
+    // backdrop (GoalForkBackdrop, below) knows to show the Close icon
+    // instead of Back — matching exactly what this real route will show
+    // once it remounts.
+    nav(`/goal-setup?type=${type}${fromToday ? '&from=today' : ''}`);
+  }
+
+  return (
+    <GoalForkContent
+      fromToday={fromToday}
+      shellClassName={playEntrance ? 'slide-up-in' : ''}
+      onBack={() => { hapticLight(); if (fromToday) { nav('/today'); } else { nav(-1 as never); } }}
+      onPickGoal={pickGoal}
+    />
+  );
+}
+
+/** Round 190 — a static, non-interactive peek of this screen, rendered
+ *  UNDERNEATH Goal-setup's FullScreen while it plays its own slide-out-right
+ *  exit, so "back" reveals the destination directly instead of a blank gap.
+ *  No entrance animation (it's already in its resting position — Goal
+ *  setup sliding away IS the transition) and no click handling of its own;
+ *  the real route takes over the instant navigation actually completes. */
+export function GoalForkBackdrop({ fromToday }: { fromToday: boolean }) {
+  return (
+    <div className="pointer-events-none" aria-hidden="true">
+      <GoalForkContent fromToday={fromToday} onBack={() => undefined} onPickGoal={() => undefined} />
+    </div>
   );
 }

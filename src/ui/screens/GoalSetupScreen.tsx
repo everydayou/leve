@@ -15,6 +15,8 @@ import { markOnboardingSeen } from '../../lib/onboarding';
 import { hapticLight } from '../../lib/haptics';
 import { useKeyboardInset, scrollFocusedAboveKeyboard } from '../../lib/useKeyboardInset';
 import { DONE_BAR_HEIGHT } from '../kit/useKeyboardDoneBar';
+import { GoalIcon } from './GoalIcon';
+import { FirstOpenForkBackdrop, GoalForkBackdrop } from './FirstOpenFork';
 import { Button, LabeledInput, NumberField, WheelPicker, Icon, SegmentedControl, FilterPills, Sheet } from '../kit';
 import type { Goal, GoalType, MacroStyle, Units, Sex } from '../../domain/types';
 
@@ -135,6 +137,10 @@ export function GoalSetupForm({
   const [searchParams] = useSearchParams();
   const typeParam   = searchParams.get('type') as GoalType | null;
   const isFirstOpen = searchParams.get('first-open') === 'true';
+  // Round 190 — forwarded by GoalForkScreen's pickGoal so the exit-transition
+  // backdrop below can show the exact same Close-vs-Back header the real
+  // fork route will show once it remounts.
+  const fromToday   = searchParams.get('from') === 'today';
 
   const units   = userUnits ?? 'kg';
   const toDisp  = (kg: number) => units === 'lbs' ? parseFloat(kgToLbs(kg).toFixed(1)) : kg;
@@ -584,6 +590,17 @@ export function GoalSetupForm({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
+    {/* Round 190 — a static peek of wherever "back" is headed, rendered
+        UNDERNEATH the FullScreen below while its own slide-out-right exit
+        plays. Without this, the exit animation revealed a blank
+        bg-surface-sunken background for the ~280-320ms until dismiss()'s
+        setTimeout actually navigated away — "slides out nicely, but to a
+        white screen, then the first screen appears" per Marco. Only
+        rendered during the exit itself (isExiting && fromFork): the rest
+        of the time FullScreen's own opaque background fully covers it. */}
+    {isExiting && fromFork && (
+      isFirstOpen ? <FirstOpenForkBackdrop /> : <GoalForkBackdrop fromToday={fromToday} />
+    )}
     <FullScreen
       slideUp={isModal} slideRight={fromFork}
       exiting={isExiting} exitRight={fromFork}
@@ -1294,18 +1311,3 @@ function PaceMeter({ level, kcalPerDay = 0 }: { level: 'gentle' | 'moderate' | '
   );
 }
 
-const GOAL_ICON_BODY = "M8.7704 4.44851C8.42901 4.10768 8.25831 3.69789 8.25831 3.21914C8.25831 2.74052 8.4288 2.33052 8.76977 1.98913C9.11061 1.64775 9.5204 1.47705 9.99915 1.47705C10.4778 1.47705 10.8878 1.64754 11.2291 1.98851C11.5705 2.32934 11.7412 2.73913 11.7412 3.21788C11.7412 3.6965 11.5707 4.1065 11.2298 4.44789C10.8889 4.78927 10.4791 4.95997 10.0004 4.95997C9.52179 4.95997 9.11179 4.78948 8.7704 4.44851ZM7.41019 17.4798V7.58851C6.74283 7.53351 6.07026 7.45907 5.39248 7.36518C4.71456 7.27129 4.04727 7.14962 3.39061 7.00018C3.13463 6.94129 2.9304 6.79941 2.7779 6.57455C2.6254 6.34955 2.58554 6.10907 2.65831 5.85309C2.73109 5.59698 2.88686 5.4092 3.12561 5.28976C3.36449 5.17045 3.6172 5.14025 3.88373 5.19914C4.85929 5.40747 5.86894 5.55858 6.91269 5.65247C7.9563 5.74636 8.98533 5.7933 9.99977 5.7933C11.0142 5.7933 12.0441 5.74636 13.0894 5.65247C14.1348 5.55858 15.1469 5.40747 16.1256 5.19914C16.3923 5.14025 16.6439 5.17073 16.8804 5.29059C17.1171 5.41059 17.2723 5.59809 17.3462 5.85309C17.419 6.10907 17.3783 6.34872 17.2241 6.57205C17.07 6.79525 16.8649 6.93629 16.6089 6.99518C15.9523 7.14462 15.285 7.26712 14.6071 7.36268C13.9293 7.45823 13.2567 7.53351 12.5894 7.58851V17.4798C12.5894 17.7371 12.5023 17.9528 12.3283 18.1268C12.1543 18.3009 11.9387 18.3879 11.6814 18.3879C11.4241 18.3879 11.2084 18.3009 11.0344 18.1268C10.8603 17.9528 10.7733 17.7371 10.7733 17.4798V13.3331H9.22623V17.4798C9.22623 17.7371 9.13922 17.9528 8.96519 18.1268C8.79116 18.3009 8.57547 18.3879 8.31811 18.3879C8.06088 18.3879 7.84526 18.3009 7.67123 18.1268C7.4972 17.9528 7.41019 17.7371 7.41019 17.4798Z";
-const GOAL_ICON_ARROWS: Record<string, string> = {
-  lose_by_date: "M15 17.5L12.5 15.1348L13.3088 14.3696L14.421 15.4217V12.5H15.579V15.4217L16.6912 14.3696L17.5 15.1348L15 17.5Z",
-  maintain:     "M17.5 15L15.1348 17.5L14.3696 16.6912L15.4217 15.579L12.5 15.579L12.5 14.421L15.4217 14.421L14.3696 13.3088L15.1348 12.5L17.5 15Z",
-  gain_by_date: "M15 12.5L17.5 14.8652L16.6912 15.6304L15.579 14.5783L15.579 17.5L14.421 17.5L14.421 14.5783L13.3088 15.6304L12.5 14.8652L15 12.5Z",
-};
-export function GoalIcon({ type, size = 20 }: { type: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true" className="shrink-0">
-      <path d={GOAL_ICON_BODY} fill="currentColor" />
-      <circle cx="15" cy="15" r="5" fill="var(--color-accent)" />
-      <path d={GOAL_ICON_ARROWS[type] ?? GOAL_ICON_ARROWS.maintain} fill="currentColor" />
-    </svg>
-  );
-}

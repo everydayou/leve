@@ -921,6 +921,7 @@ function FoodForm({
                     onQtyChange={(qty) => updateQty(idx, qty)}
                     onRemove={() => removeItem(idx)}
                     onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+                    onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
                   />
                 ))}
               </div>
@@ -940,6 +941,7 @@ function FoodForm({
                 onQtyChange={(qty) => updateQty(idx, qty)}
                 onRemove={() => removeItem(idx)}
                 onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
+                onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
               />
             ))}
             <div style={{ marginTop: '12px' }}>{addAnotherAndLog}</div>

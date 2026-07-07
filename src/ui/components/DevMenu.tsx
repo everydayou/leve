@@ -700,6 +700,15 @@ function KeyboardPlayground() {
   // hook Sheet.tsx uses to pad its own scroll area. Positions the demo "Done"
   // bar flush against the top of the keyboard, however tall it is.
   const keyboardInset = useKeyboardInset();
+  const [safeAreaBottomPx] = useState<number>(() => {
+    if (typeof document === 'undefined') return 0;
+    const probe = document.createElement('div');
+    probe.style.cssText = 'padding-bottom:env(safe-area-inset-bottom, 0px);';
+    document.body.appendChild(probe);
+    const px = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
+    document.body.removeChild(probe);
+    return px;
+  });
 
   const inputCls = 'w-full rounded-field border border-border-field bg-surface px-3 py-2.5 text-subhead font-semibold text-content outline-none focus:border-accent';
 
@@ -711,6 +720,20 @@ function KeyboardPlayground() {
         an <code>inputMode</code> variant with a Return key, vs. a custom
         toolbar pinned above the keyboard (row 4).
       </p>
+
+      {/* Live diagnostics (round 189) — the Done-bar-floats-above-keyboard
+          bug has been reported twice now; a prior fix (compensating with
+          env(safe-area-inset-bottom)) made it visibly WORSE, which means
+          the guess about what's missing was wrong. Rather than guess a
+          third time, this readout surfaces the raw numbers on-device —
+          focus row 4 below, screenshot this block, and send it over so
+          the next fix is based on real measurements instead of a hypothesis. */}
+      <div className="rounded-control border border-border-subtle bg-surface-sunken p-3 font-mono text-label text-content-secondary">
+        <p>keyboardInset (used for bottom: below): {keyboardInset}px</p>
+        <p>window.innerHeight: {typeof window !== 'undefined' ? window.innerHeight : '—'}px</p>
+        <p>visualViewport.height: {typeof window !== 'undefined' && window.visualViewport ? window.visualViewport.height : '—'}px</p>
+        <p>safe-area-inset-bottom: {safeAreaBottomPx}px</p>
+      </div>
 
       <PickerRow label="1 · inputMode=numeric" description="Whole-number keypad — no decimal point key, no Return.">
         <input type="text" inputMode="numeric" pattern="[0-9]*" value={wholeVal} onChange={e => setWholeVal(e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} />

@@ -702,6 +702,7 @@ export function GoalSetupForm({
                           <WheelPicker label={`Target (${units})`} value={target}
                             onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
                             min={wMin} max={wMax} step={0.1} unit={units}
+                            mode="single"
                             invalid={!!fieldErrors.target} centerAt={+start || (units === 'lbs' ? 154 : 70)} />
                           {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}
                         </div>
@@ -834,7 +835,7 @@ export function GoalSetupForm({
                           <WheelPicker label={`${isMaintain ? 'Current' : 'Start'} (${units})`} value={start}
                             onChange={(v) => { setStart(v); setFieldErrors(p => ({ ...p, start: undefined })); }}
                             min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.start}
-                            mode={isMaintain ? 'single' : 'auto'}
+                            mode="single"
                             centerAt={units === 'lbs' ? 132 : 60} />
                           {fieldErrors.start && <p className="mt-1 text-footnote text-danger">{fieldErrors.start}</p>}
                         </div>
@@ -865,6 +866,7 @@ export function GoalSetupForm({
                             <WheelPicker label={`Target (${units})`} value={target}
                               onChange={(v) => { setTarget(v); setFieldErrors(p => ({ ...p, target: undefined })); }}
                               min={wMin} max={wMax} step={0.1} unit={units} invalid={!!fieldErrors.target}
+                              mode="single"
                               centerAt={+start || (units === 'lbs' ? 154 : 70)}
                               />
                             {fieldErrors.target && <p className="mt-1 text-footnote text-danger">{fieldErrors.target}</p>}

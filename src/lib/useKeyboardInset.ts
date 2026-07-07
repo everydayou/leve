@@ -2,30 +2,6 @@ import { useState, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
 
-// Measures env(safe-area-inset-bottom) as a real px number (once, cached).
-// Capacitor's keyboardWillShow reports the KEY-ROW height only — on iPhones
-// with a home indicator the system keyboard's tinted background actually
-// extends further, down through the home-indicator safe area. Every fixed,
-// bottom-positioned element that anchors itself to `keyboardHeight` alone
-// (the Done bar, Sheet/OverlayLayer scroll padding) was floating exactly
-// that safe-area amount above the real keyboard, leaving a sliver of page
-// content visible in the gap — reported as "Done bar floating a few px
-// above the keyboard" across every screen that uses it.
-let cachedSafeAreaBottomPx: number | null = null;
-function getSafeAreaBottomPx(): number {
-  if (cachedSafeAreaBottomPx !== null) return cachedSafeAreaBottomPx;
-  if (typeof document === 'undefined') return 0;
-  const probe = document.createElement('div');
-  probe.style.cssText =
-    'position:fixed;left:0;bottom:0;height:0;width:0;pointer-events:none;visibility:hidden;' +
-    'padding-bottom:env(safe-area-inset-bottom, 0px);';
-  document.body.appendChild(probe);
-  const px = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
-  document.body.removeChild(probe);
-  cachedSafeAreaBottomPx = px;
-  return px;
-}
-
 /**
  * Returns the current keyboard inset height in CSS pixels (0 when hidden).
  *
@@ -50,7 +26,7 @@ export function useKeyboardInset(): number {
 
       void (async () => {
         const h1 = await Keyboard.addListener('keyboardWillShow', (info) => {
-          if (mounted) setInset(info.keyboardHeight + getSafeAreaBottomPx());
+          if (mounted) setInset(info.keyboardHeight);
         });
         const h2 = await Keyboard.addListener('keyboardWillHide', () => {
           if (mounted) setInset(0);

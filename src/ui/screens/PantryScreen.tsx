@@ -121,6 +121,13 @@ export function PantryScreen() {
       photo: values.photo, isArchived: false,
     });
     setAdding(false);
+    // Round 189: Manual entry writes to the DB immediately, same as the AI
+    // capture methods — land on Food item detail in `justCreated` mode too
+    // (was previously only set for scanned items), so this preview also
+    // gets its "Save food" CTA rather than looking done-but-actually-final
+    // with no confirmation, and X here means "discard" rather than
+    // silently keeping an item the user never meant to finish creating.
+    setJustCreatedId(id);
     setOpenItemId(id); // land on Food item detail (spec §3)
   }
 

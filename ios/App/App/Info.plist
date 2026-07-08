@@ -24,6 +24,16 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>We need camera access to let you take photos of your food items for your pantry.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>leve reads your weight and active-energy data from Health so it can automatically fill in your weigh-ins and activity calories.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>leve does not currently write any data back to Health. This permission is required because of the Health integration library the app uses, but is not used.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Used to save food photos to your library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We need access to your photo library to let you add food photos to your pantry.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -47,15 +57,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>We need camera access to let you take photos of your food items for your pantry.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We need access to your photo library to let you add food photos to your pantry.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Used to save food photos to your library.</string>
-	<key>NSHealthShareUsageDescription</key>
-	<string>leve reads your weight and active-energy data from Health so it can automatically fill in your weigh-ins and activity calories.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>leve does not currently write any data back to Health. This permission is required because of the Health integration library the app uses, but is not used.</string>
 </dict>
 </plist>

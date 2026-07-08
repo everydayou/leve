@@ -168,6 +168,14 @@ and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
   pill now uses the shared segmented-active look (white + shadow +
   accent-hover text) instead of a solid fill; its footer sentence spells
   out full day names ("Mondays") instead of abbreviated + "s".
+- ACCOUNT: Tracking and Settings are now their own full-screen sub-views
+  (slide in from the right, back chevron, same SlideScreen/SlideHeader
+  kit atoms as Past goals), reached from a small two-row menu below
+  Profile on the main Account view instead of being shown inline.
+  SlideScreen/SlideHeader were extracted from PastGoalsScreen.tsx into
+  src/ui/kit/SlideScreen.tsx so both screens share one implementation.
+  Developer stays nested inside the Settings sub-view (still gated by
+  the same triple-tap-title reveal), not its own menu row.
 - Diary/Today gauge-card + macro-bars layered pattern (rounds 162-165) is
   now also the shared reference pattern for the 3 Basket Meal views
   (PantryMealDetail, FoodForm, LogEntryContent): a white meal-summary
@@ -229,16 +237,16 @@ KEY PATTERNS:
   lib/apiKey.ts). When set, lib/foodScan.ts's scanFood/describeFood call
   api.anthropic.com directly from the device (model: claude-sonnet-5,
   forced tool_use for structured output) instead of the shared Vercel
-  proxy — bypasses food-scan-api entirely, so no changes needed on that
-  separate Vercel project.
+  proxy. This bypasses food-scan-api entirely, so no changes needed on
+  that separate Vercel project.
 - useAiGate (src/ui/components/useAiGate.tsx): every AI-feature trigger
   (Camera/Photo/Describe/Nutri-scan, incl. "Fix"/re-describe) is gated on
-  tap — no personal key cached = a short "Connect AI to use this" sheet
+  tap. No personal key cached shows a short "Connect AI to use this" sheet
   (View more -> ApiKeySheet, or Cancel) instead of proceeding, checked
   BEFORE opening the camera/picker/describe overlay at all. This means the
   shared Vercel proxy fallback in lib/foodScan.ts is effectively
   unreachable from normal UI flow now (every entry point requires a key
-  first) — kept as defense-in-depth, not deleted. lib/apiKey.ts's in-memory
+  first), kept as defense-in-depth, not deleted. lib/apiKey.ts's in-memory
   key cache is warmed once on boot (AppShell) so the gate's tap-time check
   is synchronous.
 

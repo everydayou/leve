@@ -8,50 +8,10 @@ import { todayISO, addDays } from '../../data/ids';
 import { getMondayOfWeek, MS_PER_DAY } from '../../lib/date';
 import { round1 } from '../../lib/num';
 import { hapticLight } from '../../lib/haptics';
-import { Icon, Badge, Skeleton, Card, SegmentedControl, Sheet, Button } from '../kit';
+import { Icon, Badge, Skeleton, Card, SegmentedControl, Sheet, Button, SlideScreen, SlideHeader } from '../kit';
 import { KgWeekChart, WeekChart } from './GoalScreen';
 import { weekNumber, fmtWeekRange } from './chartUtils';
 import type { Goal, WeightEntry, User, FoodItem } from '../../domain/types';
-
-// ── Slide container (right-to-left push) ────────────────────────────────────
-
-function SlideScreen({ children, exiting, onScroll }: { children: React.ReactNode; exiting: boolean; onScroll?: React.UIEventHandler<HTMLDivElement> }) {
-  return (
-    <div
-      className={`fixed inset-0 z-[150] flex justify-center overflow-hidden bg-surface-sunken ${exiting ? 'slide-out-right' : 'slide-in-right'}`}
-      style={{ touchAction: 'manipulation' }}
-    >
-      <div
-        className="safe-top safe-bottom flex h-[100dvh] w-full max-w-[26.25rem] flex-col overflow-x-hidden overflow-y-auto bg-surface"
-        style={{ touchAction: 'pan-y' }}
-        onScroll={onScroll}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ── Shared nav header ────────────────────────────────────────────────────────
-
-function SlideHeader({ title, onBack, scrolled = false, rightAction }: { title: string; onBack: () => void; scrolled?: boolean; rightAction?: React.ReactNode }) {
-  return (
-    <div className={`sticky top-0 z-20 bg-surface transition-[box-shadow] duration-200${scrolled ? ' shadow-nav' : ''}`}>
-      <div className="pointer-events-none absolute left-0 right-0 bg-surface" style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
-      <div className="relative flex items-center px-4 pt-5 pb-4">
-        <button onClick={onBack} aria-label="Back" className="-ml-2 flex h-10 w-10 flex-shrink-0 items-center justify-center text-content-muted">
-          <Icon name="chevronLeft" size={20} strokeWidth={2.5} />
-        </button>
-        {title ? (
-          <span className="pointer-events-none absolute inset-x-0 text-center text-headline font-semibold text-content">{title}</span>
-        ) : null}
-        {rightAction ? (
-          <div className="ml-auto -mr-2">{rightAction}</div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
 
 // ── Stat card (used in goal overview) ───────────────────────────────────────
 

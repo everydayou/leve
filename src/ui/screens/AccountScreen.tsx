@@ -2,11 +2,12 @@ import { WheelPicker } from '../kit';
 import { WeightLogSheet } from '../components/WeightLogSheet';
 import { todayISO } from '../../data/ids';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useLive } from '../../state/live';
 import { useNavigate } from 'react-router-dom';
 import { repos } from '../../state/repos';
 import { exportAsJson } from '../../data/exportJson';
-import { Card, SectionLabel, Badge, SegmentedControl, Button, NumberField, Sheet, ListRow, Skeleton, Icon, FilterPills } from '../kit';
+import { Card, SectionLabel, Badge, SegmentedControl, Button, NumberField, Sheet, ListRow, Skeleton, Icon, FilterPills, Divider, SlideScreen, SlideHeader } from '../kit';
 import { displayWeight } from '../../domain/units';
 import { getThemePref, setThemePref, type ThemePref } from '../../lib/theme';
 import { hapticLight, getHapticsPref, setHapticsPref } from '../../lib/haptics';
@@ -36,6 +37,11 @@ export function AccountScreen() {
   // Triple-tap the "Account" title to reveal the hidden Developer section.
   // Persists across reloads (setDevRevealed); tapping 3x again hides it.
   const [showDeveloper, setShowDeveloper] = useState(getDevRevealed);
+  // Tracking and Settings are their own full-screen sub-views now (same
+  // slide-in-from-right + back-chevron pattern as Past goals), reached via
+  // a small two-row menu on the main Account view rather than being shown
+  // inline. See TrackingSubView / SettingsSubView below.
+  const [activeSubView, setActiveSubView] = useState<'tracking' | 'settings' | null>(null);
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function handleTitleTap() {
@@ -177,42 +183,11 @@ export function AccountScreen() {
         </>
       )}
 
-      <AccountSectionHeading>Tracking</AccountSectionHeading>
-      <WeightUnitsCard user={user} />
-      <div className="mt-2">
-        <WeightCadenceCard user={user} />
-      </div>
-      {goal?.macroStyle && (
-        <div className="mt-2">
-          <MacroDiaryCard goal={goal} />
-        </div>
-      )}
-
-      <AccountSectionHeading>Settings</AccountSectionHeading>
-      <AppearanceCard />
-      <div className="mt-2">
-        <ApiKeyCard />
-      </div>
-
-      {SHOW_CONNECTIONS_SECTION && (
-        <div className="mt-2">
-          <WithingsCard />
-        </div>
-      )}
-
-      {showDeveloper && (
-        <>
-          <SectionLabel>Developer</SectionLabel>
-          <Card padded={false} className="overflow-hidden">
-            <ListRow title="Export all data (JSON)" chevron onClick={() => exportAsJson(repos)} />
-          </Card>
-          <div className="mt-2">
-            <Card padded={false} className="p-4">
-              <DevMenu />
-            </Card>
-          </div>
-        </>
-      )}
+      <Card padded={false} className="mt-6 overflow-hidden">
+        <ListRow title="Tracking" chevron onClick={() => setActiveSubView('tracking')} />
+        <Divider inset />
+        <ListRow title="Settings" chevron onClick={() => setActiveSubView('settings')} />
+      </Card>
 
       <p className="mt-8 text-center text-micro text-content-muted">v0.1.0</p>
 
@@ -220,7 +195,87 @@ export function AccountScreen() {
       {managingGoal && goal && <GoalManageSheet goal={goal} onClose={() => setManagingGoal(false)} onNavigate={(path) => { setManagingGoal(false); nav(path); }} />}
       {showBmrInfo && <BmrInfoSheet onClose={() => setShowBmrInfo(false)} />}
       {editingProtein && <ProteinGoalSheet current={user.proteinGoalG} onClose={() => setEditingProtein(false)} />}
+      {activeSubView === 'tracking' && (
+        <TrackingSubView user={user} goal={goal} onClose={() => setActiveSubView(null)} />
+      )}
+      {activeSubView === 'settings' && (
+        <SettingsSubView showDeveloper={showDeveloper} onClose={() => setActiveSubView(null)} />
+      )}
     </div>
+  );
+}
+
+/* Full-screen sub-view (slide in from right, back chevron) for the
+   "Tracking" row in Account's menu. Portals to document.body, same
+   reasoning as PastGoalsPortal (see SlideScreen's own doc comment). */
+function TrackingSubView({ user, goal, onClose }: { user: User; goal: Goal | undefined; onClose: () => void }) {
+  const [exiting, setExiting] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  function goBack() {
+    setExiting(true);
+    setTimeout(onClose, 280);
+  }
+  return createPortal(
+    <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
+      <SlideHeader title="Tracking" onBack={goBack} scrolled={scrolled} />
+      <div className="px-6 pb-8 pt-2">
+        <WeightUnitsCard user={user} />
+        <div className="mt-2">
+          <WeightCadenceCard user={user} />
+        </div>
+        {goal?.macroStyle && (
+          <div className="mt-2">
+            <MacroDiaryCard goal={goal} />
+          </div>
+        )}
+      </div>
+    </SlideScreen>,
+    document.body,
+  );
+}
+
+/* Full-screen sub-view for the "Settings" row in Account's menu. Same
+   pattern as TrackingSubView above. Developer stays nested here (not its
+   own menu row) since it's a hidden triple-tap reveal, not a normal entry
+   point. */
+function SettingsSubView({ showDeveloper, onClose }: { showDeveloper: boolean; onClose: () => void }) {
+  const [exiting, setExiting] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  function goBack() {
+    setExiting(true);
+    setTimeout(onClose, 280);
+  }
+  return createPortal(
+    <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
+      <SlideHeader title="Settings" onBack={goBack} scrolled={scrolled} />
+      <div className="px-6 pb-8 pt-2">
+        <AppearanceCard />
+        <div className="mt-2">
+          <ApiKeyCard />
+        </div>
+
+        {SHOW_CONNECTIONS_SECTION && (
+          <div className="mt-2">
+            <WithingsCard />
+          </div>
+        )}
+
+        {showDeveloper && (
+          <>
+            <SectionLabel>Developer</SectionLabel>
+            <Card padded={false} className="overflow-hidden">
+              <ListRow title="Export all data (JSON)" chevron onClick={() => exportAsJson(repos)} />
+            </Card>
+            <div className="mt-2">
+              <Card padded={false} className="p-4">
+                <DevMenu />
+              </Card>
+            </div>
+          </>
+        )}
+      </div>
+    </SlideScreen>,
+    document.body,
   );
 }
 
@@ -334,7 +389,7 @@ const THEME_OPTS: { id: ThemePref; label: string }[] = [
 ];
 
 /** Theme + Haptic feedback + Apple Health connect, one card, three
- *  divider-separated rows — Health used to be its own card but per Marco's
+ *  divider-separated rows. Health used to be its own card but per Marco's
  *  ask now lives alongside the other toggle-style Settings rows instead. */
 function AppearanceCard() {
   const [pref, setPref] = useState<ThemePref>(getThemePref());
@@ -445,7 +500,7 @@ function AppearanceCard() {
   );
 }
 
-/** Settings row for the bring-your-own-key food scan feature — opens the
+/** Settings row for the bring-your-own-key food scan feature. Opens the
  *  single app-wide ApiKeySheet instance (mounted by AppShell) rather than
  *  its own local copy, since AI-feature error states also jump straight
  *  into that same sheet via requestApiKeySheet(). Subtitle reflects
@@ -622,14 +677,6 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-/* Section heading used on Account only — matches the "Review your goal"
- * heading in GoalSetupScreen.tsx (text-headline/18pt, semibold, sentence
- * case), per Marco's design. Distinct from the app-wide SectionLabel atom
- * (small grey uppercase caption) used on Today/Goal/Pantry — left untouched
- * there so this doesn't ripple to other screens. */
-function AccountSectionHeading({ children }: { children: ReactNode }) {
-  return <p className="mb-2 mt-6 text-headline font-semibold text-content">{children}</p>;
-}
 
 /* Outline card used on Account only — matches GoalScreen.tsx's goal-overview
  * container: rounded-main, plain white fill, inset hairline border, no drop

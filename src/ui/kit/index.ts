@@ -30,3 +30,4 @@ export { Skeleton } from './Skeleton';
 export { ServingStepper } from './ServingStepper';
 export { ImageHero } from './ImageHero';
 export { MacroSummaryLine } from './MacroSummaryLine';
+export { SlideScreen, SlideHeader } from './SlideScreen';

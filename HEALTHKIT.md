@@ -86,9 +86,14 @@ hand-editing project files reliably.
    Settings shows the real iOS permission sheet, listing
    Weight and Active Energy as the two requested read types.
 
-That's the only GUI step, the usage description
-(`NSHealthShareUsageDescription`) is already in `Info.plist`, and the sync
-logic needs no further configuration.
+That's the only GUI step. Both usage description strings
+(`NSHealthShareUsageDescription` and `NSHealthUpdateUsageDescription`) are
+already in `Info.plist`, and the sync logic needs no further configuration.
+The update string is required for App Store/TestFlight processing even
+though leve never writes to Health. The underlying plugin links
+HealthKit's write APIs regardless, and Apple's binary scan checks for the
+usage string of any linked API, not just the ones the app's own code
+calls.
 
 ## Notes
 

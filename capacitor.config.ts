@@ -5,7 +5,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 // when you're ready to install on the iPhone via Xcode. HealthKit/Withings
 // arrive as Capacitor plugins behind the existing repository interface.
 const config: CapacitorConfig = {
-  appId: 'com.marco.nutritiongoal',
+  appId: 'com.marcosilva86.nutritiongoal',
   appName: 'leve',
   webDir: 'dist',
   // Sets the WKWebView background colour before the page CSS is parsed.

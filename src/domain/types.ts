@@ -7,6 +7,7 @@ export type MeasurementType = 'per_100g' | 'per_serving';
 export type GoalType = 'lose_by_date' | 'gain_by_date' | 'maintain'; // gain_by_date added r61; maintain added r182
 export type GoalStatus = 'active' | 'completed' | 'abandoned';
 export type WeightSource = 'manual' | 'withings' | 'healthkit';
+export type ActivitySource = 'manual' | 'healthkit';
 
 /** Single user. NOTE: current weight is NOT stored here — it is always
  *  the latest WeightEntry, the one source of truth. */
@@ -216,6 +217,11 @@ export interface ActivityEntry {
   name?: string;
   activeCalories: number;
   createdAt: string; // ISO timestamp — lets Today sort all entries by time
+  /** Absent = manual (pre-existing entries). 'healthkit' entries are written/
+   *  refreshed by the Health sync and left alone by the UI's delete/edit
+   *  affordances the same way manual entries are — the sync just won't
+   *  overwrite a day that already has a manual entry on it. */
+  source?: ActivitySource;
 }
 
 export interface WeightEntry {

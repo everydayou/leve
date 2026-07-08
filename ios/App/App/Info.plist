@@ -53,5 +53,7 @@
 	<string>We need access to your photo library to let you add food photos to your pantry.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Used to save food photos to your library.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>leve reads your weight and active-energy data from Health so it can automatically fill in your weigh-ins and activity calories.</string>
 </dict>
 </plist>

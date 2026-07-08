@@ -12,6 +12,7 @@ import { getThemePref, setThemePref, type ThemePref } from '../../lib/theme';
 import { hapticLight, getHapticsPref, setHapticsPref } from '../../lib/haptics';
 import { getDevRevealed, setDevRevealed } from '../../lib/devReveal';
 import { getWithingsService, type WithingsStatus } from '../../data/withings';
+import { getHealthKitService, type HealthKitStatus } from '../../data/healthkit';
 import { DevMenu } from '../components/DevMenu';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { currentWeightKg, isGainGoal, isMaintainGoal } from '../../domain/goal';
@@ -175,11 +176,12 @@ export function AccountScreen() {
         </>
       )}
 
+      <SectionLabel>Connections</SectionLabel>
+      <HealthCard />
       {SHOW_CONNECTIONS_SECTION && (
-        <>
-          <SectionLabel>Connections</SectionLabel>
+        <div className="mt-2">
           <WithingsCard />
-        </>
+        </div>
       )}
 
       <AccountSectionHeading>Tracking</AccountSectionHeading>
@@ -386,6 +388,91 @@ function AppearanceCard() {
         </button>
       </div>
     </OutlineCard>
+  );
+}
+
+function HealthCard() {
+  // repos is a module-level singleton, so this memo only evaluates once.
+  const svc = useMemo(() => getHealthKitService(repos), []);
+  const [status, setStatus] = useState<HealthKitStatus | null>(null);
+  const [busy, setBusy] = useState<null | 'connect' | 'sync' | 'disconnect'>(null);
+  const [note, setNote] = useState<string | null>(null);
+
+  useEffect(() => { svc.getStatus().then(setStatus); }, []); // eslint-disable-line
+
+  function syncNote(weightAdded: number, activityDaysSynced: number, freshConnect: boolean): string {
+    if (weightAdded === 0 && activityDaysSynced === 0) return freshConnect ? 'Connected. Nothing new to import yet.' : 'Already up to date.';
+    const parts: string[] = [];
+    if (weightAdded > 0) parts.push(`${weightAdded} weigh-in${weightAdded === 1 ? '' : 's'}`);
+    if (activityDaysSynced > 0) parts.push(`${activityDaysSynced} day${activityDaysSynced === 1 ? '' : 's'} of activity`);
+    return `Synced ${parts.join(' and ')}.`;
+  }
+
+  async function connect() {
+    setBusy('connect'); setNote(null);
+    await svc.connect();
+    const r = await svc.sync();
+    setStatus(r.status);
+    setNote(syncNote(r.weightAdded, r.activityDaysSynced, true));
+    setBusy(null);
+  }
+  async function sync() {
+    setBusy('sync'); setNote(null);
+    const r = await svc.sync();
+    setStatus(r.status);
+    setNote(syncNote(r.weightAdded, r.activityDaysSynced, false));
+    setBusy(null);
+  }
+  async function disconnect() {
+    setBusy('disconnect'); setNote(null);
+    setStatus(await svc.disconnect());
+    setBusy(null);
+  }
+
+  const connected = !!status?.connected;
+  const available = status?.available ?? true; // assume available until checked, avoids a flash of the disabled copy
+
+  return (
+    <Card padded={false} className="p-4">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-subhead font-medium">Apple Health</p>
+          <p className="mt-0.5 text-label text-content-secondary">
+            {!available
+              ? 'Available on your iPhone (not in this preview).'
+              : connected
+                ? 'Importing weight + activity calories.'
+                : 'Import weight and activity calories from Health.'}
+          </p>
+        </div>
+        {available && (
+          <span role="img" aria-label={connected ? 'Connected' : 'Not connected'}
+            className={`mt-0.5 h-2.5 w-2.5 rounded-pill ${connected ? 'bg-success' : 'bg-border-strong'}`} />
+        )}
+      </div>
+
+      {available && (!connected ? (
+        <Button size="sm" className="mt-3" onClick={connect} disabled={busy != null}>
+          {busy === 'connect' ? 'Connecting…' : 'Connect Apple Health'}
+        </Button>
+      ) : (
+        <div className="mt-3 flex gap-2">
+          <Button size="sm" fullWidth={false} className="flex-1" onClick={sync} disabled={busy != null}>
+            {busy === 'sync' ? 'Syncing…' : 'Sync now'}
+          </Button>
+          <Button variant="outline" size="sm" fullWidth={false} onClick={disconnect} disabled={busy != null}>
+            Disconnect
+          </Button>
+        </div>
+      ))}
+
+      {note && <p className="mt-2 text-label text-content-secondary">{note}</p>}
+      {connected && (
+        <p className="mt-2 text-label text-content-secondary">
+          Never overwrites a day you've already logged by hand.
+        </p>
+      )}
+    </Card>
   );
 }
 

@@ -2,16 +2,16 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-07 — Round 190 (Maintain-weight goal type shipped
-end-to-end; Goal-setup UI polish — single-wheel weight pickers, split
-cards, weekday-pill unification; Goal-fork navigation transitions fixed
-(white-flash + entrance-replay bugs); keyboard "Done" bar gap ROOT-CAUSED
-and fixed — position:fixed inside a transformed OverlayLayer ancestor was
-never actually anchored to the viewport, fixed via a document.body
-portal; Pantry "+ New food" Describe now a real side-panel overlay with
-autofocus; scrollbar chrome hidden app-wide; pantry-seed/meals-migration
-flags scoped per real/test profile)
-Full change history: see CHANGELOG.txt (rounds 1-190).
+Last updated: 2026-07-08, Round 191 (TestFlight distribution set up;
+Apple Health integration shipped for weight + activity, real on-device
+sync via @capgo/capacitor-health, no backend; bring-your-own Claude API
+key added for AI food scan, stored in iOS Keychain, calls Anthropic
+directly when set; every AI-feature trigger now gated with an upfront
+"Connect AI to use this" check instead of reactive error handling;
+Account's Tracking and Settings moved into their own full-screen
+sub-views under a new Options menu, with swipe-back and a shared muted
+background)
+Full change history: see CHANGELOG.txt (rounds 1-191).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -121,10 +121,10 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 190, 2026-07-07)
+7. CURRENT STATUS (as of round 191, 2026-07-08)
 ----------------------------------------------------------------
-All V1 features shipped and running on device. This is a snapshot only —
-detailed round-by-round history lives in CHANGELOG.txt (rounds 1-190)
+All V1 features shipped and running on device. This is a snapshot only.
+Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-191)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
 - THREE GOAL TYPES NOW SHIPPED (round 190): maintain_weight joins
@@ -168,14 +168,45 @@ and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
   pill now uses the shared segmented-active look (white + shadow +
   accent-hover text) instead of a solid fill; its footer sentence spells
   out full day names ("Mondays") instead of abbreviated + "s".
-- ACCOUNT: Tracking and Settings are now their own full-screen sub-views
-  (slide in from the right, back chevron, same SlideScreen/SlideHeader
-  kit atoms as Past goals), reached from a small two-row menu below
-  Profile on the main Account view instead of being shown inline.
-  SlideScreen/SlideHeader were extracted from PastGoalsScreen.tsx into
-  src/ui/kit/SlideScreen.tsx so both screens share one implementation.
-  Developer stays nested inside the Settings sub-view (still gated by
-  the same triple-tap-title reveal), not its own menu row.
+- ACCOUNT RESTRUCTURED (round 191): Tracking and Settings are their own
+  full-screen sub-views (slide in from the right, back chevron, plus a
+  swipe-right gesture to go back), reached from a small "Options" section
+  (two-row menu) below Profile on the main Account view instead of being
+  shown inline. Both sub-views share Account's own muted page background
+  instead of a plain white sheet. SlideScreen/SlideHeader were extracted
+  from PastGoalsScreen.tsx into src/ui/kit/SlideScreen.tsx (two new
+  opt-in props, onBack and muted, both additive) so Account and Past
+  goals share one implementation. Developer stays nested inside the
+  Settings sub-view (still gated by the same triple-tap-title reveal),
+  not its own menu row.
+- APPLE HEALTH INTEGRATION SHIPPED (round 191): real, on-device sync of
+  weight and activity/active-energy via @capgo/capacitor-health, no
+  backend. Connect/disconnect lives in the Settings sub-view; sync runs
+  on app open/foreground plus on-demand, is clamped to never backfill
+  before the moment Connect was tapped, and never overwrites a manually
+  logged entry for the same day. A synced Activity entry can be hidden
+  (excluded from totals, stays visible muted in the day's log) or
+  refreshed on demand. See HEALTHKIT.md for the one manual Xcode step
+  (HealthKit capability) required after a fresh clone.
+- BRING-YOUR-OWN CLAUDE API KEY + AI CONNECTION GATE (round 191): Account
+  > Settings > AI Food Scan lets a user store their own Anthropic API key
+  (iOS Keychain via @aparajita/capacitor-secure-storage); when set,
+  lib/foodScan.ts calls api.anthropic.com directly instead of the shared
+  Vercel proxy. Every AI-feature trigger (Camera/Photo/Describe/
+  Nutri-scan/Fix, across Day's log and all Pantry surfaces) is gated
+  upfront via useAiGate: no key cached shows a short "Connect AI to use
+  this" sheet before the feature ever opens, instead of waiting for a
+  scan to fail. Reactive error handling (FoodScanError) is kept as a
+  second layer for genuine failures (rejected key, network/proxy issues)
+  with a tappable action back into the key sheet.
+- TESTFLIGHT DISTRIBUTION SET UP (round 191): app icon alpha channel and
+  a bundle-ID mismatch fixed; TESTFLIGHT.md documents the full
+  archive-and-upload runbook. The existing cable-run `npm run ios` /
+  Xcode ▶ Run workflow is unchanged and stays the fast day-to-day path;
+  TestFlight is a separate, occasional channel.
+- SegmentedControl replaced with FilterPills for Account's sex/weight
+  units/weigh-in frequency toggles (round 191), matching the pattern
+  Goal Setup already used.
 - Diary/Today gauge-card + macro-bars layered pattern (rounds 162-165) is
   now also the shared reference pattern for the 3 Basket Meal views
   (PantryMealDetail, FoodForm, LogEntryContent): a white meal-summary
@@ -262,6 +293,13 @@ HIGH:
   181; see DONE (r181) below.)
 
 MED:
+- NO AUTOMATED TEST COVERAGE FOR HEALTHKIT/BYOK/GATE LOGIC (round 191,
+  new): the HealthKit sync (dedup/clamp/hide-in-place), the direct-to-
+  Anthropic BYOK call path, and the useAiGate upfront check were all
+  verified manually and on-device only, not via vitest. Worth adding
+  unit coverage for the pure logic pieces (queryAggregated bucketing,
+  connectedAt clamp, FoodScanError classification) if this area sees
+  more churn.
 - DONE-BAR PORTAL FIX AWAITING FINAL ON-DEVICE CONFIRMATION (round 190,
   new): the Done-bar gap (open since round 181, "still a bit high" on
   fields like Edit food item's Name) was root-caused this round to
@@ -363,6 +401,27 @@ LOW:
 - moreHoriz ICON NOW UNUSED (round 181, new, cleanup): Icon.tsx still
   exports a moreHoriz icon; nothing references it anymore now that the
   Goal-options button is a text label, not an icon. Safe to remove.
+
+DONE (r191):
+- ✓ APPLE HEALTH INTEGRATION (round 191): weight + activity sync shipped
+  end-to-end, real on-device data via @capgo/capacitor-health. See
+  CURRENT STATUS and ROUND 191 below for full detail.
+- ✓ BRING-YOUR-OWN CLAUDE API KEY (round 191): personal Anthropic key,
+  stored in iOS Keychain, routes AI food scan/describe directly to
+  Anthropic instead of the shared proxy.
+- ✓ AI CONNECTION GATE (round 191): every AI-feature trigger now checks
+  for a key upfront instead of waiting for a scan to fail; also fixed
+  the bug where removing a key still silently worked via the shared-
+  proxy fallback.
+- ✓ TESTFLIGHT DISTRIBUTION (round 191): app icon + bundle-ID fixes,
+  TESTFLIGHT.md runbook added.
+- ✓ ACCOUNT OPTIONS MENU (round 191): Tracking/Settings moved into
+  full-screen sub-views under an Options menu, with swipe-back and a
+  shared muted background.
+- ✓ MAINTAIN-GOAL BADGE/TOTAL-DAYS BUGS FIXED (round 191): Diary badge
+  and Past Goals' "Total days" now branch on isMaintainGoal() instead of
+  assuming lose/gain fields exist.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped.
 
 DONE (r190):
 - ✓ MAINTAIN-WEIGHT GOAL TYPE (round 190): shipped end-to-end across
@@ -598,12 +657,151 @@ DONE (r106):
   in sheets. Fixed via @capacitor/keyboard resize:'none' + Capacitor
   keyboardWillShow/Hide events + scrollFocusedAboveKeyboard().
 
-DEFERRED V1.5+: JSON import, HealthKit, BMR auto-calibration, full tablet
+DEFERRED V1.5+: JSON import, BMR auto-calibration, full tablet
 layouts, per-piece measurement types, time-of-day food suggestions.
 
 ----------------------------------------------------------------
-RECENT ROUNDS (3 most recent — older entries in CHANGELOG.txt)
+RECENT ROUNDS (3 most recent, older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
+
+================================================================
+ROUND 191: TESTFLIGHT DISTRIBUTION; APPLE HEALTH INTEGRATION; BRING-YOUR-OWN CLAUDE KEY + AI CONNECTION GATE; ACCOUNT SUB-VIEWS (2026-07-08)
+================================================================
+Files: capacitor.config.ts, ios/App/App/Assets.xcassets/AppIcon.appiconset/
+       AppIcon-512@2x.png, ios/App/App/Info.plist, TESTFLIGHT.md (new),
+       HEALTHKIT.md (new), src/data/healthkit.ts (new), src/domain/types.ts,
+       src/domain/calc.ts, src/lib/apiKey.ts (new), src/lib/foodScan.ts,
+       src/lib/scanErrors.ts (new), src/ui/AppShell.tsx,
+       src/ui/components/AddEntrySheet.tsx, src/ui/components/ApiKeySheet.tsx
+       (new), src/ui/components/HealthConnectBanner.tsx (new),
+       src/ui/components/PantryFoodItemDetail.tsx,
+       src/ui/components/PantryMealDetail.tsx,
+       src/ui/components/PantryNewFoodScan.tsx, src/ui/components/Toaster.tsx,
+       src/ui/components/WeightLogSheet.tsx, src/ui/components/useAiGate.tsx
+       (new), src/ui/components/useFoodCapture.tsx, src/ui/kit/Icon.tsx,
+       src/ui/kit/SlideScreen.tsx (new), src/ui/kit/index.ts,
+       src/ui/screens/AccountScreen.tsx, src/ui/screens/GoalScreen.tsx,
+       src/ui/screens/PastGoalsScreen.tsx, src/ui/screens/TodayScreen.tsx,
+       package.json (added @capgo/capacitor-health,
+       @aparajita/capacitor-secure-storage, @capacitor/app)
+
+- BUG FIXES CARRIED OVER FROM ROUND 190: the Diary badge stuck on "No
+  goal set" for the newly-shipped maintain_weight goal type (badge logic
+  only checked lose/gain fields), and Past Goals' "Total days" showing a
+  bogus 3650 for maintain goals (no targetDate to diff against, fell
+  back to a 10-year sentinel). Both fixed in TodayScreen.tsx/
+  PastGoalsScreen.tsx by branching on isMaintainGoal() the same way the
+  rest of the app already does.
+- ACCOUNT: SegmentedControl REPLACED WITH FilterPills (sex, weight units,
+  weigh-in frequency in ProfileSheet/WeightUnitsCard/WeightCadenceCard),
+  matches the pattern Goal Setup already used, for visual consistency
+  across the app's two-and-three-option toggles.
+- TESTFLIGHT DISTRIBUTION SET UP: fixed two blockers (app icon had an
+  alpha channel, App Store Connect requires none, flattened to RGB;
+  capacitor.config.ts's appId didn't match the Xcode project's real
+  bundle ID, aligned to com.marcosilva86.nutritiongoal) and wrote
+  TESTFLIGHT.md, a full step-by-step runbook (team/cert setup, App Store
+  Connect app record, archive/upload, Export Compliance, Internal
+  Testing). Confirmed Internal Testing needs no Beta App Review and the
+  existing `npm run ios` / Xcode ▶ Run cable workflow is untouched and
+  stays exactly as fast, TestFlight is a separate, occasional channel,
+  not a replacement.
+- APPLE HEALTH (HEALTHKIT) INTEGRATION SHIPPED, real, on-device, no
+  backend, via @capgo/capacitor-health. Scope: weight (read into the same
+  weight history as manual entries, tagged source:'healthkit', never
+  overwrites a date already logged by hand) and activity/active-energy
+  (additive: syncs at most one Activity entry per day, tagged
+  source:'healthkit', refreshed in place as more of the day's data
+  lands, coexisting with any manual entries that day rather than
+  replacing them). Design went through several rounds of on-device
+  feedback and converged on: (1) sync runs quietly on app open/foreground
+  only, no continuous polling, plus on-demand from a synced day's own
+  row; (2) no historical backfill, sync is clamped to never reach
+  earlier than the moment Connect was actually tapped (connectedAt),
+  so connecting after already using the app manually for days doesn't
+  silently backfill weeks of data on top of existing entries; (3) a
+  synced Activity row opens a read-only view (SyncedActivitySheet, not
+  the normal edit form) with exactly two actions, an eye icon to
+  Hide/un-hide the entry from every calorie total while it stays visible
+  in Day's log with muted styling (ActivityEntry.hidden, a toggle, not a
+  delete, a hidden day is also skipped by future syncs so it doesn't
+  silently reappear), and a refresh icon to sync just that day on demand.
+  Root-caused and fixed an early undercount bug (254kcal shown vs. 514
+  actual): summing raw readSamples() client-side misses HealthKit's own
+  overlapping-source deduplication (iPhone + Watch + a workout app each
+  writing their own samples) and risked truncating before reaching
+  today's most recent data at the sample-count limit, switched to
+  Health.queryAggregated({bucket:'day', aggregation:'sum'}), which
+  matches the Health app's own numbers. Account gained a connect/
+  disconnect entry (now inside the Settings sub-view, see below) with a
+  live status dot + description; contextual "Connect Apple Health"
+  banners were added to Log Activity and Log Weight (HealthConnectBanner,
+  dismissible nudge when not connected, persistent non-dismissible
+  status line with relative last-sync time once connected, so connecting
+  has a visible ongoing result instead of a nudge just vanishing). The
+  one manual step: HealthKit's capability + entitlement has to be added
+  via Xcode's Signing & Capabilities UI (Apple provisions this against
+  the App ID, can't be done by hand-editing project files reliably);
+  documented in HEALTHKIT.md along with the exact Xcode steps.
+- BRING-YOUR-OWN CLAUDE API KEY (BYOK) FOR AI FOOD SCAN: Account >
+  Settings > "AI Food Scan" opens a full-height sheet (ApiKeySheet) where
+  a user pastes their own Anthropic API key, stored via
+  @aparajita/capacitor-secure-storage (iOS Keychain / Android Keystore,
+  not localStorage), with a masked (password-style) field with an eye
+  toggle to reveal it, and numbered in-app instructions for getting a key
+  from console.anthropic.com. When a personal key is set, lib/foodScan.ts
+  calls api.anthropic.com directly from the device (model claude-sonnet-5,
+  forced tool_use for structured ScannedFood[] output via Anthropic's
+  anthropic-dangerous-direct-browser-access header) instead of going
+  through the shared Vercel proxy, confirmed working end-to-end on a
+  real device with a live key. No key set falls back to the existing
+  shared proxy, unchanged for everyone who hasn't opted in.
+- AI-FEATURE CONNECTION GATE (useAiGate): per Marco's explicit ask,
+  replaced reactive "try the scan, show an error if it fails" handling
+  with an upfront check. Every AI-feature trigger (Camera, Photo,
+  Describe, Nutri-scan, and "Fix"/re-describe on an already-scanned item,
+  across the Day's-log basket's two internal copies, the shared Pantry
+  capture hook, and all three Pantry surfaces) now checks for a cached
+  personal key immediately on tap, before the camera/picker/describe
+  overlay ever opens. No key cached shows a short sheet ("Connect AI to
+  use this", View more, which jumps straight to the ApiKeySheet above,
+  or Cancel, which just closes) instead of proceeding. lib/apiKey.ts's
+  in-memory key cache is warmed once on app boot so this check is
+  synchronous. Reactive error handling (FoodScanError, toastScanError)
+  was kept as a second layer for failures the gate can't predict, an
+  invalid/rejected key, a network blip, or the shared proxy itself being
+  down, showing a clear message plus a tappable action into the same
+  key sheet, at every scan/describe/label-scan call site. This also
+  fixed a real bug Marco caught while testing: removing a saved key used
+  to silently keep working via the shared-proxy fallback; now the very
+  next AI action after removing a key hits the gate instead.
+- ACCOUNT RESTRUCTURED: Tracking and Settings are no longer shown inline
+  on the main Account view, they're reached via a small "Options"
+  section (two-row menu, Tracking/Settings) below Profile, each opening
+  its own full-screen sub-view that slides in from the right with a back
+  chevron (same treatment as Past goals), and now also responds to a
+  swipe-right gesture to go back. Developer stays nested inside the
+  Settings sub-view, not its own menu row, since it's a hidden
+  triple-tap-title reveal, not a normal entry point. SlideScreen/
+  SlideHeader were extracted out of PastGoalsScreen.tsx into
+  src/ui/kit/SlideScreen.tsx (a proper shared kit atom, not duplicated
+  per screen) and gained two new opt-in props used only by Tracking/
+  Settings: `onBack` (enables the swipe gesture, same 60px/mostly-
+  horizontal threshold Sheet's own OverlayLayer swipe uses) and `muted`
+  (matches Account's own grey bg-surface-muted page backdrop instead of
+  Past goals' white-sheet look), both additive, so Past goals' existing
+  behavior and appearance are unchanged.
+- TEXT/COPY POLISH: ApiKeySheet's "How to get a key" instructions bumped
+  to 16pt (bold title, regular body) for readability. Swept every line
+  of prose added across this entire round (comments and user-facing
+  copy) for em dashes per Marco's standing preference, replacing them
+  with plain punctuation, scoped precisely via diff against the
+  session's first commit so the codebase's own pre-existing writing
+  (which already used dashes as a long-standing house style) was left
+  untouched.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged, no
+  new automated tests this round; HealthKit/BYOK/gate logic was
+  verified manually/on-device only, see KNOWN GAPS).
 
 ROUND 190 — MAINTAIN-WEIGHT GOAL TYPE; GOAL-SETUP UI POLISH; KEYBOARD DONE-BAR ROOT CAUSE; NEW-FOOD/DESCRIBE FLOW FIXES; GOAL-FORK NAVIGATION (2026-07-07)
 Files: src/domain/types.ts, src/domain/goal.ts, src/domain/goal.test.ts,
@@ -855,42 +1053,6 @@ Files: src/ui/kit/useKeyboardDoneBar.tsx (renamed from useNumericDoneBar.tsx),
   param on GoalScreen's button; no new code paths needed. GoalForkScreen
   is now device-reviewed and confirmed working (moved from a LOW "built
   but not device-reviewed" gap to DONE).
-- tsc: clean. lint: clean. vitest: 51 passed, 8 skipped (unchanged).
-
-ROUND 180 — ACCOUNT SCREEN REDESIGN (2026-07-05)
-Files: src/ui/screens/AccountScreen.tsx, src/lib/devReveal.ts (new)
-- Merged Profile + Energy into one gauge-card layered component (white
-  profile card floats on a grey reveal; BMR — label, info icon, value +
-  "kcal / day" — lives directly on the grey area), matching the
-  Diary/Today reference pattern, now at 24px radius (rounded-sheet).
-  Added a Weight row (from currentWeightKg/weights repo). Whole card
-  opens Edit profile; "Edit" moved above the card as a 15pt accent-hover
-  text label (no background) instead of a button inside it.
-- Weight-units toggle moved out of the Edit-profile sheet into its own
-  live Tracking card (WeightUnitsCard) — edits repos.user directly, no
-  sheet needed. Edit-profile's Weight field now reuses the existing
-  WeightLogSheet (same one Today/Goal use — pre-fills from today's entry
-  or latest known weight, upserts by date) as a single tappable field
-  instead of a separate Log button.
-- Goal and Connections sections hidden, not deleted (SHOW_GOAL_SECTION /
-  SHOW_CONNECTIONS_SECTION consts) — Goal duplicated the Goal tab,
-  Connections (Withings) isn't needed yet. Data (export JSON) moved
-  under a new Developer section, hidden by default, revealed by
-  triple-tapping the "Account" title; persists via new
-  src/lib/devReveal.ts (localStorage), toggles off the same way.
-- Tracking/Settings cards (Weight units, Weigh-in frequency, Diary
-  macros, Theme/Haptics) restyled to match GoalScreen's own outline-card
-  pattern: rounded-card (16px), white fill, inset border-field hairline,
-  no drop shadow — vs. Profile's shadow-card-lg hero treatment. Card
-  titles bold/16pt(text-callout)/text-content. Selected weigh-in day
-  pill uses the shared segmented-active style (white + shadow +
-  accent-hover text) instead of a solid fill; its footer sentence spells
-  out full day names ("Mondays") instead of abbreviated + "s", at 15pt.
-  Diary macros row separators removed.
-- Section headings ("Profile"/"Tracking"/"Settings") given a bespoke
-  bold text-headline heading local to this screen (matching "Review your
-  goal" in GoalSetupScreen) — the shared SectionLabel atom used
-  everywhere else (Today/Goal/Pantry) is untouched.
 - tsc: clean. lint: clean. vitest: 51 passed, 8 skipped (unchanged).
 
 ================================================================

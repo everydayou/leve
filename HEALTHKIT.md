@@ -84,6 +84,16 @@ logic needs no further configuration.
 
 ## Notes
 
+- Activity sync uses `queryAggregated` (native per-day sum), not
+  `readSamples` summed by hand — HealthKit can hold multiple overlapping
+  raw active-energy samples (iPhone + Watch + a workout app each writing
+  their own), and only the native statistics engine resolves that the same
+  way the Health app's own "Active Calories" number does. Summing raw
+  samples client-side both misses that resolution and risked silently
+  truncating at the sample-count limit before reaching today's data.
+  Weight sync still uses `readSamples` deliberately — it's individual
+  point-in-time readings, not something to aggregate.
+
 - HealthKit only exists on a real device — the Simulator has no Health app,
   and the plugin correctly reports `available: false` there and in the web
   dev server / preview build, so the card just shows as unavailable rather

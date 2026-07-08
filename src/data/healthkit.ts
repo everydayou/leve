@@ -152,21 +152,26 @@ function createHealthKitService(repos: Repositories): HealthKitService {
 
   async function syncActivity(): Promise<number> {
     const startDate = effectiveSyncStart(SYNC_WINDOW_DAYS_ACTIVITY, readState().connectedAt);
-    const { samples } = await Health.readSamples({
+    // queryAggregated (not readSamples) is deliberate: HealthKit can hold
+    // multiple overlapping raw active-energy samples for the same minute
+    // (iPhone + Watch + a workout app all writing their own), and Apple's
+    // own Health app total already resolves that via its statistics engine
+    // when it shows "Active Calories." Summing raw samples ourselves doesn't
+    // get that resolution and can also silently truncate at the sample
+    // limit before reaching today — this asks HealthKit to do the correct
+    // per-day sum natively instead, which is what actually matches the
+    // number Health itself shows.
+    const { samples } = await Health.queryAggregated({
       dataType: 'calories', startDate, endDate: new Date().toISOString(),
-      limit: 1000, ascending: true,
+      bucket: 'day', aggregation: 'sum',
     });
-
-    const byDate = new Map<string, number>();
-    for (const sample of samples) {
-      const date = todayISO(new Date(sample.startDate));
-      byDate.set(date, (byDate.get(date) ?? 0) + sample.value);
-    }
 
     const ignored = new Set(readState().ignoredActivityDates);
 
     let daysSynced = 0;
-    for (const [date, totalCalories] of byDate) {
+    for (const sample of samples) {
+      const date = todayISO(new Date(sample.startDate));
+      const totalCalories = sample.value;
       if (ignored.has(date)) continue; // user explicitly dismissed this day
 
       // Additive: a manual entry on this date is a separate, independent

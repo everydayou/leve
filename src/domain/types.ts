@@ -222,6 +222,12 @@ export interface ActivityEntry {
    *  affordances the same way manual entries are — the sync just won't
    *  overwrite a day that already has a manual entry on it. */
   source?: ActivitySource;
+  /** Hides this entry from every calorie total (summarizeDay, gauges, week
+   *  strip) while keeping it visible in Day's log with muted styling — a
+   *  toggle, not a delete. Currently only surfaced for healthkit-sourced
+   *  entries (see SyncedActivitySheet); a hidden healthkit entry is also
+   *  skipped by future syncs so it doesn't silently come back. */
+  hidden?: boolean;
 }
 
 export interface WeightEntry {

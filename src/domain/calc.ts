@@ -227,7 +227,9 @@ export function summarizeDay(
 ): DaySummary {
   const consumed          = round(sum(foods.map((f) => effectiveNutrition(f, itemsById).calories)));
   const protein           = round(sum(foods.map((f) => effectiveNutrition(f, itemsById).protein)));
-  const activeCalories    = round(sum(activities.map((a) => a.activeCalories)));
+  // Hidden entries (e.g. a Health-synced day the user hid from counting)
+  // stay visible in Day's log but never contribute to any total.
+  const activeCalories    = round(sum(activities.filter((a) => !a.hidden).map((a) => a.activeCalories)));
   const digestionCalories = calcDigestionCalories(foods, itemsById);
   const totalBurn         = round(bmr + activeCalories + digestionCalories);
   return { consumed, protein, activeCalories, digestionCalories, totalBurn, deficit: round(totalBurn - consumed) };

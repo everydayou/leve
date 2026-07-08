@@ -176,14 +176,6 @@ export function AccountScreen() {
         </>
       )}
 
-      <SectionLabel>Connections</SectionLabel>
-      <HealthCard />
-      {SHOW_CONNECTIONS_SECTION && (
-        <div className="mt-2">
-          <WithingsCard />
-        </div>
-      )}
-
       <AccountSectionHeading>Tracking</AccountSectionHeading>
       <WeightUnitsCard user={user} />
       <div className="mt-2">
@@ -197,6 +189,14 @@ export function AccountScreen() {
 
       <AccountSectionHeading>Settings</AccountSectionHeading>
       <AppearanceCard />
+
+      <SectionLabel>Connections</SectionLabel>
+      <HealthCard />
+      {SHOW_CONNECTIONS_SECTION && (
+        <div className="mt-2">
+          <WithingsCard />
+        </div>
+      )}
 
       {showDeveloper && (
         <>
@@ -391,40 +391,26 @@ function AppearanceCard() {
   );
 }
 
+/** Connect/disconnect only — no "Sync now" here. Syncing is contextual now:
+ *  it happens automatically (app open/foreground) and, for a specific day,
+ *  from that day's synced Activity row in Day's log (SyncedActivitySheet). */
 function HealthCard() {
   // repos is a module-level singleton, so this memo only evaluates once.
   const svc = useMemo(() => getHealthKitService(repos), []);
   const [status, setStatus] = useState<HealthKitStatus | null>(null);
-  const [busy, setBusy] = useState<null | 'connect' | 'sync' | 'disconnect'>(null);
-  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState<null | 'connect' | 'disconnect'>(null);
 
   useEffect(() => { svc.getStatus().then(setStatus); }, []); // eslint-disable-line
 
-  function syncNote(weightAdded: number, activityDaysSynced: number, freshConnect: boolean): string {
-    if (weightAdded === 0 && activityDaysSynced === 0) return freshConnect ? 'Connected. Nothing new to import yet.' : 'Already up to date.';
-    const parts: string[] = [];
-    if (weightAdded > 0) parts.push(`${weightAdded} weigh-in${weightAdded === 1 ? '' : 's'}`);
-    if (activityDaysSynced > 0) parts.push(`${activityDaysSynced} day${activityDaysSynced === 1 ? '' : 's'} of activity`);
-    return `Synced ${parts.join(' and ')}.`;
-  }
-
   async function connect() {
-    setBusy('connect'); setNote(null);
+    setBusy('connect');
     await svc.connect();
-    const r = await svc.sync();
-    setStatus(r.status);
-    setNote(syncNote(r.weightAdded, r.activityDaysSynced, true));
-    setBusy(null);
-  }
-  async function sync() {
-    setBusy('sync'); setNote(null);
-    const r = await svc.sync();
-    setStatus(r.status);
-    setNote(syncNote(r.weightAdded, r.activityDaysSynced, false));
+    await svc.sync(); // initial import, no separate button/note needed for it
+    setStatus(await svc.getStatus());
     setBusy(null);
   }
   async function disconnect() {
-    setBusy('disconnect'); setNote(null);
+    setBusy('disconnect');
     setStatus(await svc.disconnect());
     setBusy(null);
   }
@@ -456,17 +442,11 @@ function HealthCard() {
           {busy === 'connect' ? 'Connecting…' : 'Connect Apple Health'}
         </Button>
       ) : (
-        <div className="mt-3 flex gap-2">
-          <Button size="sm" fullWidth={false} className="flex-1" onClick={sync} disabled={busy != null}>
-            {busy === 'sync' ? 'Syncing…' : 'Sync now'}
-          </Button>
-          <Button variant="outline" size="sm" fullWidth={false} onClick={disconnect} disabled={busy != null}>
-            Disconnect
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" className="mt-3" onClick={disconnect} disabled={busy != null}>
+          {busy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
+        </Button>
       ))}
 
-      {note && <p className="mt-2 text-label text-content-secondary">{note}</p>}
       {connected && (
         <p className="mt-2 text-label text-content-secondary">
           Never overwrites a day you've already logged by hand.

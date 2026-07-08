@@ -20,8 +20,10 @@
 //   exist that day (both are legitimate, separate line items; Day's log
 //   just sums everything, same as any two manual entries would). A
 //   healthkit entry is never editable inline (the number isn't yours to
-//   correct) — the only interaction is Ignore, which removes it for that
-//   day and records the date so future syncs leave it alone for good.
+//   correct) — the only interaction is Hide (ActivityEntry.hidden), a
+//   toggle rather than a delete: a hidden entry stays visible in Day's log
+//   with muted styling but is excluded from every total, and future syncs
+//   leave a hidden day's entry alone instead of reviving it.
 // - Nothing is written TO Health — leve is read-only against HealthKit today.
 //
 // PLATFORM SAFETY
@@ -62,11 +64,11 @@ export interface HealthKitService {
    *  Settings > Privacy & Security > Health > leve to fully revoke. */
   disconnect(): Promise<HealthKitStatus>;
   sync(): Promise<HealthKitSyncResult>;
-  /** Removes the healthkit-tagged Activity entry for `date` (if any) and
-   *  permanently excludes that date from future activity syncs — a one-way
-   *  action, same finality as deleting a manual entry. Manual entries on
-   *  that date, if any, are untouched. */
-  ignoreActivityDay(date: string): Promise<void>;
+  /** Toggles `hidden` on the healthkit-tagged Activity entry for `date` (a
+   *  no-op if there isn't one). Hidden entries stay in Day's log — they're
+   *  excluded from totals and from further syncing until un-hidden. Manual
+   *  entries on that date, if any, are untouched either way. */
+  setActivityHidden(date: string, hidden: boolean): Promise<void>;
 }
 
 // ── Local "opted in" + lastSyncAt bookkeeping ──────────────────────────────
@@ -76,8 +78,6 @@ const LS_KEY = 'nutri.healthkit.state';
 interface LocalState {
   connected: boolean;
   lastSyncAt: string | null;
-  /** Dates (YYYY-MM-DD) permanently excluded from activity sync via Ignore. */
-  ignoredActivityDates: string[];
   /** Date (YYYY-MM-DD) connect() was last called. Sync never reaches earlier
    *  than this — see "no historical backfill" note above syncWeight/syncActivity. */
   connectedAt: string | null;
@@ -91,12 +91,11 @@ function readState(): LocalState {
       return {
         connected: parsed.connected ?? false,
         lastSyncAt: parsed.lastSyncAt ?? null,
-        ignoredActivityDates: parsed.ignoredActivityDates ?? [],
         connectedAt: parsed.connectedAt ?? null,
       };
     }
   } catch { /* ignore */ }
-  return { connected: false, lastSyncAt: null, ignoredActivityDates: [], connectedAt: null };
+  return { connected: false, lastSyncAt: null, connectedAt: null };
 }
 function writeState(s: LocalState): void {
   try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch { /* ignore */ }
@@ -166,13 +165,10 @@ function createHealthKitService(repos: Repositories): HealthKitService {
       bucket: 'day', aggregation: 'sum',
     });
 
-    const ignored = new Set(readState().ignoredActivityDates);
-
     let daysSynced = 0;
     for (const sample of samples) {
       const date = todayISO(new Date(sample.startDate));
       const totalCalories = sample.value;
-      if (ignored.has(date)) continue; // user explicitly dismissed this day
 
       // Additive: a manual entry on this date is a separate, independent
       // line item and is never touched here — only the healthkit-tagged
@@ -180,6 +176,8 @@ function createHealthKitService(repos: Repositories): HealthKitService {
       const dayEntries = await repos.activities.byDate(date);
       const [existingSync, ...extraSyncs] = dayEntries.filter((e) => e.source === 'healthkit');
       for (const extra of extraSyncs) await repos.activities.remove(extra.id); // dedupe stray syncs
+
+      if (existingSync?.hidden) continue; // user hid this day — leave it alone
 
       // Only counts genuine writes, so the "synced N days" note stays
       // honest instead of counting every in-window day on every sync.
@@ -238,15 +236,11 @@ function createHealthKitService(repos: Repositories): HealthKitService {
       return { weightAdded, activityDaysSynced, status: await buildStatus() };
     },
 
-    async ignoreActivityDay(date: string) {
+    async setActivityHidden(date: string, hidden: boolean) {
       const dayEntries = await repos.activities.byDate(date);
-      for (const entry of dayEntries.filter((e) => e.source === 'healthkit')) {
-        await repos.activities.remove(entry.id);
-      }
-      const state = readState();
-      if (!state.ignoredActivityDates.includes(date)) {
-        writeState({ ...state, ignoredActivityDates: [...state.ignoredActivityDates, date] });
-      }
+      const entry = dayEntries.find((e) => e.source === 'healthkit');
+      if (!entry || !!entry.hidden === hidden) return;
+      await repos.activities.update({ ...entry, hidden });
     },
   };
 }

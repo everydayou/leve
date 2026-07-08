@@ -77,7 +77,7 @@ export function TodayScreen() {
         dayStates[d] = 'no-info';
       } else {
         const consumed   = foods.reduce((s, e) => s + (e.snapshot?.calories ?? 0), 0);
-        const actCals    = acts.reduce((s, a) => s + a.activeCalories, 0);
+        const actCals    = acts.filter((a) => !a.hidden).reduce((s, a) => s + a.activeCalories, 0);
         const digestion  = calcDigestionCalories(foods);
         const deficit    = (bmr + actCals + digestion) - consumed;
 
@@ -792,7 +792,7 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
   const carbs = day ? Math.round(day.foods.reduce((s, f) => s + effectiveNutrition(f, day.itemsById).carbs, 0)) : 0;
   const fat   = day ? Math.round(day.foods.reduce((s, f) => s + effectiveNutrition(f, day.itemsById).fat,   0)) : 0;
   const bmrIsEstimated = day?.bmrIsEstimated ?? false;
-  const actCals    = day?.activities.reduce((s, a) => s + a.activeCalories, 0) ?? 0;
+  const actCals    = day?.activities.filter((a) => !a.hidden).reduce((s, a) => s + a.activeCalories, 0) ?? 0;
   const hasGoal    = goal != null; // active goal exists (regardless of BMR); dailyTarget is 0 for maintain goals by design, so it can't be used as the goal-exists check
   const hasTarget  = hasGoal && totalBurn > 0; // has enough info for full numbers
   const budget     = totalBurn - dailyTarget;
@@ -1212,10 +1212,10 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
                           className={`flex w-full items-center justify-between px-4 py-2.5 text-left active:bg-surface-sunken${!isLast ? ' border-b border-border-subtle' : ''}`}
                         >
                           <span className="flex min-w-0 items-center gap-2">
-                            <Icon name={isSynced ? 'health' : 'activityIcon'} size={16} className="shrink-0 text-content-secondary" />
+                            <Icon name={isSynced ? (act.hidden ? 'eyeOff' : 'health') : 'activityIcon'} size={16} className="shrink-0 text-content-secondary" />
                             <span className="truncate text-subhead font-bold text-content">{act.name ?? 'Activity'}</span>
                           </span>
-                          <span className="shrink-0 text-subhead text-content">{gainGoal ? '−' : '+'}{act.activeCalories} kcal</span>
+                          <span className={`shrink-0 text-subhead ${act.hidden ? 'text-content-muted' : 'text-content'}`}>{gainGoal ? '−' : '+'}{act.activeCalories} kcal</span>
                         </button>
                       </li>
                     );
@@ -1630,50 +1630,83 @@ function EditActivitySheet({ entry, onClose, showToast }: {
 }
 
 /** Read-only view for a healthkit-synced Activity entry. The number isn't
- *  the user's to edit (it's Health's number, refreshed on every sync) — the
- *  only action is Ignore, which removes it and permanently excludes that
- *  date from future activity syncs. Logging something separately for the
- *  same day is still just the normal Log Activity flow (additive). */
-function SyncedActivitySheet({ entry, onClose, showToast }: {
+ *  the user's to edit (it's Health's number, refreshed on every sync) —
+ *  instead there's an eye icon to hide/un-hide it from totals (stays visible
+ *  in Day's log either way, just muted when hidden) and a refresh icon to
+ *  sync on demand. Logging something separately for the same day is still
+ *  just the normal Log Activity flow (additive, independent of this entry). */
+function SyncedActivitySheet({ entry: initialEntry, onClose, showToast }: {
   entry: ActivityEntry;
   onClose: () => void;
   showToast?: ShowToast;
 }) {
-  const [busy, setBusy] = useState(false);
+  const [entry, setEntry] = useState(initialEntry);
+  const [busy, setBusy] = useState<null | 'hide' | 'sync'>(null);
 
-  async function ignore() {
-    setBusy(true);
-    await getHealthKitService(repos).ignoreActivityDay(entry.date);
-    showToast?.("Won't sync this day again");
-    onClose();
+  async function refreshEntry() {
+    const dayEntries = await repos.activities.byDate(entry.date);
+    const fresh = dayEntries.find((e) => e.id === entry.id) ?? dayEntries.find((e) => e.source === 'healthkit');
+    if (fresh) setEntry(fresh);
   }
 
+  async function toggleHidden() {
+    setBusy('hide');
+    const nextHidden = !entry.hidden;
+    await getHealthKitService(repos).setActivityHidden(entry.date, nextHidden);
+    await refreshEntry();
+    showToast?.(nextHidden ? "Hidden — won't count toward today's total" : 'Counting toward today\'s total again');
+    setBusy(null);
+  }
+
+  async function syncNow() {
+    setBusy('sync');
+    await getHealthKitService(repos).sync();
+    await refreshEntry();
+    setBusy(null);
+  }
+
+  const iconBtn = 'flex h-9 w-9 items-center justify-center rounded-full border border-border-field bg-surface text-content active:opacity-60 disabled:opacity-50';
+
   return (
-    <Sheet
-      title={entry.name ?? 'Apple Health'}
-      onClose={onClose}
-      footer={
-        <Button size="lg" variant="destructive" onClick={() => void ignore()} disabled={busy}>
-          {busy ? 'Ignoring…' : 'Ignore'}
-        </Button>
-      }
-    >
+    <Sheet title={entry.name ?? 'Apple Health'} onClose={onClose}>
       <div className="space-y-4 pb-2">
-        <div className="flex items-center gap-3 rounded-card border border-border-subtle bg-surface-sunken px-4 py-3">
-          <Icon name="health" size={20} className="shrink-0 text-content-muted" />
-          <div className="min-w-0 flex-1">
-            <p className="text-subhead font-medium text-content">{entry.activeCalories} kcal</p>
-            <p className="text-caption text-content-secondary">Synced from Apple Health · {prettyDate(entry.date)}</p>
+        <div className="rounded-card border border-border-subtle bg-surface-sunken px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <Icon name={entry.hidden ? 'eyeOff' : 'health'} size={20} className="shrink-0 text-content-muted" />
+              <div className="min-w-0">
+                <p className={`text-subhead font-medium ${entry.hidden ? 'text-content-muted' : 'text-content'}`}>
+                  {entry.activeCalories} kcal
+                </p>
+                <p className="text-caption text-content-secondary">
+                  {entry.hidden ? 'Hidden · excluded from totals' : 'Synced from Apple Health'} · {prettyDate(entry.date)}
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                onClick={() => void toggleHidden()}
+                disabled={busy != null}
+                aria-label={entry.hidden ? 'Count toward totals again' : 'Hide from totals'}
+                className={iconBtn}
+              >
+                <Icon name={entry.hidden ? 'eyeOff' : 'eye'} size={16} strokeWidth={1.75} />
+              </button>
+              <button
+                onClick={() => void syncNow()}
+                disabled={busy != null}
+                aria-label="Sync now"
+                className={iconBtn}
+              >
+                <Icon name="refresh" size={16} strokeWidth={1.75} />
+              </button>
+            </div>
           </div>
         </div>
         <p className="text-subhead text-content-secondary">
           This number comes straight from Health and updates automatically — it
           isn't something to edit by hand. Want to log something else for this
           day too? Use Log Activity as usual; it'll sit alongside this entry.
-        </p>
-        <p className="text-caption text-content-muted">
-          Ignoring removes this entry and stops leve from syncing this specific
-          day again.
         </p>
       </div>
     </Sheet>

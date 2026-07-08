@@ -7,17 +7,22 @@ HealthKit is an on-device permission grant, not OAuth, so there's no backend
 to build first.
 
 **Where it shows up:**
-- **Account → Connections → Apple Health** — connect, force a sync, or
-  disconnect. The explicit, always-available entry point.
+- **Account → Settings → Connections → Apple Health** — connect or
+  disconnect only, no "Sync now" here. Syncing itself is contextual: it
+  happens automatically (app open/foreground) and, for one specific day,
+  from that day's row in Day's log.
 - **Log Activity / Log Weight** — a small dismissible banner offers to
   connect right there when Health is available and not yet connected
   (dismissible, never nags). Once connected, it switches to a persistent
   (non-dismissible) status line instead of disappearing entirely — "Apple
   Health connected · Synced 5m ago" — so connecting has a visible,
   ongoing result instead of the nudge just vanishing.
-- **Day's log** — a synced Activity row is visually tagged (a Health icon
-  instead of the usual activity icon) and opens a read-only view instead of
-  the normal edit form.
+- **Day's log** — a synced Activity row is visually tagged (a Health icon)
+  and opens a read-only view (`SyncedActivitySheet`) instead of the normal
+  edit form: the kcal value, plus two small icon buttons — an eye to
+  hide/un-hide the entry from totals, and a refresh icon to sync just this
+  view on demand. A hidden entry stays in Day's log with an eye-off icon
+  and a muted number instead of disappearing.
 
 **Scope (read-only):**
 - **Weight** — imported into the same weight history as manual entries,
@@ -33,8 +38,11 @@ to build first.
   separate line items; Day's log just sums everything, the same as any two
   manual entries would. A synced entry is never edited inline (tapping it
   opens a read-only view, not the manual edit form) — the only action is
-  **Ignore**, which removes it and permanently excludes that date from
-  future syncs, same finality as deleting a manual entry.
+  **Hide** (`ActivityEntry.hidden`, toggled via `setActivityHidden`), which
+  is a toggle, not a delete: the entry stays visible in Day's log with
+  muted styling but is excluded from every total (`summarizeDay` and every
+  other place that sums `activeCalories`), and future syncs skip a hidden
+  day instead of reviving it. Un-hiding is the same toggle in reverse.
 - **Sync cadence** — runs quietly once when the app launches and again
   each time it returns to the foreground (`AppShell.tsx`, via
   `@capacitor/app`'s `resume` event), plus on-demand via "Sync now" in
@@ -75,8 +83,8 @@ hand-editing project files reliably.
    regenerate the provisioning profile automatically (automatic signing is
    already on).
 4. First launch after that, tapping **Connect Apple Health** in Account →
-   Connections shows the real iOS permission sheet, listing Weight and
-   Active Energy as the two requested read types.
+   Settings → Connections shows the real iOS permission sheet, listing
+   Weight and Active Energy as the two requested read types.
 
 That's the only GUI step — the usage description
 (`NSHealthShareUsageDescription`) is already in `Info.plist`, and the sync

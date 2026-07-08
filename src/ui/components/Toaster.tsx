@@ -3,12 +3,20 @@ import { Icon } from '../kit';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type ShowToast = (message: string, undoFn?: () => Promise<void>) => void;
+export type ShowToast = (
+  message: string,
+  undoFn?: () => Promise<void>,
+  action?: { label: string; onClick: () => void },
+) => void;
 
 export interface ToastData {
   id: number;
   message: string;
   undoFn?: () => Promise<void>;
+  /** A second, non-undo action button (e.g. "Add key" jumping straight to
+   *  Settings → AI Food Scan from a scan-failure toast). Mutually distinct
+   *  from undoFn — a toast is expected to carry at most one of the two. */
+  action?: { label: string; onClick: () => void };
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -20,9 +28,9 @@ export function useToast() {
   const [toast, setToast] = useState<ToastData | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showToast: ShowToast = (message, undoFn) => {
+  const showToast: ShowToast = (message, undoFn, action) => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    setToast({ id: Date.now(), message, undoFn });
+    setToast({ id: Date.now(), message, undoFn, action });
     timerRef.current = setTimeout(() => setToast(null), AUTO_DISMISS_MS);
   };
 
@@ -101,6 +109,14 @@ function ToastBubble({ toast, onDismiss }: { toast: ToastData; onDismiss: () => 
           style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--color-accent)' }}
         >
           Undo
+        </button>
+      )}
+      {toast.action && (
+        <button
+          onClick={() => { toast.action?.onClick(); onDismiss(); }}
+          style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--color-accent)' }}
+        >
+          {toast.action.label}
         </button>
       )}
       <button

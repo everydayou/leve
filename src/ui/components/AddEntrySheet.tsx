@@ -12,7 +12,9 @@ import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { fmtDiaryDate } from '../../lib/date';
 import { downscaleImage, MAX_SCAN_PX } from '../../lib/image';
 import { captureFromCamera, captureFromLibrary, isNativeIOS } from '../../lib/camera';
-import { scanFood, describeFood, SCAN_ENABLED } from '../../lib/foodScan';
+import { scanFood, describeFood, SCAN_ENABLED, FoodScanError } from '../../lib/foodScan';
+import { toastScanError } from '../../lib/scanErrors';
+import { requestApiKeySheet } from '../../lib/apiKey';
 import { hapticLight } from '../../lib/haptics';
 import {
   SegmentedControl, Button, LabeledInput, NumberField, WheelPicker,
@@ -331,7 +333,7 @@ function FoodForm({
       setBasket((prev) => [...prev, ...newItems]);
       setPickerOpen(false);
     } catch (err) {
-      showToast?.(err instanceof Error ? err.message : 'Scan failed');
+      toastScanError(err, showToast, 'Scan failed');
     } finally {
       setAnalyzing(false);
     }
@@ -424,7 +426,7 @@ function FoodForm({
       // Label scan: no source photo added to the basket collage
       setServingModal({ item100, itemSrv, servingG });
     } catch (err) {
-      showToast?.(err instanceof Error ? err.message : 'Label scan failed');
+      toastScanError(err, showToast, 'Label scan failed');
     } finally {
       setAnalyzing(false);
     }
@@ -1315,6 +1317,7 @@ export function DescribeOverlay({
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [errorAction, setErrorAction] = useState<{ label: string; onClick: () => void } | null>(null);
   const hasText = text.trim().length > 0;
 
   // No sticky footer — Analyse button is inline below the textarea
@@ -1324,17 +1327,17 @@ export function DescribeOverlay({
     if (!hasText || loading) return;
     setLoading(true);
     setError('');
+    setErrorAction(null);
     try {
       await onAnalyze(text.trim());
       // onAnalyze closes the overlay on success
     } catch (err) {
-      const raw = err instanceof Error ? err.message : '';
-      const isNetworkErr = /load failed|network|fetch/i.test(raw);
-      setError(
-        isNetworkErr
-          ? 'Could not reach the AI service. Please check your connection and try again.'
-          : raw || 'Could not estimate nutrition. Try being more specific.',
-      );
+      if (err instanceof FoodScanError) {
+        setError(err.message);
+        setErrorAction({ label: err.actionLabel, onClick: requestApiKeySheet });
+      } else {
+        setError(err instanceof Error && err.message ? err.message : 'Could not estimate nutrition. Try being more specific.');
+      }
       setLoading(false);
     }
   }
@@ -1350,7 +1353,20 @@ export function DescribeOverlay({
         className="min-h-[130px] w-full resize-none rounded-[16px] bg-surface-sunken px-4 py-3.5 text-callout leading-relaxed text-content placeholder:text-content-muted outline-none focus:ring-2 focus:ring-accent/30"
         autoFocus={autoFocus}
       />
-      {error && <p className="text-caption text-danger">{error}</p>}
+      {error && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="text-caption text-danger">{error}</p>
+          {errorAction && (
+            <button
+              type="button"
+              onClick={errorAction.onClick}
+              className="text-caption font-semibold text-accent"
+            >
+              {errorAction.label}
+            </button>
+          )}
+        </div>
+      )}
       <p className="text-caption text-content-secondary">
         Describe what you ate and AI will estimate the nutrition.
       </p>
@@ -1857,7 +1873,7 @@ function LogEntryContent({
       setLocalPhotos((prev) => [...prev, imageDataUrl].slice(0, 4));
       setPickerOpen(false);
     } catch (err) {
-      showToast?.(err instanceof Error ? err.message : 'Scan failed');
+      toastScanError(err, showToast, 'Scan failed');
     } finally {
       setAnalyzing(false);
     }
@@ -1941,7 +1957,7 @@ function LogEntryContent({
       };
       setServingModal({ item100, itemSrv, servingG });
     } catch (err) {
-      showToast?.(err instanceof Error ? err.message : 'Label scan failed');
+      toastScanError(err, showToast, 'Label scan failed');
     } finally {
       setAnalyzing(false);
     }

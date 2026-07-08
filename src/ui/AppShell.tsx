@@ -3,11 +3,13 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { TabBar, type ActionType } from './components/TabBar';
 import { AddEntrySheet, type AddEntryTab } from './components/AddEntrySheet';
 import { Toaster, useToast, type ShowToast } from './components/Toaster';
+import { ApiKeySheet } from './components/ApiKeySheet';
 import { todayISO } from '../data/ids';
 import { PREVIEW, repos } from '../state/repos';
 import { runMealsMigrationIfNeeded } from '../data/mealsMigration';
 import { runDefaultPantrySeedIfNeeded } from '../data/defaultPantrySeed';
 import { getHealthKitService } from '../data/healthkit';
+import { onRequestApiKeySheet } from '../lib/apiKey';
 import { App as CapacitorApp } from '@capacitor/app';
 
 /** Shape shared with screens via the Outlet context. Today reads/sets the
@@ -35,6 +37,13 @@ export function AppShell() {
   // to THIS day, so you can log to past/future days, not only today.
   const [viewedDate, setViewedDate] = useState(todayISO());
   const { toast, showToast, dismissToast } = useToast();
+  const [apiKeySheetOpen, setApiKeySheetOpen] = useState(false);
+
+  // Global entry point for the bring-your-own-key sheet — any AI-feature
+  // call site (Day's-log basket, Pantry meal builder, DescribeOverlay) can
+  // trigger this via requestApiKeySheet() without needing it threaded
+  // through props/context. Single instance, mounted once here.
+  useEffect(() => onRequestApiKeySheet(() => setApiKeySheetOpen(true)), []);
 
   // One-time data migrations against the real (Dexie) store — round 123's
   // "Meals in Pantry" foundation, and round 179's default-Pantry seeding.
@@ -236,6 +245,7 @@ export function AppShell() {
           />
         )}
         <Toaster toast={toast} onDismiss={dismissToast} />
+        {apiKeySheetOpen && <ApiKeySheet onClose={() => setApiKeySheetOpen(false)} />}
       </div>
     </div>
   );

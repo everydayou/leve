@@ -22,6 +22,7 @@ import { newId } from '../../data/ids';
 import { downscaleImage, MAX_SCAN_PX } from '../../lib/image';
 import { captureFromCamera, captureFromLibrary, isNativeIOS } from '../../lib/camera';
 import { scanFood, describeFood, SCAN_ENABLED } from '../../lib/foodScan';
+import { toastScanError } from '../../lib/scanErrors';
 import { cleanScanName, scanResultToBasket } from './basketHelpers';
 import type { BasketItem } from './basketHelpers';
 import type { ShowToast } from './Toaster';
@@ -81,7 +82,7 @@ export function useFoodCapture({ showToast, onCaptured }: UseFoodCaptureOptions)
       );
       onCaptured(newItems, { id: sourceId, photo: imageDataUrl });
     } catch (err) {
-      showToast?.(err instanceof Error ? err.message : 'Scan failed');
+      toastScanError(err, showToast, 'Scan failed');
     } finally {
       setAnalyzing(false);
     }
@@ -160,7 +161,7 @@ export function useFoodCapture({ showToast, onCaptured }: UseFoodCaptureOptions)
       // Label/Nutri-scan: no source photo added to the caller's collage.
       setServingModal({ item100, itemSrv, servingG });
     } catch (err) {
-      showToast?.(err instanceof Error ? err.message : 'Label scan failed');
+      toastScanError(err, showToast, 'Label scan failed');
     } finally {
       setAnalyzing(false);
     }

@@ -32,27 +32,27 @@ const API_URL = (import.meta.env.VITE_FOOD_SCAN_API_URL as string | undefined) ?
  *  request, not whether the feature is offered in the first place. */
 export const SCAN_ENABLED = !!API_URL;
 
+/** Thrown whenever a scan/describe call couldn't reach a working AI
+ *  backend — shared proxy down/misconfigured, network failure, or the
+ *  user's own key being missing/invalid. Distinct from a plain Error (e.g.
+ *  "no food found in that photo", which is a normal result, not a backend
+ *  problem) so callers can offer a direct route into Settings → AI Food
+ *  Scan instead of just showing "scan failed". `actionLabel` is always the
+ *  toast/inline action button's label; it always opens the same
+ *  bring-your-own-key sheet (see lib/apiKey.ts's requestApiKeySheet). */
+export class FoodScanError extends Error {
+  actionLabel: string;
+  constructor(message: string, actionLabel = 'Add key') {
+    super(message);
+    this.name = 'FoodScanError';
+    this.actionLabel = actionLabel;
+  }
+}
+
 export async function scanFood(imageDataUrl: string): Promise<ScannedFood[]> {
   const userKey = await getApiKey();
   if (userKey) return scanFoodDirect(imageDataUrl, userKey);
-
-  if (!API_URL) {
-    throw new Error('Food scan not configured. Set VITE_FOOD_SCAN_API_URL in .env.local.');
-  }
-
-  const response = await fetch(`${API_URL}/api/analyze-food`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageDataUrl }),
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({})) as { error?: string };
-    throw new Error(err.error ?? `Scan failed (${response.status})`);
-  }
-
-  const data = await response.json() as { foods?: ScannedFood[] };
-  return Array.isArray(data.foods) ? data.foods : [];
+  return proxyRequest('/api/analyze-food', { imageDataUrl });
 }
 
 /** Estimate nutrition from a plain-text meal description.
@@ -60,19 +60,31 @@ export async function scanFood(imageDataUrl: string): Promise<ScannedFood[]> {
 export async function describeFood(description: string): Promise<ScannedFood[]> {
   const userKey = await getApiKey();
   if (userKey) return describeFoodDirect(description, userKey);
+  return proxyRequest('/api/describe-food', { description });
+}
 
+// ── Shared Vercel proxy (Marco's key) ─────────────────────────────────────
+
+async function proxyRequest(path: string, body: unknown): Promise<ScannedFood[]> {
   if (!API_URL) {
-    throw new Error('Food scan not configured. Set VITE_FOOD_SCAN_API_URL in .env.local.');
+    throw new FoodScanError("AI food scan isn't available right now. Connect your own Claude API key to use it.");
   }
-  const response = await fetch(`${API_URL}/api/describe-food`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ description }),
-  });
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new FoodScanError('Could not reach the AI scanner. Connect your own Claude API key to keep scanning.');
+  }
+
   if (!response.ok) {
-    const err = await response.json().catch(() => ({})) as { error?: string };
-    throw new Error(err.error ?? `Describe failed (${response.status})`);
+    throw new FoodScanError('The shared scan service is unavailable right now. Connect your own Claude API key to keep scanning.');
   }
+
   const data = await response.json() as { foods?: ScannedFood[] };
   return Array.isArray(data.foods) ? data.foods : [];
 }
@@ -116,29 +128,33 @@ const FOOD_TOOL = {
 };
 
 async function callAnthropicDirect(apiKey: string, userContent: unknown): Promise<ScannedFood[]> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
-      max_tokens: 1500,
-      tools: [FOOD_TOOL],
-      tool_choice: { type: 'tool', name: 'record_foods' },
-      messages: [{ role: 'user', content: userContent }],
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: 1500,
+        tools: [FOOD_TOOL],
+        tool_choice: { type: 'tool', name: 'record_foods' },
+        messages: [{ role: 'user', content: userContent }],
+      }),
+    });
+  } catch {
+    throw new FoodScanError('Could not reach Claude. Check your connection, or check your key in Settings → AI Food Scan.', 'Fix key');
+  }
 
   if (!response.ok) {
     if (response.status === 401) {
-      throw new Error("Your Claude API key was rejected. Check it in Settings → AI Food Scan.");
+      throw new FoodScanError('Your Claude API key was rejected. Check it in Settings → AI Food Scan.', 'Fix key');
     }
-    const err = await response.json().catch(() => ({})) as { error?: { message?: string } };
-    throw new Error(err.error?.message ?? `Scan failed (${response.status})`);
+    throw new FoodScanError("Claude couldn't process that. Check your API key or usage limits in Settings → AI Food Scan.", 'Fix key');
   }
 
   const data = await response.json() as { content?: Array<{ type: string; input?: { foods?: ScannedFood[] } }> };

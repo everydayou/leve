@@ -48,3 +48,23 @@ export async function clearApiKey(): Promise<void> {
   try { await SecureStorage.removeItem(STORE_KEY); } catch { /* already gone */ }
   cache = null;
 }
+
+// ── Global "open the API key sheet" trigger ────────────────────────────────
+// A plain DOM event instead of prop-drilling/context: AI-feature call sites
+// (Day's-log basket, Pantry meal builder, DescribeOverlay — several layers
+// deep in different component trees) all need a one-line way to jump
+// straight to Settings → AI Food Scan when a scan/describe call fails.
+// AppShell mounts a single ApiKeySheet instance and listens for this event,
+// same pattern as the existing 'devmenu:reset-tab' event in AppShell.tsx.
+const OPEN_EVENT = 'nutri:open-api-key-sheet';
+
+/** Opens the bring-your-own-key sheet from anywhere in the app. */
+export function requestApiKeySheet(): void {
+  window.dispatchEvent(new CustomEvent(OPEN_EVENT));
+}
+
+/** Subscribe to open requests (AppShell only). Returns an unsubscribe fn. */
+export function onRequestApiKeySheet(handler: () => void): () => void {
+  window.addEventListener(OPEN_EVENT, handler);
+  return () => window.removeEventListener(OPEN_EVENT, handler);
+}

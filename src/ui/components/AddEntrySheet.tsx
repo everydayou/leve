@@ -15,6 +15,7 @@ import { captureFromCamera, captureFromLibrary, isNativeIOS } from '../../lib/ca
 import { scanFood, describeFood, SCAN_ENABLED, FoodScanError } from '../../lib/foodScan';
 import { toastScanError } from '../../lib/scanErrors';
 import { requestApiKeySheet } from '../../lib/apiKey';
+import { useAiGate } from './useAiGate';
 import { hapticLight } from '../../lib/haptics';
 import {
   SegmentedControl, Button, LabeledInput, NumberField, WheelPicker,
@@ -197,6 +198,7 @@ function FoodForm({
   } | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
+  const { withAiGate, checkAiGate, gateSheet } = useAiGate();
 
   // ── Derived: which source photos to show in the collage ──────────────────
   const sourcePhotos = (() => {
@@ -340,6 +342,7 @@ function FoodForm({
   }
 
   async function handleCamera() {
+    if (!checkAiGate()) return;
     setPickerOpen(false);
     if (isNativeIOS()) {
       const photo = await captureFromCamera();
@@ -352,6 +355,7 @@ function FoodForm({
   }
 
   async function handlePhoto() {
+    if (!checkAiGate()) return;
     setPickerOpen(false);
     if (isNativeIOS()) {
       const photo = await captureFromLibrary();
@@ -792,6 +796,8 @@ function FoodForm({
           already does below. */}
       {basket.length === 1 && <ImageHero photos={sourcePhotos} />}
 
+      {gateSheet}
+
       {/* Serving size modal (Label scan — shown over the basket) */}
       {servingModal && (
         <ServingModal
@@ -820,8 +826,8 @@ function FoodForm({
           onPickMeal={addPantryMeal}
           onCamera={() => void handleCamera()}
           onPhoto={() => void handlePhoto()}
-          onDescribe={() => setActiveOverlay('describe')}
-          onLabel={() => { labelInputRef.current?.click(); }}
+          onDescribe={withAiGate(() => setActiveOverlay('describe'))}
+          onLabel={withAiGate(() => { labelInputRef.current?.click(); })}
           onManual={() => setActiveOverlay('manual')}
         />
       )}
@@ -852,8 +858,8 @@ function FoodForm({
                 onPickMeal={addPantryMeal}
                 onCamera={() => void handleCamera()}
                 onPhoto={() => void handlePhoto()}
-                onDescribe={() => { setPickerOpen(false); setActiveOverlay('describe'); }}
-                onLabel={() => { labelInputRef.current?.click(); }}
+                onDescribe={withAiGate(() => { setPickerOpen(false); setActiveOverlay('describe'); })}
+                onLabel={withAiGate(() => { labelInputRef.current?.click(); })}
                 onManual={() => { setPickerOpen(false); setActiveOverlay('manual'); }}
               />
             </AddAnotherSection>
@@ -924,7 +930,7 @@ function FoodForm({
                     onQtyChange={(qty) => updateQty(idx, qty)}
                     onRemove={() => removeItem(idx)}
                     onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-                    onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
+                    onCorrect={item.sourceId ? withAiGate(() => { setCorrectingIdx(idx); setActiveOverlay('describe'); }) : undefined}
                   />
                 ))}
               </div>
@@ -944,7 +950,7 @@ function FoodForm({
                 onQtyChange={(qty) => updateQty(idx, qty)}
                 onRemove={() => removeItem(idx)}
                 onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-                onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
+                onCorrect={item.sourceId ? withAiGate(() => { setCorrectingIdx(idx); setActiveOverlay('describe'); }) : undefined}
               />
             ))}
             <div style={{ marginTop: '12px' }}>{addAnotherAndLog}</div>
@@ -1745,6 +1751,7 @@ function LogEntryContent({
   const scanInputRef  = useRef<HTMLInputElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const { withAiGate, checkAiGate, gateSheet } = useAiGate();
 
   // ── Change detection — strip volatile IDs before comparing ─────────────
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -1880,6 +1887,7 @@ function LogEntryContent({
   }
 
   async function handleCamera() {
+    if (!checkAiGate()) return;
     setPickerOpen(false);
     if (isNativeIOS()) {
       const photo = await captureFromCamera();
@@ -1892,6 +1900,7 @@ function LogEntryContent({
   }
 
   async function handlePhoto() {
+    if (!checkAiGate()) return;
     setPickerOpen(false);
     if (isNativeIOS()) {
       const photo = await captureFromLibrary();
@@ -2275,8 +2284,8 @@ function LogEntryContent({
                   onPickMeal={addPantryMeal}
                   onCamera={() => void handleCamera()}
                   onPhoto={() => void handlePhoto()}
-                  onDescribe={() => setActiveOverlay('describe')}
-                  onLabel={() => labelInputRef.current?.click()}
+                  onDescribe={withAiGate(() => setActiveOverlay('describe'))}
+                  onLabel={withAiGate(() => labelInputRef.current?.click())}
                   onManual={() => setActiveOverlay('manual')}
                   bare
                 />
@@ -2369,7 +2378,7 @@ function LogEntryContent({
                         }
                       }}
                       onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-                      onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
+                      onCorrect={item.sourceId ? withAiGate(() => { setCorrectingIdx(idx); setActiveOverlay('describe'); }) : undefined}
                     />
                   ))}
                 </div>
@@ -2408,7 +2417,7 @@ function LogEntryContent({
                       }
                     }}
                     onEdit={() => { setEditingIdx(idx); setActiveOverlay('edit'); }}
-                    onCorrect={item.sourceId ? () => { setCorrectingIdx(idx); setActiveOverlay('describe'); } : undefined}
+                    onCorrect={item.sourceId ? withAiGate(() => { setCorrectingIdx(idx); setActiveOverlay('describe'); }) : undefined}
                   />
                 ))}
               </div>
@@ -2417,6 +2426,8 @@ function LogEntryContent({
           );
         })()}
       </div>
+
+      {gateSheet}
 
       {/* Label-scan serving modal */}
       {servingModal && (

@@ -23,6 +23,7 @@ import { downscaleImage, MAX_SCAN_PX } from '../../lib/image';
 import { captureFromCamera, captureFromLibrary, isNativeIOS } from '../../lib/camera';
 import { scanFood, describeFood, SCAN_ENABLED } from '../../lib/foodScan';
 import { toastScanError } from '../../lib/scanErrors';
+import { useAiGate } from './useAiGate';
 import { cleanScanName, scanResultToBasket } from './basketHelpers';
 import type { BasketItem } from './basketHelpers';
 import type { ShowToast } from './Toaster';
@@ -58,6 +59,7 @@ export function useFoodCapture({ showToast, onCaptured }: UseFoodCaptureOptions)
   const [servingModal, setServingModal] = useState<ServingChoice | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
+  const { withAiGate, checkAiGate, gateSheet } = useAiGate();
 
   async function runScan(imageDataUrl: string, label = 'Analysing your meal…') {
     setAnalyzeLabel(label);
@@ -216,11 +218,29 @@ export function useFoodCapture({ showToast, onCaptured }: UseFoodCaptureOptions)
     </>
   );
 
+  // Deliberately not built with withAiGate(handleCamera) here (a HOC-style
+  // wrap) — eslint-plugin-react-hooks' ref-safety check can't prove a
+  // generic wrapper won't invoke a ref-touching function synchronously
+  // during render when it's passed in as a plain argument, and flags it.
+  // Manual inline wrapping keeps the exact same behaviour without tripping
+  // that check: the ref access stays inside a plain function value, never
+  // passed as an argument to another function.
+  function gatedHandleCamera() { if (checkAiGate()) void handleCamera(); }
+  function gatedHandlePhoto() { if (checkAiGate()) void handlePhoto(); }
+  function gatedOpenLabelPicker() { if (checkAiGate()) labelInputRef.current?.click(); }
+
   return {
     analyzing, analyzeLabel, servingModal,
-    handleCamera, handlePhoto, handleDescribeAnalyze, handleLabelScan,
+    handleCamera: gatedHandleCamera, handlePhoto: gatedHandlePhoto,
+    handleDescribeAnalyze, handleLabelScan,
     resolveServingModal, closeServingModal,
-    openLabelPicker: () => labelInputRef.current?.click(),
+    openLabelPicker: gatedOpenLabelPicker,
+    /** Exposed so callers can gate their OWN AI-feature triggers the same
+     *  way — e.g. wrapping their local "open the Describe overlay" handler,
+     *  which lives outside this hook (each Pantry surface owns its own
+     *  overlay state). */
+    withAiGate,
     hiddenInputs,
+    aiGateSheet: gateSheet,
   };
 }

@@ -182,6 +182,7 @@ function PantryNewFoodBody({
   return (
     <>
       {capture.hiddenInputs}
+      {capture.aiGateSheet}
       {capture.servingModal && (
         <ServingModal
           name={capture.servingModal.item100.name}
@@ -207,7 +208,7 @@ function PantryNewFoodBody({
             onManual={onManual}
             onCamera={() => void capture.handleCamera()}
             onPhoto={() => void capture.handlePhoto()}
-            onDescribe={() => setDescribing(true)}
+            onDescribe={capture.withAiGate(() => setDescribing(true))}
             onLabel={() => capture.openLabelPicker()}
           />
           <div className="h-4" aria-hidden="true" />

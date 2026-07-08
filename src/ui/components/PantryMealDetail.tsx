@@ -526,6 +526,7 @@ function PantryMealDetailContent({
     <>
       <div className="space-y-4">
         {capture.hiddenInputs}
+        {capture.aiGateSheet}
         {capture.servingModal && (
           <ServingModal
             name={capture.servingModal.item100.name}
@@ -592,7 +593,7 @@ function PantryMealDetailContent({
                     servingLabel={servingLabelFor(item, mi.quantity)}
                     onEdit={() => { setEditingItemId(item.id); setActiveOverlay('edit'); }}
                     onRemove={meal.items.length > 1 ? () => void handleRemoveItem(mi.id) : undefined}
-                    onCorrect={scannedItemIds.has(item.id) ? () => { setCorrectingItemId(item.id); setActiveOverlay('describe-correct'); } : undefined}
+                    onCorrect={scannedItemIds.has(item.id) ? capture.withAiGate(() => { setCorrectingItemId(item.id); setActiveOverlay('describe-correct'); }) : undefined}
                   />
                 );
               })}
@@ -612,7 +613,7 @@ function PantryMealDetailContent({
                   onPantry={() => { setAddSectionOpen(false); setActiveOverlay('add-pantry'); }}
                   onCamera={() => { setAddSectionOpen(false); void capture.handleCamera(); }}
                   onPhoto={() => { setAddSectionOpen(false); void capture.handlePhoto(); }}
-                  onDescribe={() => { setAddSectionOpen(false); setActiveOverlay('describe'); }}
+                  onDescribe={capture.withAiGate(() => { setAddSectionOpen(false); setActiveOverlay('describe'); })}
                   onLabel={() => { setAddSectionOpen(false); capture.openLabelPicker(); }}
                   onManual={() => { setAddSectionOpen(false); setActiveOverlay('add-manual'); }}
                 />

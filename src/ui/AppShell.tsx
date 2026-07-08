@@ -9,7 +9,7 @@ import { PREVIEW, repos } from '../state/repos';
 import { runMealsMigrationIfNeeded } from '../data/mealsMigration';
 import { runDefaultPantrySeedIfNeeded } from '../data/defaultPantrySeed';
 import { getHealthKitService } from '../data/healthkit';
-import { onRequestApiKeySheet } from '../lib/apiKey';
+import { onRequestApiKeySheet, getApiKey } from '../lib/apiKey';
 import { App as CapacitorApp } from '@capacitor/app';
 
 /** Shape shared with screens via the Outlet context. Today reads/sets the
@@ -44,6 +44,12 @@ export function AppShell() {
   // trigger this via requestApiKeySheet() without needing it threaded
   // through props/context. Single instance, mounted once here.
   useEffect(() => onRequestApiKeySheet(() => setApiKeySheetOpen(true)), []);
+
+  // Warm lib/apiKey.ts's in-memory cache on boot — useAiGate's tap-time
+  // check (getCachedApiKey) needs to be synchronous, so this makes sure the
+  // one-time Keychain read has already resolved by the time any AI-feature
+  // button is tapped, rather than racing it.
+  useEffect(() => { void getApiKey(); }, []);
 
   // One-time data migrations against the real (Dexie) store — round 123's
   // "Meals in Pantry" foundation, and round 179's default-Pantry seeding.

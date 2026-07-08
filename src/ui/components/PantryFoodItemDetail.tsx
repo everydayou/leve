@@ -424,6 +424,7 @@ function PantryFoodItemDetailContent({
     <>
       <div className="space-y-4 pb-2">
         {capture.hiddenInputs}
+        {capture.aiGateSheet}
         {capture.servingModal && (
           <ServingModal
             name={capture.servingModal.item100.name}
@@ -444,7 +445,7 @@ function PantryFoodItemDetailContent({
             nutrition={nutrition}
             servingLabel={servingLabelFor(item)}
             onEdit={() => setActiveOverlay('edit')}
-            onCorrect={justCreated ? () => setActiveOverlay('describe-correct') : undefined}
+            onCorrect={justCreated ? capture.withAiGate(() => setActiveOverlay('describe-correct')) : undefined}
           />
         </div>
 
@@ -462,7 +463,7 @@ function PantryFoodItemDetailContent({
             onPantry={() => { setMealSectionOpen(false); setActiveOverlay('add-pantry'); }}
             onCamera={() => { setMealSectionOpen(false); void capture.handleCamera(); }}
             onPhoto={() => { setMealSectionOpen(false); void capture.handlePhoto(); }}
-            onDescribe={() => { setMealSectionOpen(false); setActiveOverlay('describe'); }}
+            onDescribe={capture.withAiGate(() => { setMealSectionOpen(false); setActiveOverlay('describe'); })}
             onLabel={() => { setMealSectionOpen(false); capture.openLabelPicker(); }}
             onManual={() => { setMealSectionOpen(false); setActiveOverlay('add-manual'); }}
           />

@@ -230,7 +230,17 @@ KEY PATTERNS:
   api.anthropic.com directly from the device (model: claude-sonnet-5,
   forced tool_use for structured output) instead of the shared Vercel
   proxy — bypasses food-scan-api entirely, so no changes needed on that
-  separate Vercel project. Falls back to the proxy when no key is set.
+  separate Vercel project.
+- useAiGate (src/ui/components/useAiGate.tsx): every AI-feature trigger
+  (Camera/Photo/Describe/Nutri-scan, incl. "Fix"/re-describe) is gated on
+  tap — no personal key cached = a short "Connect AI to use this" sheet
+  (View more -> ApiKeySheet, or Cancel) instead of proceeding, checked
+  BEFORE opening the camera/picker/describe overlay at all. This means the
+  shared Vercel proxy fallback in lib/foodScan.ts is effectively
+  unreachable from normal UI flow now (every entry point requires a key
+  first) — kept as defense-in-depth, not deleted. lib/apiKey.ts's in-memory
+  key cache is warmed once on boot (AppShell) so the gate's tap-time check
+  is synchronous.
 
 ENV NOTE: Cowork Linux sandbox can't run rollup native binary. After
 changes, on the Mac: `npm install` → `npm test` → `npm run build` →

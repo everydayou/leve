@@ -10,8 +10,11 @@ to build first.
 - **Account → Connections → Apple Health** — connect, force a sync, or
   disconnect. The explicit, always-available entry point.
 - **Log Activity / Log Weight** — a small dismissible banner offers to
-  connect right there, only shown when Health is available and not yet
-  connected (never once you're connected, never if previously dismissed).
+  connect right there when Health is available and not yet connected
+  (dismissible, never nags). Once connected, it switches to a persistent
+  (non-dismissible) status line instead of disappearing entirely — "Apple
+  Health connected · Synced 5m ago" — so connecting has a visible,
+  ongoing result instead of the nudge just vanishing.
 - **Day's log** — a synced Activity row is visually tagged (a Health icon
   instead of the usual activity icon) and opens a read-only view instead of
   the normal edit form.
@@ -36,6 +39,15 @@ to build first.
   each time it returns to the foreground (`AppShell.tsx`, via
   `@capacitor/app`'s `resume` event), plus on-demand via "Sync now" in
   Account. No continuous polling.
+- **No historical backfill** — sync never reaches further back than the
+  moment you actually hit Connect (`connectedAt`, reset on every connect
+  including a reconnect), even if that's more recent than the normal
+  30/14-day rolling window. Otherwise connecting after already having used
+  leve manually for a while would quietly backfill weeks of Health data
+  behind your back — harmless for weight (already protected by the
+  skip-if-any-entry rule) but a real double-counting risk for the additive
+  Activity sync. Connections made before this existed self-heal to "today"
+  on their next sync rather than falling back to an unclamped backfill.
 - Nothing is written **to** Health — leve only reads.
 
 Everything lives behind one seam: `src/data/healthkit.ts` (the

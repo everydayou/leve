@@ -78,6 +78,9 @@ interface LocalState {
   lastSyncAt: string | null;
   /** Dates (YYYY-MM-DD) permanently excluded from activity sync via Ignore. */
   ignoredActivityDates: string[];
+  /** Date (YYYY-MM-DD) connect() was last called. Sync never reaches earlier
+   *  than this — see "no historical backfill" note above syncWeight/syncActivity. */
+  connectedAt: string | null;
 }
 
 function readState(): LocalState {
@@ -89,10 +92,11 @@ function readState(): LocalState {
         connected: parsed.connected ?? false,
         lastSyncAt: parsed.lastSyncAt ?? null,
         ignoredActivityDates: parsed.ignoredActivityDates ?? [],
+        connectedAt: parsed.connectedAt ?? null,
       };
     }
   } catch { /* ignore */ }
-  return { connected: false, lastSyncAt: null, ignoredActivityDates: [] };
+  return { connected: false, lastSyncAt: null, ignoredActivityDates: [], connectedAt: null };
 }
 function writeState(s: LocalState): void {
   try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch { /* ignore */ }
@@ -101,6 +105,20 @@ function writeState(s: LocalState): void {
 const SYNC_WINDOW_DAYS_WEIGHT = 30;
 const SYNC_WINDOW_DAYS_ACTIVITY = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// No historical backfill: sync never reaches further back than the moment
+// the user actually connected, even if that's more recent than the normal
+// rolling window. Without this, connecting Health after already having used
+// leve manually for a while would backfill weeks of Health data behind your
+// back, colliding with days you'd already logged by hand yourself (weight
+// is protected either way by the skip-if-any-entry rule, but Activity is
+// additive, so an un-clamped backfill would double-count real activity you
+// already logged manually before ever connecting Health).
+function effectiveSyncStart(windowDays: number, connectedAt: string | null): string {
+  const windowStart = Date.now() - windowDays * DAY_MS;
+  const connectedAtStart = connectedAt ? new Date(connectedAt + 'T00:00:00').getTime() : 0;
+  return new Date(Math.max(windowStart, connectedAtStart)).toISOString();
+}
 
 function createHealthKitService(repos: Repositories): HealthKitService {
   async function buildStatus(): Promise<HealthKitStatus> {
@@ -113,7 +131,7 @@ function createHealthKitService(repos: Repositories): HealthKitService {
   }
 
   async function syncWeight(): Promise<number> {
-    const startDate = new Date(Date.now() - SYNC_WINDOW_DAYS_WEIGHT * DAY_MS).toISOString();
+    const startDate = effectiveSyncStart(SYNC_WINDOW_DAYS_WEIGHT, readState().connectedAt);
     const { samples } = await Health.readSamples({
       dataType: 'weight', startDate, endDate: new Date().toISOString(),
       limit: 200, ascending: true,
@@ -133,7 +151,7 @@ function createHealthKitService(repos: Repositories): HealthKitService {
   }
 
   async function syncActivity(): Promise<number> {
-    const startDate = new Date(Date.now() - SYNC_WINDOW_DAYS_ACTIVITY * DAY_MS).toISOString();
+    const startDate = effectiveSyncStart(SYNC_WINDOW_DAYS_ACTIVITY, readState().connectedAt);
     const { samples } = await Health.readSamples({
       dataType: 'calories', startDate, endDate: new Date().toISOString(),
       limit: 1000, ascending: true,
@@ -186,7 +204,9 @@ function createHealthKitService(repos: Repositories): HealthKitService {
       await Health.requestAuthorization({ read: ['weight', 'calories'] });
       // HealthKit deliberately never confirms read grants (privacy-preserving
       // by design) — proceed optimistically; a denied read just syncs 0 rows.
-      writeState({ ...readState(), connected: true });
+      // connectedAt resets to today on every connect (including a reconnect
+      // after disconnecting) — sync only ever looks forward from here.
+      writeState({ ...readState(), connected: true, connectedAt: todayISO() });
       return buildStatus();
     },
 
@@ -201,6 +221,12 @@ function createHealthKitService(repos: Repositories): HealthKitService {
       const status = await buildStatus();
       if (!status.available || !status.connected) {
         return { weightAdded: 0, activityDaysSynced: 0, status };
+      }
+      // Self-heal: a connection made before connectedAt existed (or any
+      // corrupted/cleared state) gets today as its floor rather than quietly
+      // falling back to an unclamped backfill.
+      if (!readState().connectedAt) {
+        writeState({ ...readState(), connectedAt: todayISO() });
       }
       const [weightAdded, activityDaysSynced] = await Promise.all([syncWeight(), syncActivity()]);
       writeState({ ...readState(), connected: true, lastSyncAt: new Date().toISOString() });

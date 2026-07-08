@@ -2715,7 +2715,8 @@ function ActivityForm({ date, onDone, showToast }: {
     <div className="space-y-4">
       <HealthConnectBanner
         dismissKey="ngt-health-banner-dismissed-activity"
-        message="Import activity calories automatically instead of logging them by hand."
+        pendingMessage="Import activity calories automatically instead of logging them by hand."
+        connectedMessage="Today's activity calories import automatically."
       />
       <div className="flex justify-center">
         <SegmentedControl<ActivityMode>

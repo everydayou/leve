@@ -74,7 +74,8 @@ export function WeightLogSheet({ date, onClose }: { date: string; onClose: () =>
       <div className="space-y-3 pb-2">
         <HealthConnectBanner
           dismissKey="ngt-health-banner-dismissed-weight"
-          message="Import weigh-ins automatically instead of logging them by hand."
+          pendingMessage="Import weigh-ins automatically instead of logging them by hand."
+          connectedMessage="New weigh-ins import automatically."
         />
         <WheelPicker
           label={`Weight (${units})`}

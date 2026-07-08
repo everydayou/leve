@@ -265,7 +265,15 @@ function SettingsSubView({ showDeveloper, onClose }: { showDeveloper: boolean; o
           <>
             <SectionLabel>Developer</SectionLabel>
             <Card padded={false} className="overflow-hidden">
-              <ListRow title="Export all data (JSON)" chevron onClick={() => exportAsJson(repos)} />
+              <ListRow
+                title="Export all data (JSON)"
+                chevron
+                onClick={() => {
+                  exportAsJson(repos).catch((err) => {
+                    console.warn('Export failed', err);
+                  });
+                }}
+              />
             </Card>
             <div className="mt-2">
               <Card padded={false} className="p-4">

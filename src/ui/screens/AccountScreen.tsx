@@ -252,8 +252,8 @@ function ProfileSheet({ user, currentWeightKg: weightKg, onClose }: { user: User
           <div>
             <span className="text-subhead font-normal text-content-secondary">Sex</span>
             <div className="mt-1">
-              <SegmentedControl<Sex>
-                value={(sex ?? '') as Sex}
+              <FilterPills<Sex>
+                value={sex ?? null}
                 onChange={setSex}
                 options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]}
               />
@@ -471,7 +471,7 @@ function WeightUnitsCard({ user }: { user: User }) {
   return (
     <OutlineCard>
       <p className="mb-2 text-callout font-bold text-content">Weight units</p>
-      <SegmentedControl<Units>
+      <FilterPills<Units>
         value={units}
         onChange={save}
         options={[{ value: 'kg', label: 'Kg' }, { value: 'lbs', label: 'Lbs' }]}
@@ -504,7 +504,7 @@ function WeightCadenceCard({ user }: { user: User }) {
   return (
     <OutlineCard>
       <p className="mb-2 text-callout font-bold text-content">Weigh-in frequency</p>
-      <SegmentedControl<'daily' | 'weekly'>
+      <FilterPills<'daily' | 'weekly'>
         value={cadence}
         onChange={saveCadence}
         options={[{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }]}

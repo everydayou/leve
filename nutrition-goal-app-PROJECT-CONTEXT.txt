@@ -2,16 +2,13 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-08, Round 191 (TestFlight distribution set up;
-Apple Health integration shipped for weight + activity, real on-device
-sync via @capgo/capacitor-health, no backend; bring-your-own Claude API
-key added for AI food scan, stored in iOS Keychain, calls Anthropic
-directly when set; every AI-feature trigger now gated with an upfront
-"Connect AI to use this" check instead of reactive error handling;
-Account's Tracking and Settings moved into their own full-screen
-sub-views under a new Options menu, with swipe-back and a shared muted
-background)
-Full change history: see CHANGELOG.txt (rounds 1-191).
+Last updated: 2026-07-08, Round 192 (fixed Export all data (JSON) doing
+nothing on iOS, replaced with a native Filesystem + Share flow; fixed
+the first real TestFlight upload failing on a missing
+NSHealthUpdateUsageDescription purpose string; fixed the app's Xcode
+target still reporting the old "nutri" display name instead of "leve";
+first TestFlight build successfully processing in App Store Connect)
+Full change history: see CHANGELOG.txt (rounds 1-192).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -121,10 +118,10 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 191, 2026-07-08)
+7. CURRENT STATUS (as of round 192, 2026-07-08)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only.
-Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-191)
+Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-192)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
 - THREE GOAL TYPES NOW SHIPPED (round 190): maintain_weight joins
@@ -204,6 +201,19 @@ and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
   archive-and-upload runbook. The existing cable-run `npm run ios` /
   Xcode ▶ Run workflow is unchanged and stays the fast day-to-day path;
   TestFlight is a separate, occasional channel.
+- FIRST TESTFLIGHT UPLOAD SHIPPED (round 192): the first real upload
+  attempt was rejected by Apple's automated Info.plist scan for a
+  missing NSHealthUpdateUsageDescription purpose string (required
+  because the Health plugin links write-capable HealthKit APIs even
+  though leve's own code never writes to Health); added the string and
+  fixed a stale "nutri" display name left in the Xcode target's build
+  settings from before the app was renamed to leve. Second upload
+  attempt cleared processing successfully.
+- EXPORT ALL DATA (JSON) FIXED ON iOS (round 192): the Developer-section
+  export used a browser-style file-download trigger that silently did
+  nothing inside the app's iOS webview; rewritten to use
+  @capacitor/filesystem + @capacitor/share so it opens the native share
+  sheet on device, confirmed working.
 - SegmentedControl replaced with FilterPills for Account's sex/weight
   units/weigh-in frequency toggles (round 191), matching the pattern
   Goal Setup already used.
@@ -421,6 +431,19 @@ DONE (r191):
 - ✓ MAINTAIN-GOAL BADGE/TOTAL-DAYS BUGS FIXED (round 191): Diary badge
   and Past Goals' "Total days" now branch on isMaintainGoal() instead of
   assuming lose/gain fields exist.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped.
+
+DONE (r192):
+- ✓ FIRST TESTFLIGHT UPLOAD SHIPPED (round 192): fixed a missing
+  NSHealthUpdateUsageDescription purpose string (Apple's automated
+  Info.plist scan requires it because the Health plugin links write-
+  capable HealthKit APIs, even though leve's own code never writes) and
+  a stale "nutri" display name left in the Xcode target's build
+  settings. Second upload attempt processed successfully.
+- ✓ EXPORT ALL DATA (JSON) FIXED ON iOS (round 192): replaced a
+  browser-only download trigger (silent no-op inside the app's webview)
+  with @capacitor/filesystem + @capacitor/share, native iOS share
+  sheet, confirmed working on device.
 - tsc: clean. lint: clean. vitest: 57 passed, 8 skipped.
 
 DONE (r190):
@@ -663,6 +686,53 @@ layouts, per-piece measurement types, time-of-day food suggestions.
 ----------------------------------------------------------------
 RECENT ROUNDS (3 most recent, older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
+
+================================================================
+ROUND 192: TESTFLIGHT UPLOAD FIX; EXPORT-JSON iOS FIX; STALE APP NAME (2026-07-08)
+================================================================
+Files: src/data/exportJson.ts, src/ui/screens/AccountScreen.tsx,
+       ios/App/App/Info.plist, ios/App/App.xcodeproj/project.pbxproj,
+       HEALTHKIT.md, package.json (added @capacitor/filesystem,
+       @capacitor/share)
+
+- EXPORT ALL DATA (JSON) FIXED ON iOS: Account > Developer > "Export all
+  data (JSON)" did nothing when tapped on device. Root cause: it used a
+  browser-style <a download> click trigger, which is a no-op inside the
+  app's iOS webview (no Downloads folder, no default handler for it
+  there); it only ever worked in a desktop browser during web dev.
+  Rewrote exportJson.ts to use @capacitor/filesystem (write the JSON to
+  the app's cache dir) plus @capacitor/share (open the native iOS share
+  sheet) on native platforms, so the export now surfaces Save to Files,
+  AirDrop, etc. The plain browser download path is kept as a fallback
+  for web dev. AccountScreen's onClick now catches/logs a rejected
+  promise instead of letting it fail silently. Confirmed working on
+  device.
+- TESTFLIGHT UPLOAD FAILURE FIXED: first upload attempt was rejected by
+  Apple's automated Info.plist scan with "Missing purpose string,
+  NSHealthUpdateUsageDescription". leve's own code only ever requests
+  read access to Health (weight, calories), never write, but the
+  @capgo/capacitor-health plugin links HealthKit's write-capable APIs
+  regardless, and Apple's static binary scan requires a purpose string
+  for any linked API, not just the ones actually called. Added
+  NSHealthUpdateUsageDescription to Info.plist stating leve does not
+  write to Health. HEALTHKIT.md updated to note both usage strings are
+  required and why. Hit one snag getting this onto the device: Xcode's
+  Info tab had reordered (not changed) the existing keys in the local
+  Info.plist, which blocked `git pull` until the local copy was
+  discarded via `git checkout --`, since git won't silently overwrite
+  uncommitted local changes even when they are purely cosmetic. Second
+  upload attempt cleared the check and is now Processing in App Store
+  Connect.
+- STALE APP DISPLAY NAME FIXED: the Xcode target's
+  INFOPLIST_KEY_CFBundleDisplayName build setting (in
+  project.pbxproj, both Debug and Release configs) still read "nutri"
+  from before the app was renamed to leve, overriding Info.plist's own
+  already-correct CFBundleDisplayName. Updated both to "leve".
+- App Category (Healthcare & Fitness) was set directly in App Store
+  Connect's web dashboard, unrelated to any file in this repo, no code
+  change needed.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
 
 ================================================================
 ROUND 191: TESTFLIGHT DISTRIBUTION; APPLE HEALTH INTEGRATION; BRING-YOUR-OWN CLAUDE KEY + AI CONNECTION GATE; ACCOUNT SUB-VIEWS (2026-07-08)
@@ -934,126 +1004,6 @@ Files: src/domain/types.ts, src/domain/goal.ts, src/domain/goal.test.ts,
 - tsc: clean. lint: clean. vitest: 57 passed (6 new), 8 skipped.
   `npm run build` verified clean after every sub-batch this round.
 
-
-ROUND 181 — KEYBOARD/UX POLISH BATCH: DONE BAR, CARB CAP, GOAL ICONS, INFO CARD, STATUS-BAR FADE, SHEET SHADOW FIXES, GOAL FORK ENTRY (2026-07-06)
-Files: src/ui/kit/useKeyboardDoneBar.tsx (renamed from useNumericDoneBar.tsx),
-       src/ui/kit/LabeledInput.tsx, src/ui/kit/NumberField.tsx,
-       src/ui/kit/Field.tsx, src/ui/screens/PantryScreen.tsx,
-       src/domain/goal.ts, src/ui/kit/Icon.tsx, src/ui/screens/GoalScreen.tsx,
-       src/ui/screens/GoalSetupScreen.tsx, src/ui/AppShell.tsx,
-       src/ui/kit/Sheet.tsx, src/lib/useKeyboardInset.ts
-- KEYBOARD DONE BAR UNIFIED: useNumericDoneBar renamed useKeyboardDoneBar
-  and moved into LabeledInput so every text field (not just numeric ones)
-  gets the same "Done" dismiss accessory bar as the numeric keyboard.
-  NumberField simplified to just render LabeledInput. An early attempt
-  forced the bar to a fixed 44px height on the assumption numeric/text
-  variants rendered differently — Marco reported it "got even bigger";
-  re-investigation confirmed both cases always shared the exact same
-  component, so the forced height was reverted back to natural py-2
-  sizing (DONE_BAR_HEIGHT corrected 44 -> ~40, see KNOWN GAPS re: this
-  being a CSS-math estimate, not device-measured).
-- BALANCED CARB TARGET CAP: activityCarbTargetG() (src/domain/goal.ts)
-  now applies a 4.5g/kg hard cap for the Balanced macro style only
-  (CARB_MODEL.balanced.capPerKg); Performance stays uncapped. Fixes the
-  ~400g/day carb target outlier Marco saw on high-activity days under
-  Balanced. Cap value itself is a first estimate, not yet validated.
-- GOAL-OPTIONS AFFORDANCE: the "⋯" (moreHoriz) options icon in
-  GoalScreen's two triggers was first swapped for a custom Marco-supplied
-  gear icon (settingsGear, added to Icon.tsx), then replaced again per
-  follow-up feedback with a plain "Options" text label
-  (<Button variant="ghost" ...>Options</Button>). settingsGear and its
-  Icon.tsx wiring were fully removed again afterward; moreHoriz itself
-  is still defined but now unused anywhere in the app (see KNOWN GAPS).
-- 44×44PT CLEAR-BUTTON HIT AREAS: audited and fixed all three clear (X)
-  button implementations to meet the app's own touch-target rule.
-  LabeledInput's absolutely-positioned button resized directly to
-  h-11 w-11 (44×44) with the icon centered. Field's and PantryScreen's
-  search-bar in-flow buttons use a -m-[14px]/p-[14px] padding +
-  negative-margin trick that expands the tap target without growing
-  the visible layout; PantryScreen's button also gained a missing
-  type="button" and onMouseDown preventDefault.
-- GUIDED/DETAILED GOAL-SETUP RELABEL + MERGED INFO CARD: the Create/edit
-  goal flow's Simple/Custom segmented control is now labeled
-  Guided/Detailed, with mode-specific copy ("We'll estimate your calories
-  and macros..." / "Choose your own calorie and macro targets..."). Added
-  an outline info card visually merged behind the segmented control
-  (its top border crossing behind the pill's vertical center), reviving
-  the round-65 design pattern. Follow-up fix: the segmented control was
-  living in the sheet's sticky header, whose opaque background hid the
-  info card's top border wherever it poked into that row — fixed by
-  moving the segmented control out of the sticky header into normal
-  scrolling flow (only the title now stays sticky). This also resolves
-  the long-open "SHEET stickyHeader SLOT" HIGH gap from round 152/153,
-  since that slot is no longer used for this control at all.
-- TOP STATUS-BAR FADE GRADIENT: added a white gradient fade over the iOS
-  notch/status-bar area app-wide (AppShell.tsx), mirroring the existing
-  bottom-nav fade — pointer-events-none, sits on top, never affects
-  content position; content scrolls through it unaffected, matching the
-  "graceful — notch + extra runway" option Marco chose. Also experimented
-  with an onTouchStart handler on the existing tap-to-scroll-top
-  interceptor to fix a dead zone when tapping exactly on the clock;
-  Marco reported it "didn't really work" but it's harmless and was left
-  in place (see KNOWN GAPS — likely a WKWebView hit-testing limitation).
-- KEYBOARD-COVERS-CONTENT BUG FIXED: several sheets were hiding form
-  content behind the keyboard again. Root cause: OverlayLayer (used by
-  "Edit food item" and other in-sheet overlays) was missing scroll-into-
-  view logic entirely, unlike the main Sheet. Added the same Case-1/
-  Case-2 focusin scroll-into-view effects to OverlayLayer, and corrected
-  the keyboard-clearance math everywhere (Sheet.tsx, OverlayLayer,
-  GoalSetupScreen.tsx, useKeyboardInset.ts's scrollFocusedAboveKeyboard)
-  to add DONE_BAR_HEIGHT on top of the raw keyboard inset, since the
-  Done bar sits on top of the keyboard rather than inside its reported
-  height.
-- SHEET HEADER SCROLL-SHADOW BUG FIXED (careful mode; resolves the open
-  HIGH gap from round 152/153): Marco reported the "shadow casts when
-  content scrolls under the sheet header" effect had regressed. Initial
-  hypothesis (shadow too subtle to notice) was explicitly and firmly
-  rejected by Marco ("there's a different issue at play, I'm 100% sure").
-  Root-caused via an on-device debug readout Marco captured (temporarily
-  added, then removed) showing scrolled=true even when no shadow was
-  visible: a CSS stacking-order issue where a shadow cast by a normal-
-  flow header can be silently painted over by a later sibling's own
-  background unless the header has its own stacking context. Fixed with
-  relative z-10 on both the main Sheet's header and OverlayLayer's nav
-  bar. Cross-checked against the round-152/153 CHANGELOG history (a
-  prior fix attempt caused the panel's rounded corners to go square) and
-  confirmed this fix couldn't reproduce that regression, since it adds
-  no new opaque background — only a stacking-context change.
-  Also fixed a related bug surfaced by the same fix: OverlayLayer's
-  scrolled state persists across different overlay screens (only the
-  rendered content swaps), so a freshly-opened overlay (e.g. "Edit food
-  item") could inherit scrolled: true from whatever was scrolled before
-  it and show a stale shadow before any scrolling. Reset scrolled to
-  false whenever OverlayLayer's node prop changes.
-- OVERLAY SHADOW BLEEDING ONTO GRAB HANDLE FIXED: after the above fix,
-  Marco spotted a new, related artifact — a faint shadow visible above
-  OverlayLayer's nav row, over the grab handle, once scrolled. Root
-  cause: shadow-nav's box-shadow (0 2px 8px -2px, src/index.css) has an
-  8px blur radius that bleeds roughly that far above its own box's top
-  edge. In the main Sheet, the grab handle lives inside the same
-  shadow-casting box, so that bleed lands above the panel's visible
-  content and gets clipped by the panel's own overflow-hidden/rounded
-  top corner. In OverlayLayer the grab handle was a separate, earlier
-  sibling sitting below that clipped zone, so the bleed was visible
-  squarely between the grab handle and the nav row. Fixed by merging
-  the grab handle and nav row into one shadow-casting box in
-  OverlayLayer (same padding/margin math preserved), matching the main
-  Sheet's structure so the bleed gets clipped the same way.
-- GOAL FORK ENTRY ICON/TRANSITION FIXED: Marco asked for the "start a
-  new goal" screen to show an X instead of a back arrow, and to slide up
-  from the bottom instead of its current transition. First attempt
-  incorrectly targeted GoalSetupScreen's details step (the wrong
-  screen) and was fully reverted after Marco pointed out the actual
-  screen was GoalForkScreen ("What's your goal?", /goal-fork). That
-  screen already has the exact X-icon + slide-up-in treatment, gated
-  behind a from=today query param already used by TodayScreen's two
-  goal-fork entry points — GoalScreen's "Set a goal" button was calling
-  nav('/goal-fork') with no param, landing in the back-arrow/no-
-  animation branch instead. Fixed by reusing the existing from=today
-  param on GoalScreen's button; no new code paths needed. GoalForkScreen
-  is now device-reviewed and confirmed working (moved from a LOW "built
-  but not device-reviewed" gap to DONE).
-- tsc: clean. lint: clean. vitest: 51 passed, 8 skipped (unchanged).
 
 ================================================================
 TODO / FUTURE WORK

@@ -1,4 +1,51 @@
 ================================================================
+ROUND 192: TESTFLIGHT UPLOAD FIX; EXPORT-JSON iOS FIX; STALE APP NAME (2026-07-08)
+================================================================
+Files: src/data/exportJson.ts, src/ui/screens/AccountScreen.tsx,
+       ios/App/App/Info.plist, ios/App/App.xcodeproj/project.pbxproj,
+       HEALTHKIT.md, package.json (added @capacitor/filesystem,
+       @capacitor/share)
+
+- EXPORT ALL DATA (JSON) FIXED ON iOS: Account > Developer > "Export all
+  data (JSON)" did nothing when tapped on device. Root cause: it used a
+  browser-style <a download> click trigger, which is a no-op inside the
+  app's iOS webview (no Downloads folder, no default handler for it
+  there); it only ever worked in a desktop browser during web dev.
+  Rewrote exportJson.ts to use @capacitor/filesystem (write the JSON to
+  the app's cache dir) plus @capacitor/share (open the native iOS share
+  sheet) on native platforms, so the export now surfaces Save to Files,
+  AirDrop, etc. The plain browser download path is kept as a fallback
+  for web dev. AccountScreen's onClick now catches/logs a rejected
+  promise instead of letting it fail silently. Confirmed working on
+  device.
+- TESTFLIGHT UPLOAD FAILURE FIXED: first upload attempt was rejected by
+  Apple's automated Info.plist scan with "Missing purpose string,
+  NSHealthUpdateUsageDescription". leve's own code only ever requests
+  read access to Health (weight, calories), never write, but the
+  @capgo/capacitor-health plugin links HealthKit's write-capable APIs
+  regardless, and Apple's static binary scan requires a purpose string
+  for any linked API, not just the ones actually called. Added
+  NSHealthUpdateUsageDescription to Info.plist stating leve does not
+  write to Health. HEALTHKIT.md updated to note both usage strings are
+  required and why. Hit one snag getting this onto the device: Xcode's
+  Info tab had reordered (not changed) the existing keys in the local
+  Info.plist, which blocked `git pull` until the local copy was
+  discarded via `git checkout --`, since git won't silently overwrite
+  uncommitted local changes even when they are purely cosmetic. Second
+  upload attempt cleared the check and is now Processing in App Store
+  Connect.
+- STALE APP DISPLAY NAME FIXED: the Xcode target's
+  INFOPLIST_KEY_CFBundleDisplayName build setting (in
+  project.pbxproj, both Debug and Release configs) still read "nutri"
+  from before the app was renamed to leve, overriding Info.plist's own
+  already-correct CFBundleDisplayName. Updated both to "leve".
+- App Category (Healthcare & Fitness) was set directly in App Store
+  Connect's web dashboard, unrelated to any file in this repo, no code
+  change needed.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+
+================================================================
 ROUND 191: TESTFLIGHT DISTRIBUTION; APPLE HEALTH INTEGRATION; BRING-YOUR-OWN CLAUDE KEY + AI CONNECTION GATE; ACCOUNT SUB-VIEWS (2026-07-08)
 ================================================================
 Files: capacitor.config.ts, ios/App/App/Assets.xcassets/AppIcon.appiconset/

@@ -82,7 +82,23 @@ hand-editing project files reliably.
 3. **▶ Run** once. Xcode will register the capability with your account and
    regenerate the provisioning profile automatically (automatic signing is
    already on).
-4. First launch after that, tapping **Connect Apple Health** in Account →
+4. **Commit the result.** Adding the capability creates a new
+   `ios/App/App/App.entitlements` file and edits
+   `ios/App/App.xcodeproj/project.pbxproj` (adds `CODE_SIGN_ENTITLEMENTS`
+   for both build configs). These are ordinary source files, `git status`
+   should show them, and they need to be committed and pushed like any
+   other change:
+   ```bash
+   git add -A && git commit -m "Add HealthKit entitlement" && git push
+   ```
+   Until this is committed, the entitlement only exists on this Mac. It
+   is NOT safe to run `git checkout -- ios/App/App.xcodeproj/project.pbxproj`
+   or `git checkout -- ios/App/App/App.entitlements` for any other reason
+   (e.g. discarding an unrelated local edit to the same file) without
+   committing first, doing so silently deletes the capability and
+   HealthKit calls start failing at runtime with "Missing
+   com.apple.developer.healthkit entitlement", with no warning beforehand.
+5. First launch after that, tapping **Connect Apple Health** in Account →
    Settings shows the real iOS permission sheet, listing
    Weight and Active Energy as the two requested read types.
 

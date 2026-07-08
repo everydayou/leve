@@ -1700,7 +1700,7 @@ function SyncedActivitySheet({ entry: initialEntry, onClose, showToast }: {
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <button
-                onClick={() => void toggleHidden()}
+                onClick={() => { hapticLight(); void toggleHidden(); }}
                 disabled={busy != null}
                 aria-label={entry.hidden ? 'Count toward totals again' : 'Hide from totals'}
                 className={iconBtn}
@@ -1708,7 +1708,7 @@ function SyncedActivitySheet({ entry: initialEntry, onClose, showToast }: {
                 <Icon name={entry.hidden ? 'eyeOff' : 'eye'} size={16} strokeWidth={1.75} />
               </button>
               <button
-                onClick={() => void syncNow()}
+                onClick={() => { hapticLight(); void syncNow(); }}
                 disabled={busy != null}
                 aria-label="Sync now"
                 className={iconBtn}

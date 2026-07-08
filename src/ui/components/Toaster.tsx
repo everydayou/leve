@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../kit';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -130,19 +131,25 @@ function ToastBubble({ toast, onDismiss }: { toast: ToastData; onDismiss: () => 
   );
 }
 
-// ── Toaster (rendered inside the phone frame as position:absolute) ────────────
+// ── Toaster ─────────────────────────────────────────────────────────────────
+// Portaled straight to document.body (same fix as Sheet/SlideScreen use for
+// the same reason): a plain position:absolute/fixed element nested inside
+// the normal component tree only escapes to ITS nearest stacking context,
+// not the true viewport, and Sheet/SlideScreen both portal to document.body
+// already. Without this, a toast fired while a Sheet is open loses the
+// paint-order tie and renders underneath it, invisible.
 
 export function Toaster({ toast, onDismiss }: { toast: ToastData | null; onDismiss: () => void }) {
   if (!toast) return null;
 
-  return (
+  return createPortal(
     <div
       style={{
-        position: 'absolute',
+        position: 'fixed',
         bottom: 'calc(env(safe-area-inset-bottom, 0px) + 5.25rem)',
         left: '50%',
         transform: 'translateX(-50%)',
-        zIndex: 200,
+        zIndex: 250,
         maxWidth: 'calc(100% - 2.5rem)',
         pointerEvents: 'none',
       }}
@@ -150,6 +157,7 @@ export function Toaster({ toast, onDismiss }: { toast: ToastData | null; onDismi
       <div style={{ pointerEvents: 'all' }}>
         <ToastBubble key={toast.id} toast={toast} onDismiss={onDismiss} />
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

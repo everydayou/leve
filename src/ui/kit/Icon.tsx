@@ -17,7 +17,7 @@ export type IconName =
   | 'addSmall' | 'scanFood' | 'retakePhoto'
   | 'moreHoriz'
   | 'drop' | 'health'
-  | 'eye' | 'eyeOff' | 'refresh';
+  | 'eye' | 'eyeOff' | 'refresh' | 'key';
 
 /** Icons that use Material Design paths (viewBox 0 -960 960 960, fill=currentColor). */
 const MATERIAL_ICONS = new Set<IconName>([
@@ -96,6 +96,8 @@ const ICONS: Record<IconName, string> = {
   eye: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
   eyeOff: 'M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.8 21.8 0 0 1 5.06-6.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22',
   refresh: 'M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15',
+  // ── Bring-your-own API key entry point ────────────────────────────────
+  key: 'M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4',
 };
 
 /* Filled/solid variants used when a tab icon is active (filled=true).

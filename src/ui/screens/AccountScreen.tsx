@@ -13,6 +13,8 @@ import { hapticLight, getHapticsPref, setHapticsPref } from '../../lib/haptics';
 import { getDevRevealed, setDevRevealed } from '../../lib/devReveal';
 import { getWithingsService, type WithingsStatus } from '../../data/withings';
 import { getHealthKitService, type HealthKitStatus } from '../../data/healthkit';
+import { getApiKey } from '../../lib/apiKey';
+import { ApiKeySheet } from '../components/ApiKeySheet';
 import { DevMenu } from '../components/DevMenu';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { currentWeightKg, isGainGoal, isMaintainGoal } from '../../domain/goal';
@@ -189,6 +191,9 @@ export function AccountScreen() {
 
       <AccountSectionHeading>Settings</AccountSectionHeading>
       <AppearanceCard />
+      <div className="mt-2">
+        <ApiKeyCard />
+      </div>
 
       {SHOW_CONNECTIONS_SECTION && (
         <div className="mt-2">
@@ -438,6 +443,31 @@ function AppearanceCard() {
         ))}
       </div>
     </OutlineCard>
+  );
+}
+
+/** Settings row for the bring-your-own-key food scan feature — opens
+ *  ApiKeySheet to add/change/remove a personal Anthropic key. Subtitle
+ *  reflects whether one is currently set. */
+function ApiKeyCard() {
+  const [hasKey, setHasKey] = useState<boolean | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => { getApiKey().then((k) => setHasKey(!!k)); }, [open]);
+
+  return (
+    <>
+      <Card padded={false} className="overflow-hidden">
+        <ListRow
+          leading={<Icon name="key" size={18} />}
+          title="AI Food Scan"
+          subtitle={hasKey ? 'Using your own API key' : 'Using the shared preview key'}
+          chevron
+          onClick={() => setOpen(true)}
+        />
+      </Card>
+      {open && <ApiKeySheet onClose={() => setOpen(false)} />}
+    </>
   );
 }
 

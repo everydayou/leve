@@ -221,6 +221,16 @@ KEY PATTERNS:
   the parent in a Fragment (both conditionally mounted).
 - SCAN_ENABLED = !!(import.meta.env.VITE_FOOD_SCAN_API_URL) — used in
   AddEntrySheet.tsx header icon and FloatingTabBar.tsx FAB action list.
+  Unaffected by bring-your-own-key (below); gates whether scan exists
+  at all, not which backend handles a request.
+- Bring-your-own Claude API key (Account > Settings > AI Food Scan,
+  ApiKeySheet.tsx): user pastes their own Anthropic key, stored via
+  @aparajita/capacitor-secure-storage (iOS Keychain / Android Keystore,
+  lib/apiKey.ts). When set, lib/foodScan.ts's scanFood/describeFood call
+  api.anthropic.com directly from the device (model: claude-sonnet-5,
+  forced tool_use for structured output) instead of the shared Vercel
+  proxy — bypasses food-scan-api entirely, so no changes needed on that
+  separate Vercel project. Falls back to the proxy when no key is set.
 
 ENV NOTE: Cowork Linux sandbox can't run rollup native binary. After
 changes, on the Mac: `npm install` → `npm test` → `npm run build` →

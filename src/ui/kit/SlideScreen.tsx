@@ -1,23 +1,37 @@
-import type { ReactNode, UIEventHandler } from 'react';
+import { useRef, type ReactNode, type UIEventHandler } from 'react';
 import { Icon } from './Icon';
 
 /* Full-screen right-to-left push, for a sub-page that isn't a bottom Sheet
    (e.g. Past goals, Account > Tracking/Settings). Render via createPortal
-   into document.body from the owning screen — a plain in-tree render can
+   into document.body from the owning screen: a plain in-tree render can
    end up positioned against the wrong containing block if any ancestor has
    an active CSS transform (Sheet's own OverlayLayer has this exact issue;
    see useKeyboardDoneBar.tsx's doc comment for the root cause), and portaling
    straight to the body sidesteps it entirely, same as PastGoalsPortal does.
    Pair with SlideHeader below. Drive `exiting` from the caller: set it true,
    then setTimeout the actual close/unmount by ~280ms to let slide-out-right
-   finish before the component disappears. */
-export function SlideScreen({ children, exiting, onScroll }: {
-  children: ReactNode; exiting: boolean; onScroll?: UIEventHandler<HTMLDivElement>;
+   finish before the component disappears.
+   Pass `onBack` to also enable swipe-right-to-go-back (same threshold as
+   Sheet's own OverlayLayer swipe: >60px right, mostly horizontal) — purely
+   additive, existing callers that don't pass it are unaffected. */
+export function SlideScreen({ children, exiting, onScroll, onBack }: {
+  children: ReactNode; exiting: boolean; onScroll?: UIEventHandler<HTMLDivElement>; onBack?: () => void;
 }) {
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
   return (
     <div
       className={`fixed inset-0 z-[150] flex justify-center overflow-hidden bg-surface-sunken ${exiting ? 'slide-out-right' : 'slide-in-right'}`}
       style={{ touchAction: 'manipulation' }}
+      onTouchStart={onBack ? (e) => {
+        touchStartX.current = e.touches[0].clientX;
+        touchStartY.current = e.touches[0].clientY;
+      } : undefined}
+      onTouchEnd={onBack ? (e) => {
+        const dx = e.changedTouches[0].clientX - touchStartX.current;
+        const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+        if (dx > 60 && dy < Math.abs(dx) * 0.6) onBack();
+      } : undefined}
     >
       <div
         className="safe-top safe-bottom flex h-[100dvh] w-full max-w-[26.25rem] flex-col overflow-x-hidden overflow-y-auto bg-surface"

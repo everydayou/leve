@@ -183,7 +183,8 @@ export function AccountScreen() {
         </>
       )}
 
-      <Card padded={false} className="mt-6 overflow-hidden">
+      <p className="mb-2 mt-6 text-headline font-semibold text-content">Options</p>
+      <Card padded={false} className="overflow-hidden">
         <ListRow title="Tracking" chevron onClick={() => setActiveSubView('tracking')} />
         <Divider inset />
         <ListRow title="Settings" chevron onClick={() => setActiveSubView('settings')} />
@@ -216,7 +217,7 @@ function TrackingSubView({ user, goal, onClose }: { user: User; goal: Goal | und
     setTimeout(onClose, 280);
   }
   return createPortal(
-    <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
+    <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)} onBack={goBack}>
       <SlideHeader title="Tracking" onBack={goBack} scrolled={scrolled} />
       <div className="px-6 pb-8 pt-2">
         <WeightUnitsCard user={user} />
@@ -246,7 +247,7 @@ function SettingsSubView({ showDeveloper, onClose }: { showDeveloper: boolean; o
     setTimeout(onClose, 280);
   }
   return createPortal(
-    <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
+    <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)} onBack={goBack}>
       <SlideHeader title="Settings" onBack={goBack} scrolled={scrolled} />
       <div className="px-6 pb-8 pt-2">
         <AppearanceCard />

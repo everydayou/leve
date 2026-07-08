@@ -190,8 +190,6 @@ export function AccountScreen() {
       <AccountSectionHeading>Settings</AccountSectionHeading>
       <AppearanceCard />
 
-      <SectionLabel>Connections</SectionLabel>
-      <HealthCard />
       {SHOW_CONNECTIONS_SECTION && (
         <div className="mt-2">
           <WithingsCard />
@@ -331,6 +329,9 @@ const THEME_OPTS: { id: ThemePref; label: string }[] = [
   { id: 'dark', label: 'Dark' },
 ];
 
+/** Theme + Haptic feedback + Apple Health connect, one card, three
+ *  divider-separated rows — Health used to be its own card but per Marco's
+ *  ask now lives alongside the other toggle-style Settings rows instead. */
 function AppearanceCard() {
   const [pref, setPref] = useState<ThemePref>(getThemePref());
   const [hapticsOn, setHapticsOn] = useState(getHapticsPref());
@@ -342,6 +343,27 @@ function AppearanceCard() {
     // Confirm with a haptic bump when turning ON so the user feels the change.
     if (next) hapticLight();
   }
+
+  // repos is a module-level singleton, so this memo only evaluates once.
+  const healthSvc = useMemo(() => getHealthKitService(repos), []);
+  const [healthStatus, setHealthStatus] = useState<HealthKitStatus | null>(null);
+  const [healthBusy, setHealthBusy] = useState<null | 'connect' | 'disconnect'>(null);
+  useEffect(() => { healthSvc.getStatus().then(setHealthStatus); }, []); // eslint-disable-line
+  async function connectHealth() {
+    setHealthBusy('connect');
+    await healthSvc.connect();
+    await healthSvc.sync(); // initial import, no separate button/note needed for it
+    setHealthStatus(await healthSvc.getStatus());
+    setHealthBusy(null);
+  }
+  async function disconnectHealth() {
+    setHealthBusy('disconnect');
+    setHealthStatus(await healthSvc.disconnect());
+    setHealthBusy(null);
+  }
+  const healthConnected = !!healthStatus?.connected;
+  const healthAvailable = healthStatus?.available ?? true; // assume available until checked, avoids a flash of the disabled copy
+
   return (
     <OutlineCard>
       <p className="mb-2 text-callout font-bold text-content">Theme</p>
@@ -387,72 +409,35 @@ function AppearanceCard() {
           />
         </button>
       </div>
-    </OutlineCard>
-  );
-}
 
-/** Connect/disconnect only — no "Sync now" here. Syncing is contextual now:
- *  it happens automatically (app open/foreground) and, for a specific day,
- *  from that day's synced Activity row in Day's log (SyncedActivitySheet). */
-function HealthCard() {
-  // repos is a module-level singleton, so this memo only evaluates once.
-  const svc = useMemo(() => getHealthKitService(repos), []);
-  const [status, setStatus] = useState<HealthKitStatus | null>(null);
-  const [busy, setBusy] = useState<null | 'connect' | 'disconnect'>(null);
-
-  useEffect(() => { svc.getStatus().then(setStatus); }, []); // eslint-disable-line
-
-  async function connect() {
-    setBusy('connect');
-    await svc.connect();
-    await svc.sync(); // initial import, no separate button/note needed for it
-    setStatus(await svc.getStatus());
-    setBusy(null);
-  }
-  async function disconnect() {
-    setBusy('disconnect');
-    setStatus(await svc.disconnect());
-    setBusy(null);
-  }
-
-  const connected = !!status?.connected;
-  const available = status?.available ?? true; // assume available until checked, avoids a flash of the disabled copy
-
-  return (
-    <Card padded={false} className="p-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-subhead font-medium">Apple Health</p>
-          <p className="mt-0.5 text-label text-content-secondary">
-            {!available
-              ? 'Available on your iPhone (not in this preview).'
-              : connected
-                ? 'Importing weight + activity calories.'
-                : 'Import weight and activity calories from Health.'}
-          </p>
+      <div className="mt-3 border-t border-border-subtle pt-3">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-callout font-bold text-content">Apple Health</p>
+            <p className="text-label text-content-secondary">
+              {!healthAvailable
+                ? 'Available on your iPhone (not in this preview).'
+                : healthConnected
+                  ? 'Importing weight + activity calories.'
+                  : 'Import weight and activity calories from Health.'}
+            </p>
+          </div>
+          {healthAvailable && (
+            <span role="img" aria-label={healthConnected ? 'Connected' : 'Not connected'}
+              className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-pill ${healthConnected ? 'bg-success' : 'bg-border-strong'}`} />
+          )}
         </div>
-        {available && (
-          <span role="img" aria-label={connected ? 'Connected' : 'Not connected'}
-            className={`mt-0.5 h-2.5 w-2.5 rounded-pill ${connected ? 'bg-success' : 'bg-border-strong'}`} />
-        )}
+        {healthAvailable && (!healthConnected ? (
+          <Button size="sm" className="mt-3" onClick={connectHealth} disabled={healthBusy != null}>
+            {healthBusy === 'connect' ? 'Connecting…' : 'Connect Apple Health'}
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" className="mt-3" onClick={disconnectHealth} disabled={healthBusy != null}>
+            {healthBusy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
+          </Button>
+        ))}
       </div>
-
-      {available && (!connected ? (
-        <Button size="sm" className="mt-3" onClick={connect} disabled={busy != null}>
-          {busy === 'connect' ? 'Connecting…' : 'Connect Apple Health'}
-        </Button>
-      ) : (
-        <Button variant="outline" size="sm" className="mt-3" onClick={disconnect} disabled={busy != null}>
-          {busy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
-        </Button>
-      ))}
-
-      {connected && (
-        <p className="mt-2 text-label text-content-secondary">
-          Never overwrites a day you've already logged by hand.
-        </p>
-      )}
-    </Card>
+    </OutlineCard>
   );
 }
 

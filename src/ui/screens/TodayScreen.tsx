@@ -1651,18 +1651,33 @@ function SyncedActivitySheet({ entry: initialEntry, onClose, showToast }: {
 
   async function toggleHidden() {
     setBusy('hide');
-    const nextHidden = !entry.hidden;
-    await getHealthKitService(repos).setActivityHidden(entry.date, nextHidden);
-    await refreshEntry();
-    showToast?.(nextHidden ? "Hidden from today's total" : 'Counting toward today\'s total again');
-    setBusy(null);
+    try {
+      const nextHidden = !entry.hidden;
+      await getHealthKitService(repos).setActivityHidden(entry.date, nextHidden);
+      await refreshEntry();
+      showToast?.(nextHidden ? "Hidden from today's total" : 'Counting toward today\'s total again');
+    } catch (err) {
+      showToast?.(err instanceof Error ? `Couldn't update: ${err.message}` : "Couldn't update this entry.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function syncNow() {
     setBusy('sync');
-    await getHealthKitService(repos).sync();
-    await refreshEntry();
-    setBusy(null);
+    try {
+      const result = await getHealthKitService(repos).sync();
+      await refreshEntry();
+      if (result.activityDaysSynced === 0 && result.weightAdded === 0) {
+        showToast?.('Already up to date');
+      } else {
+        showToast?.('Synced with Apple Health');
+      }
+    } catch (err) {
+      showToast?.(err instanceof Error ? `Sync failed: ${err.message}` : 'Sync failed. Try again in a moment.');
+    } finally {
+      setBusy(null);
+    }
   }
 
   const iconBtn = 'flex h-9 w-9 items-center justify-center rounded-full border border-border-field bg-surface text-content active:opacity-60 disabled:opacity-50';

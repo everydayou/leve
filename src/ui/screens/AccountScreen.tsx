@@ -217,8 +217,8 @@ function TrackingSubView({ user, goal, onClose }: { user: User; goal: Goal | und
     setTimeout(onClose, 280);
   }
   return createPortal(
-    <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)} onBack={goBack}>
-      <SlideHeader title="Tracking" onBack={goBack} scrolled={scrolled} />
+    <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)} onBack={goBack} muted>
+      <SlideHeader title="Tracking" onBack={goBack} scrolled={scrolled} muted />
       <div className="px-6 pb-8 pt-2">
         <WeightUnitsCard user={user} />
         <div className="mt-2">
@@ -247,8 +247,8 @@ function SettingsSubView({ showDeveloper, onClose }: { showDeveloper: boolean; o
     setTimeout(onClose, 280);
   }
   return createPortal(
-    <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)} onBack={goBack}>
-      <SlideHeader title="Settings" onBack={goBack} scrolled={scrolled} />
+    <SlideScreen exiting={exiting} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)} onBack={goBack} muted>
+      <SlideHeader title="Settings" onBack={goBack} scrolled={scrolled} muted />
       <div className="px-6 pb-8 pt-2">
         <AppearanceCard />
         <div className="mt-2">

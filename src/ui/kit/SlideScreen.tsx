@@ -13,9 +13,14 @@ import { Icon } from './Icon';
    finish before the component disappears.
    Pass `onBack` to also enable swipe-right-to-go-back (same threshold as
    Sheet's own OverlayLayer swipe: >60px right, mostly horizontal) — purely
-   additive, existing callers that don't pass it are unaffected. */
-export function SlideScreen({ children, exiting, onScroll, onBack }: {
-  children: ReactNode; exiting: boolean; onScroll?: UIEventHandler<HTMLDivElement>; onBack?: () => void;
+   additive, existing callers that don't pass it are unaffected.
+   Pass `muted` to swap the content background from white (bg-surface, the
+   default — Past goals' look) to the same grey page backdrop AppShell uses
+   behind Account itself (bg-surface-muted) — for a sub-page like Tracking/
+   Settings that should read as a continuation of the screen it pushed
+   from, not a separate white sheet. Pair with SlideHeader's own `muted`. */
+export function SlideScreen({ children, exiting, onScroll, onBack, muted = false }: {
+  children: ReactNode; exiting: boolean; onScroll?: UIEventHandler<HTMLDivElement>; onBack?: () => void; muted?: boolean;
 }) {
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
@@ -34,7 +39,7 @@ export function SlideScreen({ children, exiting, onScroll, onBack }: {
       } : undefined}
     >
       <div
-        className="safe-top safe-bottom flex h-[100dvh] w-full max-w-[26.25rem] flex-col overflow-x-hidden overflow-y-auto bg-surface"
+        className={`safe-top safe-bottom flex h-[100dvh] w-full max-w-[26.25rem] flex-col overflow-x-hidden overflow-y-auto ${muted ? 'bg-surface-muted' : 'bg-surface'}`}
         style={{ touchAction: 'pan-y' }}
         onScroll={onScroll}
       >
@@ -46,13 +51,15 @@ export function SlideScreen({ children, exiting, onScroll, onBack }: {
 
 /* Sticky nav header for a SlideScreen: back chevron, centered title, optional
    trailing action. `scrolled` adds a shadow once the content scrolls under it
-   (pass through onScroll from SlideScreen). */
-export function SlideHeader({ title, onBack, scrolled = false, rightAction }: {
-  title: string; onBack: () => void; scrolled?: boolean; rightAction?: ReactNode;
+   (pass through onScroll from SlideScreen). `muted` matches SlideScreen's own
+   `muted` prop — keep them in sync on the same screen. */
+export function SlideHeader({ title, onBack, scrolled = false, rightAction, muted = false }: {
+  title: string; onBack: () => void; scrolled?: boolean; rightAction?: ReactNode; muted?: boolean;
 }) {
+  const bg = muted ? 'bg-surface-muted' : 'bg-surface';
   return (
-    <div className={`sticky top-0 z-20 bg-surface transition-[box-shadow] duration-200${scrolled ? ' shadow-nav' : ''}`}>
-      <div className="pointer-events-none absolute left-0 right-0 bg-surface" style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
+    <div className={`sticky top-0 z-20 ${bg} transition-[box-shadow] duration-200${scrolled ? ' shadow-nav' : ''}`}>
+      <div className={`pointer-events-none absolute left-0 right-0 ${bg}`} style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
       <div className="relative flex items-center px-4 pt-5 pb-4">
         <button onClick={onBack} aria-label="Back" className="-ml-2 flex h-10 w-10 flex-shrink-0 items-center justify-center text-content-muted">
           <Icon name="chevronLeft" size={20} strokeWidth={2.5} />

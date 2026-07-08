@@ -571,13 +571,13 @@ function GoalManageSheet({ goal, onClose, onNavigate }: { goal: Goal; onClose: (
 
   async function markComplete() {
     setBusy('complete');
-    await repos.goals.put({ ...goal, status: 'completed' });
+    await repos.goals.put({ ...goal, status: 'completed', endedDate: todayISO() });
     onClose();
   }
 
   async function abandon() {
     setBusy('abandon');
-    await repos.goals.put({ ...goal, status: 'abandoned' });
+    await repos.goals.put({ ...goal, status: 'abandoned', endedDate: todayISO() });
     onClose();
   }
 

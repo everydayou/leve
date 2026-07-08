@@ -281,8 +281,13 @@ function PastGoalDetail({
   const nowKg = currentWeightKg(weights) ?? goal.startWeightKg;
   const lostKg = Math.max(0, round1(gainGoal ? nowKg - goal.startWeightKg : goal.startWeightKg - nowKg));
   const netChangeKg = round1(nowKg - goal.startWeightKg); // maintain: signed, can be ±
+  // endedDate is the real end-of-goal date; targetDate is only reliable for
+  // lose/gain goals ended on schedule — for maintain goals targetDate is a
+  // meaningless far-future sentinel (see domain/types.ts), so endedDate is
+  // required there. Falls back to targetDate for goals ended before endedDate
+  // existed.
   const daysTaken = Math.max(1, Math.round(
-    (Date.parse(goal.targetDate) - Date.parse(goal.startDate)) / MS_PER_DAY,
+    (Date.parse(goal.endedDate ?? goal.targetDate) - Date.parse(goal.startDate)) / MS_PER_DAY,
   ));
   const goalAchieved = goal.status === 'completed' && (
     gainGoal ? nowKg >= goal.targetWeightKg : nowKg <= goal.targetWeightKg

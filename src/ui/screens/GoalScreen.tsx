@@ -187,11 +187,11 @@ export function GoalScreen() {
   const daysSinceStart  = maintain ? Math.max(1, Math.round((Date.parse(today) - Date.parse(goal.startDate)) / MS_PER_DAY) + 1) : 0;
 
   async function endGoalOverdue() {
-    await repos.goals.put({ ...goal, status: 'abandoned' });
+    await repos.goals.put({ ...goal, status: 'abandoned', endedDate: todayISO() });
   }
 
   async function completeGoalEarly() {
-    await repos.goals.put({ ...goal, status: 'completed' });
+    await repos.goals.put({ ...goal, status: 'completed', endedDate: todayISO() });
   }
 
   // Week navigation bounds: clamp to goal date range.
@@ -496,12 +496,12 @@ function GoalSettingsSheet({ goal, onClose, isEarlyComplete, previousGoals, onEd
   const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   async function markComplete() {
-    await repos.goals.put({ ...goal, status: 'completed' });
+    await repos.goals.put({ ...goal, status: 'completed', endedDate: todayISO() });
     onClose();
   }
 
   async function endGoal() {
-    await repos.goals.put({ ...goal, status: 'abandoned' });
+    await repos.goals.put({ ...goal, status: 'abandoned', endedDate: todayISO() });
     onClose();
   }
 

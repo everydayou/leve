@@ -791,7 +791,7 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
   const fat   = day ? Math.round(day.foods.reduce((s, f) => s + effectiveNutrition(f, day.itemsById).fat,   0)) : 0;
   const bmrIsEstimated = day?.bmrIsEstimated ?? false;
   const actCals    = day?.activities.reduce((s, a) => s + a.activeCalories, 0) ?? 0;
-  const hasGoal    = dailyTarget !== 0; // active goal exists (regardless of BMR)
+  const hasGoal    = goal != null; // active goal exists (regardless of BMR); dailyTarget is 0 for maintain goals by design, so it can't be used as the goal-exists check
   const hasTarget  = hasGoal && totalBurn > 0; // has enough info for full numbers
   const budget     = totalBurn - dailyTarget;
   const left       = Math.round(budget - consumed);

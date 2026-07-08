@@ -84,6 +84,12 @@ export interface Goal {
    *  nudge — does NOT end or expire the goal; unlike lose/gain's targetDate,
    *  which is a real deadline, this is informational only. */
   reviewDate?: string;
+  /** Date (YYYY-MM-DD) the goal actually transitioned to completed/abandoned.
+   *  Set once, at the moment status changes away from 'active'. Distinct from
+   *  targetDate, which for maintain goals is a far-future sentinel with no
+   *  relation to when the goal really ended. Absent on goals ended before
+   *  this field existed. */
+  endedDate?: string;
 }
 
 export interface FoodItem {

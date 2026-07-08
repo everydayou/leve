@@ -25,6 +25,7 @@ import { FoodItemFormContent } from './FoodItemForm';
 import type { FoodItemFormValues } from './FoodItemForm';
 import { DeleteIcon, EditIcon } from './icons';
 import { AddAnotherSection, MethodCards } from './MethodCards';
+import { HealthConnectBanner } from './HealthConnectBanner';
 import {
   basketNutrition, cleanScanName, scanResultToBasket, pantryToBasket,
 } from './basketHelpers';
@@ -2712,6 +2713,10 @@ function ActivityForm({ date, onDone, showToast }: {
 
   return (
     <div className="space-y-4">
+      <HealthConnectBanner
+        dismissKey="ngt-health-banner-dismissed-activity"
+        message="Import activity calories automatically instead of logging them by hand."
+      />
       <div className="flex justify-center">
         <SegmentedControl<ActivityMode>
           value={mode}

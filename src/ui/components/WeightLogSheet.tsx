@@ -5,6 +5,7 @@ import { newId, todayISO } from '../../data/ids';
 import { currentWeightKg } from '../../domain/goal';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { Sheet, Button, WheelPicker } from '../kit';
+import { HealthConnectBanner } from './HealthConnectBanner';
 import { kgToLbs, lbsToKg } from '../../domain/units';
 
 /** Recalculate and persist the account BMR using the most recent weight entry
@@ -71,6 +72,10 @@ export function WeightLogSheet({ date, onClose }: { date: string; onClose: () =>
       footer={<Button size="lg" onClick={save} disabled={!Number(val)}>Save weight</Button>}
     >
       <div className="space-y-3 pb-2">
+        <HealthConnectBanner
+          dismissKey="ngt-health-banner-dismissed-weight"
+          message="Import weigh-ins automatically instead of logging them by hand."
+        />
         <WheelPicker
           label={`Weight (${units})`}
           value={val}

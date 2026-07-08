@@ -5,7 +5,7 @@ import { hapticLight } from '../../lib/haptics';
 import { useLive } from '../../state/live';
 import { repos } from '../../state/repos';
 import { useDay } from '../../state/useDay';
-import { todayISO, addDays } from '../../data/ids';
+import { todayISO, addDays, prettyDate } from '../../data/ids';
 import { getMondayOfWeek, fmtDiaryDate } from '../../lib/date';
 import { effectiveNutrition, calcDigestionCalories } from '../../domain/calc';
 import { requiredDailyDeficit, isMaintainGoal, usesKcalBand, activityCarbTargetG, currentWeightKg } from '../../domain/goal';
@@ -18,6 +18,7 @@ import {
   useSheetSetOverlay, useSheetSetOverlayBack, OverlayNav,
 } from '../kit';
 import { WeightLogSheet } from '../components/WeightLogSheet';
+import { getHealthKitService } from '../../data/healthkit';
 import { LogEntrySheet } from '../components/AddEntrySheet';
 import type { ShowToast } from '../components/Toaster';
 import type { FoodEntry, FoodItem, WeightEntry, ActivityEntry, Goal, Sex, User } from '../../domain/types';
@@ -756,6 +757,7 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
   const [editFood,          setEditFood]          = useState<FoodEntry | null>(null);
   const [editMeal,          setEditMeal]          = useState<FoodEntry | null>(null);
   const [editActivity,      setEditActivity]      = useState<ActivityEntry | null>(null);
+  const [viewSyncedActivity, setViewSyncedActivity] = useState<ActivityEntry | null>(null);
   const [showWeightSheet,   setShowWeightSheet]   = useState(false);
   const [showBreakdown,     setShowBreakdown]     = useState(false);
   const [showProfileSetup,  setShowProfileSetup]  = useState(false);
@@ -1202,14 +1204,15 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
                     );
                   } else {
                     const act = item.entry;
+                    const isSynced = act.source === 'healthkit';
                     return (
                       <li key={act.id}>
                         <button
-                          onClick={() => { hapticLight(); setEditActivity(act); }}
+                          onClick={() => { hapticLight(); if (isSynced) setViewSyncedActivity(act); else setEditActivity(act); }}
                           className={`flex w-full items-center justify-between px-4 py-2.5 text-left active:bg-surface-sunken${!isLast ? ' border-b border-border-subtle' : ''}`}
                         >
                           <span className="flex min-w-0 items-center gap-2">
-                            <Icon name="activityIcon" size={16} className="shrink-0 text-content-secondary" />
+                            <Icon name={isSynced ? 'health' : 'activityIcon'} size={16} className="shrink-0 text-content-secondary" />
                             <span className="truncate text-subhead font-bold text-content">{act.name ?? 'Activity'}</span>
                           </span>
                           <span className="shrink-0 text-subhead text-content">{gainGoal ? '−' : '+'}{act.activeCalories} kcal</span>
@@ -1257,6 +1260,7 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
         />
       )}
       {editActivity && <EditActivitySheet entry={editActivity} onClose={() => setEditActivity(null)} showToast={ctx.showToast} />}
+      {viewSyncedActivity && <SyncedActivitySheet entry={viewSyncedActivity} onClose={() => setViewSyncedActivity(null)} showToast={ctx.showToast} />}
       {showProfileSetup && (
         <ProfileSetupSheet
           currentWeightKg={weights.length > 0 ? [...weights].sort((a, b) => b.date.localeCompare(a.date))[0].weightKg : null}
@@ -1620,6 +1624,57 @@ function EditActivitySheet({ entry, onClose, showToast }: {
           step={5}
           placeholder="e.g. 300"
         />
+      </div>
+    </Sheet>
+  );
+}
+
+/** Read-only view for a healthkit-synced Activity entry. The number isn't
+ *  the user's to edit (it's Health's number, refreshed on every sync) — the
+ *  only action is Ignore, which removes it and permanently excludes that
+ *  date from future activity syncs. Logging something separately for the
+ *  same day is still just the normal Log Activity flow (additive). */
+function SyncedActivitySheet({ entry, onClose, showToast }: {
+  entry: ActivityEntry;
+  onClose: () => void;
+  showToast?: ShowToast;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function ignore() {
+    setBusy(true);
+    await getHealthKitService(repos).ignoreActivityDay(entry.date);
+    showToast?.("Won't sync this day again");
+    onClose();
+  }
+
+  return (
+    <Sheet
+      title={entry.name ?? 'Apple Health'}
+      onClose={onClose}
+      footer={
+        <Button size="lg" variant="destructive" onClick={() => void ignore()} disabled={busy}>
+          {busy ? 'Ignoring…' : 'Ignore'}
+        </Button>
+      }
+    >
+      <div className="space-y-4 pb-2">
+        <div className="flex items-center gap-3 rounded-card border border-border-subtle bg-surface-sunken px-4 py-3">
+          <Icon name="health" size={20} className="shrink-0 text-content-muted" />
+          <div className="min-w-0 flex-1">
+            <p className="text-subhead font-medium text-content">{entry.activeCalories} kcal</p>
+            <p className="text-caption text-content-secondary">Synced from Apple Health · {prettyDate(entry.date)}</p>
+          </div>
+        </div>
+        <p className="text-subhead text-content-secondary">
+          This number comes straight from Health and updates automatically — it
+          isn't something to edit by hand. Want to log something else for this
+          day too? Use Log Activity as usual; it'll sit alongside this entry.
+        </p>
+        <p className="text-caption text-content-muted">
+          Ignoring removes this entry and stops leve from syncing this specific
+          day again.
+        </p>
       </div>
     </Sheet>
   );

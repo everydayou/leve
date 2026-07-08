@@ -10,11 +10,18 @@
 // - Weight: written through the same repo seam as manual entries, tagged
 //   source: 'healthkit'. Never overwrites a date that already has ANY entry
 //   (manual or previously-synced) — same non-destructive rule as Withings.
-// - Activity/active-energy: written as one ActivityEntry per day, tagged
-//   source: 'healthkit'. Skips any day that has a manual entry; a previously
-//   synced healthkit entry for that day gets its value refreshed in place
-//   (Health's daily total can grow through the day as more workouts/steps
-//   land, unlike weight which is a single point-in-time reading).
+//   Weight is one value per day, so editing IS how you correct a bad
+//   reading — WeightLogSheet already always saves as 'manual', which
+//   protects it from being overwritten again on the next sync.
+// - Activity/active-energy: ADDITIVE, not exclusive. Every sync upserts (at
+//   most) ONE ActivityEntry per day tagged source: 'healthkit' with that
+//   day's total active-energy, refreshing it in place as the day's Health
+//   data grows — completely independent of whatever manual entries also
+//   exist that day (both are legitimate, separate line items; Day's log
+//   just sums everything, same as any two manual entries would). A
+//   healthkit entry is never editable inline (the number isn't yours to
+//   correct) — the only interaction is Ignore, which removes it for that
+//   day and records the date so future syncs leave it alone for good.
 // - Nothing is written TO Health — leve is read-only against HealthKit today.
 //
 // PLATFORM SAFETY
@@ -55,20 +62,37 @@ export interface HealthKitService {
    *  Settings > Privacy & Security > Health > leve to fully revoke. */
   disconnect(): Promise<HealthKitStatus>;
   sync(): Promise<HealthKitSyncResult>;
+  /** Removes the healthkit-tagged Activity entry for `date` (if any) and
+   *  permanently excludes that date from future activity syncs — a one-way
+   *  action, same finality as deleting a manual entry. Manual entries on
+   *  that date, if any, are untouched. */
+  ignoreActivityDay(date: string): Promise<void>;
 }
 
 // ── Local "opted in" + lastSyncAt bookkeeping ──────────────────────────────
 // HealthKit itself is the source of truth for the actual OS-level grant;
 // this just remembers whether the user has turned the leve-side sync on.
 const LS_KEY = 'nutri.healthkit.state';
-interface LocalState { connected: boolean; lastSyncAt: string | null; }
+interface LocalState {
+  connected: boolean;
+  lastSyncAt: string | null;
+  /** Dates (YYYY-MM-DD) permanently excluded from activity sync via Ignore. */
+  ignoredActivityDates: string[];
+}
 
 function readState(): LocalState {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) return JSON.parse(raw) as LocalState;
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<LocalState>;
+      return {
+        connected: parsed.connected ?? false,
+        lastSyncAt: parsed.lastSyncAt ?? null,
+        ignoredActivityDates: parsed.ignoredActivityDates ?? [],
+      };
+    }
   } catch { /* ignore */ }
-  return { connected: false, lastSyncAt: null };
+  return { connected: false, lastSyncAt: null, ignoredActivityDates: [] };
 }
 function writeState(s: LocalState): void {
   try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch { /* ignore */ }
@@ -121,25 +145,34 @@ function createHealthKitService(repos: Repositories): HealthKitService {
       byDate.set(date, (byDate.get(date) ?? 0) + sample.value);
     }
 
+    const ignored = new Set(readState().ignoredActivityDates);
+
     let daysSynced = 0;
     for (const [date, totalCalories] of byDate) {
+      if (ignored.has(date)) continue; // user explicitly dismissed this day
+
+      // Additive: a manual entry on this date is a separate, independent
+      // line item and is never touched here — only the healthkit-tagged
+      // entry (at most one) is written or refreshed.
       const dayEntries = await repos.activities.byDate(date);
-      const manualEntries = dayEntries.filter((e) => e.source !== 'healthkit');
-      if (manualEntries.length > 0) continue; // respect hand-logged activity
+      const [existingSync, ...extraSyncs] = dayEntries.filter((e) => e.source === 'healthkit');
+      for (const extra of extraSyncs) await repos.activities.remove(extra.id); // dedupe stray syncs
 
+      // Only counts genuine writes, so the "synced N days" note stays
+      // honest instead of counting every in-window day on every sync.
       const rounded = Math.round(totalCalories);
-      const [existingSync, ...extras] = dayEntries; // all healthkit-sourced here
-      for (const extra of extras) await repos.activities.remove(extra.id); // dedupe stray syncs
-
       if (existingSync) {
-        await repos.activities.update({ ...existingSync, activeCalories: rounded });
+        if (existingSync.activeCalories !== rounded) {
+          await repos.activities.update({ ...existingSync, activeCalories: rounded });
+          daysSynced++;
+        }
       } else {
         await repos.activities.add({
           id: newId(), date, name: 'Apple Health', activeCalories: rounded,
           createdAt: new Date().toISOString(), source: 'healthkit',
         });
+        daysSynced++;
       }
-      daysSynced++;
     }
     return daysSynced;
   }
@@ -153,12 +186,14 @@ function createHealthKitService(repos: Repositories): HealthKitService {
       await Health.requestAuthorization({ read: ['weight', 'calories'] });
       // HealthKit deliberately never confirms read grants (privacy-preserving
       // by design) — proceed optimistically; a denied read just syncs 0 rows.
-      writeState({ connected: true, lastSyncAt: readState().lastSyncAt });
+      writeState({ ...readState(), connected: true });
       return buildStatus();
     },
 
     async disconnect() {
-      writeState({ connected: false, lastSyncAt: null });
+      // Only turns leve-side syncing off — Ignore history is kept, so
+      // reconnecting later doesn't resurrect days you already dismissed.
+      writeState({ ...readState(), connected: false });
       return buildStatus();
     },
 
@@ -168,8 +203,19 @@ function createHealthKitService(repos: Repositories): HealthKitService {
         return { weightAdded: 0, activityDaysSynced: 0, status };
       }
       const [weightAdded, activityDaysSynced] = await Promise.all([syncWeight(), syncActivity()]);
-      writeState({ connected: true, lastSyncAt: new Date().toISOString() });
+      writeState({ ...readState(), connected: true, lastSyncAt: new Date().toISOString() });
       return { weightAdded, activityDaysSynced, status: await buildStatus() };
+    },
+
+    async ignoreActivityDay(date: string) {
+      const dayEntries = await repos.activities.byDate(date);
+      for (const entry of dayEntries.filter((e) => e.source === 'healthkit')) {
+        await repos.activities.remove(entry.id);
+      }
+      const state = readState();
+      if (!state.ignoredActivityDates.includes(date)) {
+        writeState({ ...state, ignoredActivityDates: [...state.ignoredActivityDates, date] });
+      }
     },
   };
 }

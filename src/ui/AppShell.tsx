@@ -4,9 +4,11 @@ import { TabBar, type ActionType } from './components/TabBar';
 import { AddEntrySheet, type AddEntryTab } from './components/AddEntrySheet';
 import { Toaster, useToast, type ShowToast } from './components/Toaster';
 import { todayISO } from '../data/ids';
-import { PREVIEW } from '../state/repos';
+import { PREVIEW, repos } from '../state/repos';
 import { runMealsMigrationIfNeeded } from '../data/mealsMigration';
 import { runDefaultPantrySeedIfNeeded } from '../data/defaultPantrySeed';
+import { getHealthKitService } from '../data/healthkit';
+import { App as CapacitorApp } from '@capacitor/app';
 
 /** Shape shared with screens via the Outlet context. Today reads/sets the
  *  viewed date here so the + Add-entry sheet logs to the day being viewed
@@ -44,6 +46,24 @@ export function AppShell() {
       void runMealsMigrationIfNeeded();
       void runDefaultPantrySeedIfNeeded();
     }
+  }, []);
+
+  // Health sync: quietly on cold launch, and again each time the app comes
+  // back to the foreground — never continuous/polling. sync() itself is a
+  // safe no-op when not connected or unavailable (web/preview), so this can
+  // fire unconditionally. Errors are swallowed — a failed background sync
+  // shouldn't surface anywhere; the user can always hit "Sync now" in
+  // Account if something seems off.
+  useEffect(() => {
+    const svc = getHealthKitService(repos);
+    void svc.sync().catch(() => { /* best-effort */ });
+
+    let handle: { remove: () => void } | undefined;
+    CapacitorApp.addListener('resume', () => {
+      void svc.sync().catch(() => { /* best-effort */ });
+    }).then((h) => { handle = h; });
+
+    return () => { handle?.remove(); };
   }, []);
   const mainRef = useRef<HTMLElement>(null);
   const fadeRef = useRef<HTMLDivElement>(null);

@@ -4,23 +4,45 @@
 
 Unlike Withings, this talks to the real `@capgo/capacitor-health` plugin —
 HealthKit is an on-device permission grant, not OAuth, so there's no backend
-to build first. Account → Connections → **Apple Health** lets you connect,
-sync, and disconnect today.
+to build first.
+
+**Where it shows up:**
+- **Account → Connections → Apple Health** — connect, force a sync, or
+  disconnect. The explicit, always-available entry point.
+- **Log Activity / Log Weight** — a small dismissible banner offers to
+  connect right there, only shown when Health is available and not yet
+  connected (never once you're connected, never if previously dismissed).
+- **Day's log** — a synced Activity row is visually tagged (a Health icon
+  instead of the usual activity icon) and opens a read-only view instead of
+  the normal edit form.
 
 **Scope (read-only):**
 - **Weight** — imported into the same weight history as manual entries,
   tagged `source: 'healthkit'`. Never overwrites a date you've already
-  logged (by hand or from a prior sync).
-- **Activity/active-energy** — imported as one Activity entry per day
-  (`name: 'Apple Health'`), tagged `source: 'healthkit'`. Skips any day with
-  a manual activity entry; re-syncing refreshes the healthkit entry's total
-  as more of the day's data lands in Health.
+  logged (by hand or from a prior sync) — weight is one value per day, so
+  logging your own is how you correct a bad reading; `WeightLogSheet`
+  already always saves as `'manual'`, which protects it going forward.
+- **Activity/active-energy — additive, not exclusive.** Every sync
+  upserts at most ONE Activity entry per day tagged `source: 'healthkit'`
+  (`name: 'Apple Health'`) with that day's Health total, refreshing it in
+  place as more of the day's data lands — completely independent of
+  whatever manual entries also exist that day. Both are legitimate,
+  separate line items; Day's log just sums everything, the same as any two
+  manual entries would. A synced entry is never edited inline (tapping it
+  opens a read-only view, not the manual edit form) — the only action is
+  **Ignore**, which removes it and permanently excludes that date from
+  future syncs, same finality as deleting a manual entry.
+- **Sync cadence** — runs quietly once when the app launches and again
+  each time it returns to the foreground (`AppShell.tsx`, via
+  `@capacitor/app`'s `resume` event), plus on-demand via "Sync now" in
+  Account. No continuous polling.
 - Nothing is written **to** Health — leve only reads.
 
 Everything lives behind one seam: `src/data/healthkit.ts` (the
 `HealthKitService` interface + swap point `getHealthKitService`), same shape
-as `withings.ts`. The UI (`HealthCard` in `AccountScreen.tsx`) and the rest
-of the app don't know or care that it's real instead of mocked.
+as `withings.ts`. The UI (`HealthCard` in `AccountScreen.tsx`,
+`HealthConnectBanner.tsx`, `SyncedActivitySheet` in `TodayScreen.tsx`) and
+the rest of the app don't know or care that it's real instead of mocked.
 
 ## The one manual step (Xcode, on your Mac)
 
@@ -28,9 +50,11 @@ HealthKit needs its capability + entitlement registered against your App ID
 — Apple provisions this through Xcode's signing flow, so it can't be done by
 hand-editing project files reliably.
 
-1. Pull this change and sync natively:
+1. Pull this change and sync natively (`npm install` first — new JS
+   dependencies were added, and just syncing without installing them first
+   is a common miss):
    ```bash
-   cd ~/Documents/leve && git pull && npm run ios:sync
+   cd ~/Documents/leve && git pull && npm install && npm run ios:sync
    ```
 2. In Xcode → App target → **Signing & Capabilities** → **+ Capability** →
    search **HealthKit** → double-click to add it. Leave both checkboxes

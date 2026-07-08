@@ -6,9 +6,9 @@ import { getApiKey, setApiKey, clearApiKey } from '../../lib/apiKey';
  *  scan/describe calls go straight from their device to Anthropic (see
  *  lib/foodScan.ts) instead of through the shared Vercel proxy. Includes
  *  copy on where to get a key since most users won't have a Claude Console
- *  account already. Opens at full height (forceExpanded) — the instructions
- *  need room to breathe and this is a deliberate, infrequent visit, not a
- *  quick glance. Also opened directly from AI-feature error states via
+ *  account already. Opens at full height (forceExpanded) since the
+ *  instructions need room to breathe and this is a deliberate, infrequent
+ *  visit, not a quick glance. Also opened directly from AI-feature error states via
  *  lib/apiKey.ts's requestApiKeySheet(), so it's mounted once at AppShell
  *  level rather than owned by any one screen. */
 export function ApiKeySheet({ onClose }: { onClose: () => void }) {
@@ -57,7 +57,7 @@ export function ApiKeySheet({ onClose }: { onClose: () => void }) {
     >
       <div className="space-y-4 pb-2">
         <p className="text-subhead text-content-secondary">
-          By default, food scanning uses a shared preview key. Add your own Anthropic API key to use your own account instead — usage from then on is billed to you directly by Anthropic.
+          By default, food scanning uses a shared preview key. Add your own Anthropic API key to use your own account instead. Usage from then on is billed to you directly by Anthropic.
         </p>
 
         <label className="block">
@@ -88,11 +88,11 @@ export function ApiKeySheet({ onClose }: { onClose: () => void }) {
         </label>
 
         <div className="rounded-card border border-border-subtle bg-surface-sunken p-3">
-          <p className="mb-2 text-subhead font-medium text-content">How to get a key</p>
-          <ol className="space-y-1.5 text-caption text-content-secondary">
+          <p className="mb-2 text-callout font-bold text-content">How to get a key</p>
+          <ol className="space-y-1.5 text-callout font-normal text-content-secondary">
             <li>1. Go to <span className="font-medium text-content">console.anthropic.com</span> and sign up or log in.</li>
             <li>2. Open <span className="font-medium text-content">Settings → API Keys</span>.</li>
-            <li>3. Create a new key and copy it — Anthropic only shows it once.</li>
+            <li>3. Create a new key and copy it. Anthropic only shows it once.</li>
             <li>4. Paste it above and save.</li>
           </ol>
         </div>

@@ -1630,8 +1630,8 @@ function EditActivitySheet({ entry, onClose, showToast }: {
 }
 
 /** Read-only view for a healthkit-synced Activity entry. The number isn't
- *  the user's to edit (it's Health's number, refreshed on every sync) —
- *  instead there's an eye icon to hide/un-hide it from totals (stays visible
+ *  the user's to edit (it's Health's number, refreshed on every sync).
+ *  Instead there's an eye icon to hide/un-hide it from totals (stays visible
  *  in Day's log either way, just muted when hidden) and a refresh icon to
  *  sync on demand. Logging something separately for the same day is still
  *  just the normal Log Activity flow (additive, independent of this entry). */
@@ -1654,7 +1654,7 @@ function SyncedActivitySheet({ entry: initialEntry, onClose, showToast }: {
     const nextHidden = !entry.hidden;
     await getHealthKitService(repos).setActivityHidden(entry.date, nextHidden);
     await refreshEntry();
-    showToast?.(nextHidden ? "Hidden — won't count toward today's total" : 'Counting toward today\'s total again');
+    showToast?.(nextHidden ? "Hidden from today's total" : 'Counting toward today\'s total again');
     setBusy(null);
   }
 
@@ -1704,7 +1704,7 @@ function SyncedActivitySheet({ entry: initialEntry, onClose, showToast }: {
           </div>
         </div>
         <p className="text-subhead text-content-secondary">
-          This number comes straight from Health and updates automatically — it
+          This number comes straight from Health and updates automatically. It
           isn't something to edit by hand. Want to log something else for this
           day too? Use Log Activity as usual; it'll sit alongside this entry.
         </p>

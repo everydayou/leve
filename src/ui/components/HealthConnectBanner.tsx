@@ -4,7 +4,7 @@ import { getHealthKitService, type HealthKitStatus } from '../../data/healthkit'
 import { hapticLight } from '../../lib/haptics';
 import { Button, Icon } from '../kit';
 
-/** "5m ago" / "2h ago" / "Jul 6" — kept local to this component, nowhere
+/** "5m ago" / "2h ago" / "Jul 6". Kept local to this component, nowhere
  *  else in the app needs relative-time formatting. */
 function relativeSync(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -17,12 +17,12 @@ function relativeSync(iso: string): string {
 }
 
 /** Contextual Apple Health status, shown inline where manually logging
- *  something is exactly the moment it's relevant — Log Activity and Log
+ *  something is exactly the moment it's relevant: Log Activity and Log
  *  Weight. Two states:
  *  - Not connected yet: a dismissible "Connect Apple Health" nudge (same
  *    visual pattern as the weight reminder banner on Today).
  *  - Connected: a persistent (non-dismissible) status line confirming
- *    what's being tracked and when it last synced — connecting shouldn't
+ *    what's being tracked and when it last synced. Connecting shouldn't
  *    feel like it did nothing just because the nudge quietly disappeared.
  *  Renders nothing when Health isn't available on this device/build. */
 export function HealthConnectBanner({

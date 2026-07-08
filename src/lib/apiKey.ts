@@ -2,7 +2,7 @@ import { SecureStorage } from '@aparajita/capacitor-secure-storage';
 
 // Bring-your-own Claude API key (Settings → AI Food Scan). When set, food
 // scan/describe calls Anthropic directly from the device instead of going
-// through the shared Vercel proxy — see lib/foodScan.ts.
+// through the shared Vercel proxy. See lib/foodScan.ts.
 //
 // Stored in the iOS Keychain / Android Keystore via @aparajita/capacitor-
 // secure-storage (unencrypted localStorage on the web preview only, which
@@ -29,7 +29,7 @@ export async function getApiKey(): Promise<string | null> {
   return cache;
 }
 
-/** Synchronous read of the cached value — null until getApiKey() has been
+/** Synchronous read of the cached value. Null until getApiKey() has been
  *  called once (e.g. on app boot). Use for instant UI state; fall back to
  *  the async getApiKey() when correctness matters more than latency. */
 export function getCachedApiKey(): string | null {
@@ -43,7 +43,7 @@ export async function setApiKey(key: string): Promise<void> {
   cache = trimmed;
 }
 
-/** Remove the user's key — food scan reverts to the shared proxy. */
+/** Remove the user's key. Food scan reverts to the shared proxy. */
 export async function clearApiKey(): Promise<void> {
   try { await SecureStorage.removeItem(STORE_KEY); } catch { /* already gone */ }
   cache = null;
@@ -51,8 +51,8 @@ export async function clearApiKey(): Promise<void> {
 
 // ── Global "open the API key sheet" trigger ────────────────────────────────
 // A plain DOM event instead of prop-drilling/context: AI-feature call sites
-// (Day's-log basket, Pantry meal builder, DescribeOverlay — several layers
-// deep in different component trees) all need a one-line way to jump
+// (Day's-log basket, Pantry meal builder, DescribeOverlay, all several
+// layers deep in different component trees) need a one-line way to jump
 // straight to Settings → AI Food Scan when a scan/describe call fails.
 // AppShell mounts a single ApiKeySheet instance and listens for this event,
 // same pattern as the existing 'devmenu:reset-tab' event in AppShell.tsx.

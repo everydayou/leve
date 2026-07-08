@@ -15,7 +15,7 @@ export interface ToastData {
   undoFn?: () => Promise<void>;
   /** A second, non-undo action button (e.g. "Add key" jumping straight to
    *  Settings → AI Food Scan from a scan-failure toast). Mutually distinct
-   *  from undoFn — a toast is expected to carry at most one of the two. */
+   *  from undoFn; a toast is expected to carry at most one of the two. */
   action?: { label: string; onClick: () => void };
 }
 

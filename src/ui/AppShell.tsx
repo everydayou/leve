@@ -39,13 +39,13 @@ export function AppShell() {
   const { toast, showToast, dismissToast } = useToast();
   const [apiKeySheetOpen, setApiKeySheetOpen] = useState(false);
 
-  // Global entry point for the bring-your-own-key sheet — any AI-feature
+  // Global entry point for the bring-your-own-key sheet. Any AI-feature
   // call site (Day's-log basket, Pantry meal builder, DescribeOverlay) can
   // trigger this via requestApiKeySheet() without needing it threaded
   // through props/context. Single instance, mounted once here.
   useEffect(() => onRequestApiKeySheet(() => setApiKeySheetOpen(true)), []);
 
-  // Warm lib/apiKey.ts's in-memory cache on boot — useAiGate's tap-time
+  // Warm lib/apiKey.ts's in-memory cache on boot. useAiGate's tap-time
   // check (getCachedApiKey) needs to be synchronous, so this makes sure the
   // one-time Keychain read has already resolved by the time any AI-feature
   // button is tapped, rather than racing it.
@@ -64,9 +64,9 @@ export function AppShell() {
   }, []);
 
   // Health sync: quietly on cold launch, and again each time the app comes
-  // back to the foreground — never continuous/polling. sync() itself is a
+  // back to the foreground; never continuous/polling. sync() itself is a
   // safe no-op when not connected or unavailable (web/preview), so this can
-  // fire unconditionally. Errors are swallowed — a failed background sync
+  // fire unconditionally. Errors are swallowed; a failed background sync
   // shouldn't surface anywhere; the user can always hit "Sync now" in
   // Account if something seems off.
   useEffect(() => {

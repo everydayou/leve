@@ -33,7 +33,7 @@ const API_URL = (import.meta.env.VITE_FOOD_SCAN_API_URL as string | undefined) ?
 export const SCAN_ENABLED = !!API_URL;
 
 /** Thrown whenever a scan/describe call couldn't reach a working AI
- *  backend — shared proxy down/misconfigured, network failure, or the
+ *  backend: shared proxy down/misconfigured, network failure, or the
  *  user's own key being missing/invalid. Distinct from a plain Error (e.g.
  *  "no food found in that photo", which is a normal result, not a backend
  *  problem) so callers can offer a direct route into Settings → AI Food
@@ -90,7 +90,7 @@ async function proxyRequest(path: string, body: unknown): Promise<ScannedFood[]>
 }
 
 // ── Bring-your-own-key: direct-to-Anthropic path ──────────────────────────
-// No server involved — the device calls api.anthropic.com straight with the
+// No server involved. The device calls api.anthropic.com straight with the
 // user's own key, via the `anthropic-dangerous-direct-browser-access` header
 // Anthropic provides for exactly this (the key never touches any server of
 // ours). Structured output is forced via tool use so we always get back
@@ -110,7 +110,7 @@ const FOOD_TOOL = {
           type: 'object',
           properties: {
             name: { type: 'string' },
-            description: { type: 'string', description: 'Short description of exactly what was identified — portion, state, etc.' },
+            description: { type: 'string', description: 'Short description of exactly what was identified: portion, state, etc.' },
             estimatedGrams: { type: 'number' },
             calories: { type: 'number' },
             protein: { type: 'number', description: 'grams' },

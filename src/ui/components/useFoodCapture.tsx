@@ -219,7 +219,7 @@ export function useFoodCapture({ showToast, onCaptured }: UseFoodCaptureOptions)
   );
 
   // Deliberately not built with withAiGate(handleCamera) here (a HOC-style
-  // wrap) — eslint-plugin-react-hooks' ref-safety check can't prove a
+  // wrap): eslint-plugin-react-hooks' ref-safety check can't prove a
   // generic wrapper won't invoke a ref-touching function synchronously
   // during render when it's passed in as a plain argument, and flags it.
   // Manual inline wrapping keeps the exact same behaviour without tripping
@@ -236,7 +236,7 @@ export function useFoodCapture({ showToast, onCaptured }: UseFoodCaptureOptions)
     resolveServingModal, closeServingModal,
     openLabelPicker: gatedOpenLabelPicker,
     /** Exposed so callers can gate their OWN AI-feature triggers the same
-     *  way — e.g. wrapping their local "open the Describe overlay" handler,
+     *  way (e.g. wrapping their local "open the Describe overlay" handler),
      *  which lives outside this hook (each Pantry surface owns its own
      *  overlay state). */
     withAiGate,

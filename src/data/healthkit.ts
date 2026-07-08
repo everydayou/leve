@@ -1,40 +1,40 @@
-// ── Apple Health integration (real, on-device — no backend needed) ────────
+// ── Apple Health integration (real, on-device, no backend needed) ────────
 //
 // WHAT THIS IS
 // A framework-agnostic seam (same shape as withings.ts) for syncing weight
 // and active-energy from Apple Health via @capgo/capacitor-health. Unlike
-// Withings, HealthKit needs no OAuth/backend — it's a native on-device
-// permission grant — so this talks to the real plugin directly, no mock.
+// Withings, HealthKit needs no OAuth/backend, it's a native on-device
+// permission grant, so this talks to the real plugin directly, no mock.
 //
 // SCOPE (read-only, per product decision)
 // - Weight: written through the same repo seam as manual entries, tagged
 //   source: 'healthkit'. Never overwrites a date that already has ANY entry
-//   (manual or previously-synced) — same non-destructive rule as Withings.
+//   (manual or previously-synced), same non-destructive rule as Withings.
 //   Weight is one value per day, so editing IS how you correct a bad
-//   reading — WeightLogSheet already always saves as 'manual', which
+//   reading, WeightLogSheet already always saves as 'manual', which
 //   protects it from being overwritten again on the next sync.
 // - Activity/active-energy: ADDITIVE, not exclusive. Every sync upserts (at
 //   most) ONE ActivityEntry per day tagged source: 'healthkit' with that
 //   day's total active-energy, refreshing it in place as the day's Health
-//   data grows — completely independent of whatever manual entries also
+//   data grows, completely independent of whatever manual entries also
 //   exist that day (both are legitimate, separate line items; Day's log
 //   just sums everything, same as any two manual entries would). A
 //   healthkit entry is never editable inline (the number isn't yours to
-//   correct) — the only interaction is Hide (ActivityEntry.hidden), a
+//   correct), the only interaction is Hide (ActivityEntry.hidden), a
 //   toggle rather than a delete: a hidden entry stays visible in Day's log
 //   with muted styling but is excluded from every total, and future syncs
 //   leave a hidden day's entry alone instead of reviving it.
-// - Nothing is written TO Health — leve is read-only against HealthKit today.
+// - Nothing is written TO Health, leve is read-only against HealthKit today.
 //
 // PLATFORM SAFETY
 // Health.isAvailable() reports platform:'web' with available:false in the
 // browser/preview build, so every call here is safe to make unconditionally
-// — dev server and VITE_PREVIEW builds just see an always-disconnected card.
+//, dev server and VITE_PREVIEW builds just see an always-disconnected card.
 //
 // THE ONE MANUAL STEP
 // HealthKit needs its capability + entitlement registered through Xcode's
-// Signing & Capabilities UI (Apple provisions this against your App ID) —
-// see HEALTHKIT.md. Everything else here is plain TypeScript.
+// Signing & Capabilities UI (Apple provisions this against your App ID).
+// See HEALTHKIT.md. Everything else here is plain TypeScript.
 
 import { Health } from '@capgo/capacitor-health';
 import type { Repositories } from './repositories';
@@ -59,13 +59,13 @@ export interface HealthKitService {
   getStatus(): Promise<HealthKitStatus>;
   /** Requests HealthKit read authorization, then runs an initial sync. */
   connect(): Promise<HealthKitStatus>;
-  /** Stops leve from syncing further. Does NOT revoke the OS-level grant —
+  /** Stops leve from syncing further. Does NOT revoke the OS-level grant;
    *  HealthKit deliberately gives apps no API for that; the user would go to
    *  Settings > Privacy & Security > Health > leve to fully revoke. */
   disconnect(): Promise<HealthKitStatus>;
   sync(): Promise<HealthKitSyncResult>;
   /** Toggles `hidden` on the healthkit-tagged Activity entry for `date` (a
-   *  no-op if there isn't one). Hidden entries stay in Day's log — they're
+   *  no-op if there isn't one). Hidden entries stay in Day's log, they're
    *  excluded from totals and from further syncing until un-hidden. Manual
    *  entries on that date, if any, are untouched either way. */
   setActivityHidden(date: string, hidden: boolean): Promise<void>;
@@ -79,7 +79,7 @@ interface LocalState {
   connected: boolean;
   lastSyncAt: string | null;
   /** Date (YYYY-MM-DD) connect() was last called. Sync never reaches earlier
-   *  than this — see "no historical backfill" note above syncWeight/syncActivity. */
+   *  than this, see "no historical backfill" note above syncWeight/syncActivity. */
   connectedAt: string | null;
 }
 
@@ -125,7 +125,7 @@ function createHealthKitService(repos: Repositories): HealthKitService {
     let available = false;
     try {
       available = (await Health.isAvailable()).available;
-    } catch { /* plugin not present on this platform build — stay false */ }
+    } catch { /* plugin not present on this platform build, stay false */ }
     return { available, connected: available && local.connected, lastSyncAt: local.lastSyncAt };
   }
 
@@ -157,7 +157,7 @@ function createHealthKitService(repos: Repositories): HealthKitService {
     // own Health app total already resolves that via its statistics engine
     // when it shows "Active Calories." Summing raw samples ourselves doesn't
     // get that resolution and can also silently truncate at the sample
-    // limit before reaching today — this asks HealthKit to do the correct
+    // limit before reaching today, this asks HealthKit to do the correct
     // per-day sum natively instead, which is what actually matches the
     // number Health itself shows.
     const { samples } = await Health.queryAggregated({
@@ -171,13 +171,13 @@ function createHealthKitService(repos: Repositories): HealthKitService {
       const totalCalories = sample.value;
 
       // Additive: a manual entry on this date is a separate, independent
-      // line item and is never touched here — only the healthkit-tagged
+      // line item and is never touched here, only the healthkit-tagged
       // entry (at most one) is written or refreshed.
       const dayEntries = await repos.activities.byDate(date);
       const [existingSync, ...extraSyncs] = dayEntries.filter((e) => e.source === 'healthkit');
       for (const extra of extraSyncs) await repos.activities.remove(extra.id); // dedupe stray syncs
 
-      if (existingSync?.hidden) continue; // user hid this day — leave it alone
+      if (existingSync?.hidden) continue; // user hid this day, leave it alone
 
       // Only counts genuine writes, so the "synced N days" note stays
       // honest instead of counting every in-window day on every sync.
@@ -206,15 +206,15 @@ function createHealthKitService(repos: Repositories): HealthKitService {
       if (!status.available) return status;
       await Health.requestAuthorization({ read: ['weight', 'calories'] });
       // HealthKit deliberately never confirms read grants (privacy-preserving
-      // by design) — proceed optimistically; a denied read just syncs 0 rows.
+      // by design), proceed optimistically; a denied read just syncs 0 rows.
       // connectedAt resets to today on every connect (including a reconnect
-      // after disconnecting) — sync only ever looks forward from here.
+      // after disconnecting), sync only ever looks forward from here.
       writeState({ ...readState(), connected: true, connectedAt: todayISO() });
       return buildStatus();
     },
 
     async disconnect() {
-      // Only turns leve-side syncing off — Ignore history is kept, so
+      // Only turns leve-side syncing off, Ignore history is kept, so
       // reconnecting later doesn't resurrect days you already dismissed.
       writeState({ ...readState(), connected: false });
       return buildStatus();
@@ -246,7 +246,7 @@ function createHealthKitService(repos: Repositories): HealthKitService {
 }
 
 // The single swap point, matching withings.ts's shape. There's no mock to
-// swap out here — this already talks to the real plugin.
+// swap out here, this already talks to the real plugin.
 export function getHealthKitService(repos: Repositories): HealthKitService {
   return createHealthKitService(repos);
 }

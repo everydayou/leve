@@ -9,7 +9,7 @@ import { todayISO, addDays, prettyDate } from '../../data/ids';
 import { getMondayOfWeek, fmtDiaryDate } from '../../lib/date';
 import { effectiveNutrition, calcDigestionCalories } from '../../domain/calc';
 import { requiredDailyDeficit, isMaintainGoal, usesKcalBand, activityCarbTargetG, currentWeightKg } from '../../domain/goal';
-import { mifflinStJeorBMR } from '../../domain/bmr';
+import { mifflinStJeorBMR, bmrForDate, estimateBmrFromWeight } from '../../domain/bmr';
 import { kgToLbs } from '../../domain/units';
 import { prefersReducedMotion } from '../../lib/motion';
 import {
@@ -45,7 +45,16 @@ export function TodayScreen() {
   const weekActs    = useLive(() => repos.activities.byDateRange(prevMonday, stripEnd), [prevMonday, stripEnd]) ?? [];
 
   // Compute per-day state for all 21 days (prev + current + next week).
-  const bmr         = user?.bmr ?? 0;
+  // NOTE: BMR is computed PER DAY via bmrForDate (closest prior weight entry
+  // on/before that date), matching useDay.ts exactly — a flat user.bmr here
+  // would disagree with the gauge card's own per-day math for any day whose
+  // historical weight differs from the current one.
+  const sortedWeightsDesc = [...weights].sort((a, b) => b.date.localeCompare(a.date));
+  const latestWeight      = sortedWeightsDesc[0] ?? null;
+  const bmrForDay = (d: string): number => {
+    const actual = user ? bmrForDate(d, weights, user) : 0;
+    return actual > 0 ? actual : latestWeight ? estimateBmrFromWeight(latestWeight.weightKg) : 0;
+  };
   const dailyTarget = goal ? requiredDailyDeficit(goal) : 0; // signed: negative for gain
   // NOTE: named gainGoal for historical reasons, but it really means "uses a
   // floor/ceiling kcal band" (gain_by_date OR maintain) — the two share the
@@ -76,6 +85,7 @@ export function TodayScreen() {
       if (foods.length === 0 && acts.length === 0) {
         dayStates[d] = 'no-info';
       } else {
+        const bmr        = bmrForDay(d);
         const consumed   = foods.reduce((s, e) => s + (e.snapshot?.calories ?? 0), 0);
         const actCals    = acts.filter((a) => !a.hidden).reduce((s, a) => s + a.activeCalories, 0);
         const digestion  = calcDigestionCalories(foods);
@@ -1197,7 +1207,7 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
                             </span>
                           </span>
                           <span className="shrink-0 text-callout text-content">
-                            {gainGoal ? '' : '−'}{effectiveNutrition(entry, day.itemsById).calories} kcal
+                            {effectiveNutrition(entry, day.itemsById).calories} kcal
                           </span>
                         </button>
                       </li>
@@ -1215,7 +1225,7 @@ function DayPanel({ date, items, weights, dailyTarget, proteinGoalG, isActive, g
                             <Icon name={isSynced ? (act.hidden ? 'eyeOff' : 'health') : 'activityIcon'} size={16} className="shrink-0 text-content-secondary" />
                             <span className="truncate text-subhead font-bold text-content">{act.name ?? 'Activity'}</span>
                           </span>
-                          <span className={`shrink-0 text-subhead ${act.hidden ? 'text-content-muted' : 'text-content'}`}>{gainGoal ? '−' : '+'}{act.activeCalories} kcal</span>
+                          <span className={`shrink-0 text-subhead ${act.hidden ? 'text-content-muted' : 'text-content'}`}>−{act.activeCalories} kcal</span>
                         </button>
                       </li>
                     );

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Icon } from './Icon';
+import { hapticLight } from '../../lib/haptics';
 
 /* ── WheelPicker ─────────────────────────────────────────────────────────────
  *  Wraps a native <select> element (iOS drum-roll picker) in the same visual
@@ -97,7 +98,7 @@ export function WheelPicker({
             value={selectVal}
             onChange={e => {
               const v = e.target.value;
-              if (v !== '') onChange(v); // ignore re-selecting the placeholder
+              if (v !== '') { hapticLight(); onChange(v); } // ignore re-selecting the placeholder
             }}
             className={baseCls}
           >
@@ -134,10 +135,12 @@ export function WheelPicker({
   const wholeMax = Math.floor(max);
 
   function onWholeChange(newWhole: number) {
+    hapticLight();
     const result = newWhole + dec / Math.pow(10, decPlaces);
     onChange(result.toFixed(decPlaces));
   }
   function onDecChange(newDec: number) {
+    hapticLight();
     const result = whole + newDec / Math.pow(10, decPlaces);
     onChange(result.toFixed(decPlaces));
   }
@@ -195,6 +198,7 @@ export function WheelPicker({
               value=""
               onChange={e => {
                 if (e.target.value === '') return;
+                hapticLight();
                 onChange((Number(e.target.value) + cDec / Math.pow(10, decPlaces)).toFixed(decPlaces));
               }}
               className={`w-full ${splitSelectCls}`}
@@ -213,6 +217,7 @@ export function WheelPicker({
               value=""
               onChange={e => {
                 if (e.target.value === '') return;
+                hapticLight();
                 onChange((cWhole + Number(e.target.value) / Math.pow(10, decPlaces)).toFixed(decPlaces));
               }}
               className={`w-full ${splitSelectCls}`}

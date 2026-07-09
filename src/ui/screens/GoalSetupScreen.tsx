@@ -160,7 +160,7 @@ export function GoalSetupForm({
 
   // ── Pace ──────────────────────────────────────────────────────────────────
   const [losePace, setLosePace] = useState<LosePaceId>('relaxed');
-  const [gainPace, setGainPace] = useState<GainPaceId>('lean');
+  const [gainPace, setGainPace] = useState<GainPaceId>('relaxed');
 
   // ── Maintain band (r182) ─────────────────────────────────────────────────
   // Guided mode: one preset drives both the weight range and the kcal band.

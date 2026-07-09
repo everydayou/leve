@@ -183,10 +183,16 @@ export const LOSE_PACES = [
 ] as const;
 export type LosePaceId = typeof LOSE_PACES[number]['id'];
 
+// Same pace vocabulary as LOSE_PACES (Relaxed/Steady/Ambitious) — these tiers
+// are a speed dial (kg/month), not a body-composition style choice, so they
+// use the same "how fast" adjectives as Lose rather than bulk/cut jargon like
+// Lean/Bulk, which reads as an outcome rather than a pace (round 193, per
+// Marco: goal TYPE already picked the outcome — gain_by_date — this control
+// is only about how quickly).
 export const GAIN_PACES = [
-  { id: 'lean',   label: 'Lean',   surplusFloor: 50,  surplusCeiling: 200, kgPerMonth: 0.5 },
-  { id: 'steady', label: 'Steady', surplusFloor: 150, surplusCeiling: 350, kgPerMonth: 1.0 },
-  { id: 'bulk',   label: 'Bulk',   surplusFloor: 300, surplusCeiling: 600, kgPerMonth: 1.5 },
+  { id: 'relaxed',   label: 'Relaxed',   surplusFloor: 50,  surplusCeiling: 200, kgPerMonth: 0.5 },
+  { id: 'steady',    label: 'Steady',    surplusFloor: 150, surplusCeiling: 350, kgPerMonth: 1.0 },
+  { id: 'ambitious', label: 'Ambitious', surplusFloor: 300, surplusCeiling: 600, kgPerMonth: 1.5 },
 ] as const;
 export type GainPaceId = typeof GAIN_PACES[number]['id'];
 

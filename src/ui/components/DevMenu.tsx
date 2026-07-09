@@ -9,6 +9,7 @@ import {
   resolveColorToken, readRawToken, exportCss,
 } from '../../lib/devTokens';
 import { PROFILE_KEY, TEST_PROFILE, REAL_PROFILE, DB_NAMES, activeProfile } from '../../data/db';
+import { SHARED_BETA, SHARED_BETA_ANTHROPIC_KEY } from '../../lib/sharedBeta';
 import { resetOnboarding } from '../../lib/onboarding';
 import { ScanResults, type ResultItem } from './AddEntrySheet';
 import { repos } from '../../state/repos';
@@ -928,6 +929,17 @@ function ProfileSwitcher() {
 
   return (
     <div className="mb-5 overflow-hidden rounded-control border border-border-subtle">
+      {SHARED_BETA && (
+        <div className="border-b border-border-subtle bg-danger-soft px-4 py-2">
+          <p className="text-caption font-semibold text-content">
+            ⚠️ Shared-beta mode is ON in this build
+          </p>
+          <p className="text-caption text-content-muted">
+            Fresh installs default to Test account. Shared key {SHARED_BETA_ANTHROPIC_KEY ? 'is' : 'is NOT'} configured.
+            Turn VITE_SHARED_BETA off in .env.local before your next regular npm run ios:sync.
+          </p>
+        </div>
+      )}
       <div className="flex items-center justify-between bg-surface px-4 py-3">
         <div>
           <p className="text-subhead font-semibold text-content">

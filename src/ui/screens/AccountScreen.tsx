@@ -15,6 +15,7 @@ import { getDevRevealed, setDevRevealed } from '../../lib/devReveal';
 import { getWithingsService, type WithingsStatus } from '../../data/withings';
 import { getHealthKitService, type HealthKitStatus } from '../../data/healthkit';
 import { getApiKey, requestApiKeySheet } from '../../lib/apiKey';
+import { SHARED_BETA } from '../../lib/sharedBeta';
 import { DevMenu } from '../components/DevMenu';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { currentWeightKg, isGainGoal, isMaintainGoal } from '../../domain/goal';
@@ -251,9 +252,14 @@ function SettingsSubView({ showDeveloper, onClose }: { showDeveloper: boolean; o
       <SlideHeader title="Settings" onBack={goBack} scrolled={scrolled} muted />
       <div className="px-6 pb-8 pt-2">
         <AppearanceCard />
-        <div className="mt-2">
-          <ApiKeyCard />
-        </div>
+        {/* Hidden entirely in shared-beta builds — nothing for an external
+            tester to configure, since the Test profile auto-connects via
+            the shared key (see lib/sharedBeta.ts). */}
+        {!SHARED_BETA && (
+          <div className="mt-2">
+            <ApiKeyCard />
+          </div>
+        )}
 
         {SHOW_CONNECTIONS_SECTION && (
           <div className="mt-2">

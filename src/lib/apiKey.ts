@@ -1,4 +1,6 @@
 import { SecureStorage } from '@aparajita/capacitor-secure-storage';
+import { SHARED_BETA, SHARED_BETA_ANTHROPIC_KEY } from './sharedBeta';
+import { activeProfile, TEST_PROFILE } from '../data/db';
 
 // Bring-your-own Claude API key (Settings → AI Food Scan). When set, food
 // scan/describe calls Anthropic directly from the device instead of going
@@ -23,17 +25,30 @@ async function readFromStore(): Promise<string | null> {
   }
 }
 
-/** The user's own Anthropic API key, or null if they haven't set one. */
+// Shared-beta mode (see lib/sharedBeta.ts): on the Test profile only, fall
+// back to Marco's own temporary key when the tester hasn't set a personal
+// one — never applied on the Real profile, and never persisted to the
+// keychain, so it can't leak into a normal build or a normal profile.
+function withSharedBetaFallback(key: string | null): string | null {
+  if (key) return key;
+  if (SHARED_BETA && activeProfile === TEST_PROFILE && SHARED_BETA_ANTHROPIC_KEY) {
+    return SHARED_BETA_ANTHROPIC_KEY;
+  }
+  return key;
+}
+
+/** The user's own Anthropic API key, or the shared-beta fallback key on the
+ *  Test profile, or null if neither is set. */
 export async function getApiKey(): Promise<string | null> {
   if (cache === undefined) cache = await readFromStore();
-  return cache;
+  return withSharedBetaFallback(cache);
 }
 
 /** Synchronous read of the cached value. Null until getApiKey() has been
  *  called once (e.g. on app boot). Use for instant UI state; fall back to
  *  the async getApiKey() when correctness matters more than latency. */
 export function getCachedApiKey(): string | null {
-  return cache ?? null;
+  return withSharedBetaFallback(cache ?? null);
 }
 
 /** Save the user's key. Overwrites any existing value. */

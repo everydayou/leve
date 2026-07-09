@@ -1,4 +1,76 @@
 ================================================================
+ROUND 193: DIARY SIGN-DISPLAY FIX; WEEKLY-STRIP PER-DAY BMR FIX; GAIN PACE RENAME; WHEELPICKER HAPTICS; SHARED-BETA MODE FOR EXTERNAL TESTERS (2026-07-09)
+================================================================
+Files: src/ui/screens/TodayScreen.tsx, src/ui/kit/WheelPicker.tsx,
+       src/domain/goal.ts, src/ui/screens/GoalSetupScreen.tsx,
+       src/lib/sharedBeta.ts (new), src/data/db.ts, src/lib/apiKey.ts,
+       src/ui/components/DevMenu.tsx, src/ui/screens/AccountScreen.tsx,
+       .env.example, TESTFLIGHT.md
+
+- DAY'S LOG SIGN DISPLAY FIXED: the gauge card's Food/Activity stat row
+  was already correct and goal-type-agnostic (Food always plain, Activity
+  always "−"), but the Day's log list below it branched on gainGoal and
+  had both signs backwards for lose_by_date/maintain (Food showed "−",
+  Activity showed "+"), only accidentally correct for gain_by_date.
+  Removed the branching entirely so the list always matches the gauge
+  card, across all three goal types.
+- WEEKLY STRIP PER-DAY BMR FIX: the week strip's succeed/fail dots used a
+  single flat user.bmr for all 21 days, while the day panel/gauge card
+  (via useDay -> bmrForDate) computes BMR per day from whichever weight
+  was on file as of that specific date. Any day whose historical weight
+  differed from the current one could disagree between the two (Marco
+  hit this testing with a 5-day-old start date and mid-test weight
+  changes: gauge card said on-target, strip showed a fail X). Strip now
+  calls bmrForDate(d, weights, user) per day, matching the day panel
+  exactly, with the same estimate-from-weight fallback for incomplete
+  profiles.
+- GAIN PACE TIERS RENAMED: Guided goal-setup's Gain "Pace" tiers were
+  Lean/Steady/Bulk (GAIN_PACES in domain/goal.ts) -- body-composition
+  outcome language, inconsistent with Lose's Relaxed/Steady/Ambitious
+  (effort/speed language), even though both are mechanically the same
+  thing: three tiers ordered slow-to-fast driving an end date + daily
+  kcal. Renamed to Relaxed/Steady/Ambitious to match Lose. IDs/values
+  unchanged (kgPerMonth, surplusFloor/Ceiling); nothing persisted
+  references the old ids (gainPace is transient setup-screen state
+  only), so no migration needed. GoalSetupScreen's default state
+  updated 'lean' -> 'relaxed' to match.
+- WHEELPICKER HAPTICS: all 5 real user-driven onChange sites across
+  WheelPicker's single-wheel and split-wheel (empty-state and normal)
+  modes now call hapticLight(), matching the app-wide rule that
+  interactive elements fire haptics on tap. The two mount-time
+  auto-sync useEffect calls (snapping an out-of-range value on load)
+  deliberately do NOT fire haptics, since nothing was tapped.
+- SHARED-BETA MODE (new, for handing this app to external testers
+  without requiring their own Anthropic key): a single build-time
+  switch, VITE_SHARED_BETA (+ VITE_SHARED_BETA_ANTHROPIC_KEY) in
+  .env.local (gitignored, never committed -- see .env.example), OFF
+  unless explicitly set so Marco's own day-to-day build is never
+  affected. New src/lib/sharedBeta.ts is the single source of truth for
+  both flags. When on: a fresh install with no explicit profile choice
+  yet defaults into the Test account instead of Real (src/data/db.ts's
+  activeProfile -- an explicit stored choice via the Developer menu's
+  profile switcher always wins over this default either way); AI Food
+  Scan auto-connects using the shared key while on the Test profile
+  only, never persisted to the keychain (src/lib/apiKey.ts's
+  withSharedBetaFallback); the manual "AI Food Scan" Settings row is
+  hidden entirely (AccountScreen.tsx), since there's nothing for a
+  tester to configure. The hidden Developer menu (triple-tap Account
+  title) shows a warning banner whenever a build has this mode baked
+  in, as a safety net against forgetting to turn it off before a
+  regular sync. TESTFLIGHT.md documents the full on/archive/off
+  workflow, including that ending the test for everyone (at any time,
+  no app update needed) is done by deleting the temporary key in the
+  Claude Console -- instant and permanent; there's no per-key spend
+  limit, so a dedicated Workspace spend limit, or prepaid credits with
+  auto-reload off, is the safety net while the key is still live.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged --
+  these are UI-display/derivation fixes and a new opt-in build flag,
+  verified by tracing the existing logic and matching it against the
+  on-device repro Marco described, not new automated tests; see
+  KNOWN GAPS).
+
+
+================================================================
 ROUND 192: TESTFLIGHT UPLOAD FIX; EXPORT-JSON iOS FIX; STALE APP NAME (2026-07-08)
 ================================================================
 Files: src/data/exportJson.ts, src/ui/screens/AccountScreen.tsx,

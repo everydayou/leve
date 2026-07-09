@@ -2,13 +2,15 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-08, Round 192 (fixed Export all data (JSON) doing
-nothing on iOS, replaced with a native Filesystem + Share flow; fixed
-the first real TestFlight upload failing on a missing
-NSHealthUpdateUsageDescription purpose string; fixed the app's Xcode
-target still reporting the old "nutri" display name instead of "leve";
-first TestFlight build successfully processing in App Store Connect)
-Full change history: see CHANGELOG.txt (rounds 1-192).
+Last updated: 2026-07-09, Round 193 (fixed Day's log food/activity sign
+display disagreeing with the gauge card; fixed the weekly strip using a
+flat BMR instead of per-day historical BMR, which could disagree with
+the gauge card's own verdict for a given day; renamed Gain's Guided pace
+tiers Lean/Steady/Bulk -> Relaxed/Steady/Ambitious to match Lose's
+vocabulary; added haptics to all WheelPicker interactions; added an
+opt-in, env-gated "shared-beta" mode for handing a build to external
+testers without requiring their own Anthropic key)
+Full change history: see CHANGELOG.txt (rounds 1-193).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -118,12 +120,37 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 192, 2026-07-08)
+7. CURRENT STATUS (as of round 193, 2026-07-09)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only.
-Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-192)
+Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-193)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
+- DIARY SIGN-DISPLAY + WEEKLY-STRIP BMR FIXES (round 193): Day's log now
+  always shows Food with no sign and Activity with "−", matching the
+  gauge card, across all three goal types (previously backwards for
+  lose_by_date/maintain). The weekly strip's succeed/fail dots now
+  compute BMR per day (bmrForDate) instead of one flat current-BMR
+  number, matching the gauge card's own math — fixes cases where a
+  historical weight change made the strip disagree with the gauge card
+  for the same day.
+- GAIN PACE TIERS RENAMED (round 193): Guided goal-setup's Gain "Pace"
+  options are now Relaxed/Steady/Ambitious (was Lean/Steady/Bulk),
+  matching Lose's vocabulary — both are the same mechanism (three tiers,
+  slow-to-fast), so both now read as pace rather than mixing in
+  body-composition-style language for Gain only.
+- WHEELPICKER HAPTICS (round 193): every real WheelPicker interaction
+  (weight/date/range pickers etc.) now fires hapticLight(), matching the
+  rest of the app's interactive elements.
+- SHARED-BETA MODE (round 193, new): an opt-in, env-gated mode
+  (VITE_SHARED_BETA in .env.local, OFF by default) for handing a build to
+  external testers without requiring their own Anthropic key — auto-
+  connects AI Food Scan on the Test profile only, using a temporary key
+  Marco controls. Marco's own day-to-day build is unaffected unless he
+  explicitly sets the flag right before archiving a build for testers.
+  See TESTFLIGHT.md's "Shared beta mode" section for the full workflow,
+  including how to end access for everyone at any time (delete the key
+  in the Claude Console — instant, permanent, no app update needed).
 - THREE GOAL TYPES NOW SHIPPED (round 190): maintain_weight joins
   lose_by_date/gain_by_date end-to-end — GoalSetupScreen (Guided band
   presets + Detailed custom range picker), GoalScreen/TodayScreen/
@@ -303,13 +330,25 @@ HIGH:
   181; see DONE (r181) below.)
 
 MED:
-- NO AUTOMATED TEST COVERAGE FOR HEALTHKIT/BYOK/GATE LOGIC (round 191,
-  new): the HealthKit sync (dedup/clamp/hide-in-place), the direct-to-
-  Anthropic BYOK call path, and the useAiGate upfront check were all
-  verified manually and on-device only, not via vitest. Worth adding
-  unit coverage for the pure logic pieces (queryAggregated bucketing,
-  connectedAt clamp, FoodScanError classification) if this area sees
-  more churn.
+- NO AUTOMATED TEST COVERAGE FOR HEALTHKIT/BYOK/GATE/SHARED-BETA LOGIC
+  (round 191, extended round 193): the HealthKit sync (dedup/clamp/
+  hide-in-place), the direct-to-Anthropic BYOK call path, the useAiGate
+  upfront check, the weekly strip's per-day BMR computation, and the new
+  shared-beta profile-default/key-fallback logic (src/data/db.ts,
+  src/lib/apiKey.ts, src/lib/sharedBeta.ts) were all verified manually/
+  by tracing, not via vitest. Worth adding unit coverage for the pure
+  logic pieces (queryAggregated bucketing, connectedAt clamp,
+  FoodScanError classification, bmrForDate-per-day in the week strip,
+  withSharedBetaFallback) if this area sees more churn.
+- SHARED-BETA MODE RELIES ON MANUAL DISCIPLINE (round 193, new): turning
+  VITE_SHARED_BETA on/off in .env.local around a TestFlight archive is a
+  manual step (see TESTFLIGHT.md) — if Marco ever forgets to turn it off
+  before a regular npm run ios:sync, his own phone would default into
+  the empty Test account on next launch (his real data would be
+  untouched, just not visible until he switches back). The Developer
+  menu's warning banner is the safety net today; worth a build-script
+  check (e.g. warn/fail npm run ios if the flag is on) if this ever
+  causes a real scare.
 - DONE-BAR PORTAL FIX AWAITING FINAL ON-DEVICE CONFIRMATION (round 190,
   new): the Done-bar gap (open since round 181, "still a bit high" on
   fields like Edit food item's Name) was root-caused this round to
@@ -411,6 +450,21 @@ LOW:
 - moreHoriz ICON NOW UNUSED (round 181, new, cleanup): Icon.tsx still
   exports a moreHoriz icon; nothing references it anymore now that the
   Goal-options button is a text label, not an icon. Safe to remove.
+
+DONE (r193):
+- ✓ DAY'S LOG SIGN DISPLAY FIXED (round 193): Food/Activity signs in the
+  Day's log list now always match the gauge card, across all goal types.
+- ✓ WEEKLY STRIP PER-DAY BMR FIX (round 193): the week strip now computes
+  BMR per day (bmrForDate) instead of one flat current-BMR number,
+  matching the gauge card's own math.
+- ✓ GAIN PACE TIERS RENAMED (round 193): Lean/Steady/Bulk -> Relaxed/
+  Steady/Ambitious, matching Lose's vocabulary.
+- ✓ WHEELPICKER HAPTICS (round 193): all real WheelPicker interactions
+  now fire hapticLight().
+- ✓ SHARED-BETA MODE SHIPPED (round 193): opt-in, env-gated mode for
+  handing a build to external testers without their own Anthropic key.
+  See TESTFLIGHT.md.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
 
 DONE (r191):
 - ✓ APPLE HEALTH INTEGRATION (round 191): weight + activity sync shipped
@@ -688,6 +742,77 @@ RECENT ROUNDS (3 most recent, older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
 ================================================================
+ROUND 193: DIARY SIGN-DISPLAY FIX; WEEKLY-STRIP PER-DAY BMR FIX; GAIN PACE RENAME; WHEELPICKER HAPTICS; SHARED-BETA MODE FOR EXTERNAL TESTERS (2026-07-09)
+================================================================
+Files: src/ui/screens/TodayScreen.tsx, src/ui/kit/WheelPicker.tsx,
+       src/domain/goal.ts, src/ui/screens/GoalSetupScreen.tsx,
+       src/lib/sharedBeta.ts (new), src/data/db.ts, src/lib/apiKey.ts,
+       src/ui/components/DevMenu.tsx, src/ui/screens/AccountScreen.tsx,
+       .env.example, TESTFLIGHT.md
+
+- DAY'S LOG SIGN DISPLAY FIXED: the gauge card's Food/Activity stat row
+  was already correct and goal-type-agnostic (Food always plain, Activity
+  always "−"), but the Day's log list below it branched on gainGoal and
+  had both signs backwards for lose_by_date/maintain (Food showed "−",
+  Activity showed "+"), only accidentally correct for gain_by_date.
+  Removed the branching entirely so the list always matches the gauge
+  card, across all three goal types.
+- WEEKLY STRIP PER-DAY BMR FIX: the week strip's succeed/fail dots used a
+  single flat user.bmr for all 21 days, while the day panel/gauge card
+  (via useDay -> bmrForDate) computes BMR per day from whichever weight
+  was on file as of that specific date. Any day whose historical weight
+  differed from the current one could disagree between the two (Marco
+  hit this testing with a 5-day-old start date and mid-test weight
+  changes: gauge card said on-target, strip showed a fail X). Strip now
+  calls bmrForDate(d, weights, user) per day, matching the day panel
+  exactly, with the same estimate-from-weight fallback for incomplete
+  profiles.
+- GAIN PACE TIERS RENAMED: Guided goal-setup's Gain "Pace" tiers were
+  Lean/Steady/Bulk (GAIN_PACES in domain/goal.ts) -- body-composition
+  outcome language, inconsistent with Lose's Relaxed/Steady/Ambitious
+  (effort/speed language), even though both are mechanically the same
+  thing: three tiers ordered slow-to-fast driving an end date + daily
+  kcal. Renamed to Relaxed/Steady/Ambitious to match Lose. IDs/values
+  unchanged (kgPerMonth, surplusFloor/Ceiling); nothing persisted
+  references the old ids (gainPace is transient setup-screen state
+  only), so no migration needed. GoalSetupScreen's default state
+  updated 'lean' -> 'relaxed' to match.
+- WHEELPICKER HAPTICS: all 5 real user-driven onChange sites across
+  WheelPicker's single-wheel and split-wheel (empty-state and normal)
+  modes now call hapticLight(), matching the app-wide rule that
+  interactive elements fire haptics on tap. The two mount-time
+  auto-sync useEffect calls (snapping an out-of-range value on load)
+  deliberately do NOT fire haptics, since nothing was tapped.
+- SHARED-BETA MODE (new, for handing this app to external testers
+  without requiring their own Anthropic key): a single build-time
+  switch, VITE_SHARED_BETA (+ VITE_SHARED_BETA_ANTHROPIC_KEY) in
+  .env.local (gitignored, never committed -- see .env.example), OFF
+  unless explicitly set so Marco's own day-to-day build is never
+  affected. New src/lib/sharedBeta.ts is the single source of truth for
+  both flags. When on: a fresh install with no explicit profile choice
+  yet defaults into the Test account instead of Real (src/data/db.ts's
+  activeProfile -- an explicit stored choice via the Developer menu's
+  profile switcher always wins over this default either way); AI Food
+  Scan auto-connects using the shared key while on the Test profile
+  only, never persisted to the keychain (src/lib/apiKey.ts's
+  withSharedBetaFallback); the manual "AI Food Scan" Settings row is
+  hidden entirely (AccountScreen.tsx), since there's nothing for a
+  tester to configure. The hidden Developer menu (triple-tap Account
+  title) shows a warning banner whenever a build has this mode baked
+  in, as a safety net against forgetting to turn it off before a
+  regular sync. TESTFLIGHT.md documents the full on/archive/off
+  workflow, including that ending the test for everyone (at any time,
+  no app update needed) is done by deleting the temporary key in the
+  Claude Console -- instant and permanent; there's no per-key spend
+  limit, so a dedicated Workspace spend limit, or prepaid credits with
+  auto-reload off, is the safety net while the key is still live.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged --
+  these are UI-display/derivation fixes and a new opt-in build flag,
+  verified by tracing the existing logic and matching it against the
+  on-device repro Marco described, not new automated tests; see
+  KNOWN GAPS).
+
+================================================================
 ROUND 192: TESTFLIGHT UPLOAD FIX; EXPORT-JSON iOS FIX; STALE APP NAME (2026-07-08)
 ================================================================
 Files: src/data/exportJson.ts, src/ui/screens/AccountScreen.tsx,
@@ -872,137 +997,6 @@ Files: capacitor.config.ts, ios/App/App/Assets.xcassets/AppIcon.appiconset/
 - tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged, no
   new automated tests this round; HealthKit/BYOK/gate logic was
   verified manually/on-device only, see KNOWN GAPS).
-
-ROUND 190 — MAINTAIN-WEIGHT GOAL TYPE; GOAL-SETUP UI POLISH; KEYBOARD DONE-BAR ROOT CAUSE; NEW-FOOD/DESCRIBE FLOW FIXES; GOAL-FORK NAVIGATION (2026-07-07)
-Files: src/domain/types.ts, src/domain/goal.ts, src/domain/goal.test.ts,
-       src/ui/screens/GoalSetupScreen.tsx, src/ui/screens/FirstOpenFork.tsx,
-       src/ui/screens/GoalIcon.tsx (new, extracted from GoalSetupScreen.tsx),
-       src/ui/screens/GoalScreen.tsx, src/ui/screens/TodayScreen.tsx,
-       src/ui/screens/PastGoalsScreen.tsx, src/ui/screens/AccountScreen.tsx,
-       src/ui/screens/PantryScreen.tsx, src/ui/kit/WheelPicker.tsx,
-       src/ui/kit/useKeyboardDoneBar.tsx, src/ui/components/AddEntrySheet.tsx,
-       src/ui/components/PantryPicker.tsx, src/ui/components/PantryNewFoodScan.tsx,
-       src/ui/components/FoodCapture.tsx, src/ui/components/DevMenu.tsx,
-       src/lib/useKeyboardInset.ts, src/data/defaultPantrySeed.ts,
-       src/data/defaultPantrySeed.test.ts, src/data/mealsMigration.ts,
-       src/index.css
-
-- MAINTAIN-WEIGHT GOAL TYPE SHIPPED: the third goal type (alongside
-  lose_by_date/gain_by_date) is now fully implemented end-to-end.
-  domain/types.ts gained weightRangeFloorKg/weightRangeCeilingKg,
-  maintainBandId, and reviewDate on Goal. domain/goal.ts added
-  isMaintainGoal/usesKcalBand/inBand helpers and MAINTAIN_BANDS presets
-  (Tight +/-0.5kg/+/-100kcal, Standard +/-1kg/+/-150kcal, Relaxed
-  +/-2kg/+/-250kcal); requiredDailyDeficit returns 0 for maintain.
-  GoalSetupScreen: Guided mode picks a band preset via FilterPills with a
-  live-computed weight-range + calorie-band summary card; Detailed mode
-  adds a tappable pill opening a modal to choose Tight/Standard/Relaxed/
-  Custom, with Custom revealing min/max wheel pickers. FirstOpenFork/
-  GoalForkScreen gained a third "Maintain weight" path card. GoalScreen,
-  TodayScreen, PastGoalsScreen all branch three ways now (previously
-  hardcoded lose/gain only) -- band-based gauge/chart logic is shared
-  between gain and maintain via the new usesKcalBand() helper. Fixed a
-  pre-existing AccountScreen bug in the same pass: the goal-summary line
-  hardcoded "lose Xkg" for every goal type, including gain goals.
-- GOAL-SETUP UI POLISH (multiple rounds of on-device feedback): the
-  Detailed mode's weight-range picker was redesigned from a free-text
-  min/max pair to the "picker playground picker 3" single-wheel style
-  (WheelPicker gained a `mode?: 'auto' | 'single'` prop forcing one flat
-  wheel even for decimal steps, plus a float-precision fix in its snap()
-  helper -- 71.3 no longer became 71.30000000000001 and broke the
-  picker's selected-value match). That same single-wheel mode was later
-  extended to the Start/Current/Target weight fields for Lose-weight and
-  Build-muscle too (previously only Maintain used it), per follow-up
-  feedback. Guided mode's single Weight+Range card and Detailed mode's
-  single Goal-name+Weight+Dates card were each split into individual
-  per-section cards (container styling unchanged, just separated).
-  AccountScreen's weigh-in weekday pills were unified onto the shared
-  FilterPills component (previously hand-rolled, visibly smaller than
-  GoalSetupScreen's own).
-- GOAL-FORK NAVIGATION TRANSITIONS FIXED (device-confirmed working):
-  going back from Goal-setup to the goal-type fork screen (both the
-  first-open onboarding fork and the regular in-app fork reached from
-  Today) had two related bugs. (1) The fork screen only mounted AFTER
-  Goal-setup's slide-out-right exit animation fully finished (route
-  change happens on a delayed setTimeout), so the animation revealed a
-  blank background for ~300ms before the destination screen popped in.
-  (2) Returning to the fork screen when it was originally reached via
-  Today (?from=today) replayed its whole slide-up "new modal" entrance
-  animation every time, since a browser-back (POP) navigation to that
-  same URL still carries the query param. Fixed by having GoalSetupScreen
-  render a static, non-interactive peek of the correct destination screen
-  (new FirstOpenForkBackdrop / GoalForkBackdrop components in
-  FirstOpenFork.tsx) underneath itself while its own exit animation
-  plays, so "back" reveals it directly instead of a gap; the entrance
-  animation is now gated on useNavigationType() !== 'POP' so it only
-  plays on a genuine fresh visit. GoalIcon was extracted out of
-  GoalSetupScreen.tsx into its own file to avoid a circular import
-  between the two screens.
-- KEYBOARD "DONE" BAR GAP -- ROOT CAUSE FOUND AND FIXED (see KNOWN GAPS
-  for confirmation status): the long-running "Done bar floats a few px
-  above the keyboard" report (open since round 181) was chased across
-  several attempts this round. A first hypothesis -- Capacitor's
-  keyboardWillShow height excludes env(safe-area-inset-bottom) -- was
-  implemented and made things dramatically WORSE (Marco: "completely out
-  of place"), so it was reverted. Real root cause was then found using
-  on-device diagnostics Marco captured via two new rows added to Dev >
-  Keyboard playground (a live readout of keyboardInset/innerHeight/
-  visualViewport.height/safe-area-inset-bottom, plus a 5th row using the
-  actual production useKeyboardDoneBar hook on a plain text field): the
-  Done bar is `position: fixed`, which normally positions relative to the
-  true viewport -- EXCEPT when a transformed ancestor sits between it and
-  the root, which becomes its containing block instead (any non-'none'
-  CSS transform triggers this, even an identity translateX(0)). Sheet's
-  own OverlayLayer (used by "Edit food item" and every other nested
-  overlay) always has an active transform for its slide-in animation, so
-  a Done bar rendered inside an overlay was positioning against THAT
-  panel, not the screen -- matching Sheet.tsx's own existing comments
-  about forceExpanded (91dvh) panels drifting slightly from the true
-  viewport once the keyboard is open in this WKWebView setup (see its
-  pre-existing "Surface cover" div, a patch for a different symptom of
-  the same dvh quirk). Confirmed via A/B: a Done bar on a plain top-level
-  Sheet field was pixel-perfect; the same hook nested inside an overlay
-  showed the gap. Fix: useKeyboardDoneBar's bar now renders via
-  createPortal straight to document.body (the same escape-hatch Sheet
-  itself already uses for ancestor-constraint problems), so it always
-  positions against the real viewport regardless of nesting depth.
-- "+ NEW FOOD" / DESCRIBE FLOW FIXES: the Day's-log basket's "Change"
-  button (re-run Describe on a scanned item) was wired for the initial
-  scan-review step (previously only worked once editing an
-  already-logged entry). Pantry > + New food > Describe now slides in as
-  a genuine side-panel overlay (Sheet's useSheetSetOverlay/OverlayLayer)
-  instead of swapping content in place, and expands the Sheet to full
-  90dvh height while open (per follow-up feedback that it felt cramped)
-  with the textarea autofocused so the keyboard is already up. Root-
-  caused and fixed a bug where this overlay didn't open at all on first
-  landing: useSheetSetOverlay/useSheetSetOverlayBack were being called in
-  the same component that renders <Sheet>, one level ABOVE the context
-  Sheet provides to its own children, so the registration was silently a
-  no-op -- moved into a new PantryNewFoodBody child component, matching
-  every other useSheetSetOverlay call site in the app. AnalyzingIndicator
-  gained a `compact` prop (smaller padding) used only here, replacing an
-  earlier attempt that instead padded the shorter states UP to match a
-  tall loading screen (reverted per feedback: "too much negative
-  screen"). Manual food creation now also lands on the Food-item detail
-  preview in "just created" mode (previously only scanned items did), so
-  it gets the same "Save food" CTA and discard-on-close confirmation.
-- SCROLLBAR CHROME HIDDEN APP-WIDE (device-confirmed): on-device, the
-  visible WKWebView scrollbar track was poking through the native
-  keyboard's own rounded top corners as a stray grey sliver while
-  scrolling with the keyboard open. Added a global
-  scrollbar-width:none / ::-webkit-scrollbar{display:none} rule
-  (src/index.css) -- content scrolls identically, just without visible
-  scrollbar chrome, matching how native iOS apps look.
-- PANTRY SEED / MEALS MIGRATION NOW PER-PROFILE: both one-time seed flags
-  (default pantry items, meals migration) were stored under a single
-  global localStorage key shared across the app's real/test dual-profile
-  system, so seeding the real account permanently skipped seeding the
-  test account (and vice versa). Both flags are now scoped per active
-  profile (defaultPantrySeedFlagKey/mealsMigrationFlagKey); DevMenu's
-  test-account reset paths clear them too so wiping the test DB reseeds
-  it. Added a regression test asserting the flag key differs per profile.
-- tsc: clean. lint: clean. vitest: 57 passed (6 new), 8 skipped.
-  `npm run build` verified clean after every sub-batch this round.
 
 
 ================================================================

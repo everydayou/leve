@@ -2,18 +2,21 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-10, Round 194 (added Android as a second Capacitor
-native platform for external testers, alongside iOS; fixed two
-iOS-only hardcoded platform checks in src/lib/camera.ts and
-src/ui/components/PhotoPicker.tsx to use the generic isNativePlatform()
-so camera/photo capture works on Android too; added npm run android /
-android:add / android:sync scripts mirroring the ios:* ones; wrote
-ANDROID.md covering Firebase App Distribution setup for Android testers
-(TestFlight-equivalent, no Play Store listing/review needed) and the
-later path to Google Play. iOS/TestFlight setup is untouched. Apple
-Health (HealthKit) integration remains iOS-only — no Android equivalent
-shipped yet, see ANDROID.md's Known Gap)
-Full change history: see CHANGELOG.txt (rounds 1-194).
+Last updated: 2026-07-10, Round 197 (Android device-testing pass, first
+real run on a Pixel 9 Pro emulator: round 195 bumped minSdkVersion
+24->26, required by capgo/capacitor-health's manifest; round 196
+regenerated the Android splash screen + launcher icon from the actual
+leve brand mark, replacing Capacitor's default white/blue placeholder,
+and lowered targetSdkVersion 36->34 as a first attempt at a status-bar
+overlap bug; round 197 found and fixed the real cause: Android's
+WebView doesn't populate env(safe-area-inset-top) the way iOS's
+WKWebView does, so the app-wide .safe-top utility's 0px fallback let
+content render straight under the status bar everywhere it's used
+(AppShell, GoalSetupScreen, OnboardingFlow, FirstOpenFork,
+OnboardingDailyAllowance, GoalScreen, TopBar, SlideScreen) -- main.tsx
+now sets a --safe-top-fallback CSS var to an estimated status-bar
+height on native Android only, iOS/desktop untouched)
+Full change history: see CHANGELOG.txt (rounds 1-197).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -123,12 +126,31 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 194, 2026-07-10)
+7. CURRENT STATUS (as of round 197, 2026-07-10)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only.
-Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-194)
+Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-197)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
+- ANDROID FIRST SUCCESSFUL DEVICE RUN + FIXES (rounds 195-197): the
+  android/ project built and ran on a Pixel 9 Pro emulator for the
+  first time. minSdkVersion bumped 24->26 (capgo/capacitor-health's
+  manifest requires it). Splash screen + launcher icon regenerated from
+  leve's real brand mark (were Capacitor's default white-bg/blue-logo
+  placeholder, never customized when the platform was scaffolded).
+  Fixed a real cross-platform bug found on-device: Android's WebView
+  doesn't populate env(safe-area-inset-top) the way iOS's WKWebView
+  does, so the shared .safe-top utility class (used app-wide: AppShell,
+  GoalSetupScreen, OnboardingFlow, FirstOpenFork,
+  OnboardingDailyAllowance, GoalScreen, TopBar, SlideScreen) fell back
+  to 0px padding on Android, letting content render under the status
+  bar. main.tsx now sets a --safe-top-fallback CSS var (currently an
+  estimated 32px, not device-measured) on native Android only; iOS
+  keeps using its real WebView-reported inset, desktop/browser preview
+  untouched. targetSdkVersion also lowered 36->34 as an earlier,
+  possibly-now-redundant mitigation for the same symptom (Android 15's
+  edge-to-edge enforcement) -- left in place, harmless, not yet
+  reverted. See KNOWN GAPS for what's still unverified.
 - ANDROID PLATFORM ADDED FOR EXTERNAL TESTERS (round 194): android/
   scaffolded via Capacitor alongside the existing ios/ project (same
   shared src/ code, own separate on-device data store like any other
@@ -348,14 +370,28 @@ HIGH:
   181; see DONE (r181) below.)
 
 MED:
-- ANDROID BUILD NOT YET DEVICE/EMULATOR-TESTED (round 194, new): the
-  android/ platform was scaffolded and the two iOS-only camera/photo
-  hardcodes fixed, tsc/lint/vitest all pass, but Marco has not yet
-  successfully opened or run the project in Android Studio — hit a
-  disk-space problem right after installing Android Studio. Everything
-  in ANDROID.md past step 3 (Firebase App Distribution setup) is
-  similarly unverified until a first successful on-device/emulator run
-  happens. Next step, not blocking any iOS work.
+- --safe-top-fallback IS AN ESTIMATE, NOT DEVICE-MEASURED (round 197,
+  new): the 32px value set in main.tsx for native Android is a
+  reasonable guess at typical status-bar height, not a real per-device
+  measurement (same category of estimate as DONE_BAR_HEIGHT below).
+  Fixed the reported clipping on a Pixel 9 Pro emulator; worth
+  re-checking on a physical device and across a couple of different
+  screen/notch shapes. A more precise fix would read the real inset
+  (e.g. a status-bar-height native plugin) instead of a flat constant.
+- ANDROID SAFE-BOTTOM NOT YET AUDITED (round 197, new): only the top
+  inset was reported/fixed this round. .safe-bottom and .safe-pb use
+  the same env(safe-area-inset-bottom, 0px) pattern and may have the
+  same latent Android gap (gesture-nav-bar devices especially) --
+  wasn't reported as broken on the Pixel 9 Pro emulator run, but hasn't
+  been deliberately checked either.
+- ANDROID targetSdkVersion LOWERED TO 34, NOT YET REVERTED (round 196):
+  was a first attempt at the status-bar overlap bug (Android 15's
+  edge-to-edge enforcement for apps targeting SDK 35+); round 197's
+  --safe-top-fallback fix may make this unnecessary, but it hasn't been
+  tested at targetSdkVersion 36 again. Not urgent while only
+  distributing via Firebase App Distribution -- revisit before any
+  eventual Play Store submission, which will require targeting a
+  current API level.
 - APPLE HEALTH SYNC HAS NO ANDROID EQUIVALENT (round 194, new):
   @capgo/capacitor-health (round 191) is HealthKit-only. Android testers
   can log weight/activity manually but get no auto-sync; a Health
@@ -788,38 +824,73 @@ RECENT ROUNDS (3 most recent, older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
 ================================================================
-ROUND 194: ANDROID PLATFORM ADDED FOR EXTERNAL TESTERS (FIREBASE APP DISTRIBUTION) (2026-07-10)
+ROUND 197: ANDROID SAFE-AREA-INSET-TOP FIX (STATUS-BAR OVERLAP, REAL ROOT CAUSE) (2026-07-10)
 ================================================================
-Files: android/ (new, Capacitor-scaffolded), package.json, src/lib/camera.ts,
-       src/ui/components/PhotoPicker.tsx, src/ui/components/useFoodCapture.tsx,
-       src/ui/components/AddEntrySheet.tsx, ANDROID.md (new)
+Files: src/index.css, src/main.tsx
 
-- ANDROID PLATFORM ADDED: ran `npx cap add android`, scaffolding android/
-  alongside the existing ios/ project. Same shared src/ code, same Dexie
-  storage layer — an Android install gets its own separate on-device data
-  store, same as any other device/surface (see QUICK STATUS). Added
-  npm run android / android:add / android:sync scripts mirroring the
-  existing ios:* ones.
-- iOS-ONLY HARDCODES FIXED: src/lib/camera.ts's isNativeIOS() checked
-  Capacitor.getPlatform() === 'ios' specifically, so captureFromCamera/
-  captureFromLibrary silently no-op'd on Android. Renamed to isNativeApp()
-  and changed to the generic Capacitor.isNativePlatform() check. Same fix
-  in PhotoPicker.tsx's handleClick (was gating the native
-  Camera.getPhoto(CameraSource.Prompt) action-sheet flow behind the same
-  iOS-only check). Both call sites (useFoodCapture.tsx, AddEntrySheet.tsx)
-  updated to the renamed isNativeApp import — this is the AI Food Scan
-  camera/photo trigger path, confirmed this is for the tester build per
-  Marco before changing it.
-- ANDROID.md (new): full runbook for getting Android testers onto builds
-  via Firebase App Distribution (free, invite-only, no Play Store listing
-  or review — the closest equivalent to TestFlight for Android), plus the
-  later path to promoting the same signed build to Google Play. Documents
-  the one known gap: @capgo/capacitor-health (Apple Health sync, round
-  191) is HealthKit-only — no Android equivalent shipped yet, Android
-  testers log weight/activity manually for now.
-- iOS build/TestFlight setup untouched and re-confirmed still working on
-  device (including camera) after this round's changes.
+- ROOT CAUSE FOUND: on-device (Pixel 9 Pro emulator) the Diary/Today
+  screen's top content (WeekStrip / gauge card) rendered under the
+  status bar/clock — round 196's targetSdkVersion 36->34 change did
+  NOT fix it, disproving that the sole cause was Android 15's
+  edge-to-edge enforcement. Actual cause: Android's WebView does not
+  populate env(safe-area-inset-top) the way iOS's WKWebView does. The
+  shared .safe-top utility class (index.css) used a flat 0px fallback,
+  so every screen using it (AppShell's <main>, GoalSetupScreen,
+  OnboardingFlow, FirstOpenFork, OnboardingDailyAllowance, GoalScreen,
+  TopBar, SlideScreen) silently got zero top padding on Android.
+- FIX: .safe-top's fallback is now
+  env(safe-area-inset-top, var(--safe-top-fallback, 0px)). main.tsx
+  sets --safe-top-fallback to an estimated 32px on native Android only
+  (Capacitor.getPlatform() === 'android'), leaving iOS (real inset,
+  always non-zero there) and desktop/browser preview (unset, stays
+  0px, no visual change) untouched.
+- NOT YET DONE: 32px is an estimate, not measured per-device (see
+  KNOWN GAPS). .safe-bottom/.safe-pb use the same pattern and weren't
+  audited this round — not reported broken on the emulator, but
+  unconfirmed.
 - tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+================================================================
+ROUND 196: ANDROID SPLASH/ICON BRANDING + FIRST STATUS-BAR-OVERLAP ATTEMPT (2026-07-10)
+================================================================
+Files: android/app/src/main/res/drawable*/splash.png (all densities),
+       android/app/src/main/res/mipmap-*/ic_launcher*.png (all densities),
+       android/app/src/main/res/values/ic_launcher_background.xml,
+       android/variables.gradle
+
+- SPLASH + LAUNCHER ICON REBRANDED: `npx cap add android` scaffolds
+  Capacitor's default placeholder assets (white background, generic
+  blue logo) — unlike iOS, these were never regenerated with leve's
+  actual branding when the platform was added (round 194). Regenerated
+  both across all Android density buckets from the existing leve mint
+  brand mark (logo-leve-icon-light.svg), on the app's own dark
+  background (#161618 splash / #343434 icon, matching values already
+  used elsewhere e.g. the iOS AppIcon).
+- STATUS-BAR OVERLAP, FIRST ATTEMPT: Marco reported Diary screen
+  content clipped under the status bar on first device run.
+  Hypothesis at the time: Android 15 enforces edge-to-edge layout for
+  apps targeting SDK 35+ (our default targetSdkVersion was 36).
+  Lowered targetSdkVersion 36->34 to opt out — no Play Store policy
+  impact since only Firebase App Distribution is in use so far. This
+  did NOT fully fix the issue — see round 197 for the actual root
+  cause and fix. Left in place regardless (harmless, may still matter
+  for other edge-to-edge side effects); revisit targeting 35+ before
+  any eventual Play Store submission.
+- tsc: clean. lint: clean.
+
+================================================================
+ROUND 195: ANDROID minSdkVersion BUMP (HEALTHKIT PLUGIN MANIFEST CONFLICT) (2026-07-10)
+================================================================
+Files: android/variables.gradle
+
+- Gradle's manifest merger failed on first build: capgo/capacitor-health
+  (Apple Health sync plugin, round 191) declares minSdkVersion 26 in its
+  own Android manifest, higher than the project's default minSdkVersion
+  24 (from `npx cap add android`, round 194). Bumped the project's
+  minSdkVersion to 26 (Android 8.0, released 2017) to match — covers
+  the overwhelming majority of active Android devices, negligible
+  reach loss.
+- tsc: clean. lint: clean.
 
 ================================================================
 ROUND 193: DIARY SIGN-DISPLAY FIX; WEEKLY-STRIP PER-DAY BMR FIX; GAIN PACE RENAME; WHEELPICKER HAPTICS; SHARED-BETA MODE FOR EXTERNAL TESTERS (2026-07-09)

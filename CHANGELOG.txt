@@ -1,4 +1,73 @@
 ================================================================
+ROUND 197: ANDROID SAFE-AREA-INSET-TOP FIX (STATUS-BAR OVERLAP, REAL ROOT CAUSE) (2026-07-10)
+================================================================
+Files: src/index.css, src/main.tsx
+
+- ROOT CAUSE FOUND: on-device (Pixel 9 Pro emulator) the Diary/Today
+  screen's top content (WeekStrip / gauge card) rendered under the
+  status bar/clock — round 196's targetSdkVersion 36->34 change did
+  NOT fix it, disproving that the sole cause was Android 15's
+  edge-to-edge enforcement. Actual cause: Android's WebView does not
+  populate env(safe-area-inset-top) the way iOS's WKWebView does. The
+  shared .safe-top utility class (index.css) used a flat 0px fallback,
+  so every screen using it (AppShell's <main>, GoalSetupScreen,
+  OnboardingFlow, FirstOpenFork, OnboardingDailyAllowance, GoalScreen,
+  TopBar, SlideScreen) silently got zero top padding on Android.
+- FIX: .safe-top's fallback is now
+  env(safe-area-inset-top, var(--safe-top-fallback, 0px)). main.tsx
+  sets --safe-top-fallback to an estimated 32px on native Android only
+  (Capacitor.getPlatform() === 'android'), leaving iOS (real inset,
+  always non-zero there) and desktop/browser preview (unset, stays
+  0px, no visual change) untouched.
+- NOT YET DONE: 32px is an estimate, not measured per-device. See
+  PROJECT-CONTEXT.txt's KNOWN GAPS. .safe-bottom/.safe-pb use the same
+  pattern and weren't audited this round — not reported broken on the
+  emulator, but unconfirmed.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+================================================================
+ROUND 196: ANDROID SPLASH/ICON BRANDING + FIRST STATUS-BAR-OVERLAP ATTEMPT (2026-07-10)
+================================================================
+Files: android/app/src/main/res/drawable*/splash.png (all densities),
+       android/app/src/main/res/mipmap-*/ic_launcher*.png (all densities),
+       android/app/src/main/res/values/ic_launcher_background.xml,
+       android/variables.gradle
+
+- SPLASH + LAUNCHER ICON REBRANDED: `npx cap add android` scaffolds
+  Capacitor's default placeholder assets (white background, generic
+  blue logo) — unlike iOS, these were never regenerated with leve's
+  actual branding when the platform was added (round 194). Regenerated
+  both across all Android density buckets from the existing leve mint
+  brand mark (logo-leve-icon-light.svg), on the app's own dark
+  background (#161618 splash / #343434 icon, matching values already
+  used elsewhere e.g. the iOS AppIcon).
+- STATUS-BAR OVERLAP, FIRST ATTEMPT: Marco reported Diary screen
+  content clipped under the status bar on first device run.
+  Hypothesis at the time: Android 15 enforces edge-to-edge layout for
+  apps targeting SDK 35+ (our default targetSdkVersion was 36).
+  Lowered targetSdkVersion 36->34 to opt out — no Play Store policy
+  impact since only Firebase App Distribution is in use so far. This
+  did NOT fully fix the issue — see round 197 for the actual root
+  cause and fix. Left in place regardless (harmless, may still matter
+  for other edge-to-edge side effects); revisit targeting 35+ before
+  any eventual Play Store submission.
+- tsc: clean. lint: clean.
+
+================================================================
+ROUND 195: ANDROID minSdkVersion BUMP (HEALTHKIT PLUGIN MANIFEST CONFLICT) (2026-07-10)
+================================================================
+Files: android/variables.gradle
+
+- Gradle's manifest merger failed on first build: capgo/capacitor-health
+  (Apple Health sync plugin, round 191) declares minSdkVersion 26 in its
+  own Android manifest, higher than the project's default minSdkVersion
+  24 (from `npx cap add android`, round 194). Bumped the project's
+  minSdkVersion to 26 (Android 8.0, released 2017) to match — covers
+  the overwhelming majority of active Android devices, negligible
+  reach loss.
+- tsc: clean. lint: clean.
+
+================================================================
 ROUND 194: ANDROID PLATFORM ADDED FOR EXTERNAL TESTERS (FIREBASE APP DISTRIBUTION) (2026-07-10)
 ================================================================
 Files: android/ (new, Capacitor-scaffolded), package.json, src/lib/camera.ts,

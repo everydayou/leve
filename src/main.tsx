@@ -74,6 +74,17 @@ async function bootstrap() {
   applyDevOverrides();
   watchSystemTheme();
 
+  // Android's WebView doesn't populate env(safe-area-inset-top) the way
+  // iOS's WKWebView does, so content was rendering straight under the
+  // status bar there (round 195 device report). Feeds .safe-top's CSS
+  // fallback (see index.css) an estimated status-bar height, native
+  // Android only -- iOS keeps using its real, WebView-reported inset;
+  // browser/preview builds are untouched. This is an estimate, not a
+  // per-device measured value -- see KNOWN GAPS.
+  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+    document.documentElement.style.setProperty('--safe-top-fallback', '32px');
+  }
+
   // Best-effort: ask the browser to exempt IndexedDB from eviction (iOS Safari).
   if (!PREVIEW && navigator.storage?.persist) {
     navigator.storage.persist().catch(() => { /* non-fatal */ });

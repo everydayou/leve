@@ -1,4 +1,32 @@
 ================================================================
+ROUND 198: ANDROID STATUS-BAR FIX, TAKE TWO -- env() FALLBACK NEVER TRIGGERS ON ANDROID (2026-07-10)
+================================================================
+Files: src/index.css, src/main.tsx
+
+- Round 197's fix had literally zero visible effect on-device, even
+  after confirming the web bundle was actually rebuilt (npx cap sync
+  android alone does NOT rebuild -- npm run android:sync / npm run
+  build does; this was also independently confirmed as a real gotcha
+  during this round's debugging).
+- ROOT CAUSE OF THE NON-FIX: CSS env(name, fallback)'s fallback value
+  only applies when the engine doesn't support/recognize the named
+  environment variable at all. Android's Chromium-based WebView DOES
+  recognize env(safe-area-inset-top) -- it just always resolves it to
+  a real, defined 0px, since Android doesn't wire native WindowInsets
+  into the WebView's environment variables the way iOS's WKWebView
+  does. Nesting var(--safe-top-fallback, 0px) inside env()'s own
+  fallback slot (round 197) therefore never actually ran, because
+  env()'s "undefined" condition was never met on Android.
+- FIX: flipped the check order. .safe-top now reads
+  var(--safe-top-override, env(safe-area-inset-top, 0px)) --
+  var()'s own fallback correctly triggers whenever the custom property
+  isn't set, which is true everywhere except native Android (main.tsx
+  only calls setProperty('--safe-top-override', ...) there), so the
+  override reliably wins on Android while iOS (real inset) and
+  desktop/browser preview (unset, 0px, unchanged) are unaffected.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+================================================================
 ROUND 197: ANDROID SAFE-AREA-INSET-TOP FIX (STATUS-BAR OVERLAP, REAL ROOT CAUSE) (2026-07-10)
 ================================================================
 Files: src/index.css, src/main.tsx

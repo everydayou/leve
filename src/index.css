@@ -353,15 +353,20 @@ input[type="range"]:active::-webkit-slider-thumb {
 
 /* Device safe areas (status bar / notch, iOS home indicator).
    iOS's WKWebView natively resolves env(safe-area-inset-*) to the real
-   notch/home-indicator size, so the fallback below never applies there.
-   Android's WebView does NOT populate these the same way (round 194/195
-   gap) -- it always falls through to the CSS fallback, which used to be a
-   flat 0px, letting content render straight under the status bar. main.tsx
-   now sets --safe-top-fallback to an estimated status-bar height on native
-   Android only (untouched everywhere else), so this fallback activates
-   there instead of silently being 0. See KNOWN GAPS: this is an estimate,
-   not a measured-per-device value. */
-.safe-top    { padding-top: env(safe-area-inset-top, var(--safe-top-fallback, 0px)); }
+   notch/home-indicator size. Android's WebView DOES recognize the
+   env(safe-area-inset-top) syntax (it's standard Chromium), but always
+   resolves it to a real, defined 0px -- Android doesn't wire native
+   WindowInsets into the WebView's environment variables the way iOS
+   does. That means env()'s own (x, fallback) fallback NEVER activates on
+   Android (round 197's first attempt): a fallback only applies when the
+   named variable is unsupported/undefined, not when it resolves to a
+   legitimate zero. Fixed (round 198) by checking var() FIRST instead of
+   nesting it inside env()'s fallback slot -- var()'s own fallback (its
+   second argument) correctly triggers whenever the custom property isn't
+   set at all, which is true on iOS/desktop (main.tsx only sets it on
+   native Android), so this now actually overrides Android's always-zero
+   env() value instead of being silently bypassed by it. */
+.safe-top    { padding-top: var(--safe-top-override, env(safe-area-inset-top, 0px)); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 .safe-pb     { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.75rem); }
 

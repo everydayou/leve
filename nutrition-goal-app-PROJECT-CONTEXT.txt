@@ -16,7 +16,7 @@ content render straight under the status bar everywhere it's used
 OnboardingDailyAllowance, GoalScreen, TopBar, SlideScreen) -- main.tsx
 now sets a --safe-top-fallback CSS var to an estimated status-bar
 height on native Android only, iOS/desktop untouched)
-Full change history: see CHANGELOG.txt (rounds 1-197).
+Full change history: see CHANGELOG.txt (rounds 1-198).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -126,12 +126,25 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 197, 2026-07-10)
+7. CURRENT STATUS (as of round 198, 2026-07-10)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only.
-Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-197)
+Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-198)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
+- ANDROID STATUS-BAR FIX, TAKE TWO -- ACTUALLY CORRECT THIS TIME (round
+  198): round 197's fix had zero visible effect on-device, even after
+  confirming a real rebuild. Cause: env(name, fallback)'s fallback only
+  applies when the browser doesn't support the named variable at all --
+  Android's WebView DOES support env(safe-area-inset-top) syntactically,
+  it just always resolves it to a real, defined 0px (no native
+  WindowInsets wiring). Nesting --safe-top-fallback inside env()'s own
+  fallback slot, like round 197 did, therefore never triggered. Fixed by
+  flipping the check order: .safe-top now reads
+  var(--safe-top-override, env(safe-area-inset-top, 0px)) -- var()'s own
+  fallback correctly activates whenever the custom property isn't set,
+  which main.tsx only does on native Android, so the override reliably
+  wins there while iOS/desktop are unaffected.
 - ANDROID FIRST SUCCESSFUL DEVICE RUN + FIXES (rounds 195-197): the
   android/ project built and ran on a Pixel 9 Pro emulator for the
   first time. minSdkVersion bumped 24->26 (capgo/capacitor-health's

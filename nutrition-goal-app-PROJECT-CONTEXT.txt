@@ -16,7 +16,7 @@ content render straight under the status bar everywhere it's used
 OnboardingDailyAllowance, GoalScreen, TopBar, SlideScreen) -- main.tsx
 now sets a --safe-top-fallback CSS var to an estimated status-bar
 height on native Android only, iOS/desktop untouched)
-Full change history: see CHANGELOG.txt (rounds 1-199).
+Full change history: see CHANGELOG.txt (rounds 1-200).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -405,17 +405,26 @@ HIGH:
   181; see DONE (r181) below.)
 
 MED:
-- ANDROID SAFE-AREA FIX NOT YET RE-CONFIRMED ON DEVICE (round 199,
-  new): rounds 197-198 both shipped fixes that turned out to do
-  nothing (wrong mechanism -- see round 199 in CURRENT STATUS and
-  CHANGELOG for the real cause/fix). Round 199's fix reads Capacitor's
-  actual injected --safe-area-inset-top/bottom values via a centralized
-  --safe-top/--safe-bottom var pair, applied everywhere env() was
-  previously used directly (top AND bottom, both audited and updated
-  this round, closing the previous "bottom not yet audited" gap) --
-  but given two prior misses, this needs an actual on-device
-  confirmation (Pixel 9 Pro emulator, ideally a physical device too)
-  before considering it done.
+- ANDROID GAUGE-CARD FRAGMENT ABOVE WEEKSTRIP -- ROUNDS 197-199 WERE
+  THE WRONG DIAGNOSIS (round 200): the reported symptom (a fragment of
+  the gauge card visible above the WeekStrip, under the status bar) is
+  NOT a safe-area/padding issue -- Marco found that swiping the
+  WeekStrip to a different week makes it disappear, and swiping back
+  to the original week brings it back, meaning it's tied to the
+  TodayScreen day-content carousel's own render, not generic top
+  padding. Rounds 197-199's --safe-top/--safe-bottom work is still
+  correct and worth keeping (fixes a real, separate, latent gap), but
+  did NOT fix this specific symptom, as later confirmed on-device.
+  Round 200 targets the actual likely cause: the day-carousel's
+  container uses a paddingTop:24px + marginTop:-24px cancellation trick
+  (giving the active card's shadow room without being clipped by
+  overflow:hidden) combined with overflow:hidden and a transformed
+  sliding child -- a known category of cross-WebView-engine rendering
+  inconsistency. Dropped the negative-margin cancellation on Android
+  only (src/ui/screens/TodayScreen.tsx), as an experiment. NOT
+  CONFIRMED -- this is a hypothesis based on Marco's own experiment,
+  not a directly-observed root cause (no DOM inspector access this
+  session); needs on-device retest.
 - ANDROID targetSdkVersion LOWERED TO 34, NOT YET REVERTED (round 196):
   was a first attempt at the status-bar overlap bug (Android 15's
   edge-to-edge enforcement for apps targeting SDK 35+) that round 197

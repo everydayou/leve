@@ -1,4 +1,36 @@
 ================================================================
+ROUND 200: ANDROID GAUGE-CARD FRAGMENT -- REFRAMED, ROUNDS 197-199 WERE THE WRONG DIAGNOSIS (2026-07-10)
+================================================================
+Files: src/ui/screens/TodayScreen.tsx
+
+- Round 199's fix (also 197, 198) had zero visible effect on the
+  reported symptom, again. Marco ran his own experiment: swiping the
+  WeekStrip to a different week makes the stray gauge-card fragment
+  above it disappear; swiping back to the original week brings it
+  back. This means the symptom is tied to TodayScreen's day-content
+  carousel own render (the 3-panel prev/current/next day carousel,
+  keyed by date), not a generic safe-area/top-padding issue --
+  rounds 197-199 were solving the wrong problem the whole time, even
+  though the underlying --safe-top/--safe-bottom centralization from
+  round 199 is still correct and worth keeping for its own sake.
+- HYPOTHESIS (not confirmed via direct DOM inspection -- no remote
+  debugger access this session): the carousel's outer container uses
+  paddingTop:24px + marginTop:-24px (gives the active panel's card
+  shadow room without overflow:hidden clipping it, cancelling the
+  padding's layout impact). This exact padding+negative-margin-cancel
+  trick, combined with overflow:hidden and a transformed sliding
+  child, is a known category of cross-WebView-engine rendering
+  inconsistency, and lines up with the remount-clears-it /
+  remount-reproduces-it behavior Marco observed (panels are keyed by
+  date, so switching weeks fully unmounts/remounts them).
+- FIX (experimental): dropped the negative-margin cancellation on
+  Android only (Capacitor.getPlatform() === 'android') -- keeps the
+  paddingTop for shadow room, costs at most 24px of harmless extra
+  spacing on Android if this hypothesis is wrong. iOS untouched.
+- NOT YET CONFIRMED. Awaiting on-device retest.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+================================================================
 ROUND 199: ANDROID STATUS-BAR FIX, THE ACTUAL FIX (CAPACITOR'S REAL INJECTED VALUE) (2026-07-10)
 ================================================================
 Files: src/index.css, src/main.tsx, src/ui/AppShell.tsx,

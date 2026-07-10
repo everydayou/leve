@@ -1,4 +1,5 @@
 import { useRef, useState, useLayoutEffect, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import type { DayContext } from '../AppShell';
 import { hapticLight } from '../../lib/haptics';
@@ -246,10 +247,31 @@ export function TodayScreen() {
       {/* ── Carousel + day content ─────────────────────────────────────────── */}
       <div className="pb-6">
         {/* Carousel container — overflow:hidden clips side panels;
-            non-passive native listener handles axis locking. */}
+            non-passive native listener handles axis locking.
+            paddingTop + a canceling negative marginTop gives the active
+            panel's card shadow room to render without being clipped by
+            overflow:hidden, without adding real layout space.
+            Round 200 (Android device report, untested hypothesis): Marco
+            found that a stray fragment of the gauge card visible above the
+            WeekStrip on Android disappears when swiping to a different
+            week/day and reappears when swiping back to the original one --
+            i.e. it's tied to this carousel's own render, not a generic
+            safe-area padding issue (rounds 197-199 were solving the wrong
+            problem). This exact padding+negative-margin-cancel trick,
+            combined with overflow:hidden and a transformed sliding child,
+            is a known category of cross-WebView-engine inconsistency.
+            Dropping the negative-margin cancellation on Android only, as
+            an experiment -- costs at most 24px of harmless extra spacing
+            there if wrong, but sidesteps the risky part of the trick.
+            iOS is untouched. NOT CONFIRMED FIXED -- awaiting on-device
+            retest; see KNOWN GAPS. */}
         <div
           ref={containerRef}
-          style={{ overflow: 'hidden', paddingTop: '24px', marginTop: '-24px' }}
+          style={{
+            overflow: 'hidden',
+            paddingTop: '24px',
+            marginTop: Capacitor.getPlatform() === 'android' ? '0' : '-24px',
+          }}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}

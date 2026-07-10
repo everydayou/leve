@@ -1,4 +1,45 @@
 ================================================================
+ROUND 194: ANDROID PLATFORM ADDED FOR EXTERNAL TESTERS (FIREBASE APP DISTRIBUTION) (2026-07-10)
+================================================================
+Files: android/ (new, Capacitor-scaffolded), package.json, src/lib/camera.ts,
+       src/ui/components/PhotoPicker.tsx, src/ui/components/useFoodCapture.tsx,
+       src/ui/components/AddEntrySheet.tsx, ANDROID.md (new),
+       nutrition-goal-app-PROJECT-CONTEXT.txt
+
+- ANDROID PLATFORM ADDED: ran `npx cap add android`, scaffolding android/
+  alongside the existing ios/ project. Same shared src/ code, same Dexie
+  storage layer — an Android install gets its own separate on-device data
+  store, same as any other device/surface. Added npm run android /
+  android:add / android:sync scripts mirroring the existing ios:* ones.
+- iOS-ONLY HARDCODES FIXED: src/lib/camera.ts's isNativeIOS() checked
+  Capacitor.getPlatform() === 'ios' specifically, so captureFromCamera/
+  captureFromLibrary silently no-op'd on Android. Renamed to
+  isNativeApp() and changed to the generic Capacitor.isNativePlatform()
+  check. Same fix in PhotoPicker.tsx's handleClick (was gating the
+  native Camera.getPhoto(CameraSource.Prompt) action-sheet flow behind
+  the same iOS-only check). Both call sites (useFoodCapture.tsx,
+  AddEntrySheet.tsx) updated to the renamed isNativeApp import — this is
+  the AI Food Scan camera/photo trigger path; confirmed with Marco this
+  work is for the tester build before changing it (per the standing
+  shared-beta/AI-Food-Scan stop-and-ask rule).
+- ANDROID.md (new): full runbook for getting Android testers onto builds
+  via Firebase App Distribution (free, invite-only, no Play Store listing
+  or review — the closest equivalent to TestFlight for Android): Android
+  Studio setup, Firebase project + App Distribution setup, building a
+  signed release APK, distributing to a tester group, and the later path
+  to promoting the same signed build to Google Play. Also documents the
+  one known gap: @capgo/capacitor-health (Apple Health sync, round 191)
+  is HealthKit-only — no Android equivalent shipped yet, Android testers
+  log weight/activity manually for now.
+- iOS build/TestFlight setup untouched; re-confirmed still working on
+  device (including camera) after this round's changes.
+- NOT YET DONE: Marco installed Android Studio and hit a disk-space
+  problem before successfully opening/running the android/ project on a
+  device or emulator — that, and the Firebase App Distribution setup
+  itself, are the next steps (see ANDROID.md and KNOWN GAPS).
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+================================================================
 ROUND 193: DIARY SIGN-DISPLAY FIX; WEEKLY-STRIP PER-DAY BMR FIX; GAIN PACE RENAME; WHEELPICKER HAPTICS; SHARED-BETA MODE FOR EXTERNAL TESTERS (2026-07-09)
 ================================================================
 Files: src/ui/screens/TodayScreen.tsx, src/ui/kit/WheelPicker.tsx,

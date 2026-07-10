@@ -126,12 +126,22 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 199, 2026-07-10)
+7. CURRENT STATUS (as of round 200, 2026-07-10)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only.
-Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-199)
+Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-200)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
+- ANDROID GAUGE-CARD FRAGMENT FIXED, DEVICE-CONFIRMED (round 200): the
+  fragment above WeekStrip was never a safe-area issue (rounds
+  197-199's diagnosis was wrong, though that work is still correct and
+  kept) -- Marco's own experiment (swipe to a different week/day makes
+  it vanish, swipe back reproduces it) pointed to the day-content
+  carousel itself. Real cause: paddingTop:24px + marginTop:-24px
+  cancellation trick + overflow:hidden + a transformed sliding child --
+  a cross-WebView-engine rendering inconsistency. Fixed by dropping the
+  negative-margin cancellation on Android only. Confirmed working
+  on-device.
 - ANDROID STATUS-BAR FIX, THE ACTUAL FIX (round 199): rounds 197-198
   both guessed wrong about the mechanism. The real answer, found by
   reading Capacitor's own Android bridge source
@@ -405,26 +415,6 @@ HIGH:
   181; see DONE (r181) below.)
 
 MED:
-- ANDROID GAUGE-CARD FRAGMENT ABOVE WEEKSTRIP -- ROUNDS 197-199 WERE
-  THE WRONG DIAGNOSIS (round 200): the reported symptom (a fragment of
-  the gauge card visible above the WeekStrip, under the status bar) is
-  NOT a safe-area/padding issue -- Marco found that swiping the
-  WeekStrip to a different week makes it disappear, and swiping back
-  to the original week brings it back, meaning it's tied to the
-  TodayScreen day-content carousel's own render, not generic top
-  padding. Rounds 197-199's --safe-top/--safe-bottom work is still
-  correct and worth keeping (fixes a real, separate, latent gap), but
-  did NOT fix this specific symptom, as later confirmed on-device.
-  Round 200 targets the actual likely cause: the day-carousel's
-  container uses a paddingTop:24px + marginTop:-24px cancellation trick
-  (giving the active card's shadow room without being clipped by
-  overflow:hidden) combined with overflow:hidden and a transformed
-  sliding child -- a known category of cross-WebView-engine rendering
-  inconsistency. Dropped the negative-margin cancellation on Android
-  only (src/ui/screens/TodayScreen.tsx), as an experiment. NOT
-  CONFIRMED -- this is a hypothesis based on Marco's own experiment,
-  not a directly-observed root cause (no DOM inspector access this
-  session); needs on-device retest.
 - ANDROID targetSdkVersion LOWERED TO 34, NOT YET REVERTED (round 196):
   was a first attempt at the status-bar overlap bug (Android 15's
   edge-to-edge enforcement for apps targeting SDK 35+) that round 197
@@ -557,6 +547,19 @@ LOW:
 - moreHoriz ICON NOW UNUSED (round 181, new, cleanup): Icon.tsx still
   exports a moreHoriz icon; nothing references it anymore now that the
   Goal-options button is a text label, not an icon. Safe to remove.
+
+DONE (r200):
+- ✓ ANDROID GAUGE-CARD FRAGMENT ABOVE WEEKSTRIP FIXED, DEVICE-CONFIRMED
+  (round 200): was NOT a safe-area/padding issue (rounds 197-199 were
+  the wrong diagnosis, though that safe-area work is still correct and
+  kept). Real cause: the day-content carousel's paddingTop:24px +
+  marginTop:-24px cancellation trick (shadow room without
+  overflow:hidden clipping it), combined with overflow:hidden and a
+  transformed sliding child, is a cross-WebView-engine rendering
+  inconsistency. Fixed by dropping the negative-margin cancellation on
+  Android only (TodayScreen.tsx). Confirmed working on-device (Pixel 9
+  Pro emulator) — no further reports.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
 
 DONE (r194):
 - ✓ ANDROID PLATFORM SCAFFOLDED (round 194): npx cap add android,

@@ -27,7 +27,7 @@ Files: src/ui/screens/TodayScreen.tsx
   Android only (Capacitor.getPlatform() === 'android') -- keeps the
   paddingTop for shadow room, costs at most 24px of harmless extra
   spacing on Android if this hypothesis is wrong. iOS untouched.
-- NOT YET CONFIRMED. Awaiting on-device retest.
+- CONFIRMED FIXED ON-DEVICE (Pixel 9 Pro emulator) -- no further reports.
 - tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
 
 ================================================================

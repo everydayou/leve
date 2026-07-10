@@ -59,8 +59,8 @@ export function PhotoPicker({ photo, onChange, size = 56 }: {
   }
 
   async function handleClick() {
-    if (Capacitor && Capacitor.isNativePlatform?.() && Capacitor.getPlatform() === 'ios') {
-      // CameraSource.Prompt shows the native iOS action sheet:
+    if (Capacitor && Capacitor.isNativePlatform?.()) {
+      // CameraSource.Prompt shows the native action sheet (iOS) / picker (Android):
       // "Take Photo" / "Photo Library" / "Cancel" — no custom dialogs needed.
       setError(null);
       setLoading(true);

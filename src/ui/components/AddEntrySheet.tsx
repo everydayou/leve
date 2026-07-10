@@ -11,7 +11,7 @@ import { kgToLbs, lbsToKg } from '../../domain/units';
 import { mifflinStJeorBMR, canComputeBmr } from '../../domain/bmr';
 import { fmtDiaryDate } from '../../lib/date';
 import { downscaleImage, MAX_SCAN_PX } from '../../lib/image';
-import { captureFromCamera, captureFromLibrary, isNativeIOS } from '../../lib/camera';
+import { captureFromCamera, captureFromLibrary, isNativeApp } from '../../lib/camera';
 import { scanFood, describeFood, SCAN_ENABLED, FoodScanError } from '../../lib/foodScan';
 import { toastScanError } from '../../lib/scanErrors';
 import { requestApiKeySheet } from '../../lib/apiKey';
@@ -344,7 +344,7 @@ function FoodForm({
   async function handleCamera() {
     if (!checkAiGate()) return;
     setPickerOpen(false);
-    if (isNativeIOS()) {
+    if (isNativeApp()) {
       const photo = await captureFromCamera();
       if (photo) await runScan(photo, 'Analysing your photo…');
     } else if (SCAN_ENABLED) {
@@ -357,7 +357,7 @@ function FoodForm({
   async function handlePhoto() {
     if (!checkAiGate()) return;
     setPickerOpen(false);
-    if (isNativeIOS()) {
+    if (isNativeApp()) {
       const photo = await captureFromLibrary();
       if (photo) await runScan(photo, 'Analysing your photo…');
     } else if (SCAN_ENABLED) {
@@ -1889,7 +1889,7 @@ function LogEntryContent({
   async function handleCamera() {
     if (!checkAiGate()) return;
     setPickerOpen(false);
-    if (isNativeIOS()) {
+    if (isNativeApp()) {
       const photo = await captureFromCamera();
       if (photo) await runScan(photo, 'Analysing your photo…');
     } else if (SCAN_ENABLED) {
@@ -1902,7 +1902,7 @@ function LogEntryContent({
   async function handlePhoto() {
     if (!checkAiGate()) return;
     setPickerOpen(false);
-    if (isNativeIOS()) {
+    if (isNativeApp()) {
       const photo = await captureFromLibrary();
       if (photo) await runScan(photo, 'Analysing your photo…');
     } else if (SCAN_ENABLED) {

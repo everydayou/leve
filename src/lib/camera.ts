@@ -2,9 +2,9 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { downscaleDataUrl, MAX_SCAN_PX } from './image';
 
-/** Returns true when running as a native iOS Capacitor app. */
-export function isNativeIOS(): boolean {
-  return (Capacitor.isNativePlatform?.() === true) && Capacitor.getPlatform() === 'ios';
+/** Returns true when running as a native Capacitor app (iOS or Android). */
+export function isNativeApp(): boolean {
+  return Capacitor.isNativePlatform?.() === true;
 }
 
 /** Shared options for all native camera captures. */
@@ -32,7 +32,7 @@ async function getPhoto(source: CameraSource): Promise<string | null> {
  * Returns a downscaled data URL or null on cancel.
  */
 export async function captureFromCamera(): Promise<string | null> {
-  if (!isNativeIOS()) return null;
+  if (!isNativeApp()) return null;
   return getPhoto(CameraSource.Camera);
 }
 
@@ -41,6 +41,6 @@ export async function captureFromCamera(): Promise<string | null> {
  * Returns a downscaled data URL or null on cancel.
  */
 export async function captureFromLibrary(): Promise<string | null> {
-  if (!isNativeIOS()) return null;
+  if (!isNativeApp()) return null;
   return getPhoto(CameraSource.Photos);
 }

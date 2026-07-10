@@ -20,7 +20,7 @@
 import { useRef, useState } from 'react';
 import { newId } from '../../data/ids';
 import { downscaleImage, MAX_SCAN_PX } from '../../lib/image';
-import { captureFromCamera, captureFromLibrary, isNativeIOS } from '../../lib/camera';
+import { captureFromCamera, captureFromLibrary, isNativeApp } from '../../lib/camera';
 import { scanFood, describeFood, SCAN_ENABLED } from '../../lib/foodScan';
 import { toastScanError } from '../../lib/scanErrors';
 import { useAiGate } from './useAiGate';
@@ -91,7 +91,7 @@ export function useFoodCapture({ showToast, onCaptured }: UseFoodCaptureOptions)
   }
 
   async function handleCamera() {
-    if (isNativeIOS()) {
+    if (isNativeApp()) {
       const photo = await captureFromCamera();
       if (photo) await runScan(photo, 'Analysing your photo…');
     } else if (SCAN_ENABLED) {
@@ -102,7 +102,7 @@ export function useFoodCapture({ showToast, onCaptured }: UseFoodCaptureOptions)
   }
 
   async function handlePhoto() {
-    if (isNativeIOS()) {
+    if (isNativeApp()) {
       const photo = await captureFromLibrary();
       if (photo) await runScan(photo, 'Analysing your photo…');
     } else if (SCAN_ENABLED) {

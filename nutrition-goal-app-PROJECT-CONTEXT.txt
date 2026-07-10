@@ -2,15 +2,19 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-09, Round 193 (fixed Day's log food/activity sign
-display disagreeing with the gauge card; fixed the weekly strip using a
-flat BMR instead of per-day historical BMR, which could disagree with
-the gauge card's own verdict for a given day; renamed Gain's Guided pace
-tiers Lean/Steady/Bulk -> Relaxed/Steady/Ambitious to match Lose's
-vocabulary; added haptics to all WheelPicker interactions; added an
-opt-in, env-gated "shared-beta" mode for handing a build to external
-testers without requiring their own Anthropic key)
-Full change history: see CHANGELOG.txt (rounds 1-193).
+Last updated: 2026-07-10, Round 194 (added Android as a second Capacitor
+native platform for external testers, alongside iOS; fixed two
+iOS-only hardcoded platform checks in src/lib/camera.ts and
+src/ui/components/PhotoPicker.tsx to use the generic isNativePlatform()
+so camera/photo capture works on Android too; added npm run android /
+android:add / android:sync scripts mirroring the ios:* ones; wrote
+ANDROID.md covering Firebase App Distribution setup for Android testers
+(TestFlight-equivalent, no Play Store listing/review needed) and the
+later path to Google Play. iOS/TestFlight setup is untouched. Apple
+Health (HealthKit) integration remains iOS-only — no Android equivalent
+shipped yet, see ANDROID.md's Known Gap)
+Full change history: see CHANGELOG.txt (rounds 1-193; round 194 not yet
+added to CHANGELOG.txt, see this session's note above).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.

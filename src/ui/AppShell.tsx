@@ -196,7 +196,7 @@ export function AppShell() {
         <div
           className="pointer-events-none absolute inset-x-0 top-0 z-40"
           style={{
-            height: 'calc(env(safe-area-inset-top, 48px) + 48px)',
+            height: 'calc(var(--safe-top) + 48px)',
             background: 'linear-gradient(to bottom, var(--color-surface-muted), transparent)',
           }}
           aria-hidden
@@ -219,7 +219,7 @@ export function AppShell() {
             desktop/browser preview, where there's no touch event at all. */}
         <div
           className="pointer-events-auto absolute inset-x-0 top-0 z-40"
-          style={{ height: 'env(safe-area-inset-top, 48px)' }}
+          style={{ height: 'var(--safe-top)' }}
           onClick={() => mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
           onTouchStart={() => mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
           aria-hidden

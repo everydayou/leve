@@ -353,22 +353,31 @@ input[type="range"]:active::-webkit-slider-thumb {
 
 /* Device safe areas (status bar / notch, iOS home indicator).
    iOS's WKWebView natively resolves env(safe-area-inset-*) to the real
-   notch/home-indicator size. Android's WebView DOES recognize the
-   env(safe-area-inset-top) syntax (it's standard Chromium), but always
-   resolves it to a real, defined 0px -- Android doesn't wire native
-   WindowInsets into the WebView's environment variables the way iOS
-   does. That means env()'s own (x, fallback) fallback NEVER activates on
-   Android (round 197's first attempt): a fallback only applies when the
-   named variable is unsupported/undefined, not when it resolves to a
-   legitimate zero. Fixed (round 198) by checking var() FIRST instead of
-   nesting it inside env()'s fallback slot -- var()'s own fallback (its
-   second argument) correctly triggers whenever the custom property isn't
-   set at all, which is true on iOS/desktop (main.tsx only sets it on
-   native Android), so this now actually overrides Android's always-zero
-   env() value instead of being silently bypassed by it. */
-.safe-top    { padding-top: var(--safe-top-override, env(safe-area-inset-top, 0px)); }
-.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
-.safe-pb     { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.75rem); }
+   notch/home-indicator size -- no plugin needed there.
+   Android is different in a way rounds 197-198 got wrong twice: its
+   WebView does NOT feed real values into the env(safe-area-inset-*)
+   *environment variable* -- that always reads a real, defined 0px on
+   Android, so any env(x, fallback) fallback never activates (a
+   fallback only applies when the variable is unsupported/undefined,
+   not when it resolves to a legitimate zero). Instead, Capacitor's own
+   Android bridge (SystemBars.java, part of @capacitor/android core --
+   see node_modules/@capacitor/android/capacitor/src/main/java/com/
+   getcapacitor/plugin/SystemBars.java) measures the real native inset
+   and injects it as a *custom property* with a similar but distinct
+   name: --safe-area-inset-top (a var(), not an env()). Our code only
+   ever read env(), so Android's real, precise, already-injected value
+   was sitting right there the whole time, unused.
+   --safe-top/--safe-bottom below read Capacitor's real injected custom
+   property FIRST, falling back to the native env() (what iOS/desktop
+   already use) only when that property isn't set. No estimated
+   constants anywhere -- Android gets its own real measured value. */
+:root {
+  --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+}
+.safe-top    { padding-top: var(--safe-top); }
+.safe-bottom { padding-bottom: var(--safe-bottom); }
+.safe-pb     { padding-bottom: calc(var(--safe-bottom) + 1.75rem); }
 
 /* Visually hidden but readable by screen readers (WCAG technique). */
 .sr-only {

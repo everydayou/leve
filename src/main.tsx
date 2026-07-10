@@ -74,22 +74,6 @@ async function bootstrap() {
   applyDevOverrides();
   watchSystemTheme();
 
-  // Android's WebView resolves env(safe-area-inset-top) to a real,
-  // defined 0px instead of leaving it unsupported, so content was
-  // rendering straight under the status bar there (round 195 device
-  // report) -- and round 197's first attempt (nesting a fallback var
-  // inside env()'s own fallback slot) never actually triggered, because
-  // env()'s fallback only applies when the variable is undefined, not
-  // when it resolves to zero. --safe-top-override is checked BEFORE
-  // env() in index.css's .safe-top rule, so setting it here always wins
-  // on native Android. iOS/desktop leave it unset, falling through to
-  // env()'s real (iOS) or 0px (desktop) value exactly as before. This is
-  // an estimated status-bar height, not a per-device measured value --
-  // see KNOWN GAPS.
-  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
-    document.documentElement.style.setProperty('--safe-top-override', '32px');
-  }
-
   // Best-effort: ask the browser to exempt IndexedDB from eviction (iOS Safari).
   if (!PREVIEW && navigator.storage?.persist) {
     navigator.storage.persist().catch(() => { /* non-fatal */ });

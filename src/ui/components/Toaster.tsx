@@ -146,7 +146,7 @@ export function Toaster({ toast, onDismiss }: { toast: ToastData | null; onDismi
     <div
       style={{
         position: 'fixed',
-        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 5.25rem)',
+        bottom: 'calc(var(--safe-bottom) + 5.25rem)',
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 250,

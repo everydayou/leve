@@ -59,7 +59,7 @@ export function SlideHeader({ title, onBack, scrolled = false, rightAction, mute
   const bg = muted ? 'bg-surface-muted' : 'bg-surface';
   return (
     <div className={`sticky top-0 z-20 ${bg} transition-[box-shadow] duration-200${scrolled ? ' shadow-nav' : ''}`}>
-      <div className={`pointer-events-none absolute left-0 right-0 ${bg}`} style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
+      <div className={`pointer-events-none absolute left-0 right-0 ${bg}`} style={{ bottom: '100%', height: 'var(--safe-top)' }} />
       <div className="relative flex items-center px-4 pt-5 pb-4">
         <button onClick={onBack} aria-label="Back" className="-ml-2 flex h-10 w-10 flex-shrink-0 items-center justify-center text-content-muted">
           <Icon name="chevronLeft" size={20} strokeWidth={2.5} />

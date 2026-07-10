@@ -1399,7 +1399,7 @@ export function ServingModal({
     <div className="fixed inset-0 z-[300] flex items-end bg-black/40" onClick={onDismiss}>
       <div
         className="w-full space-y-3 rounded-t-[28px] bg-surface px-5 pt-6"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 34px) + 24px)' }}
+        style={{ paddingBottom: 'calc(var(--safe-bottom) + 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Grab handle */}
@@ -2421,7 +2421,7 @@ function LogEntryContent({
                   />
                 ))}
               </div>
-              <div style={{ marginTop: '12px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}>{addAnotherAndSave}</div>
+              <div style={{ marginTop: '12px', paddingBottom: 'calc(var(--safe-bottom) + 16px)' }}>{addAnotherAndSave}</div>
             </>
           );
         })()}
@@ -2637,7 +2637,7 @@ export function ScanResults({ items, onChange, onLog, scanPhoto, mealName, onMea
         style={{
           paddingTop: '5rem',
           background: 'linear-gradient(to bottom, transparent 0%, var(--color-surface) 5rem)',
-          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+          paddingBottom: 'calc(var(--safe-bottom) + 1rem)',
         }}
       >
         <Button

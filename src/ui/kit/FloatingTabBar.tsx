@@ -174,7 +174,7 @@ export function FloatingTabBar({
   const leftActions  = ACTION_ITEMS.slice(0, 2);
   const rightActions = ACTION_ITEMS.slice(2);
 
-  const bottomPad = 'pb-[max(0.75rem,env(safe-area-inset-bottom))]';
+  const bottomPad = 'pb-[max(0.75rem,var(--safe-bottom))]';
   const PILL_H = 56;
 
   return (

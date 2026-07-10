@@ -296,7 +296,7 @@ function OverlayLayer({ node, onBack }: { node: ReactNode; onBack?: (() => void)
             className="shrink-0 px-5"
             style={{
               paddingTop: '1.5rem',
-              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+              paddingBottom: 'calc(var(--safe-bottom) + 8px)',
               background: 'linear-gradient(to bottom, transparent 0px, var(--color-surface) 1.5rem)',
             }}
           >
@@ -783,7 +783,7 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
                     ? scrollAreaPaddingBottom
                     : effectiveFooter
                     ? '8px'
-                    : 'env(safe-area-inset-bottom, 0px)',
+                    : 'var(--safe-bottom)',
                 }}
               >{children}</div>
               {effectiveFooter && (
@@ -791,7 +791,7 @@ export function Sheet({ children, title, titleIcon, subtitle, stickyHeader, righ
                   className="shrink-0 px-5"
                   style={{
                     paddingTop: '1.5rem',
-                    paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+                    paddingBottom: 'calc(var(--safe-bottom) + 8px)',
                     // Gradient fades scroll content into the surface behind the CTA
                     background: 'linear-gradient(to bottom, transparent 0px, var(--color-surface) 1.5rem)',
                   }}

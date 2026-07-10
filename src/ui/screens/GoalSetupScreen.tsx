@@ -647,7 +647,7 @@ export function GoalSetupForm({
               next block) lets it and the info card scroll together with
               nothing opaque behind either of them. */}
           <div className={`sticky top-0 z-20 bg-surface transition-[box-shadow] duration-200${navScrolled ? ' shadow-nav' : ''}`}>
-            <div className="pointer-events-none absolute left-0 right-0 bg-surface" style={{ bottom: '100%', height: 'env(safe-area-inset-top, 0px)' }} />
+            <div className="pointer-events-none absolute left-0 right-0 bg-surface" style={{ bottom: '100%', height: 'var(--safe-top)' }} />
             <div className="flex items-center justify-between px-4 pt-5 pb-3">
               <button onClick={goBackFromDetails} aria-label={skipType ? 'Close' : 'Back'}
                 className="-ml-2 flex h-10 w-10 items-center justify-center text-content-muted">

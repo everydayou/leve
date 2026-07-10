@@ -1,4 +1,48 @@
 ================================================================
+ROUND 199: ANDROID STATUS-BAR FIX, THE ACTUAL FIX (CAPACITOR'S REAL INJECTED VALUE) (2026-07-10)
+================================================================
+Files: src/index.css, src/main.tsx, src/ui/AppShell.tsx,
+       src/ui/screens/GoalSetupScreen.tsx, src/ui/kit/SlideScreen.tsx,
+       src/ui/components/Toaster.tsx, src/ui/components/AddEntrySheet.tsx,
+       src/ui/kit/Sheet.tsx, src/ui/kit/FloatingTabBar.tsx
+
+- ROUNDS 197-198 BOTH GUESSED WRONG: round 198's on-device result was
+  identical, pixel for pixel, to round 197's -- a strong signal the
+  fix wasn't reaching the device, or was solving the wrong problem.
+  Marco asked for a careful-mode pass: read whatever "special tweak"
+  iOS relies on and actually understand the mechanism before touching
+  code again.
+- REAL MECHANISM FOUND (by reading Capacitor's own source, not
+  guessing): node_modules/@capacitor/android/.../plugin/SystemBars.java
+  measures the real native inset via WindowInsetsCompat and injects it
+  into the WebView as a CSS *custom property*,
+  --safe-area-inset-top/right/bottom/left (var() syntax) -- a
+  different mechanism from the CSS *environment variable*
+  env(safe-area-inset-top), which Android's WebView always resolves to
+  a real, defined 0px (confirmed: rounds 197-198's env()/fallback
+  tricks could never have worked, regardless of exact syntax, because
+  the fallback branch was never reachable). Our code only ever read
+  env(), so Android's real, precise, already-injected value was sitting
+  unused the whole time. Confirmed iOS is unaffected by checking its
+  equivalent native plugin (SystemBars.swift): it never sets that
+  custom property, so iOS falls straight through to its real, native
+  env() value exactly as before -- zero behavior change there.
+- FIX: index.css now defines root --safe-top/--safe-bottom vars that
+  read Capacitor's real injected custom property first, falling back
+  to env() (iOS/desktop's existing path) only if unset:
+  var(--safe-area-inset-top, env(safe-area-inset-top, 0px)). Every
+  safe-area usage across the app was migrated to read these two vars
+  instead of duplicating env() inline: AppShell's status-bar fade +
+  tap-interceptor, GoalSetupScreen's sticky-header spacer, SlideScreen,
+  Toaster, AddEntrySheet (x3), Sheet.tsx (x3), FloatingTabBar. Removed
+  round 197/198's --safe-top-override 32px guessed constant --
+  superseded, no longer needed.
+- NOT YET DONE: needs actual on-device confirmation before considering
+  this closed, given two prior fixes both silently failed. See
+  PROJECT-CONTEXT.txt's KNOWN GAPS.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+================================================================
 ROUND 198: ANDROID STATUS-BAR FIX, TAKE TWO -- env() FALLBACK NEVER TRIGGERS ON ANDROID (2026-07-10)
 ================================================================
 Files: src/index.css, src/main.tsx

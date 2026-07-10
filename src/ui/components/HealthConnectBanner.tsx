@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { repos } from '../../state/repos';
-import { getHealthKitService, type HealthKitStatus } from '../../data/healthkit';
+import { getHealthKitService, healthServiceName, type HealthKitStatus } from '../../data/healthkit';
 import { hapticLight } from '../../lib/haptics';
 import { Button, Icon } from '../kit';
 
@@ -55,7 +55,7 @@ export function HealthConnectBanner({
       <div className="flex items-center gap-3 rounded-card border border-border-subtle bg-surface-sunken px-4 py-3">
         <Icon name="health" size={20} className="shrink-0 text-content-muted" />
         <div className="min-w-0 flex-1">
-          <p className="text-subhead font-medium text-content">Apple Health connected</p>
+          <p className="text-subhead font-medium text-content">{healthServiceName()} connected</p>
           <p className="text-caption text-content-secondary">
             {connectedMessage}{status.lastSyncAt ? ` · Synced ${relativeSync(status.lastSyncAt)}` : ''}
           </p>
@@ -70,7 +70,7 @@ export function HealthConnectBanner({
     <div className="flex items-center gap-3 rounded-card border border-border-subtle bg-surface-sunken px-4 py-3">
       <Icon name="health" size={20} className="shrink-0 text-content-muted" />
       <div className="min-w-0 flex-1">
-        <p className="text-subhead font-medium text-content">Connect Apple Health</p>
+        <p className="text-subhead font-medium text-content">Connect {healthServiceName()}</p>
         <p className="text-caption text-content-secondary">{pendingMessage}</p>
       </div>
       <Button variant="subtle" size="xs" fullWidth={false} onClick={() => void connect()} disabled={connecting}>

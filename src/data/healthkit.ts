@@ -36,9 +36,19 @@
 // Signing & Capabilities UI (Apple provisions this against your App ID).
 // See HEALTHKIT.md. Everything else here is plain TypeScript.
 
+import { Capacitor } from '@capacitor/core';
 import { Health } from '@capgo/capacitor-health';
 import type { Repositories } from './repositories';
 import { newId, todayISO } from './ids';
+
+/** Platform-appropriate name for the health data source this app syncs
+ *  with: "Apple Health" on iOS, "Health Connect" on Android (its modern
+ *  replacement for Google Fit). Falls back to "Apple Health" on web/preview,
+ *  where the connect UI never actually shows (Health.isAvailable() reports
+ *  false there), so the exact fallback wording doesn't matter in practice. */
+export function healthServiceName(): string {
+  return Capacitor.getPlatform() === 'android' ? 'Health Connect' : 'Apple Health';
+}
 
 export interface HealthKitStatus {
   /** False on web/Android/simulator, or if the device has no Health app. */

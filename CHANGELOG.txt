@@ -1,4 +1,36 @@
 ================================================================
+ROUND 201: HEALTH CONNECT (ANDROID) ENABLED -- CORRECTING AN EARLIER MISTAKE (2026-07-10)
+================================================================
+Files: src/data/healthkit.ts, src/ui/components/HealthConnectBanner.tsx,
+       src/ui/screens/AccountScreen.tsx, public/privacypolicy.html (new),
+       ANDROID.md
+
+- CORRECTING ROUND 194: "Apple Health sync has no Android equivalent"
+  was wrong -- introduced without actually checking
+  @capgo/capacitor-health's own docs. The plugin fully supports Health
+  Connect (Android's modern replacement for Google Fit) through the
+  exact same unified TypeScript API our sync code already calls
+  (Health.readSamples, Health.queryAggregated, etc.) -- confirmed by
+  reading the plugin's README and its Android manifest/native source.
+  src/data/healthkit.ts needed ZERO logic changes; it was already
+  100% platform-agnostic.
+- WHAT WAS ACTUALLY MISSING: hardcoded "Apple Health" UI copy (would
+  confusingly show on Android too), and Health Connect's one genuinely
+  new requirement -- a privacy policy shown when requesting
+  permission, which HealthKit has no equivalent for.
+- FIX: added healthServiceName() (src/data/healthkit.ts) returning
+  "Apple Health" on iOS / "Health Connect" on Android; used it to
+  replace hardcoded copy in HealthConnectBanner.tsx and
+  AccountScreen.tsx (including the "Available on your iPhone" line,
+  now platform-generic). Added public/privacypolicy.html -- lives in
+  public/ so it flows through the normal Vite build into dist/ and
+  then into android/app/src/main/assets/public/ on every
+  npm run android:sync, exactly the default path the plugin's native
+  PermissionsRationaleActivity loads (file:///android_asset/public/
+  privacypolicy.html) -- no extra native config needed.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+================================================================
 ROUND 200: ANDROID GAUGE-CARD FRAGMENT -- REFRAMED, ROUNDS 197-199 WERE THE WRONG DIAGNOSIS (2026-07-10)
 ================================================================
 Files: src/ui/screens/TodayScreen.tsx

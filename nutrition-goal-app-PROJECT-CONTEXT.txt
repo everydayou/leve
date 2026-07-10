@@ -16,7 +16,7 @@ content render straight under the status bar everywhere it's used
 OnboardingDailyAllowance, GoalScreen, TopBar, SlideScreen) -- main.tsx
 now sets a --safe-top-fallback CSS var to an estimated status-bar
 height on native Android only, iOS/desktop untouched)
-Full change history: see CHANGELOG.txt (rounds 1-200).
+Full change history: see CHANGELOG.txt (rounds 1-201).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -126,12 +126,26 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 200, 2026-07-10)
+7. CURRENT STATUS (as of round 201, 2026-07-10)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only.
-Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-200)
+Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-201)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
+- HEALTH CONNECT (ANDROID) ENABLED -- CORRECTING AN EARLIER MISTAKE
+  (round 201): round 194's "Apple Health sync has no Android
+  equivalent" known gap was WRONG -- introduced without actually
+  checking @capgo/capacitor-health's docs. The plugin fully supports
+  Health Connect (Android's Google-Fit replacement) via the exact same
+  unified API our sync code (src/data/healthkit.ts) already calls, with
+  zero platform branching needed there. Added healthServiceName()
+  (returns "Apple Health"/"Health Connect" per platform), used it to
+  fix hardcoded "Apple Health"/"iPhone" copy in HealthConnectBanner.tsx
+  and AccountScreen.tsx. Added public/privacypolicy.html -- Health
+  Connect requires apps show a privacy policy when requesting
+  permission (HealthKit has no equivalent requirement); the plugin's
+  native rationale screen loads this file automatically once it's
+  bundled (no extra config). See ANDROID.md.
 - ANDROID GAUGE-CARD FRAGMENT FIXED, DEVICE-CONFIRMED (round 200): the
   fragment above WeekStrip was never a safe-area issue (rounds
   197-199's diagnosis was wrong, though that work is still correct and
@@ -422,11 +436,6 @@ MED:
   not urgent while only distributing via Firebase App Distribution --
   revisit before any eventual Play Store submission, which will
   require targeting a current API level.
-- APPLE HEALTH SYNC HAS NO ANDROID EQUIVALENT (round 194, new):
-  @capgo/capacitor-health (round 191) is HealthKit-only. Android testers
-  can log weight/activity manually but get no auto-sync; a Health
-  Connect-based implementation would be a separate, not-yet-scoped
-  piece of work if wanted.
 - NO AUTOMATED TEST COVERAGE FOR HEALTHKIT/BYOK/GATE/SHARED-BETA LOGIC
   (round 191, extended round 193): the HealthKit sync (dedup/clamp/
   hide-in-place), the direct-to-Anthropic BYOK call path, the useAiGate
@@ -547,6 +556,16 @@ LOW:
 - moreHoriz ICON NOW UNUSED (round 181, new, cleanup): Icon.tsx still
   exports a moreHoriz icon; nothing references it anymore now that the
   Goal-options button is a text label, not an icon. Safe to remove.
+
+DONE (r201):
+- ✓ HEALTH CONNECT (ANDROID) ENABLED (round 201): corrected round 194's
+  wrong "HealthKit-only" claim -- @capgo/capacitor-health already
+  supports Health Connect via its unified API, no sync-logic changes
+  needed. Added healthServiceName() platform-aware label, fixed
+  hardcoded "Apple Health"/"iPhone" copy, added
+  public/privacypolicy.html (Health Connect's permission-rationale
+  requirement).
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
 
 DONE (r200):
 - ✓ ANDROID GAUGE-CARD FRAGMENT ABOVE WEEKSTRIP FIXED, DEVICE-CONFIRMED
@@ -867,6 +886,71 @@ RECENT ROUNDS (3 most recent, older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
 ================================================================
+ROUND 201: HEALTH CONNECT (ANDROID) ENABLED -- CORRECTING AN EARLIER MISTAKE (2026-07-10)
+================================================================
+Files: src/data/healthkit.ts, src/ui/components/HealthConnectBanner.tsx,
+       src/ui/screens/AccountScreen.tsx, public/privacypolicy.html (new),
+       ANDROID.md
+
+- CORRECTING ROUND 194: "Apple Health sync has no Android equivalent"
+  was wrong -- introduced without actually checking
+  @capgo/capacitor-health's own docs. The plugin fully supports Health
+  Connect (Android's modern replacement for Google Fit) through the
+  exact same unified TypeScript API our sync code already calls
+  (Health.readSamples, Health.queryAggregated, etc.) -- confirmed by
+  reading the plugin's README and its Android manifest/native source.
+  src/data/healthkit.ts needed ZERO logic changes; it was already
+  100% platform-agnostic.
+- WHAT WAS ACTUALLY MISSING: hardcoded "Apple Health" UI copy (would
+  confusingly show on Android too), and Health Connect's one genuinely
+  new requirement -- a privacy policy shown when requesting
+  permission, which HealthKit has no equivalent for.
+- FIX: added healthServiceName() (src/data/healthkit.ts) returning
+  "Apple Health" on iOS / "Health Connect" on Android; used it to
+  replace hardcoded copy in HealthConnectBanner.tsx and
+  AccountScreen.tsx (including the "Available on your iPhone" line,
+  now platform-generic). Added public/privacypolicy.html -- lives in
+  public/ so it flows through the normal Vite build into dist/ and
+  then into android/app/src/main/assets/public/ on every
+  npm run android:sync, exactly the default path the plugin's native
+  PermissionsRationaleActivity loads (file:///android_asset/public/
+  privacypolicy.html) -- no extra native config needed.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+================================================================
+ROUND 200: ANDROID GAUGE-CARD FRAGMENT -- REFRAMED, ROUNDS 197-199 WERE THE WRONG DIAGNOSIS (2026-07-10)
+================================================================
+Files: src/ui/screens/TodayScreen.tsx
+
+- Round 199's fix (also 197, 198) had zero visible effect on the
+  reported symptom, again. Marco ran his own experiment: swiping the
+  WeekStrip to a different week makes the stray gauge-card fragment
+  above it disappear; swiping back to the original week brings it
+  back. This means the symptom is tied to TodayScreen's day-content
+  carousel own render (the 3-panel prev/current/next day carousel,
+  keyed by date), not a generic safe-area/top-padding issue --
+  rounds 197-199 were solving the wrong problem the whole time, even
+  though the underlying --safe-top/--safe-bottom centralization from
+  round 199 is still correct and worth keeping for its own sake.
+- HYPOTHESIS (not confirmed via direct DOM inspection -- no remote
+  debugger access this session): the carousel's outer container uses
+  paddingTop:24px + marginTop:-24px (gives the active panel's card
+  shadow room without overflow:hidden clipping it, cancelling the
+  padding's layout impact). This exact padding+negative-margin-cancel
+  trick, combined with overflow:hidden and a transformed sliding
+  child, is a known category of cross-WebView-engine rendering
+  inconsistency, and lines up with the remount-clears-it /
+  remount-reproduces-it behavior Marco observed (panels are keyed by
+  date, so switching weeks fully unmounts/remounts them).
+- FIX: dropped the negative-margin cancellation on Android only
+  (Capacitor.getPlatform() === 'android') -- keeps the paddingTop for
+  shadow room, costs at most 24px of harmless extra spacing on Android
+  if this hypothesis is wrong. iOS untouched.
+- CONFIRMED FIXED ON-DEVICE (Pixel 9 Pro emulator) -- no further
+  reports.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+================================================================
 ROUND 199: ANDROID STATUS-BAR FIX, THE ACTUAL FIX (CAPACITOR'S REAL INJECTED VALUE) (2026-07-10)
 ================================================================
 Files: src/index.css, src/main.tsx, src/ui/AppShell.tsx,
@@ -908,60 +992,6 @@ Files: src/index.css, src/main.tsx, src/ui/AppShell.tsx,
 - NOT YET DONE: needs actual on-device confirmation before considering
   this closed, given two prior fixes both silently failed. See KNOWN
   GAPS.
-- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
-
-================================================================
-ROUND 198: ANDROID STATUS-BAR FIX, TAKE TWO -- env() FALLBACK NEVER TRIGGERS ON ANDROID (2026-07-10)
-================================================================
-Files: src/index.css, src/main.tsx
-
-- Round 197's fix had literally zero visible effect on-device, even
-  after confirming the web bundle was actually rebuilt (npx cap sync
-  android alone does NOT rebuild -- npm run android:sync / npm run
-  build does; independently confirmed as a real gotcha during this
-  round's debugging).
-- HYPOTHESIS AT THE TIME (later found incomplete -- see round 199):
-  CSS env(name, fallback)'s fallback only applies when the engine
-  doesn't support/recognize the named environment variable at all, and
-  Android's WebView recognizes env(safe-area-inset-top) but always
-  resolves it to a real, defined 0px, so nesting a fallback var inside
-  env()'s own fallback slot (round 197) never actually ran. Fix
-  attempted: flip the check order,
-  var(--safe-top-override, env(safe-area-inset-top, 0px)), with
-  main.tsx setting --safe-top-override to an estimated 32px on native
-  Android. This was directionally correct about env()'s fallback
-  semantics, but Marco reported zero visible change again -- see round
-  199 for why (Android's real inset was never being read from the
-  right place regardless of fallback logic, because the JS never set
-  the override in time / the estimate itself wasn't the actual gap --
-  full explanation in round 199).
-- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
-
-================================================================
-ROUND 197: ANDROID SAFE-AREA-INSET-TOP FIX (STATUS-BAR OVERLAP, REAL ROOT CAUSE) (2026-07-10)
-================================================================
-Files: src/index.css, src/main.tsx
-
-- ROOT CAUSE FOUND: on-device (Pixel 9 Pro emulator) the Diary/Today
-  screen's top content (WeekStrip / gauge card) rendered under the
-  status bar/clock — round 196's targetSdkVersion 36->34 change did
-  NOT fix it, disproving that the sole cause was Android 15's
-  edge-to-edge enforcement. Actual cause: Android's WebView does not
-  populate env(safe-area-inset-top) the way iOS's WKWebView does. The
-  shared .safe-top utility class (index.css) used a flat 0px fallback,
-  so every screen using it (AppShell's <main>, GoalSetupScreen,
-  OnboardingFlow, FirstOpenFork, OnboardingDailyAllowance, GoalScreen,
-  TopBar, SlideScreen) silently got zero top padding on Android.
-- FIX: .safe-top's fallback is now
-  env(safe-area-inset-top, var(--safe-top-fallback, 0px)). main.tsx
-  sets --safe-top-fallback to an estimated 32px on native Android only
-  (Capacitor.getPlatform() === 'android'), leaving iOS (real inset,
-  always non-zero there) and desktop/browser preview (unset, stays
-  0px, no visual change) untouched.
-- NOT YET DONE: 32px is an estimate, not measured per-device (see
-  KNOWN GAPS). .safe-bottom/.safe-pb use the same pattern and weren't
-  audited this round — not reported broken on the emulator, but
-  unconfirmed.
 - tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
 
 ================================================================

@@ -91,11 +91,23 @@ APK) to an internal/closed testing track first, then promote to
 production. Nothing in this Firebase setup needs to be undone — Firebase
 App Distribution and Play testing tracks can run side by side.
 
-## Known gap: Apple Health integration is iOS-only
-`@capgo/capacitor-health` (used for weight/activity sync) is HealthKit-only
-— there's no Android equivalent shipped yet. Android testers can still log
-weight/activity manually; auto-sync via Health Connect (Android's
-equivalent) would need a separate plugin/implementation, not covered here.
+## Apple Health / Health Connect sync works on both platforms
+`@capgo/capacitor-health` (used for weight/activity sync) natively supports
+both Apple HealthKit (iOS) and Health Connect (Android, the modern
+replacement for Google Fit) through one unified API — our sync code
+(`src/data/healthkit.ts`) has no platform-specific branching and works
+identically on both. UI copy says "Apple Health" on iOS and "Health
+Connect" on Android automatically (`healthServiceName()`).
+
+One real Android-only requirement: Health Connect requires apps to show a
+privacy policy when requesting permission. `public/privacypolicy.html`
+covers this (bundled into the app, no hosting needed) — it's loaded
+automatically by the plugin's native rationale screen, no extra config.
+
+Health Connect itself ships built-in on Android 14+; on earlier versions
+a tester needs to install "Health Connect by Android" from the Play Store
+first (the app's own connect flow will still show, just won't do anything
+until Health Connect is present).
 
 ## If you hit trouble
 - **Gradle sync fails on first open** → make sure Android Studio finished

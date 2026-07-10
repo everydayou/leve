@@ -13,7 +13,7 @@ import { getThemePref, setThemePref, type ThemePref } from '../../lib/theme';
 import { hapticLight, getHapticsPref, setHapticsPref } from '../../lib/haptics';
 import { getDevRevealed, setDevRevealed } from '../../lib/devReveal';
 import { getWithingsService, type WithingsStatus } from '../../data/withings';
-import { getHealthKitService, type HealthKitStatus } from '../../data/healthkit';
+import { getHealthKitService, healthServiceName, type HealthKitStatus } from '../../data/healthkit';
 import { getApiKey, requestApiKeySheet } from '../../lib/apiKey';
 import { SHARED_BETA } from '../../lib/sharedBeta';
 import { DevMenu } from '../components/DevMenu';
@@ -487,13 +487,13 @@ function AppearanceCard() {
       <div className="mt-3 border-t border-border-subtle pt-3">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-callout font-bold text-content">Apple Health</p>
+            <p className="text-callout font-bold text-content">{healthServiceName()}</p>
             <p className="text-label text-content-secondary">
               {!healthAvailable
-                ? 'Available on your iPhone (not in this preview).'
+                ? 'Available on your phone (not in this preview).'
                 : healthConnected
                   ? 'Importing weight + activity calories.'
-                  : 'Import weight and activity calories from Health.'}
+                  : `Import weight and activity calories from ${healthServiceName()}.`}
             </p>
           </div>
           {healthAvailable && (
@@ -503,7 +503,7 @@ function AppearanceCard() {
         </div>
         {healthAvailable && (!healthConnected ? (
           <Button size="sm" className="mt-3" onClick={connectHealth} disabled={healthBusy != null}>
-            {healthBusy === 'connect' ? 'Connecting…' : 'Connect Apple Health'}
+            {healthBusy === 'connect' ? 'Connecting…' : `Connect ${healthServiceName()}`}
           </Button>
         ) : (
           <Button variant="outline" size="sm" className="mt-3" onClick={disconnectHealth} disabled={healthBusy != null}>

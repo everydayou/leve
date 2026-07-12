@@ -2,15 +2,13 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-12, Round 204 ("Add another item" picker
-collapse/expand logic fixed in AddEntrySheet.tsx: it now only resumes
-expanded when backing out of an add-attempt reached through it
-(Describe/Manual/Camera/Photo canceled), never when editing or
-"fix with AI"-correcting an existing basket item, which previously
-reopened it as an unrelated side effect any time the basket wasn't
-empty; also fixed a related stale-correctingIdx bug found while
-tracing this)
-Full change history: see CHANGELOG.txt (rounds 1-204).
+Last updated: 2026-07-12, Round 205 (bumped Android versionCode 1->2 /
+versionName "1.0"->"1.1" in android/app/build.gradle -- every Android
+tester release so far used the same never-bumped scaffold values,
+which can make Android refuse to install a new release over an
+existing same-versionCode install; must bump before every future
+Android tester build)
+Full change history: see CHANGELOG.txt (rounds 1-205).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -120,12 +118,22 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 204, 2026-07-12)
+7. CURRENT STATUS (as of round 205, 2026-07-12)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only.
-Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-204)
+Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-205)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
+- ANDROID versionCode/versionName BUMPED FOR TESTER RELEASES (round
+  205): android/app/build.gradle's versionCode/versionName had never
+  been bumped from their initial scaffold values (1 / "1.0") across any
+  Android release so far, including the round 204 shared-beta release
+  Marco just uploaded -- Firebase App Distribution showed it as
+  identical to the previous release his testers already had installed.
+  Same-versionCode installs can be silently refused by Android on some
+  devices. Bumped to versionCode 2 / versionName "1.1"; ANDROID.md's
+  build step now calls out bumping this before every future release,
+  same discipline as iOS's TestFlight build-number bump.
 - "ADD ANOTHER ITEM" COLLAPSE/EXPAND LOGIC FIXED (round 204): the
   Day's-log basket picker (both FoodForm and LogEntryContent copies in
   AddEntrySheet.tsx) now follows one rule -- collapsed by default, only
@@ -940,6 +948,30 @@ RECENT ROUNDS (3 most recent, older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
 ================================================================
+ROUND 205: ANDROID versionCode/versionName BUMPED FOR TESTER RELEASES (2026-07-12)
+================================================================
+Files: android/app/build.gradle
+
+- CONTEXT: Marco uploaded a new Firebase App Distribution release (with
+  round 204's shared-beta flag baked in) and noticed it still showed as
+  "1.0 (1)", same as the previous release his 3 testers had already
+  installed.
+- CAUSE: android/app/build.gradle's versionCode/versionName were never
+  bumped from their initial scaffold values (versionCode 1, versionName
+  "1.0") across any Android release so far -- every release built to
+  date has been identical on this front. Android treats a same-
+  versionCode APK as not-newer; installing it over an existing install
+  of the same versionCode can silently fail or get refused on some
+  devices (the same class of "app not installed" error one tester hit
+  before, for an unrelated reason).
+- FIX: versionCode 1->2, versionName "1.0"->"1.1". Added a reminder to
+  ANDROID.md's build step to bump this before every future Android
+  tester release, same discipline as iOS's build-number bump per
+  TestFlight archive.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged --
+  Gradle-only change).
+
+================================================================
 ROUND 204: "ADD ANOTHER ITEM" COLLAPSE/EXPAND LOGIC FIXED (2026-07-12)
 ================================================================
 Files: src/ui/components/AddEntrySheet.tsx
@@ -1029,48 +1061,6 @@ Files: ANDROID.md
   and re-upload a new APK to Firebase App Distribution for current
   testers to get the fix -- see KNOWN GAPS.
 - tsc/lint/vitest: no code touched, unaffected.
-
-================================================================
-ROUND 202: ANDROID EDGE-TO-EDGE + STATUS-BAR FADE FIX, FROM REAL TESTER FEEDBACK (2026-07-12)
-================================================================
-Files: android/variables.gradle, src/ui/AppShell.tsx
-
-- CONTEXT: Marco relayed feedback from a friend (Android developer) who
-  tested the app on his own device: "Status and bottom bars are full
-  black so the app is not applying edge to edge" and "screen titles
-  have the fading starting already without any scroll, so possibly a
-  padding issue or the fading should be reduced in height".
-- FIX 1 -- EDGE-TO-EDGE: android/variables.gradle's targetSdkVersion
-  reverted 34->36. Round 196 lowered it to 34 as a first guess at the
-  status-bar overlap bug (Android 15/API 35 only forces edge-to-edge
-  for apps targeting SDK 35+); rounds 197-199 later proved the actual
-  bug was a safe-area CSS wiring issue, unrelated to targetSdk, but the
-  34 downgrade was never reverted afterward. Left at 34, the app never
-  opted into edge-to-edge at all, so Android drew legacy opaque black
-  system bars instead -- exactly the symptom reported. Verified safe to
-  revert: Capacitor's own SystemBars plugin
-  (node_modules/@capacitor/android/.../SystemBars.java) already handles
-  the edge-to-edge passthrough path correctly given viewport-fit=cover
-  (already set in index.html) and our real --safe-top/--safe-bottom
-  wiring (round 199) plus the carousel rendering fix (round 200) --
-  nothing else needed changing.
-- FIX 2 -- TITLE FADE OVERLAP: AppShell.tsx's status-bar fade gradient
-  (round 185) spans from the very top of the screen down to
-  safe-top+48px. Every screen's own title (Pantry, Diary, Account,
-  Goal) sits at safe-top+16px via the shared px-6 pt-4 header pattern
-  -- comfortably inside that 48px zone, so the gradient's own
-  background color visibly tinted the title even at rest, with no
-  scrolling at all. This was likely always true to some extent, but
-  became much more visible once round 199 wired up Android's *real*,
-  often-larger safe-top value (previously near-zero due to the
-  now-fixed bug, making the fade zone small enough not to reach the
-  title as noticeably). Shrunk the extra padding from 48px to 8px --
-  clears every screen's title while keeping a small gradual fade right
-  at the safe-area boundary, matching the original intent.
-- NOT YET RE-CONFIRMED on the friend's device (or any physical Android
-  device this round) -- verified via code review, `npm run build`, and
-  Marco's own emulator only. See KNOWN GAPS.
-- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
 
 ================================================================
 ROUND 193: DIARY SIGN-DISPLAY FIX; WEEKLY-STRIP PER-DAY BMR FIX; GAIN PACE RENAME; WHEELPICKER HAPTICS; SHARED-BETA MODE FOR EXTERNAL TESTERS (2026-07-09)

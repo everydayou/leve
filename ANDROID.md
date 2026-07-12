@@ -95,6 +95,14 @@ See TESTFLIGHT.md's "Shared beta mode" section for the full story
 Console).
 
 ### 7. Build a signed release APK
+**First, bump the version** in `android/app/build.gradle`'s `defaultConfig`
+block — `versionCode` must go up by at least 1 (e.g. 2 -> 3), and
+`versionName` should change too (e.g. "1.1" -> "1.2"). Skipping this means
+Android can refuse to install the new release over an existing install of
+the same versionCode, on some devices without any clear error — this bit
+the first shared-beta release (round 205 stayed at the scaffold's
+untouched versionCode 1 / versionName "1.0" for every release up to then).
+
 In Android Studio: **Build → Generate Signed Bundle / APK → APK**.
 First time, create a new keystore (Android Studio walks you through it —
 save the keystore file and its password somewhere safe, you'll reuse it

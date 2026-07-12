@@ -1,4 +1,29 @@
 ================================================================
+ROUND 205: ANDROID versionCode/versionName BUMPED FOR TESTER RELEASES (2026-07-12)
+================================================================
+Files: android/app/build.gradle
+
+- CONTEXT: Marco uploaded a new Firebase App Distribution release (with
+  round 204's shared-beta flag baked in) and noticed it still showed as
+  "1.0 (1)", same as the previous release his 3 testers had already
+  installed.
+- CAUSE: android/app/build.gradle's versionCode/versionName were never
+  bumped from their initial scaffold values (versionCode 1, versionName
+  "1.0") across any Android release so far -- every release built to
+  date has been identical on this front. Android treats a same-
+  versionCode APK as not-newer; installing it over an existing install
+  of the same versionCode can silently fail or get refused on some
+  devices (the same class of "app not installed" error one tester hit
+  before, for an unrelated reason).
+- FIX: versionCode 1->2, versionName "1.0"->"1.1". Going forward,
+  versionCode must increase by at least 1 (and versionName should
+  change too, e.g. "1.2", "1.3"...) before every new Android tester
+  build, same discipline as iOS's own build-number bump per TestFlight
+  archive.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged --
+  Gradle-only change).
+
+================================================================
 ROUND 204: "ADD ANOTHER ITEM" COLLAPSE/EXPAND LOGIC FIXED (2026-07-12)
 ================================================================
 Files: src/ui/components/AddEntrySheet.tsx

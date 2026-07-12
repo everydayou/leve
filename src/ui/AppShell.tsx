@@ -183,20 +183,25 @@ export function AppShell() {
       {/* Phone-first: full-bleed, full height on small screens. On larger
           viewports it settles into a centered, framed device-sized card. */}
       <div className="relative flex h-[100dvh] w-full max-w-[26.25rem] flex-col overflow-hidden bg-surface-muted sm:h-[min(880px,94dvh)] sm:rounded-[2rem] sm:border sm:border-border-subtle sm:shadow-xl">
-        {/* Status-bar fade (round 185) — purely visual, sits above every
-            screen's scrolling content so nothing runs directly under the
-            notch/Dynamic Island unreadably. Taller than the safe area itself
-            (+48px) so content fades out gradually rather than cutting off
-            sharply — mirrors the bottom nav's own fade in FloatingTabBar.tsx
-            (120px vs a ~34px safe-area-inset-bottom). Token-driven background
-            so it flips correctly in dark mode. pointer-events-none: purely
-            decorative, never blocks the tap-to-top layer below or content
-            under it. z-40, same as the tap interceptor — below sheets (z-50),
-            above all screen content. */}
+        {/* Status-bar fade (round 185, height reduced round 202) — purely
+            visual, sits above every screen's scrolling content so nothing
+            runs directly under the notch/Dynamic Island unreadably. Slightly
+            taller than the safe area itself (+8px) so content fades out
+            gradually rather than cutting off sharply. Round 202: this was
+            +48px, which on Android (once round 199 wired up the *real*
+            --safe-top value) reached well past the safe area and visibly
+            tinted every screen's own title — titles sit at safe-top + 16px
+            (px-6 pt-4 header pattern), which was still inside the old,
+            taller gradient. +8px keeps a small gradual fade at the safe-area
+            boundary itself without reaching into any title's position.
+            Token-driven background so it flips correctly in dark mode.
+            pointer-events-none: purely decorative, never blocks the
+            tap-to-top layer below or content under it. z-40, same as the tap
+            interceptor — below sheets (z-50), above all screen content. */}
         <div
           className="pointer-events-none absolute inset-x-0 top-0 z-40"
           style={{
-            height: 'calc(var(--safe-top) + 48px)',
+            height: 'calc(var(--safe-top) + 8px)',
             background: 'linear-gradient(to bottom, var(--color-surface-muted), transparent)',
           }}
           aria-hidden

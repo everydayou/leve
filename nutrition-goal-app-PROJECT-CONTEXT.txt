@@ -2,21 +2,15 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-10, Round 197 (Android device-testing pass, first
-real run on a Pixel 9 Pro emulator: round 195 bumped minSdkVersion
-24->26, required by capgo/capacitor-health's manifest; round 196
-regenerated the Android splash screen + launcher icon from the actual
-leve brand mark, replacing Capacitor's default white/blue placeholder,
-and lowered targetSdkVersion 36->34 as a first attempt at a status-bar
-overlap bug; round 197 found and fixed the real cause: Android's
-WebView doesn't populate env(safe-area-inset-top) the way iOS's
-WKWebView does, so the app-wide .safe-top utility's 0px fallback let
-content render straight under the status bar everywhere it's used
-(AppShell, GoalSetupScreen, OnboardingFlow, FirstOpenFork,
-OnboardingDailyAllowance, GoalScreen, TopBar, SlideScreen) -- main.tsx
-now sets a --safe-top-fallback CSS var to an estimated status-bar
-height on native Android only, iOS/desktop untouched)
-Full change history: see CHANGELOG.txt (rounds 1-201).
+Last updated: 2026-07-12, Round 202 (Android edge-to-edge + status-bar
+fade fix, from real external-tester feedback: targetSdkVersion reverted
+34->36 now that round 199's real safe-area wiring + round 200's
+carousel fix make it safe to re-enable Android 15's edge-to-edge
+enforcement (fixes "status/nav bars are full black"); AppShell's
+status-bar fade gradient shrunk from safe-top+48px to safe-top+8px
+(was reaching past every screen's own title, which sits at
+safe-top+16px, visibly tinting it even at rest with no scroll))
+Full change history: see CHANGELOG.txt (rounds 1-202).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -126,12 +120,33 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 201, 2026-07-10)
+7. CURRENT STATUS (as of round 202, 2026-07-12)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only.
-Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-201)
+Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-202)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
+- ANDROID EDGE-TO-EDGE + STATUS-BAR FADE FIX, FROM REAL TESTER FEEDBACK
+  (round 202): a friend of Marco's (Android developer) tested the app
+  and reported two things: (1) status/nav bars render fully black
+  instead of edge-to-edge, and (2) screen titles show fading even with
+  no scroll. Both traced back to round 196/199 leftovers. Fix 1:
+  targetSdkVersion reverted 34->36 (android/variables.gradle) --
+  round 196 lowered it as a first guess at the status-bar overlap bug,
+  which round 197-199 later proved was actually a safe-area wiring
+  issue, not a targetSdk one; leaving it at 34 meant the app never
+  opted into Android 15's edge-to-edge enforcement (SDK 35+ only),
+  so the OS fell back to legacy opaque black bars. Safe to revert now
+  that real safe-area handling (round 199) and the carousel rendering
+  fix (round 200) are both in place and confirmed on-device. Fix 2:
+  AppShell.tsx's status-bar fade gradient (round 185) was
+  safe-top+48px tall; every screen's own title sits at safe-top+16px
+  (the shared px-6 pt-4 header pattern -- Pantry, Diary, Account,
+  Goal all use it), which was still inside that taller gradient,
+  visibly tinting the title at rest. Shrunk to safe-top+8px, clearing
+  every title while keeping a small gradual fade at the safe-area
+  boundary itself. Not yet re-confirmed on Marco's friend's device
+  (code-verified + on Marco's own emulator only so far).
 - HEALTH CONNECT (ANDROID) ENABLED -- CORRECTING AN EARLIER MISTAKE
   (round 201): round 194's "Apple Health sync has no Android
   equivalent" known gap was WRONG -- introduced without actually
@@ -429,13 +444,12 @@ HIGH:
   181; see DONE (r181) below.)
 
 MED:
-- ANDROID targetSdkVersion LOWERED TO 34, NOT YET REVERTED (round 196):
-  was a first attempt at the status-bar overlap bug (Android 15's
-  edge-to-edge enforcement for apps targeting SDK 35+) that round 197
-  proved unnecessary (didn't fix the actual bug). Harmless either way;
-  not urgent while only distributing via Firebase App Distribution --
-  revisit before any eventual Play Store submission, which will
-  require targeting a current API level.
+- ANDROID EDGE-TO-EDGE FIX AWAITING EXTERNAL-TESTER RE-CONFIRMATION
+  (round 202, new): targetSdkVersion reverted 34->36 and AppShell's
+  status-bar fade shrunk, fixing both issues Marco's Android-developer
+  friend reported (black bars, title fade-overlap) per code review and
+  on Marco's own emulator -- not yet re-tested on that friend's actual
+  device.
 - NO AUTOMATED TEST COVERAGE FOR HEALTHKIT/BYOK/GATE/SHARED-BETA LOGIC
   (round 191, extended round 193): the HealthKit sync (dedup/clamp/
   hide-in-place), the direct-to-Anthropic BYOK call path, the useAiGate
@@ -886,6 +900,48 @@ RECENT ROUNDS (3 most recent, older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
 ================================================================
+ROUND 202: ANDROID EDGE-TO-EDGE + STATUS-BAR FADE FIX, FROM REAL TESTER FEEDBACK (2026-07-12)
+================================================================
+Files: android/variables.gradle, src/ui/AppShell.tsx
+
+- CONTEXT: Marco relayed feedback from a friend (Android developer) who
+  tested the app on his own device: "Status and bottom bars are full
+  black so the app is not applying edge to edge" and "screen titles
+  have the fading starting already without any scroll, so possibly a
+  padding issue or the fading should be reduced in height".
+- FIX 1 -- EDGE-TO-EDGE: android/variables.gradle's targetSdkVersion
+  reverted 34->36. Round 196 lowered it to 34 as a first guess at the
+  status-bar overlap bug (Android 15/API 35 only forces edge-to-edge
+  for apps targeting SDK 35+); rounds 197-199 later proved the actual
+  bug was a safe-area CSS wiring issue, unrelated to targetSdk, but the
+  34 downgrade was never reverted afterward. Left at 34, the app never
+  opted into edge-to-edge at all, so Android drew legacy opaque black
+  system bars instead -- exactly the symptom reported. Verified safe to
+  revert: Capacitor's own SystemBars plugin
+  (node_modules/@capacitor/android/.../SystemBars.java) already handles
+  the edge-to-edge passthrough path correctly given viewport-fit=cover
+  (already set in index.html) and our real --safe-top/--safe-bottom
+  wiring (round 199) plus the carousel rendering fix (round 200) --
+  nothing else needed changing.
+- FIX 2 -- TITLE FADE OVERLAP: AppShell.tsx's status-bar fade gradient
+  (round 185) spans from the very top of the screen down to
+  safe-top+48px. Every screen's own title (Pantry, Diary, Account,
+  Goal) sits at safe-top+16px via the shared px-6 pt-4 header pattern
+  -- comfortably inside that 48px zone, so the gradient's own
+  background color visibly tinted the title even at rest, with no
+  scrolling at all. This was likely always true to some extent, but
+  became much more visible once round 199 wired up Android's *real*,
+  often-larger safe-top value (previously near-zero due to the
+  now-fixed bug, making the fade zone small enough not to reach the
+  title as noticeably). Shrunk the extra padding from 48px to 8px --
+  clears every screen's title while keeping a small gradual fade right
+  at the safe-area boundary, matching the original intent.
+- NOT YET RE-CONFIRMED on the friend's device (or any physical Android
+  device this round) -- verified via code review, `npm run build`, and
+  Marco's own emulator only. See KNOWN GAPS.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+================================================================
 ROUND 201: HEALTH CONNECT (ANDROID) ENABLED -- CORRECTING AN EARLIER MISTAKE (2026-07-10)
 ================================================================
 Files: src/data/healthkit.ts, src/ui/components/HealthConnectBanner.tsx,
@@ -948,50 +1004,6 @@ Files: src/ui/screens/TodayScreen.tsx
   if this hypothesis is wrong. iOS untouched.
 - CONFIRMED FIXED ON-DEVICE (Pixel 9 Pro emulator) -- no further
   reports.
-- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
-
-================================================================
-ROUND 199: ANDROID STATUS-BAR FIX, THE ACTUAL FIX (CAPACITOR'S REAL INJECTED VALUE) (2026-07-10)
-================================================================
-Files: src/index.css, src/main.tsx, src/ui/AppShell.tsx,
-       src/ui/screens/GoalSetupScreen.tsx, src/ui/kit/SlideScreen.tsx,
-       src/ui/components/Toaster.tsx, src/ui/components/AddEntrySheet.tsx,
-       src/ui/kit/Sheet.tsx, src/ui/kit/FloatingTabBar.tsx
-
-- ROUNDS 197-198 BOTH GUESSED WRONG: round 198's on-device result was
-  identical, pixel for pixel, to round 197's -- a strong signal the
-  fix wasn't reaching the device, or was solving the wrong problem.
-  Marco asked for a careful-mode pass: read whatever "special tweak"
-  iOS relies on and actually understand the mechanism before touching
-  code again.
-- REAL MECHANISM FOUND (by reading Capacitor's own source, not
-  guessing): node_modules/@capacitor/android/.../plugin/SystemBars.java
-  measures the real native inset via WindowInsetsCompat and injects it
-  into the WebView as a CSS *custom property*,
-  --safe-area-inset-top/right/bottom/left (var() syntax) -- a
-  different mechanism from the CSS *environment variable*
-  env(safe-area-inset-top), which Android's WebView always resolves to
-  a real, defined 0px (confirmed: rounds 197-198's env()/fallback
-  tricks could never have worked, regardless of exact syntax, because
-  the fallback branch was never reachable). Our code only ever read
-  env(), so Android's real, precise, already-injected value was sitting
-  unused the whole time. Confirmed iOS is unaffected by checking its
-  equivalent native plugin (SystemBars.swift): it never sets that
-  custom property, so iOS falls straight through to its real, native
-  env() value exactly as before -- zero behavior change there.
-- FIX: index.css now defines root --safe-top/--safe-bottom vars that
-  read Capacitor's real injected custom property first, falling back
-  to env() (iOS/desktop's existing path) only if unset:
-  var(--safe-area-inset-top, env(safe-area-inset-top, 0px)). Every
-  safe-area usage across the app was migrated to read these two vars
-  instead of duplicating env() inline: AppShell's status-bar fade +
-  tap-interceptor, GoalSetupScreen's sticky-header spacer, SlideScreen,
-  Toaster, AddEntrySheet (x3), Sheet.tsx (x3), FloatingTabBar. Removed
-  round 197/198's --safe-top-override 32px guessed constant --
-  superseded, no longer needed.
-- NOT YET DONE: needs actual on-device confirmation before considering
-  this closed, given two prior fixes both silently failed. See KNOWN
-  GAPS.
 - tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
 
 ================================================================

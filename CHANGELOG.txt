@@ -1,4 +1,51 @@
 ================================================================
+ROUND 202: ANDROID EDGE-TO-EDGE + STATUS-BAR FADE FIX, FROM REAL TESTER FEEDBACK (2026-07-12)
+================================================================
+Files: android/variables.gradle, src/ui/AppShell.tsx
+
+- CONTEXT: Marco relayed feedback from a friend (Android developer) who
+  tested the app on his own device: "Status and bottom bars are full
+  black so the app is not applying edge to edge" and "screen titles
+  have the fading starting already without any scroll, so possibly a
+  padding issue or the fading should be reduced in height".
+- FIX 1 -- EDGE-TO-EDGE: android/variables.gradle's targetSdkVersion
+  reverted 34->36. Round 196 lowered it to 34 as a first guess at the
+  status-bar overlap bug (Android 15/API 35 only forces edge-to-edge
+  for apps targeting SDK 35+); rounds 197-199 later proved the actual
+  bug was a safe-area CSS wiring issue, unrelated to targetSdk, but the
+  34 downgrade was never reverted afterward. Left at 34, the app never
+  opted into edge-to-edge at all, so Android drew legacy opaque black
+  system bars instead -- exactly the symptom reported. Verified safe to
+  revert by reading Capacitor's own SystemBars plugin source
+  (node_modules/@capacitor/android/.../SystemBars.java): it already
+  handles the edge-to-edge passthrough path correctly given
+  viewport-fit=cover (already set in index.html) and our real
+  --safe-top/--safe-bottom wiring (round 199) plus the carousel
+  rendering fix (round 200) -- nothing else needed changing. Also
+  confirmed no explicit status/nav bar color overrides exist anywhere
+  in android/app/src/main/res (styles.xml only sets the legacy
+  colorPrimaryDark attr, unused once edge-to-edge is active) that could
+  conflict.
+- FIX 2 -- TITLE FADE OVERLAP: AppShell.tsx's status-bar fade gradient
+  (round 185) spans from the very top of the screen down to
+  safe-top+48px. Every screen's own title (Pantry, Diary, Account,
+  Goal) sits at safe-top+16px via the shared px-6 pt-4 header pattern
+  -- comfortably inside that 48px zone, so the gradient's own
+  background color visibly tinted the title even at rest, with no
+  scrolling at all. This was likely always true to some extent, but
+  became much more visible once round 199 wired up Android's *real*,
+  often-larger safe-top value (previously near-zero due to the
+  now-fixed bug, making the fade zone small enough not to reach the
+  title as noticeably). Shrunk the extra padding from 48px to 8px --
+  clears every screen's title while keeping a small gradual fade right
+  at the safe-area boundary, matching the original intent. iOS
+  unaffected (same shared component, just a smaller constant).
+- NOT YET RE-CONFIRMED on the friend's device (or any physical Android
+  device this round) -- verified via code review, `npm run build`, and
+  Marco's own emulator only. See KNOWN GAPS in PROJECT-CONTEXT.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+================================================================
 ROUND 201: HEALTH CONNECT (ANDROID) ENABLED -- CORRECTING AN EARLIER MISTAKE (2026-07-10)
 ================================================================
 Files: src/data/healthkit.ts, src/ui/components/HealthConnectBanner.tsx,

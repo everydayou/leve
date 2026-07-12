@@ -2,15 +2,13 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-12, Round 202 (Android edge-to-edge + status-bar
-fade fix, from real external-tester feedback: targetSdkVersion reverted
-34->36 now that round 199's real safe-area wiring + round 200's
-carousel fix make it safe to re-enable Android 15's edge-to-edge
-enforcement (fixes "status/nav bars are full black"); AppShell's
-status-bar fade gradient shrunk from safe-top+48px to safe-top+8px
-(was reaching past every screen's own title, which sits at
-safe-top+16px, visibly tinting it even at rest with no scroll))
-Full change history: see CHANGELOG.txt (rounds 1-202).
+Last updated: 2026-07-12, Round 203 (documented a missing step: Android
+tester builds need VITE_SHARED_BETA turned on before building, same as
+iOS TestFlight builds already do, so testers get the auto-connected
+temporary key instead of being prompted for their own -- ANDROID.md
+never mentioned this, docs-only fix, Marco still needs to rebuild/
+redistribute)
+Full change history: see CHANGELOG.txt (rounds 1-203).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -120,12 +118,22 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 202, 2026-07-12)
+7. CURRENT STATUS (as of round 203, 2026-07-12)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only.
-Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-202)
+Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-203)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
+- ANDROID SHARED-BETA STEP DOCUMENTED, NOT YET APPLIED (round 203): Marco
+  reported Android testers get prompted for their own Anthropic key,
+  when shared-beta mode (round 193) should auto-connect a temporary one,
+  same as iOS TestFlight testers already get. Not a code bug -- the
+  mechanism (src/lib/sharedBeta.ts, apiKey.ts, db.ts) is 100% platform-
+  agnostic, driven by a single build-time flag (VITE_SHARED_BETA in
+  .env.local). ANDROID.md simply never documented turning it on before
+  building for Android testers, unlike TESTFLIGHT.md's existing iOS
+  workflow. Added the same step to ANDROID.md (new section "6.5"). Marco
+  still needs to set the flag and rebuild/redistribute -- see KNOWN GAPS.
 - ANDROID EDGE-TO-EDGE + STATUS-BAR FADE FIX, FROM REAL TESTER FEEDBACK
   (round 202): a friend of Marco's (Android developer) tested the app
   and reported two things: (1) status/nav bars render fully black
@@ -444,6 +452,13 @@ HIGH:
   181; see DONE (r181) below.)
 
 MED:
+- ANDROID SHARED-BETA MODE NOT YET TURNED ON FOR TESTER BUILDS (round
+  203, new): ANDROID.md now documents the step (set VITE_SHARED_BETA=true
+  + a temporary key in .env.local before npm run android:sync), but
+  Marco hasn't yet rebuilt/re-uploaded an Android APK with it on --
+  current Firebase App Distribution testers are still on a flag-off
+  build and will still see the "enter your own key" prompt until a new
+  build is distributed.
 - ANDROID EDGE-TO-EDGE FIX AWAITING EXTERNAL-TESTER RE-CONFIRMATION
   (round 202, new): targetSdkVersion reverted 34->36 and AppShell's
   status-bar fade shrunk, fixing both issues Marco's Android-developer
@@ -900,6 +915,39 @@ RECENT ROUNDS (3 most recent, older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
 ================================================================
+ROUND 203: DOCUMENTED MISSING SHARED-BETA STEP FOR ANDROID BUILDS (2026-07-12)
+================================================================
+Files: ANDROID.md
+
+- CONTEXT: Marco reported Android testers were being prompted to enter
+  their own Anthropic API key for AI Food Scan, when the shared-beta
+  flow (round 193) was meant to auto-connect a temporary key instead,
+  same as iOS TestFlight testers get.
+- ROOT CAUSE: not a code bug. src/lib/sharedBeta.ts, apiKey.ts, db.ts
+  have zero platform branching -- the whole shared-beta mechanism is
+  driven purely by a build-time env flag (VITE_SHARED_BETA in
+  .env.local). TESTFLIGHT.md documents flipping it on right before
+  archiving an iOS build for testers; ANDROID.md (written round 194)
+  never mentioned this step at all. The Android APK built and
+  distributed via Firebase App Distribution was therefore almost
+  certainly a normal (flag-off) build -- same behavior as Marco's own
+  daily build, just never intentionally toggled for Android the way it
+  already is for iOS.
+- FIX: added a "6.5. Turn on shared-beta mode first" section to
+  ANDROID.md, positioned right before the build step, mirroring
+  TESTFLIGHT.md's existing "Shared beta mode" section -- same flag,
+  same temporary key can be reused across both platforms (or a
+  separate one, if Marco wants independent on/off control per
+  platform), reminder to flip it back off afterward, and a pointer to
+  TESTFLIGHT.md for the full story (what it does, how to revoke access
+  instantly via the Claude Console).
+- NOT YET DONE: this is a docs-only fix. Marco still needs to actually
+  set the flag in his own .env.local, rebuild via npm run android:sync,
+  and re-upload a new APK to Firebase App Distribution for current
+  testers to get the fix -- see KNOWN GAPS.
+- tsc/lint/vitest: no code touched, unaffected.
+
+================================================================
 ROUND 202: ANDROID EDGE-TO-EDGE + STATUS-BAR FADE FIX, FROM REAL TESTER FEEDBACK (2026-07-12)
 ================================================================
 Files: android/variables.gradle, src/ui/AppShell.tsx
@@ -971,39 +1019,6 @@ Files: src/data/healthkit.ts, src/ui/components/HealthConnectBanner.tsx,
   npm run android:sync, exactly the default path the plugin's native
   PermissionsRationaleActivity loads (file:///android_asset/public/
   privacypolicy.html) -- no extra native config needed.
-- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
-
-================================================================
-ROUND 200: ANDROID GAUGE-CARD FRAGMENT -- REFRAMED, ROUNDS 197-199 WERE THE WRONG DIAGNOSIS (2026-07-10)
-================================================================
-Files: src/ui/screens/TodayScreen.tsx
-
-- Round 199's fix (also 197, 198) had zero visible effect on the
-  reported symptom, again. Marco ran his own experiment: swiping the
-  WeekStrip to a different week makes the stray gauge-card fragment
-  above it disappear; swiping back to the original week brings it
-  back. This means the symptom is tied to TodayScreen's day-content
-  carousel own render (the 3-panel prev/current/next day carousel,
-  keyed by date), not a generic safe-area/top-padding issue --
-  rounds 197-199 were solving the wrong problem the whole time, even
-  though the underlying --safe-top/--safe-bottom centralization from
-  round 199 is still correct and worth keeping for its own sake.
-- HYPOTHESIS (not confirmed via direct DOM inspection -- no remote
-  debugger access this session): the carousel's outer container uses
-  paddingTop:24px + marginTop:-24px (gives the active panel's card
-  shadow room without overflow:hidden clipping it, cancelling the
-  padding's layout impact). This exact padding+negative-margin-cancel
-  trick, combined with overflow:hidden and a transformed sliding
-  child, is a known category of cross-WebView-engine rendering
-  inconsistency, and lines up with the remount-clears-it /
-  remount-reproduces-it behavior Marco observed (panels are keyed by
-  date, so switching weeks fully unmounts/remounts them).
-- FIX: dropped the negative-margin cancellation on Android only
-  (Capacitor.getPlatform() === 'android') -- keeps the paddingTop for
-  shadow room, costs at most 24px of harmless extra spacing on Android
-  if this hypothesis is wrong. iOS untouched.
-- CONFIRMED FIXED ON-DEVICE (Pixel 9 Pro emulator) -- no further
-  reports.
 - tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
 
 ================================================================

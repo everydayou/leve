@@ -1,4 +1,37 @@
 ================================================================
+ROUND 203: DOCUMENTED MISSING SHARED-BETA STEP FOR ANDROID BUILDS (2026-07-12)
+================================================================
+Files: ANDROID.md
+
+- CONTEXT: Marco reported Android testers were being prompted to enter
+  their own Anthropic API key for AI Food Scan, when the shared-beta
+  flow (round 193) was meant to auto-connect a temporary key instead,
+  same as iOS TestFlight testers get.
+- ROOT CAUSE: not a code bug. src/lib/sharedBeta.ts, apiKey.ts, db.ts
+  have zero platform branching -- the whole shared-beta mechanism is
+  driven purely by a build-time env flag (VITE_SHARED_BETA in
+  .env.local). TESTFLIGHT.md documents flipping it on right before
+  archiving an iOS build for testers; ANDROID.md (written round 194)
+  never mentioned this step at all. The Android APK built and
+  distributed via Firebase App Distribution was therefore almost
+  certainly a normal (flag-off) build -- same behavior as Marco's own
+  daily build, just never intentionally toggled for Android the way it
+  already is for iOS.
+- FIX: added a "6.5. Turn on shared-beta mode first" section to
+  ANDROID.md, positioned right before the build step, mirroring
+  TESTFLIGHT.md's existing "Shared beta mode" section -- same flag,
+  same temporary key can be reused across both platforms (or a
+  separate one, if Marco wants independent on/off control per
+  platform), reminder to flip it back off afterward, and a pointer to
+  TESTFLIGHT.md for the full story (what it does, how to revoke access
+  instantly via the Claude Console).
+- NOT YET DONE: this is a docs-only fix. Marco still needs to actually
+  set the flag in his own .env.local, rebuild via npm run android:sync,
+  and re-upload a new APK to Firebase App Distribution for current
+  testers to get the fix -- flagged as a KNOWN GAP until confirmed done.
+- tsc/lint/vitest: no code touched, unaffected.
+
+================================================================
 ROUND 202: ANDROID EDGE-TO-EDGE + STATUS-BAR FADE FIX, FROM REAL TESTER FEEDBACK (2026-07-12)
 ================================================================
 Files: android/variables.gradle, src/ui/AppShell.tsx

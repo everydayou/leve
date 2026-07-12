@@ -60,6 +60,40 @@ group (e.g. "leve-testers") and add tester emails.
 
 ## Every time you want to send testers a new build
 
+### 6.5. Turn on shared-beta mode first (so testers don't need their own key)
+Same `VITE_SHARED_BETA` switch documented in TESTFLIGHT.md for iOS applies
+here too — the app has no Android-specific logic for this at all, it's a
+single build-time flag read at build time, same code path on both
+platforms. Skipping this step is why early Android testers were prompted
+to enter their own Anthropic key: the APK was built as a normal (flag-off)
+build, same as your own day-to-day build.
+
+**Right before building a release for testers:**
+1. In `.env.local` (gitignored, create from `.env.example` if you don't
+   have one yet), add:
+   ```
+   VITE_SHARED_BETA=true
+   VITE_SHARED_BETA_ANTHROPIC_KEY=sk-ant-your-temporary-key
+   ```
+   (Same temporary key you use for iOS TestFlight testers works fine here
+   too — one flag covers both platforms since it's just an env var read
+   at build time, not anything platform-specific. Use a separate key
+   instead if you'd rather be able to cut off Android testers without
+   affecting iOS testers, or vice versa.)
+2. Run `npm run android:sync` (rebuilds the web bundle with the flag
+   baked in, then syncs it into `android/`) *before* step 7 below.
+
+**Right after uploading the build:** turn `VITE_SHARED_BETA` back off (or
+comment out both lines) before your next regular `npm run android:sync` /
+`npm run ios:sync` for your own phone — otherwise your own device would
+also default into the empty Test account on its next launch. The hidden
+Developer menu (triple-tap the Account title) shows a warning banner
+whenever a build has shared-beta mode baked in, on both platforms.
+
+See TESTFLIGHT.md's "Shared beta mode" section for the full story
+(what it does, how to end access for everyone instantly via the Claude
+Console).
+
 ### 7. Build a signed release APK
 In Android Studio: **Build → Generate Signed Bundle / APK → APK**.
 First time, create a new keystore (Android Studio walks you through it —

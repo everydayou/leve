@@ -46,7 +46,7 @@ time you archive (step 5), no manual certificate/profile creation needed.
 
 ### 4. Sync the latest code
 ```bash
-cd ~/Documents/leve && git pull && npm run ios:sync
+cd ~/leve && git pull && npm run ios:sync
 ```
 
 ### 5. Bump the build number

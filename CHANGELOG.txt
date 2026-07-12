@@ -1,4 +1,41 @@
 ================================================================
+ROUND 206: PROJECT MOVED OUT OF iCLOUD SYNC; ROOT-CAUSED RECURRING BUILD FAILURES (2026-07-12)
+================================================================
+Files: ANDROID.md, TESTFLIGHT.md, HEALTHKIT.md
+
+- CONTEXT: while building the round 205 (versionCode-bumped) tester
+  release, Marco hit "' ' is not a valid file-based resource name
+  character" build failures TWICE in a row, even right after cleaning
+  android/build -- the same class of error that broke a build once
+  before, much earlier in this project (a stray config 2.xml).
+- ROOT CAUSE FOUND: the project lived at ~/Documents/leve, and a Finder
+  screenshot Marco shared showed a duplicate "build 2" folder sitting
+  alongside android/build -- a classic iCloud Drive "Desktop &
+  Documents Folders" sync-conflict artifact. iCloud was fighting
+  Gradle for the same files while it built (Gradle rewrites
+  android/build/ constantly; iCloud creates a "` 2`"-suffixed duplicate
+  whenever it sees a write conflict mid-sync), and had also recreated
+  the exact same android/app/src/main/res/xml/config 2.xml that broke
+  a build earlier in this project -- confirming it wasn't a one-off,
+  it's a standing hazard for as long as the project stays inside an
+  iCloud-synced folder.
+- FIX: Marco moved the project out of iCloud sync entirely:
+  ~/Documents/leve -> ~/leve. Updated every doc that hardcoded the old
+  path (ANDROID.md, TESTFLIGHT.md, HEALTHKIT.md -- CLAUDE.md doesn't
+  reference an absolute path, unaffected) to `~/leve`. This should stop
+  the duplicate-file class of build failure for good, rather than
+  needing a manual clean (rm -rf android/build android/app/build
+  android/.gradle + delete the stray file) every time it recurs.
+- NOTE FOR FUTURE SESSIONS: if a "not a valid file-based resource name"
+  / "Failed file name validation" Gradle error ever comes back, check
+  for a stray space-suffixed duplicate file first (Mac's iCloud/Finder
+  duplicate-naming pattern) before assuming it's a real source problem
+  -- delete the duplicate, clean android/build + android/app/build +
+  android/.gradle, and rebuild.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged --
+  docs-only change, no app code touched).
+
+================================================================
 ROUND 205: ANDROID versionCode/versionName BUMPED FOR TESTER RELEASES (2026-07-12)
 ================================================================
 Files: android/app/build.gradle

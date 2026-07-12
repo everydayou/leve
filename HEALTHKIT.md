@@ -74,7 +74,7 @@ hand-editing project files reliably.
    dependencies were added, and just syncing without installing them first
    is a common miss):
    ```bash
-   cd ~/Documents/leve && git pull && npm install && npm run ios:sync
+   cd ~/leve && git pull && npm install && npm run ios:sync
    ```
 2. In Xcode → App target → **Signing & Capabilities** → **+ Capability** →
    search **HealthKit** → double-click to add it. Leave both checkboxes

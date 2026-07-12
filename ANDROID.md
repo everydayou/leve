@@ -23,7 +23,7 @@ its own SDK setup (Android SDK + an emulator image if you want one).
 
 ### 2. Pull this session's changes and open the Android project
 ```bash
-cd ~/Documents/leve && git pull
+cd ~/leve && git pull
 npm install
 npx cap sync android
 npx cap open android

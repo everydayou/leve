@@ -2,13 +2,13 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-12, Round 205 (bumped Android versionCode 1->2 /
-versionName "1.0"->"1.1" in android/app/build.gradle -- every Android
-tester release so far used the same never-bumped scaffold values,
-which can make Android refuse to install a new release over an
-existing same-versionCode install; must bump before every future
-Android tester build)
-Full change history: see CHANGELOG.txt (rounds 1-205).
+Last updated: 2026-07-12, Round 206 (root-caused two recurring Gradle
+build failures to iCloud Drive sync -- the project lived at
+~/Documents/leve and iCloud kept creating stray space-suffixed
+duplicate files (config 2.xml, a duplicate "build 2" folder) that
+broke Android resource merging; moved the project to ~/leve, updated
+every doc's hardcoded path (ANDROID.md, TESTFLIGHT.md, HEALTHKIT.md))
+Full change history: see CHANGELOG.txt (rounds 1-206).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -118,12 +118,24 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 205, 2026-07-12)
+7. CURRENT STATUS (as of round 206, 2026-07-12)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only.
-Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-205)
+Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-206)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
+- PROJECT MOVED OUT OF iCLOUD SYNC; ROOT-CAUSED RECURRING BUILD
+  FAILURES (round 206): the project lived at ~/Documents/leve (an
+  iCloud "Desktop & Documents Folders" synced location). iCloud was
+  creating stray space-suffixed duplicate files during Android builds
+  -- confirmed the exact same config 2.xml that broke a build once
+  before in this project, plus a duplicate "build 2" folder -- causing
+  repeated "not a valid file-based resource name" Gradle failures no
+  matter how many times android/build was cleaned. Moved to ~/leve;
+  updated every doc's hardcoded ~/Documents/leve path (ANDROID.md,
+  TESTFLIGHT.md, HEALTHKIT.md). Should stop this class of failure for
+  good. See KNOWN GAPS / CHANGELOG for the note on what to check first
+  if it ever resurfaces anyway.
 - ANDROID versionCode/versionName BUMPED FOR TESTER RELEASES (round
   205): android/app/build.gradle's versionCode/versionName had never
   been bumped from their initial scaffold values (1 / "1.0") across any
@@ -571,6 +583,15 @@ MED:
   smell — revisit if VoiceOver testing surfaces an issue.
 
 LOW:
+- iCLOUD DUPLICATE-FILE BUILD FAILURES SHOULD BE GONE, NOT PROVEN
+  IMPOSSIBLE (round 206, new): moving the project from ~/Documents/leve
+  to ~/leve should stop the recurring "not a valid file-based resource
+  name" Gradle failures (config 2.xml, a duplicate "build 2" folder --
+  both iCloud Drive sync artifacts), but this hasn't been proven over a
+  long stretch of builds yet. If it ever comes back: check for a stray
+  space-suffixed duplicate file first, delete it, clean android/build +
+  android/app/build + android/.gradle, rebuild -- don't assume it's a
+  real source problem.
 - OUTLINE-CARD STYLE DUPLICATED (round 180, new): the rounded-card + inset
   border-field hairline, no-shadow card style Marco asked for on Account
   (Weight units/Weigh-in frequency/Diary macros/Theme, via the local
@@ -948,6 +969,43 @@ RECENT ROUNDS (3 most recent, older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
 ================================================================
+ROUND 206: PROJECT MOVED OUT OF iCLOUD SYNC; ROOT-CAUSED RECURRING BUILD FAILURES (2026-07-12)
+================================================================
+Files: ANDROID.md, TESTFLIGHT.md, HEALTHKIT.md
+
+- CONTEXT: while building the round 205 (versionCode-bumped) tester
+  release, Marco hit "' ' is not a valid file-based resource name
+  character" build failures TWICE in a row, even right after cleaning
+  android/build -- the same class of error that broke a build once
+  before, much earlier in this project (a stray config 2.xml).
+- ROOT CAUSE FOUND: the project lived at ~/Documents/leve, and a Finder
+  screenshot Marco shared showed a duplicate "build 2" folder sitting
+  alongside android/build -- a classic iCloud Drive "Desktop &
+  Documents Folders" sync-conflict artifact. iCloud was fighting
+  Gradle for the same files while it built (Gradle rewrites
+  android/build/ constantly; iCloud creates a "` 2`"-suffixed duplicate
+  whenever it sees a write conflict mid-sync), and had also recreated
+  the exact same android/app/src/main/res/xml/config 2.xml that broke
+  a build earlier in this project -- confirming it wasn't a one-off,
+  it's a standing hazard for as long as the project stays inside an
+  iCloud-synced folder.
+- FIX: Marco moved the project out of iCloud sync entirely:
+  ~/Documents/leve -> ~/leve. Updated every doc that hardcoded the old
+  path (ANDROID.md, TESTFLIGHT.md, HEALTHKIT.md -- CLAUDE.md doesn't
+  reference an absolute path, unaffected) to `~/leve`. This should stop
+  the duplicate-file class of build failure for good, rather than
+  needing a manual clean (rm -rf android/build android/app/build
+  android/.gradle + delete the stray file) every time it recurs.
+- NOTE FOR FUTURE SESSIONS: if a "not a valid file-based resource name"
+  / "Failed file name validation" Gradle error ever comes back, check
+  for a stray space-suffixed duplicate file first (Mac's iCloud/Finder
+  duplicate-naming pattern) before assuming it's a real source problem
+  -- delete the duplicate, clean android/build + android/app/build +
+  android/.gradle, and rebuild.
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged --
+  docs-only change, no app code touched).
+
+================================================================
 ROUND 205: ANDROID versionCode/versionName BUMPED FOR TESTER RELEASES (2026-07-12)
 ================================================================
 Files: android/app/build.gradle
@@ -1028,39 +1086,6 @@ Files: src/ui/components/AddEntrySheet.tsx
   state logic verified by tracing, matching the project's existing
   approach for this kind of fix -- see KNOWN GAPS).
 - tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
-
-================================================================
-ROUND 203: DOCUMENTED MISSING SHARED-BETA STEP FOR ANDROID BUILDS (2026-07-12)
-================================================================
-Files: ANDROID.md
-
-- CONTEXT: Marco reported Android testers were being prompted to enter
-  their own Anthropic API key for AI Food Scan, when the shared-beta
-  flow (round 193) was meant to auto-connect a temporary key instead,
-  same as iOS TestFlight testers get.
-- ROOT CAUSE: not a code bug. src/lib/sharedBeta.ts, apiKey.ts, db.ts
-  have zero platform branching -- the whole shared-beta mechanism is
-  driven purely by a build-time env flag (VITE_SHARED_BETA in
-  .env.local). TESTFLIGHT.md documents flipping it on right before
-  archiving an iOS build for testers; ANDROID.md (written round 194)
-  never mentioned this step at all. The Android APK built and
-  distributed via Firebase App Distribution was therefore almost
-  certainly a normal (flag-off) build -- same behavior as Marco's own
-  daily build, just never intentionally toggled for Android the way it
-  already is for iOS.
-- FIX: added a "6.5. Turn on shared-beta mode first" section to
-  ANDROID.md, positioned right before the build step, mirroring
-  TESTFLIGHT.md's existing "Shared beta mode" section -- same flag,
-  same temporary key can be reused across both platforms (or a
-  separate one, if Marco wants independent on/off control per
-  platform), reminder to flip it back off afterward, and a pointer to
-  TESTFLIGHT.md for the full story (what it does, how to revoke access
-  instantly via the Claude Console).
-- NOT YET DONE: this is a docs-only fix. Marco still needs to actually
-  set the flag in his own .env.local, rebuild via npm run android:sync,
-  and re-upload a new APK to Firebase App Distribution for current
-  testers to get the fix -- see KNOWN GAPS.
-- tsc/lint/vitest: no code touched, unaffected.
 
 ================================================================
 ROUND 193: DIARY SIGN-DISPLAY FIX; WEEKLY-STRIP PER-DAY BMR FIX; GAIN PACE RENAME; WHEELPICKER HAPTICS; SHARED-BETA MODE FOR EXTERNAL TESTERS (2026-07-09)

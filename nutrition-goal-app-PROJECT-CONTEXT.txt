@@ -2,13 +2,15 @@
 NUTRITION GOAL TRACKER — PROJECT CONTEXT
 ================================================================
 Owner: Marco (marcosilva86@gmail.com)
-Last updated: 2026-07-12, Round 203 (documented a missing step: Android
-tester builds need VITE_SHARED_BETA turned on before building, same as
-iOS TestFlight builds already do, so testers get the auto-connected
-temporary key instead of being prompted for their own -- ANDROID.md
-never mentioned this, docs-only fix, Marco still needs to rebuild/
-redistribute)
-Full change history: see CHANGELOG.txt (rounds 1-203).
+Last updated: 2026-07-12, Round 204 ("Add another item" picker
+collapse/expand logic fixed in AddEntrySheet.tsx: it now only resumes
+expanded when backing out of an add-attempt reached through it
+(Describe/Manual/Camera/Photo canceled), never when editing or
+"fix with AI"-correcting an existing basket item, which previously
+reopened it as an unrelated side effect any time the basket wasn't
+empty; also fixed a related stale-correctingIdx bug found while
+tracing this)
+Full change history: see CHANGELOG.txt (rounds 1-204).
 
 HOW TO READ THIS DOC:
 - This file = current state only. Read it at the start of every chat.
@@ -118,12 +120,29 @@ Daily Deficit = Total Burn − Calories Consumed.
 ~7700 kcal per kg for goal pace math.
 
 ----------------------------------------------------------------
-7. CURRENT STATUS (as of round 203, 2026-07-12)
+7. CURRENT STATUS (as of round 204, 2026-07-12)
 ----------------------------------------------------------------
 All V1 features shipped and running on device. This is a snapshot only.
-Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-203)
+Detailed round-by-round history lives in CHANGELOG.txt (rounds 1-204)
 and the 3 most recent rounds are kept in full in RECENT ROUNDS below.
 
+- "ADD ANOTHER ITEM" COLLAPSE/EXPAND LOGIC FIXED (round 204): the
+  Day's-log basket picker (both FoodForm and LogEntryContent copies in
+  AddEntrySheet.tsx) now follows one rule -- collapsed by default, only
+  resumes expanded when backing out of an add-attempt reached through
+  it (Describe/Manual canceled, or Camera/Photo's native picker
+  canceled). Previously the shared overlayBack() handler reopened it
+  any time the basket wasn't empty, regardless of WHY an overlay
+  closed -- so editing an existing basket item, or "fix with AI"
+  re-correcting one, both unrelated to this picker, reopened it as a
+  side effect almost every time (basket is non-empty whenever there's
+  something to edit). Also fixed a related bug found while tracing
+  this: overlayBack() never cleared correctingIdx, so canceling a "fix
+  with AI" re-scan left it silently pointed at that basket index,
+  corrupting the next unrelated Describe-add. Not yet device-confirmed
+  by Marco. Pantry's own equivalent picker (PantryFoodItemDetail.tsx /
+  PantryMealDetail.tsx) was NOT touched -- it never resumes on cancel
+  either, left as-is pending Marco's call on bringing it in line too.
 - ANDROID SHARED-BETA STEP DOCUMENTED, NOT YET APPLIED (round 203): Marco
   reported Android testers get prompted for their own Anthropic key,
   when shared-beta mode (round 193) should auto-connect a temporary one,
@@ -452,6 +471,12 @@ HIGH:
   181; see DONE (r181) below.)
 
 MED:
+- "ADD ANOTHER ITEM" FIX AWAITING DEVICE CONFIRMATION; PANTRY NOT YET
+  ALIGNED (round 204, new): the collapse/expand fix in AddEntrySheet.tsx
+  hasn't been tested on-device yet. Also, Pantry's own "Create a meal" /
+  "Add another item" sections (PantryFoodItemDetail.tsx,
+  PantryMealDetail.tsx) still never resume on cancel -- Marco was asked
+  whether to bring those in line with the same rule, not yet answered.
 - ANDROID SHARED-BETA MODE NOT YET TURNED ON FOR TESTER BUILDS (round
   203, new): ANDROID.md now documents the step (set VITE_SHARED_BETA=true
   + a temporary key in .env.local before npm run android:sync), but
@@ -915,6 +940,64 @@ RECENT ROUNDS (3 most recent, older entries in CHANGELOG.txt)
 ----------------------------------------------------------------
 
 ================================================================
+ROUND 204: "ADD ANOTHER ITEM" COLLAPSE/EXPAND LOGIC FIXED (2026-07-12)
+================================================================
+Files: src/ui/components/AddEntrySheet.tsx
+
+- CONTEXT: Marco wanted the "+ Add another item" picker (Day's-log
+  basket, both the fresh-add FoodForm and the edit-existing-entry
+  LogEntryContent -- two separate copies of the same pattern) to
+  follow one rule: collapsed by default, only stays expanded while
+  actively "operating" it -- i.e. if you cancel out of a method you
+  opened it into (tap Photo, the album opens, tap X), it should resume
+  right where you left off; anything else should leave it collapsed.
+  Asked for a careful-mode pass: understand the actual state logic
+  before changing anything, present it for feedback first.
+- ROOT CAUSE (FoodForm): the shared overlayBack() handler, called
+  whenever ANY full-panel overlay closes (Describe, Manual, Edit),
+  unconditionally reopened the picker whenever the basket wasn't empty
+  -- conflating two unrelated flows. Editing an existing basket item
+  (tap its edit icon) or "fix with AI" re-correcting one (its own
+  onCorrect button) have nothing to do with the "Add another item"
+  picker, but since the basket is non-empty essentially every time you
+  edit/correct something already in it, doing either always reopened
+  the picker as a side effect -- matching exactly what Marco described
+  ("came back from a food item detail... it's expanded").
+- SECOND GAP (opposite direction, both copies): handleCamera/
+  handlePhoto set pickerOpen(false) *before* launching the native
+  camera/library, and nothing ever reopened it if the user canceled
+  without picking a photo -- so canceling a Camera/Photo pick actually
+  lost your place, the opposite of what Marco wanted for that exact
+  case.
+- BONUS BUG FOUND WHILE TRACING THIS: overlayBack() never cleared
+  correctingIdx. Canceling out of a "fix with AI" re-scan (Describe in
+  correcting mode) left correctingIdx pointing at that basket index
+  indefinitely -- the next unrelated Describe-add via the picker would
+  have silently replaced that old item instead of adding a new one.
+  Fixed as part of the same change (now cleared unconditionally).
+- FIX: overlayBack() now only reopens the picker when backing out of an
+  add-attempt reached *through* it -- Describe in normal add-mode
+  (correctingIdx === null) or Manual -- never when activeOverlay ===
+  'edit' or correctingIdx is set, regardless of whether that flow ended
+  in cancel or save. Also dropped the "only if basket.length > 0"
+  condition -- canceling an add attempt should resume the picker
+  regardless of what's already in the basket. handleCamera/handlePhoto
+  (both copies) now call setPickerOpen(true) when the native
+  capture returns null (user canceled), matching the same resume
+  behavior. Applied symmetrically in both FoodForm and LogEntryContent
+  -- they're separate, non-shared copies of this pattern.
+- NOT (YET) TOUCHED: Pantry's own "Create a meal" / "Add another item"
+  sections (PantryFoodItemDetail.tsx, PantryMealDetail.tsx) use the
+  same AddAnotherSection component but their own local open-state never
+  reopens on cancel today either -- left as-is pending Marco's call on
+  whether to bring those in line too (asked, not yet confirmed).
+- NOT YET DEVICE-CONFIRMED -- verified via code review and the existing
+  test suite (no new automated coverage added, this is UI-interaction
+  state logic verified by tracing, matching the project's existing
+  approach for this kind of fix -- see KNOWN GAPS).
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+================================================================
 ROUND 203: DOCUMENTED MISSING SHARED-BETA STEP FOR ANDROID BUILDS (2026-07-12)
 ================================================================
 Files: ANDROID.md
@@ -987,38 +1070,6 @@ Files: android/variables.gradle, src/ui/AppShell.tsx
 - NOT YET RE-CONFIRMED on the friend's device (or any physical Android
   device this round) -- verified via code review, `npm run build`, and
   Marco's own emulator only. See KNOWN GAPS.
-- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
-
-================================================================
-ROUND 201: HEALTH CONNECT (ANDROID) ENABLED -- CORRECTING AN EARLIER MISTAKE (2026-07-10)
-================================================================
-Files: src/data/healthkit.ts, src/ui/components/HealthConnectBanner.tsx,
-       src/ui/screens/AccountScreen.tsx, public/privacypolicy.html (new),
-       ANDROID.md
-
-- CORRECTING ROUND 194: "Apple Health sync has no Android equivalent"
-  was wrong -- introduced without actually checking
-  @capgo/capacitor-health's own docs. The plugin fully supports Health
-  Connect (Android's modern replacement for Google Fit) through the
-  exact same unified TypeScript API our sync code already calls
-  (Health.readSamples, Health.queryAggregated, etc.) -- confirmed by
-  reading the plugin's README and its Android manifest/native source.
-  src/data/healthkit.ts needed ZERO logic changes; it was already
-  100% platform-agnostic.
-- WHAT WAS ACTUALLY MISSING: hardcoded "Apple Health" UI copy (would
-  confusingly show on Android too), and Health Connect's one genuinely
-  new requirement -- a privacy policy shown when requesting
-  permission, which HealthKit has no equivalent for.
-- FIX: added healthServiceName() (src/data/healthkit.ts) returning
-  "Apple Health" on iOS / "Health Connect" on Android; used it to
-  replace hardcoded copy in HealthConnectBanner.tsx and
-  AccountScreen.tsx (including the "Available on your iPhone" line,
-  now platform-generic). Added public/privacypolicy.html -- lives in
-  public/ so it flows through the normal Vite build into dist/ and
-  then into android/app/src/main/assets/public/ on every
-  npm run android:sync, exactly the default path the plugin's native
-  PermissionsRationaleActivity loads (file:///android_asset/public/
-  privacypolicy.html) -- no extra native config needed.
 - tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
 
 ================================================================

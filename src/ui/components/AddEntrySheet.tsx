@@ -346,7 +346,13 @@ function FoodForm({
     setPickerOpen(false);
     if (isNativeApp()) {
       const photo = await captureFromCamera();
-      if (photo) await runScan(photo, 'Analysing your photo…');
+      if (photo) {
+        await runScan(photo, 'Analysing your photo…');
+      } else {
+        // User canceled the native camera — resume right where they left
+        // off, same as canceling out of Describe/Manual (round 204).
+        setPickerOpen(true);
+      }
     } else if (SCAN_ENABLED) {
       scanInputRef.current?.click();
     } else {
@@ -359,7 +365,13 @@ function FoodForm({
     setPickerOpen(false);
     if (isNativeApp()) {
       const photo = await captureFromLibrary();
-      if (photo) await runScan(photo, 'Analysing your photo…');
+      if (photo) {
+        await runScan(photo, 'Analysing your photo…');
+      } else {
+        // User canceled the photo library — resume right where they left
+        // off, same as canceling out of Describe/Manual (round 204).
+        setPickerOpen(true);
+      }
     } else if (SCAN_ENABLED) {
       scanInputRef.current?.click();
     } else {
@@ -714,11 +726,20 @@ function FoodForm({
   logRef.current = logBasket;
 
   // ── Overlay back helper ───────────────────────────────────────────────────
+  // Round 204: only resume the "Add another item" picker when backing out
+  // of an ADD attempt reached *through* it — Describe in its normal
+  // add-mode (correctingIdx === null) or Manual. Editing an existing
+  // basket item (activeOverlay === 'edit') or "fix with AI" re-correcting
+  // one (correctingIdx set) are unrelated to the picker and must never
+  // touch its open state, regardless of outcome (cancel or save) —
+  // previously this reopened the picker any time the basket wasn't empty,
+  // which is true almost every time you edit/correct an existing item.
   function overlayBack() {
+    const resumePicker = activeOverlay !== 'edit' && correctingIdx === null;
     setActiveOverlay(null);
     setEditingIdx(null);
-    // Re-open picker when returning to a non-empty basket so user can pick another method
-    if (basket.length > 0) setPickerOpen(true);
+    setCorrectingIdx(null);
+    if (resumePicker) setPickerOpen(true);
   }
   overlayBackRef.current = overlayBack; // intentional ref update mid-render so swipe handler always calls latest overlayBack
 
@@ -1763,10 +1784,19 @@ function LogEntryContent({
     || saveToPantry !== mealStillExists;
 
   // ── Overlay back ────────────────────────────────────────────────────────
+  // Round 204: only resume the "Add another item" picker when backing out
+  // of an ADD attempt reached *through* it — Describe in its normal
+  // add-mode (correctingIdx === null) or Manual. Editing an existing
+  // basket item (activeOverlay === 'edit') or "fix with AI" re-correcting
+  // one (correctingIdx set) are unrelated to the picker and must never
+  // touch its open state, regardless of outcome (cancel or save). Mirrors
+  // the equivalent fix in FoodForm's own copy of this pattern above.
   function overlayBack() {
+    const resumePicker = activeOverlay !== 'edit' && correctingIdx === null;
     setActiveOverlay(null);
     setEditingIdx(null);
     setCorrectingIdx(null);
+    if (resumePicker) setPickerOpen(true);
   }
   const overlayBackRef = useRef(overlayBack);
   overlayBackRef.current = overlayBack;
@@ -1891,7 +1921,13 @@ function LogEntryContent({
     setPickerOpen(false);
     if (isNativeApp()) {
       const photo = await captureFromCamera();
-      if (photo) await runScan(photo, 'Analysing your photo…');
+      if (photo) {
+        await runScan(photo, 'Analysing your photo…');
+      } else {
+        // User canceled the native camera — resume right where they left
+        // off, same as canceling out of Describe/Manual (round 204).
+        setPickerOpen(true);
+      }
     } else if (SCAN_ENABLED) {
       scanInputRef.current?.click();
     } else {
@@ -1904,7 +1940,13 @@ function LogEntryContent({
     setPickerOpen(false);
     if (isNativeApp()) {
       const photo = await captureFromLibrary();
-      if (photo) await runScan(photo, 'Analysing your photo…');
+      if (photo) {
+        await runScan(photo, 'Analysing your photo…');
+      } else {
+        // User canceled the photo library — resume right where they left
+        // off, same as canceling out of Describe/Manual (round 204).
+        setPickerOpen(true);
+      }
     } else if (SCAN_ENABLED) {
       scanInputRef.current?.click();
     } else {

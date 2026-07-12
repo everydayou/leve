@@ -1,4 +1,62 @@
 ================================================================
+ROUND 204: "ADD ANOTHER ITEM" COLLAPSE/EXPAND LOGIC FIXED (2026-07-12)
+================================================================
+Files: src/ui/components/AddEntrySheet.tsx
+
+- CONTEXT: Marco wanted the "+ Add another item" picker (Day's-log
+  basket, both the fresh-add FoodForm and the edit-existing-entry
+  LogEntryContent -- two separate copies of the same pattern) to
+  follow one rule: collapsed by default, only stays expanded while
+  actively "operating" it -- i.e. if you cancel out of a method you
+  opened it into (tap Photo, the album opens, tap X), it should resume
+  right where you left off; anything else should leave it collapsed.
+  Asked for a careful-mode pass: understand the actual state logic
+  before changing anything, present it for feedback first.
+- ROOT CAUSE (FoodForm): the shared overlayBack() handler, called
+  whenever ANY full-panel overlay closes (Describe, Manual, Edit),
+  unconditionally reopened the picker whenever the basket wasn't empty
+  -- conflating two unrelated flows. Editing an existing basket item
+  (tap its edit icon) or "fix with AI" re-correcting one (its own
+  onCorrect button) have nothing to do with the "Add another item"
+  picker, but since the basket is non-empty essentially every time you
+  edit/correct something already in it, doing either always reopened
+  the picker as a side effect -- matching exactly what Marco described
+  ("came back from a food item detail... it's expanded").
+- SECOND GAP (opposite direction, both copies): handleCamera/
+  handlePhoto set pickerOpen(false) *before* launching the native
+  camera/library, and nothing ever reopened it if the user canceled
+  without picking a photo -- so canceling a Camera/Photo pick actually
+  lost your place, the opposite of what Marco wanted for that exact
+  case.
+- BONUS BUG FOUND WHILE TRACING THIS: overlayBack() never cleared
+  correctingIdx. Canceling out of a "fix with AI" re-scan (Describe in
+  correcting mode) left correctingIdx pointing at that basket index
+  indefinitely -- the next unrelated Describe-add via the picker would
+  have silently replaced that old item instead of adding a new one.
+  Fixed as part of the same change (now cleared unconditionally).
+- FIX: overlayBack() now only reopens the picker when backing out of an
+  add-attempt reached *through* it -- Describe in normal add-mode
+  (correctingIdx === null) or Manual -- never when activeOverlay ===
+  'edit' or correctingIdx is set, regardless of whether that flow ended
+  in cancel or save. Also dropped the "only if basket.length > 0"
+  condition -- canceling an add attempt should resume the picker
+  regardless of what's already in the basket. handleCamera/handlePhoto
+  (both copies) now call setPickerOpen(true) when the native
+  capture returns null (user canceled), matching the same resume
+  behavior. Applied symmetrically in both FoodForm and LogEntryContent
+  -- they're separate, non-shared copies of this pattern.
+- NOT (YET) TOUCHED: Pantry's own "Create a meal" / "Add another item"
+  sections (PantryFoodItemDetail.tsx, PantryMealDetail.tsx) use the
+  same AddAnotherSection component but their own local open-state never
+  reopens on cancel today either -- left as-is pending Marco's call on
+  whether to bring those in line too (asked, not yet confirmed).
+- NOT YET DEVICE-CONFIRMED -- verified via code review and the existing
+  test suite (no new automated coverage added, this is UI-interaction
+  state logic verified by tracing, matching the project's existing
+  approach for this kind of fix — see KNOWN GAPS).
+- tsc: clean. lint: clean. vitest: 57 passed, 8 skipped (unchanged).
+
+================================================================
 ROUND 203: DOCUMENTED MISSING SHARED-BETA STEP FOR ANDROID BUILDS (2026-07-12)
 ================================================================
 Files: ANDROID.md
